@@ -1,0 +1,77 @@
+openapi: 3.0.0
+info:
+  title: Oblivra API
+  description: Headless REST API for interacting with the OblivraShell security platform.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Oblivra instance
+paths:
+  /siem/search:
+    post:
+      summary: Search SIEM Events
+      description: Search across all collected security events and logs.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  description: Bleve search query string (e.g. `+EventType:ssh_login -Status:success`)
+                filters:
+                  type: object
+                  properties:
+                    limit:
+                      type: integer
+                      default: 100
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  count:
+                    type: integer
+                  events:
+                    type: array
+                    items:
+                      type: object
+
+  /events:
+    get:
+      summary: WebSocket Event Stream
+      description: Upgrade connection to a WebSocket taking a stream of all internal system events via the central EventBus.
+      responses:
+        "101":
+          description: Switching Protocols to WebSocket
+
+  /alerts:
+    get:
+      summary: List Active Alerts
+      description: Retrieve the list of active security anomalies.
+      responses:
+        "200":
+          description: Active alerts
+
+  /ingest/status:
+    get:
+      summary: Ingestion Pipeline Status
+      description: Retrieve metrics for the log ingest pipeline (e.g. Events Per Second).
+      responses:
+        "200":
+          description: Ingest pipeline metrics
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer

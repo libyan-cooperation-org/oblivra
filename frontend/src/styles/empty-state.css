@@ -1,0 +1,84 @@
+/* ===== Sovereign Tactical Empty State — Mission Alerts ===== */
+
+.empty-state-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 32px;
+    text-align: center;
+    position: relative;
+    min-height: 280px;
+    background: var(--bg-primary);
+    border: 1px dashed var(--border-primary);
+    border-radius: var(--radius-lg);
+}
+
+.empty-state-container.compact {
+    padding: 24px;
+    min-height: 160px;
+}
+
+/* Removed Blurs/Glows */
+.empty-state-glow {
+    display: none;
+}
+
+.empty-state-icon-ring {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: none;
+    border: none;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.empty-state-icon {
+    font-size: 32px;
+    color: var(--text-muted);
+}
+
+.empty-state-container.compact .empty-state-icon {
+    font-size: 24px;
+}
+
+.empty-state-title {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.empty-state-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 300px;
+    line-height: 1.4;
+    margin-bottom: 20px;
+    font-family: var(--font-ui);
+}
+
+.empty-state-action {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    padding: 8px 20px;
+    cursor: pointer;
+    text-transform: uppercase;
+    border-radius: var(--radius-xs);
+    transition: all var(--transition-fast);
+}
+
+.empty-state-action:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}

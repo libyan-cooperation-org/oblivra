@@ -1,0 +1,99 @@
+id: soc2-type2
+name: SOC 2 Type II
+version: "2022"
+description: Service Organization Control 2 — Trust Services Criteria
+category: enterprise
+
+controls:
+  - id: "CC1.1"
+    title: "Control Environment"
+    checks:
+      - type: compliance_pack_loaded
+        description: "Security governance framework is established"
+
+  - id: "CC2.1"
+    title: "Communication and Information"
+    checks:
+      - type: alerting_enabled
+        description: "Security events are communicated to relevant parties"
+
+  - id: "CC3.1"
+    title: "Risk Assessment"
+    checks:
+      - type: audit_log_exists
+        description: "Risk-relevant events tracked in audit log"
+        params:
+          event_types: ["risk_assessment", "vulnerability_scan"]
+
+  - id: "CC5.1"
+    title: "Control Activities"
+    checks:
+      - type: rbac_enabled
+        description: "Access controls are deployed consistently"
+
+  - id: "CC6.1"
+    title: "Logical and Physical Access Controls"
+    checks:
+      - type: mfa_enabled
+        description: "Multi-factor authentication for privileged operations"
+      - type: failed_login_threshold
+        description: "Failed login alerting configured"
+        params:
+          max_failures: 5
+          window_minutes: 15
+      - type: audit_log_exists
+        description: "Access attempts are logged"
+        params:
+          event_types: ["login_success", "login_failed", "ssh_connect"]
+
+  - id: "CC6.6"
+    title: "System Boundaries"
+    checks:
+      - type: tls_enabled
+        description: "Network boundaries enforced with TLS"
+
+  - id: "CC7.1"
+    title: "System Monitoring"
+    checks:
+      - type: alerting_enabled
+        description: "Continuous monitoring and anomaly detection active"
+      - type: fim_enabled
+        description: "File integrity monitoring deployed"
+
+  - id: "CC7.2"
+    title: "Anomaly Detection"
+    checks:
+      - type: audit_log_exists
+        description: "Anomalies and security events are captured"
+        params:
+          event_types: ["anomaly_detected", "threat_detected"]
+
+  - id: "CC7.3"
+    title: "Security Incident Response"
+    checks:
+      - type: evidence_locker_available
+        description: "Incident evidence collection is available"
+      - type: merkle_integrity_valid
+        description: "Evidence integrity is cryptographically verifiable"
+
+  - id: "CC8.1"
+    title: "Change Management"
+    checks:
+      - type: audit_log_exists
+        description: "System changes are logged and traceable"
+        params:
+          event_types: ["config_change", "code_deploy"]
+
+  - id: "A1.1"
+    title: "Availability"
+    checks:
+      - type: alerting_enabled
+        description: "Availability monitoring and alerting the system"
+
+  - id: "PI1.1"
+    title: "Processing Integrity"
+    checks:
+      - type: merkle_integrity_valid
+        description: "Data processing integrity validated via Merkle tree"
+      - type: encryption_enabled
+        description: "Data integrity at rest ensured via encryption"

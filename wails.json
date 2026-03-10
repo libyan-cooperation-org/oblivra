@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "oblivrashell",
+  "outputfilename": "oblivrashell",
+  "frontend:install": "bun install",
+  "frontend:build": "bun run build",
+  "frontend:dev:watcher": "bun run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "KingKnull",
+    "email": "you@example.com"
+  },
+  "info": {
+    "companyName": "Sovereign Security",
+    "productName": "OblivraShell",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2026",
+    "comments": "OblivraShell Security Platform"
+  }
+}

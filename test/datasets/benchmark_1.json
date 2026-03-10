@@ -1,0 +1,51 @@
+[
+  {
+    "type": "log",
+    "host": "soc-srv-01",
+    "payload": "Mar 10 02:22:01 soc-srv-01 sshd[1234]: Accepted password for root from 192.168.1.50 port 54321 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-2"
+  },
+  {
+    "type": "log",
+    "host": "soc-srv-01",
+    "payload": "Mar 10 02:23:05 soc-srv-01 kernel: [1234.56] Out of memory: Kill process 5678 (worker) score 950 or sacrifice child",
+    "expect_alert": true,
+    "expected_id": "builtin-1"
+  },
+  {
+    "type": "log",
+    "host": "dmz-web-01",
+    "payload": "Mar 10 02:24:10 dmz-web-01 sshd[2345]: Failed password for invalid user admin from 10.0.0.100 port 12345 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "dmz-web-01",
+    "payload": "Mar 10 02:24:15 dmz-web-01 sshd[2345]: Failed password for invalid user admin from 10.0.0.100 port 12346 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "soc-srv-01",
+    "payload": "Mar 10 02:25:01 soc-srv-01 systemd[1]: Started Periodic Background Migration.",
+    "expect_alert": false
+  },
+  {
+    "type": "telemetry",
+    "host": "soc-srv-01",
+    "telemetry": {
+      "host_id": "soc-srv-01",
+      "cpu_usage": 98.5,
+      "mem_used_mb": 15000,
+      "mem_total_mb": 16384,
+      "disk_used_gb": 40,
+      "disk_total_gb": 500,
+      "load_avg": 5.2
+    },
+    "expect_alert": true,
+    "expected_id": "mt-1"
+  }
+]

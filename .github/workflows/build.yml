@@ -1,0 +1,130 @@
+name: Wails Build
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            output: oblivrashell.exe
+          - os: ubuntu-latest
+            platform: linux/amd64
+            output: oblivrashell
+          - os: macos-latest
+            platform: darwin/universal
+            output: oblivrashell.app
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          check-latest: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.0-dev pkg-config build-essential
+
+      - name: Build Wails App
+        shell: bash
+        run: |
+          wails build -platform ${{ matrix.platform }} -clean
+
+      - name: Package Artifacts
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          if [[ ! $GITHUB_REF == refs/tags/* ]]; then
+            VERSION="dev"
+          fi
+
+          # Map OS for naming
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then 
+            OS_NAME="windows"
+            EXT="zip"
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then 
+            OS_NAME="linux"
+            EXT="tar.gz"
+          else 
+            OS_NAME="macos"
+            EXT="zip"
+          fi
+
+          # Map Arch
+          ARCH_NAME="amd64"
+          if [[ "${{ matrix.platform }}" == *"universal"* ]]; then
+            ARCH_NAME="universal"
+          fi
+
+          ASSET_NAME="oblivrashell_${VERSION}_${OS_NAME}_${ARCH_NAME}.${EXT}"
+
+          mkdir -p dist
+          cd build/bin
+
+          if [[ "$EXT" == "zip" ]]; then
+            if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+              7z a ../../dist/${ASSET_NAME} ${{ matrix.output }}
+            else
+              zip -r ../../dist/${ASSET_NAME} ${{ matrix.output }}
+            fi
+          else
+            tar -czf ../../dist/${ASSET_NAME} ${{ matrix.output }}
+          fi
+
+          # Generate checksum
+          cd ../../dist
+          sha256sum ${ASSET_NAME} > ${ASSET_NAME}.sha256
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oblivrashell-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

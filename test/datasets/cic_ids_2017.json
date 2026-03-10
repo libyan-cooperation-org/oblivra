@@ -1,0 +1,37 @@
+[
+  {
+    "type": "log",
+    "host": "ids-target-01",
+    "payload": "2026-03-10T14:01:01Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54321 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-01",
+    "payload": "2026-03-10T14:01:05Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54322 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-01",
+    "payload": "2026-03-10T14:01:10Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54323 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-01",
+    "payload": "2026-03-10T14:01:15Z 192.168.10.50 sshd[100]: Accepted password for root from 172.16.0.5 port 54324 ssh2",
+    "expect_alert": true,
+    "expected_id": "linux_brute_force_success"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-01",
+    "payload": "2026-03-10T14:05:01Z 192.168.10.50 kernel: [9999.99] Out of memory: Kill process 1234 (java) score 900",
+    "expect_alert": true,
+    "expected_id": "builtin-1"
+  }
+]

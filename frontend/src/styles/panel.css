@@ -1,0 +1,33 @@
+.panel-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: var(--padding-md);
+    gap: var(--gap-md);
+    box-sizing: border-box;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-primary);
+    padding-bottom: var(--padding-sm);
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.panel-actions {
+    display: flex;
+    gap: var(--gap-sm);
+}
+
+.panel-content {
+    flex: 1;
+    overflow: hidden;
+}

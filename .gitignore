@@ -1,0 +1,46 @@
+# Go
+/build/bin/
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+*.zip
+*.bin
+
+# Logs & Data
+*.log
+*.txt
+*.db
+*.enc
+*.pem
+*.key
+soak_server_stdout*
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/bun.lockb
+
+# Wails
+frontend/wailsjs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local

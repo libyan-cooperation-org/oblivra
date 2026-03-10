@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  sovereign-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sovereign-server
+    restart: unless-stopped
+    # Domain 6 Hardening: Infrastructure Isolation
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "8080:8080" # REST API & WebSocket Event Stream
+      - "8443:8443" # Raft Consensus & Private Node Communication
+    volumes:
+      - sovereign_data:/var/lib/oblivrashell/db
+      - sovereign_logs:/var/lib/oblivrashell/logs
+      - ./plugins:/var/lib/oblivrashell/plugins:ro # Mount local plugins as read-only
+      # We need a small tmpfs for temporary daemon execution writing (if needed by Go/SQLite)
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64m
+    environment:
+      - GIN_MODE=release
+
+volumes:
+  sovereign_data:
+  sovereign_logs:

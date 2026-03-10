@@ -1,0 +1,42 @@
+{
+  "name": "oblivrashell-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ --ext .ts,.tsx",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@bokuweb/zstd-wasm": "^0.0.27",
+    "@solid-primitives/keyboard": "^1.3.5",
+    "@solidjs/router": "^0.15.4",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-search": "^0.15.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "autoprefixer": "^10.4.27",
+    "echarts": "^6.0.0",
+    "esbuild": "^0.27.3",
+    "golden-layout": "^2.6.0",
+    "lodash": "^4.17.23",
+    "postcss": "^8.5.8",
+    "solid-js": "^1.8.0",
+    "tailwindcss": "^4.2.1",
+    "xterm-addon-search": "^0.13.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.24",
+    "@types/node": "^20.0.0",
+    "solid-devtools": "^0.30.0",
+    "typescript": "^5.4.0",
+    "vite": "^7.3.1",
+    "vite-plugin-solid": "^2.10.0"
+  }
+}

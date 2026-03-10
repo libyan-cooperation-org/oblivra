@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Icon Generator</title>
+    <style>
+        body { background: #0d1117; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .container { text-align: center; }
+        canvas { display: none; } /* Hidden canvas for processing */
+        svg { width: 512px; height: 512px; margin-bottom: 20px; box-shadow: 0 0 50px rgba(0, 240, 255, 0.2); border-radius: 20px; }
+        button { background: #238636; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #2ea043; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Sovereign Terminal Icon (Preview)</h2>
+    
+    <!-- SVG SOURCE CODE START -->
+    <svg id="iconSvg" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="8" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+        </defs>
+
+        <!-- Shield Background -->
+        <path d="M 256 48 C 110 48 64 140 64 140 V 240 C 64 360 150 440 256 488 C 362 440 448 360 448 240 V 140 C 448 140 402 48 256 48 Z" 
+              fill="url(#shieldGrad)" stroke="url(#borderGrad)" stroke-width="16" />
+
+        <!-- Terminal Prompt Symbol (>_) -->
+        <g transform="translate(140, 160) scale(0.8)">
+            <!-- The Bracket -->
+            <path d="M 20 20 L 140 128 L 20 236" 
+                  fill="none" stroke="#38bdf8" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" 
+                  filter="url(#glow)"/>
+            
+            <!-- The Underscore -->
+            <path d="M 160 236 L 280 236" 
+                  fill="none" stroke="#22c55e" stroke-width="32" stroke-linecap="round" 
+                  filter="url(#glow)"/>
+        </g>
+    </svg>
+    <!-- SVG SOURCE CODE END -->
+
+    <br>
+    <button onclick="downloadPNG()">Download appicon.png (1024x1024)</button>
+</div>
+
+<canvas id="canvas" width="1024" height="1024"></canvas>
+
+<script>
+    function downloadPNG() {
+        const svg = document.getElementById('iconSvg');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const data = (new XMLSerializer()).serializeToString(svg);
+        const DOMURL = window.URL || window.webkitURL || window;
+
+        const img = new Image();
+        const svgBlob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+        const url = DOMURL.createObjectURL(svgBlob);
+
+        img.onload = function () {
+            ctx.clearRect(0, 0, 1024, 1024);
+            // Draw 1024x1024 (2x scale of the 512 viewBox)
+            ctx.drawImage(img, 0, 0, 1024, 1024);
+            DOMURL.revokeObjectURL(url);
+
+            const imgURI = canvas
+                .toDataURL('image/png')
+                .replace('image/png', 'image/octet-stream');
+
+            const evt = new MouseEvent('click', {
+                view: window,
+                bubbles: false,
+                cancelable: true
+            });
+
+            const a = document.createElement('a');
+            a.setAttribute('download', 'appicon.png');
+            a.setAttribute('href', imgURI);
+            a.setAttribute('target', '_blank');
+            a.dispatchEvent(evt);
+        };
+
+        img.src = url;
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,212 @@
+.file-browser {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-left: 1px solid var(--glass-border);
+    width: 380px;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    position: relative;
+    border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-xl);
+}
+
+.fb-header {
+    display: flex;
+    flex-direction: column;
+    padding: var(--padding-sm);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-primary);
+    gap: var(--gap-sm);
+}
+
+.fb-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-xs);
+}
+
+.fb-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    padding: var(--padding-xs) 0;
+    color: var(--text-secondary);
+}
+
+.fb-breadcrumb-item {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+    transition: all var(--transition-fast);
+}
+
+.fb-breadcrumb-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.fb-separator {
+    opacity: 0.5;
+}
+
+.fb-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.fb-icon-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.fb-icon-btn:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+}
+
+.fb-content {
+    flex: 1;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    min-height: 200px;
+    position: relative;
+    border: 2px solid transparent;
+    transition: all var(--transition-fast);
+}
+
+.fb-content.drag-over {
+    background: rgba(0, 122, 255, 0.05);
+    border-color: var(--accent-primary);
+    box-shadow: inset 0 0 20px rgba(0, 122, 255, 0.1);
+}
+
+.fb-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.fb-item {
+    display: flex;
+    align-items: center;
+    padding: var(--padding-sm) var(--padding-md);
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid transparent;
+    transition: background 0.1s;
+}
+
+.fb-item:hover {
+    background: var(--bg-hover);
+}
+
+.fb-item.selected {
+    background: var(--bg-active);
+}
+
+.fb-icon {
+    font-size: 16px;
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+}
+
+.fb-name {
+    flex: 1;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fb-size {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    margin-left: 8px;
+}
+
+/* Context Menu */
+.fb-context-menu {
+    position: fixed;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    padding: 4px;
+    min-width: 140px;
+}
+
+.cm-item {
+    padding: var(--padding-xs) var(--padding-md);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.cm-item:hover {
+    background: var(--accent);
+    color: white;
+}
+
+.cm-item.danger:hover {
+    background: var(--error);
+}
+
+.fb-empty {
+    padding: var(--padding-xl) var(--padding-lg);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.skeleton-row {
+    height: 18px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-xs);
+    margin: 8px var(--padding-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.skeleton-row::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+    animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}

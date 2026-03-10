@@ -1,0 +1,18 @@
+id: "cloud_suspicious_iam_creation"
+name: "Suspicious IAM User Creation"
+description: "Detects the creation of an unexpected AWS IAM user, potentially signaling persistence tactics by an attacker."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0003" # Persistence
+  - "TA0004" # Privilege Escalation
+mitre_techniques:
+  - "T1098" # Account Manipulation
+conditions:
+  EventType: "aws_CreateUser"
+  # Alert if it's NOT our terraform service role performing this
+  # Simplified for Go regexp compatibility (no lookarounds)
+  User: "regex:^[^ta].*$" # Matches anything not starting with t or a (coarse but valid)

@@ -1,0 +1,111 @@
+id: pci-dss-4.0
+name: PCI DSS v4.0
+version: "4.0"
+description: Payment Card Industry Data Security Standard
+category: financial
+
+controls:
+  - id: "1.1"
+    title: "Network Security Controls"
+    description: "Install and maintain network security controls"
+    checks:
+      - type: audit_log_exists
+        description: "Firewall change events are logged"
+        params:
+          event_types: ["firewall_change", "network_config_change"]
+      - type: tls_enabled
+        description: "TLS is enabled for all external listeners"
+
+  - id: "1.2"
+    title: "Secure Network Configuration"
+    description: "Apply secure configurations to all system components"
+    checks:
+      - type: encryption_enabled
+        description: "Database encryption is active"
+
+  - id: "2.1"
+    title: "Strong Access Controls"
+    description: "Identify users and authenticate access to system components"
+    checks:
+      - type: mfa_enabled
+        description: "Multi-factor authentication is available"
+      - type: failed_login_threshold
+        description: "Failed login alerting is configured"
+        params:
+          max_failures: 5
+          window_minutes: 10
+
+  - id: "3.1"
+    title: "Protect Stored Account Data"
+    description: "Protect stored account data with strong cryptography"
+    checks:
+      - type: encryption_enabled
+        description: "Vault encryption (AES-256) is active"
+
+  - id: "5.1"
+    title: "Malware Protection"
+    description: "Protect all systems against malware"
+    checks:
+      - type: fim_enabled
+        description: "File integrity monitoring is active"
+
+  - id: "6.1"
+    title: "Secure Development"
+    description: "Develop and maintain secure systems and software"
+    checks:
+      - type: audit_log_exists
+        description: "Code change audit events exist"
+        params:
+          event_types: ["code_deploy", "config_change"]
+
+  - id: "7.1"
+    title: "Restrict Access by Business Need"
+    description: "Restrict access to system components by business need to know"
+    checks:
+      - type: rbac_enabled
+        description: "Role-based access controls are enforced"
+
+  - id: "8.1"
+    title: "Identify and Authenticate Users"
+    description: "Identify users and authenticate access"
+    checks:
+      - type: audit_log_exists
+        description: "Authentication events are captured"
+        params:
+          event_types: ["login_success", "login_failed", "ssh_connect"]
+
+  - id: "10.1"
+    title: "Log and Monitor Activity"
+    description: "Log and monitor all access to system components and cardholder data"
+    checks:
+      - type: min_log_retention_days
+        description: "Logs are retained for at least 90 days"
+        params:
+          days: 90
+      - type: audit_log_exists
+        description: "Audit trail is active and contains entries"
+        params:
+          event_types: ["*"]
+      - type: merkle_integrity_valid
+        description: "Audit log integrity is verifiable via Merkle tree"
+
+  - id: "10.2"
+    title: "Anomaly Detection"
+    description: "Detect and respond to failures of critical security controls"
+    checks:
+      - type: alerting_enabled
+        description: "Security alerting engine is operational"
+
+  - id: "11.1"
+    title: "Security Testing"
+    description: "Test security of systems and networks regularly"
+    checks:
+      - type: vulnerability_scan_exists
+        description: "Vulnerability scanning capability exists"
+
+  - id: "12.1"
+    title: "Information Security Policy"
+    description: "Support information security with organizational policies"
+    checks:
+      - type: compliance_pack_loaded
+        description: "Compliance framework is loaded and evaluable"

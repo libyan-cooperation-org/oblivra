@@ -1,0 +1,87 @@
+package security
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/kingknull/oblivrashell/internal/logger"
+)
+
+// DecoyType defines the category of honeypot/decoy element
+type DecoyType string
+
+const (
+	DecoyCredential DecoyType = "credential"
+	DecoyFile       DecoyType = "file"
+	DecoyPort       DecoyType = "port"
+)
+
+// HoneypotDecoy represents a single decoy element monitored for interaction.
+type HoneypotDecoy struct {
+	ID          string     `json:"id"`
+	Type        DecoyType  `json:"type"`
+	Target      string     `json:"target"` // HostID or path
+	Value       string     `json:"value"`  // e.g., Username or Port number
+	DeployTime  time.Time  `json:"deploy_time"`
+	LastTrigger *time.Time `json:"last_trigger,omitempty"`
+}
+
+// HoneypotService manages decoy "honeypot" elements across the infrastructure.
+type HoneypotService struct {
+	log    *logger.Logger
+	decoys map[string]HoneypotDecoy
+	mu     sync.RWMutex
+}
+
+func NewHoneypotService(log *logger.Logger) *HoneypotService {
+	return &HoneypotService{
+		log:    log.WithPrefix("honeypot"),
+		decoys: make(map[string]HoneypotDecoy),
+	}
+}
+
+func (s *HoneypotService) Startup(ctx context.Context) {}
+func (s *HoneypotService) Shutdown()                   {}
+func (s *HoneypotService) Name() string                { return "HoneypotService" }
+
+// InjectHoneypotCredential creates a decoy credential that should never be used.
+func (s *HoneypotService) InjectHoneypotCredential(id string, username string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	decoy := HoneypotDecoy{
+		ID:         id,
+		Type:       DecoyCredential,
+		Value:      username,
+		DeployTime: time.Now(),
+	}
+	s.decoys[id] = decoy
+	s.log.Info("Injected honeypot credential: %s", username)
+	return id
+}
+
+// RegisterTrigger records an interaction with a decoy element.
+func (s *HoneypotService) RegisterTrigger(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if decoy, ok := s.decoys[id]; ok {
+		now := time.Now()
+		decoy.LastTrigger = &now
+		s.decoys[id] = decoy
+		s.log.Warn("HONEYPOT TRIGGERED: %s interaction with %s (%s)", decoy.ID, decoy.Value, decoy.Type)
+	}
+}
+
+// GetDecoyStatus returns all active decoys and their state.
+func (s *HoneypotService) GetDecoyStatus() []HoneypotDecoy {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var list []HoneypotDecoy
+	for _, d := range s.decoys {
+		list = append(list, d)
+	}
+	return list
+}

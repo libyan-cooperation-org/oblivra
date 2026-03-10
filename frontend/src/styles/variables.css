@@ -1,0 +1,203 @@
+/* ===== OblivraShell — SOVEREIGN BRUTALISM ===== */
+/* UI/UX Tactical Overhaul: True blacks, sharp edges, high information density */
+
+:root {
+  /* ── Surfaces (Dark, High Contrast) ── */
+  --surface-0: #0a0a0a;
+  /* True black shell */
+  --surface-1: #171717;
+  /* Panel backgrounds */
+  --surface-2: #262626;
+  /* Elevated or hovered panels */
+
+  /* Legacy mapping (gradually phasing out) */
+  --bg-primary: var(--surface-0);
+  --bg-secondary: var(--surface-1);
+  --bg-tertiary: var(--surface-2);
+  --bg-surface: var(--surface-1);
+  --bg-hover: var(--surface-2);
+  --bg-active: #333333;
+  --bg-selected: rgba(6, 182, 212, 0.15);
+  /* Cyan tint */
+  --bg-elevated: var(--surface-2);
+
+  /* ── Borders (Harsh, Visible Structure) ── */
+  --border-primary: #404040;
+  --border-secondary: #525252;
+  --border-active: #06b6d4;
+  /* Cyan accent */
+  --border-subtle: #262626;
+
+  /* ── Semantic Alerts (High Saturation) ── */
+  --alert-critical: #dc2626;
+  /* Pure Red */
+  --alert-high: #ea580c;
+  /* Orange */
+  --alert-medium: #f59e0b;
+  /* Yellow */
+  --alert-low: #84cc16;
+  /* Lime Green */
+  --alert-info: #06b6d4;
+  /* Cyan */
+
+  /* Legacy Status Mapping */
+  --status-online: var(--alert-low);
+  --status-degraded: var(--alert-medium);
+  --status-offline: var(--alert-critical);
+  --status-info: var(--alert-info);
+  --status-warning: var(--alert-high);
+
+  /* ── Accents ── */
+  --accent-primary: #06b6d4;
+  /* Data Cyan */
+  --accent-primary-rgb: 6, 182, 212;
+  --accent-secondary: #d946ef;
+  /* Magenta */
+  --accent-hover: #0891b2;
+  --accent-gradient: none;
+  /* Killed ALL gradients */
+
+  /* ── Typography (Code-First) ── */
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Fira Code", monospace;
+  --font-display: var(--font-mono);
+  /* Force monospace for displays */
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-black: 800;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+
+  /* ── Text Colors (High Contrast) ── */
+  --text-primary: #ffffff;
+  /* Pure white for data/headers */
+  --text-secondary: #a3a3a3;
+  /* High contrast gray */
+  --text-muted: #737373;
+  /* Secondary details */
+  --text-accent: var(--accent-primary);
+  --text-heading: #ffffff;
+
+  /* ── Spacing (Dense Layouts) ── */
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 12px;
+  --gap-lg: 16px;
+  --gap-xl: 24px;
+  --gap-2xl: 32px;
+
+  --padding-xs: 4px 8px;
+  --padding-sm: 6px 12px;
+  --padding-md: 8px 16px;
+  --padding-lg: 12px 20px;
+  --padding-xl: 16px 24px;
+
+  /* ── Radius (BRUTALISM: ZERO ROUNDED CORNERS) ── */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-full: 0px;
+
+  /* ── Shadows (BRUTALISM: ZERO DROP SHADOWS) ── */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-glow: none;
+
+  /* ── Transitions (Instant or purely functional) ── */
+  --transition-fast: 100ms linear;
+  --transition-normal: 150ms linear;
+  --transition-spring: none;
+  --transition-fluid: none;
+
+  /* ── Layout ── */
+  --header-height: 44px;
+  --nav-width: 64px;
+  /* Command Rail width */
+  --sidebar-width: 280px;
+  --content-padding: 0px;
+  /* Edge to edge */
+  --page-max-width: 100%;
+  /* No artificial constraints */
+
+  /* ── Focus Ring (Hard pixel borders) ── */
+  --focus-ring: 0 0 0 2px var(--accent-primary);
+  --focus-ring-offset: none;
+
+  /* ── Tactical Visual Effects ── */
+  --scanline-opacity: 0.05;
+  --flicker-opacity: 0.02;
+  --war-red: #991b1b;
+  --war-glow: rgba(153, 27, 27, 0.4);
+}
+
+/* ── Global Focus Ring ── */
+*:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent-primary);
+}
+
+/* ── CRT Scanline Keyframes ── */
+@keyframes crt-flicker {
+  0% { opacity: 0.98; }
+  5% { opacity: 0.95; }
+  10% { opacity: 0.99; }
+  15% { opacity: 0.94; }
+  20% { opacity: 1; }
+  25% { opacity: 0.96; }
+  30% { opacity: 0.98; }
+  35% { opacity: 0.93; }
+  40% { opacity: 0.99; }
+  45% { opacity: 0.95; }
+  50% { opacity: 0.97; }
+  55% { opacity: 0.94; }
+  60% { opacity: 0.99; }
+  65% { opacity: 0.96; }
+  70% { opacity: 0.98; }
+  75% { opacity: 0.94; }
+  80% { opacity: 0.99; }
+  85% { opacity: 0.95; }
+  90% { opacity: 0.98; }
+  95% { opacity: 0.96; }
+  100% { opacity: 0.99; }
+}
+
+@keyframes war-aberration {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(1px, -1px); }
+  50% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-primary) !important;
+  box-shadow: none !important;
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
+/* Eliminate useless animations */
+.page-enter {
+  animation: none;
+}

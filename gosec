@@ -1,0 +1,5506 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion uint64 -\u003e int64",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\certificate.go",
+			"code": "60: \tvalidAfter := time.Unix(int64(cert.ValidAfter), 0)\n61: \tvalidBefore := time.Unix(int64(cert.ValidBefore), 0)\n62: \n",
+			"line": "61",
+			"column": "32",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion uint64 -\u003e int64",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\certificate.go",
+			"code": "59: \tnow := time.Now()\n60: \tvalidAfter := time.Unix(int64(cert.ValidAfter), 0)\n61: \tvalidBefore := time.Unix(int64(cert.ValidBefore), 0)\n",
+			"line": "60",
+			"column": "31",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uintptr",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\memory\\secure.go",
+			"code": "55: \t\taddr:  addr,\n56: \t\tsize:  uintptr(size),\n57: \t\tdata:  slice,\n",
+			"line": "56",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uintptr",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\memory\\secure.go",
+			"code": "42: \t// 2. Lock the memory into physical RAM to prevent swapping/paging\n43: \terr = windows.VirtualLock(addr, uintptr(size))\n44: \tif err != nil {\n",
+			"line": "43",
+			"column": "41",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uintptr",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\memory\\secure.go",
+			"code": "33: \t\t0,\n34: \t\tuintptr(size),\n35: \t\twindows.MEM_COMMIT|windows.MEM_RESERVE,\n",
+			"line": "34",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint32",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "61: \t\tUserName:           userPtr,\n62: \t\tCredentialBlobSize: uint32(len(blob)),\n63: \t\tCredentialBlob:     blobPtr,\n",
+			"line": "62",
+			"column": "29",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint32",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "66: \tlenBuf := make([]byte, 4)\n67: \tbinary.LittleEndian.PutUint32(lenBuf, uint32(len(payload)))\n68: \n",
+			"line": "67",
+			"column": "46",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ueba\\anomaly.go",
+			"code": "102: \t}\n103: \tsplitVal := min + rand.Float64()*(max-min)\n104: \n",
+			"line": "103",
+			"column": "20",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ueba\\anomaly.go",
+			"code": "95: \t}\n96: \tattr := features[rand.Intn(len(features))]\n97: \n",
+			"line": "96",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\tenant_test\\main.go",
+			"code": "133: \t\t\t\t\tif len(creds) \u003e 0 {\n134: \t\t\t\t\t\tcredRepo.GetByID(ctx, creds[rand.Intn(len(creds))].ID)\n135: \t\t\t\t\t}\n",
+			"line": "134",
+			"column": "35",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\tenant_test\\main.go",
+			"code": "126: \t\t\tfor op := 0; op \u003c opsPerTenant; op++ {\n127: \t\t\t\tswitch rand.Intn(3) {\n128: \t\t\t\tcase 0:\n",
+			"line": "127",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify may be set to true.",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\threatintel\\taxii.go",
+			"code": "47: \ttransport := \u0026http.Transport{\n48: \t\tTLSClientConfig: \u0026tls.Config{InsecureSkipVerify: skipVerify},\n49: \t}\n",
+			"line": "48",
+			"column": "52",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify may be set to true.",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\logsources\\sources.go",
+			"code": "641: \tdialer := websocket.Dialer{\n642: \t\tTLSClientConfig: \u0026tls.Config{InsecureSkipVerify: src.TLSSkipVerify},\n643: \t}\n",
+			"line": "642",
+			"column": "52",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify may be set to true.",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\logsources\\sources.go",
+			"code": "84: \t\tTLSClientConfig: \u0026tls.Config{\n85: \t\t\tInsecureSkipVerify: src.TLSSkipVerify,\n86: \t\t},\n",
+			"line": "85",
+			"column": "24",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G704",
+			"details": "SSRF via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\auth.go",
+			"code": "100: \n101: \tconn, err := net.Dial(\"unix\", sock)\n102: \tif err != nil {\n",
+			"line": "101",
+			"column": "23",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\eventbus\\bus.go",
+			"code": "35: \tEventCredentialDeleted  EventType = \"credential:deleted\"\n36: \tEventCredentialAccessed EventType = \"credential:accessed\"\n37: \n",
+			"line": "36",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\eventbus\\bus.go",
+			"code": "34: \tEventCredentialCreated  EventType = \"credential:created\"\n35: \tEventCredentialDeleted  EventType = \"credential:deleted\"\n36: \tEventCredentialAccessed EventType = \"credential:accessed\"\n",
+			"line": "35",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\eventbus\\bus.go",
+			"code": "33: \n34: \tEventCredentialCreated  EventType = \"credential:created\"\n35: \tEventCredentialDeleted  EventType = \"credential:deleted\"\n",
+			"line": "34",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "142: \tsidecarPath := bundlePath + \".sha256\"\n143: \tif err := os.WriteFile(sidecarPath, []byte(hashStr), 0644); err != nil {\n144: \t\treturn \"\", fmt.Errorf(\"write sidecar: %w\", err)\n",
+			"line": "143",
+			"column": "24",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "79: \n80: \tif err := os.WriteFile(exePath, executable, 0755); err != nil {\n81: \t\tos.Rename(oldPath, exePath)\n",
+			"line": "80",
+			"column": "24",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "203: \n204: \t\tdf, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())\n205: \t\tif err != nil {\n",
+			"line": "204",
+			"column": "25",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "201: \n202: \t\tos.MkdirAll(filepath.Dir(destPath), 0700)\n203: \n",
+			"line": "202",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G703",
+			"details": "Path traversal via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "197: \t\tif f.FileInfo().IsDir() {\n198: \t\t\tos.MkdirAll(destPath, 0700)\n199: \t\t\tcontinue\n",
+			"line": "198",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "367",
+				"url": "https://cwe.mitre.org/data/definitions/367.html"
+			},
+			"rule_id": "G122",
+			"details": "Filesystem operation in filepath.Walk/WalkDir callback uses race-prone path; consider root-scoped APIs (e.g. os.Root) to prevent symlink TOCTOU traversal",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "118: \t\t}\n119: \t\tdf, err := os.Open(path)\n120: \t\tif err != nil {\n",
+			"line": "119",
+			"column": "21",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": null,
+			"rule_id": "G702",
+			"details": "Command injection via taint analysis",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "79: \t\t}\n80: \t\tcmd = exec.Command(shell, \"-l\")\n81: \t}\n",
+			"line": "80",
+			"column": "21",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G118",
+			"details": "context cancellation function returned by WithCancel/WithTimeout/WithDeadline is not called",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\plugin\\sandbox.go",
+			"code": "135: \t// We will rely on SetContext for execution time limits and graceful termination.\n136: \tctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.manifest.TimeoutSec)*time.Second)\n137: \t// Note: In an ideal world we'd store cancel in the Sandbox struct to call on Stop,\n",
+			"line": "136",
+			"column": "36",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G118",
+			"details": "context cancellation function returned by WithCancel/WithTimeout/WithDeadline is not called",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\transfer_manager.go",
+			"code": "46: \tid := uuid.New().String()\n47: \tctx, cancel := context.WithCancel(context.Background())\n48: \n",
+			"line": "47",
+			"column": "35",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G118",
+			"details": "context cancellation function returned by WithCancel/WithTimeout/WithDeadline is not called",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\logsource_service.go",
+			"code": "280: \t}\n281: \tctx, cancel := context.WithCancel(s.ctx)\n282: \ts.activeStreams[sourceID] = cancel\n",
+			"line": "281",
+			"column": "35",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G118",
+			"details": "context cancellation function returned by WithCancel/WithTimeout/WithDeadline is not called",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "89: \t// Per-session cancel context for read goroutines\n90: \tctx, cancel := context.WithCancel(context.Background())\n91: \n",
+			"line": "90",
+			"column": "35",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G118",
+			"details": "context cancellation function returned by WithCancel/WithTimeout/WithDeadline is not called",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\lifecycle_service.go",
+			"code": "63: func NewDataLifecycleService(db database.DatabaseStore, bus *eventbus.Bus, log *logger.Logger) *DataLifecycleService {\n64: \tctx, cancel := context.WithCancel(context.Background())\n65: \treturn \u0026DataLifecycleService{\n",
+			"line": "64",
+			"column": "35",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "328",
+				"url": "https://cwe.mitre.org/data/definitions/328.html"
+			},
+			"rule_id": "G401",
+			"details": "Use of weak cryptographic primitive",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ndr\\tls_extractor.go",
+			"code": "29: \tja3Raw := fmt.Sprintf(\"%d,%v,ext,curves,points\", version, ciphers)\n30: \thash := md5.Sum([]byte(ja3Raw))\n31: \tja3 := hex.EncodeToString(hash[:])\n",
+			"line": "30",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "322",
+				"url": "https://cwe.mitre.org/data/definitions/322.html"
+			},
+			"rule_id": "G106",
+			"details": "Use of ssh InsecureIgnoreHostKey should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\auth.go",
+			"code": "113: \t\t//nolint:gosec // user explicitly disabled strict checking\n114: \t\treturn ssh.InsecureIgnoreHostKey(), nil\n115: \t}\n",
+			"line": "114",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "117: func (k *linuxKeychain) Delete(key string) error {\n118: \tcmd := exec.Command(\"secret-tool\", \"clear\",\n119: \t\t\"service\", keychainService,\n120: \t\t\"account\", key,\n121: \t)\n122: \treturn cmd.Run()\n",
+			"line": "118-121",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "105: func (k *linuxKeychain) Get(key string) ([]byte, error) {\n106: \tcmd := exec.Command(\"secret-tool\", \"lookup\",\n107: \t\t\"service\", keychainService,\n108: \t\t\"account\", key,\n109: \t)\n110: \toutput, err := cmd.Output()\n",
+			"line": "106-109",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "79: func (k *macOSKeychain) Delete(key string) error {\n80: \tcmd := exec.Command(\"security\", \"delete-generic-password\",\n81: \t\t\"-s\", keychainService,\n82: \t\t\"-a\", key,\n83: \t)\n84: \treturn cmd.Run()\n",
+			"line": "80-83",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "66: func (k *macOSKeychain) Get(key string) ([]byte, error) {\n67: \tcmd := exec.Command(\"security\", \"find-generic-password\",\n68: \t\t\"-s\", keychainService,\n69: \t\t\"-a\", key,\n70: \t\t\"-w\",\n71: \t)\n72: \toutput, err := cmd.Output()\n",
+			"line": "67-71",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "54: \t\t// Fallback: some macOS versions don't support -w - for stdin\n55: \t\tcmd2 := exec.Command(\"security\", \"add-generic-password\",\n56: \t\t\t\"-s\", keychainService,\n57: \t\t\t\"-a\", key,\n58: \t\t\t\"-w\", string(value),\n59: \t\t\t\"-U\",\n60: \t\t)\n61: \t\treturn cmd2.Run()\n",
+			"line": "55-60",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "46: \t// Use -w with stdin pipe to avoid password exposure in process list\n47: \tcmd := exec.Command(\"security\", \"add-generic-password\",\n48: \t\t\"-s\", keychainService,\n49: \t\t\"-a\", key,\n50: \t\t\"-w\", \"-\", // read from stdin\n51: \t)\n52: \tcmd.Stdin = strings.NewReader(string(value))\n",
+			"line": "47-51",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\certificate.go",
+			"code": "207: \n208: \tcmd := exec.Command(\"ssh-keygen\", args...)\n209: \toutput, err := cmd.CombinedOutput()\n",
+			"line": "208",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\security\\yubikey.go",
+			"code": "149: \n150: \toutput, err := exec.Command(\"ykchalresp\", \"-2\", \"-H\", challengeHex).Output()\n151: \tif err != nil {\n",
+			"line": "150",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\security\\yubikey.go",
+			"code": "124: \n125: \toutput, err := exec.Command(\"ykman\", \"--device\", serial,\n126: \t\t\"piv\", \"keys\", \"export\", slot, \"-\").Output()\n127: \tif err != nil {\n",
+			"line": "125-126",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\security\\yubikey.go",
+			"code": "99: \t// Generate key on device\n100: \tcmd := exec.Command(\"ykman\", \"--device\", serial,\n101: \t\t\"piv\", \"keys\", \"generate\",\n102: \t\t\"--algorithm\", \"ECCP256\",\n103: \t\t\"--pin-policy\", \"ONCE\",\n104: \t\t\"--touch-policy\", \"CACHED\",\n105: \t\tslot, \"-\")\n106: \n",
+			"line": "100-105",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\security\\yubikey.go",
+			"code": "63: \t\t// Get more info\n64: \t\tinfoOutput, err := exec.Command(\"ykman\", \"--device\", serial, \"info\").Output()\n65: \t\tif err == nil {\n",
+			"line": "64",
+			"column": "22",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "79: \t\t}\n80: \t\tcmd = exec.Command(shell, \"-l\")\n81: \t}\n",
+			"line": "80",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with a potential tainted input or cmd arguments",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain.go",
+			"code": "95: func (k *linuxKeychain) Set(key string, value []byte) error {\n96: \tcmd := exec.Command(\"secret-tool\", \"store\",\n97: \t\t\"--label\", fmt.Sprintf(\"Sovereign Terminal: %s\", key),\n98: \t\t\"service\", keychainService,\n99: \t\t\"account\", key,\n100: \t)\n101: \tcmd.Stdin = strings.NewReader(string(value))\n",
+			"line": "96-100",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "78",
+				"url": "https://cwe.mitre.org/data/definitions/78.html"
+			},
+			"rule_id": "G204",
+			"details": "Subprocess launched with a potential tainted input or cmd arguments",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\isolation\\manager.go",
+			"code": "41: \n42: \tcmd := exec.CommandContext(ctx, executable, \"worker\", \"--type\", string(wType))\n43: \n",
+			"line": "42",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "89",
+				"url": "https://cwe.mitre.org/data/definitions/89.html"
+			},
+			"rule_id": "G201",
+			"details": "SQL string formatting",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "61: \t// 1. Overwrite with random data (DoD 5220.22-M standard)\n62: \tquery := fmt.Sprintf(\"UPDATE %s SET data = randomblob(length(data)) WHERE %s\", tableName, whereClause)\n63: \tif _, err := s.db.Exec(query); err != nil {\n",
+			"line": "62",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "89",
+				"url": "https://cwe.mitre.org/data/definitions/89.html"
+			},
+			"rule_id": "G201",
+			"details": "SQL string formatting",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "61: \t// 1. Overwrite with random data (DoD 5220.22-M standard)\n62: \tquery := fmt.Sprintf(\"UPDATE %s SET data = randomblob(length(data)) WHERE %s\", tableName, whereClause)\n63: \tif _, err := s.db.Exec(query); err != nil {\n",
+			"line": "62",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "89",
+				"url": "https://cwe.mitre.org/data/definitions/89.html"
+			},
+			"rule_id": "G201",
+			"details": "SQL string formatting",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "61: \t// 1. Overwrite with random data (DoD 5220.22-M standard)\n62: \tquery := fmt.Sprintf(\"UPDATE %s SET data = randomblob(length(data)) WHERE %s\", tableName, whereClause)\n63: \tif _, err := s.db.Exec(query); err != nil {\n",
+			"line": "62",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "110: \t// Create tar.gz archive\n111: \tfile, err := os.Create(bundlePath)\n112: \tif err != nil {\n",
+			"line": "111",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "96: \n97: \tdata, err := os.ReadFile(exePath)\n98: \tif err != nil {\n",
+			"line": "97",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "46: \tsidecarPath := bundlePath + \".sha256\"\n47: \tif sidecarData, err := os.ReadFile(sidecarPath); err == nil {\n48: \t\texpectedHash := string(sidecarData)\n",
+			"line": "47",
+			"column": "25",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "28: \t// 1. Read the bundle\n29: \tdata, err := os.ReadFile(bundlePath)\n30: \tif err != nil {\n",
+			"line": "29",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\threatintel\\offline.go",
+			"code": "148: func ParseOfflineSTIXFile(path string) ([]Indicator, error) {\n149: \tdata, err := os.ReadFile(path)\n150: \tif err != nil {\n",
+			"line": "149",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\threatintel\\offline.go",
+			"code": "34: func ParseOfflineCSV(path string, source string) ([]Indicator, error) {\n35: \tfile, err := os.Open(path)\n36: \tif err != nil {\n",
+			"line": "35",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "34: \n35: \tf, err := os.OpenFile(walFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)\n36: \tif err != nil {\n",
+			"line": "35",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "118: \tfor _, filePath := range files {\n119: \t\tf, err := os.Open(filePath)\n120: \t\tif err != nil {\n",
+			"line": "119",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "69: \t\ttimestampedPath := filepath.Join(dirPath, fmt.Sprintf(\"logs_%d.parquet\", time.Now().Unix()))\n70: \t\tf, err = os.OpenFile(timestampedPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)\n71: \t\tif err != nil {\n",
+			"line": "70",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "54: \t// Open file for appending or create new\n55: \tf, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)\n56: \tif err != nil {\n",
+			"line": "55",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\config_parser.go",
+			"code": "36: func ParseSSHConfigFile(path string) ([]SSHConfigEntry, error) {\n37: \tfile, err := os.Open(path)\n38: \tif err != nil {\n",
+			"line": "37",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\certificate.go",
+			"code": "161: \t// Read certificate\n162: \tcertData, err := os.ReadFile(certPath)\n163: \tif err != nil {\n",
+			"line": "162",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\certificate.go",
+			"code": "144: \t// Read private key\n145: \tkeyData, err := os.ReadFile(privateKeyPath)\n146: \tif err != nil {\n",
+			"line": "145",
+			"column": "18",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\certificate.go",
+			"code": "38: func (m *CertificateManager) ParseCertificate(certPath string) (*CertificateInfo, error) {\n39: \tdata, err := os.ReadFile(certPath)\n40: \tif err != nil {\n",
+			"line": "39",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\auth.go",
+			"code": "152: \t\tkeyPath := filepath.Join(home, \".ssh\", name)\n153: \t\tdata, err := os.ReadFile(keyPath)\n154: \t\tif err == nil {\n",
+			"line": "153",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\auth.go",
+			"code": "127: \t\t}\n128: \t\tf, err := os.Create(knownHostsPath)\n129: \t\tif err != nil {\n",
+			"line": "128",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "249: \t\t\t}\n250: \t\t\tdata, err := os.ReadFile(destPath)\n251: \t\t\tif err != nil {\n",
+			"line": "250",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "209: \n210: \tfile, err := os.Create(destPath)\n211: \tif err != nil {\n",
+			"line": "210",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\policy\\bundle.go",
+			"code": "47: func LoadBundle(filePath string, pubKey ed25519.PublicKey) (*Config, error) {\n48: \tdata, err := os.ReadFile(filePath)\n49: \tif err != nil {\n",
+			"line": "48",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\plugin\\manifest.go",
+			"code": "77: func LoadManifest(path string) (*Manifest, error) {\n78: \tdata, err := os.ReadFile(path)\n79: \tif err != nil {\n",
+			"line": "78",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\intelligence\\update_bundle.go",
+			"code": "25: func (v *UpdateBundleVerifier) VerifyBundle(path string, expectedHash string) (bool, error) {\n26: \tdata, err := os.ReadFile(path)\n27: \tif err != nil {\n",
+			"line": "26",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\governance\\destruction.go",
+			"code": "51: \t// Overwrite with random data\n52: \tf, err := os.OpenFile(path, os.O_WRONLY, 0)\n53: \tif err != nil {\n",
+			"line": "52",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "106: func (s *DataDestructionService) WipeFile(path string) error {\n107: \tf, err := os.OpenFile(path, os.O_RDWR, 0)\n108: \tif err != nil {\n",
+			"line": "107",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\detection\\rules.go",
+			"code": "106: func (e *RuleEngine) loadRuleFile(path string) error {\n107: \tdata, err := os.ReadFile(path)\n108: \tif err != nil {\n",
+			"line": "107",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\attestation\\runtime.go",
+			"code": "200: \t\tmodPath := filepath.Join(binDir, name)\n201: \t\tf, err := os.Open(modPath)\n202: \t\tif err != nil {\n",
+			"line": "201",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\attestation\\attestation.go",
+			"code": "53: \n54: \tf, err := os.Open(exePath)\n55: \tif err != nil {\n",
+			"line": "54",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\trust_service.go",
+			"code": "142: func (s *RuntimeTrustService) hashFile(path string) (string, error) {\n143: \tdata, err := os.ReadFile(path)\n144: \tif err != nil {\n",
+			"line": "143",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "563: \t} else {\n564: \t\tpubKey, _ = os.ReadFile(keyPath + \".pub\")\n565: \t}\n",
+			"line": "564",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "315: \t}\n316: \tb, err := os.ReadFile(safePath)\n317: \tif err != nil {\n",
+			"line": "316",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\host_service.go",
+			"code": "207: \tconfigPath := filepath.Join(homeDir, \".ssh\", \"config\")\n208: \tfile, err := os.Open(configPath)\n209: \tif err != nil {\n",
+			"line": "208",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "203: \n204: \t\tdf, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())\n205: \t\tif err != nil {\n",
+			"line": "204",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "163: \n164: \tdata, err := os.ReadFile(path)\n165: \tif err != nil {\n",
+			"line": "164",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "118: \t\t}\n119: \t\tdf, err := os.Open(path)\n120: \t\tif err != nil {\n",
+			"line": "119",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\config.go",
+			"code": "50: \tconfigPath := filepath.Join(platform.ConfigDir(), \"config.json\")\n51: \tdata, err := os.ReadFile(configPath)\n52: \tif err != nil {\n",
+			"line": "51",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\archiver.go",
+			"code": "114: \n115: \tf, err := os.Create(parquetFilePath)\n116: \tif err != nil {\n",
+			"line": "115",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\wal.go",
+			"code": "90: \tfilename := filepath.Join(w.dir, \"current.wal\")\n91: \tf, err := os.Create(filename)\n92: \tif err != nil {\n",
+			"line": "91",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\wal.go",
+			"code": "58: \tfilename := filepath.Join(w.dir, \"current.wal\")\n59: \tf, err := os.Open(filename)\n60: \tif err != nil {\n",
+			"line": "59",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\wal.go",
+			"code": "28: \tfilename := filepath.Join(dir, \"current.wal\")\n29: \tf, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)\n30: \tif err != nil {\n",
+			"line": "29",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\collectors.go",
+			"code": "90: func (c *FileTailCollector) tailFile(ctx context.Context, path string, ch chan\u003c- Event) {\n91: \tf, err := os.Open(path)\n92: \tif err != nil {\n",
+			"line": "91",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "494: \tif keyFile != \"\" {\n495: \t\tkeyData, err := os.ReadFile(keyFile)\n496: \t\tif err == nil {\n",
+			"line": "495",
+			"column": "19",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\client.go",
+			"code": "25: \tconfigPath := filepath.Join(home, \".oblivrashell\", \"cli.json\")\n26: \tdata, err := os.ReadFile(configPath)\n27: \tif err != nil {\n",
+			"line": "26",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\certgen\\main.go",
+			"code": "32: \t\tcertPEM, _ := os.ReadFile(caCertPath)\n33: \t\tkeyPEM, _ := os.ReadFile(caKeyPath)\n34: \t\tcaPair = \u0026security.CertificatePair{CertPEM: certPEM, KeyPEM: keyPEM}\n",
+			"line": "33",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\certgen\\main.go",
+			"code": "31: \t\tfmt.Println(\"Existing Root CA found.\")\n32: \t\tcertPEM, _ := os.ReadFile(caCertPath)\n33: \t\tkeyPEM, _ := os.ReadFile(caKeyPath)\n",
+			"line": "32",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null,
+			"autofix": "Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G112",
+			"details": "Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\agent_server.go",
+			"code": "92: \n93: \ts.server = \u0026http.Server{\n94: \t\tAddr:      addr,\n95: \t\tHandler:   mux,\n96: \t\tTLSConfig: tlsConfig,\n97: \t}\n98: \n",
+			"line": "93-97",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G112",
+			"details": "Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\observability_service.go",
+			"code": "73: \n74: \t\ts.pprofServer = \u0026http.Server{\n75: \t\t\tAddr:    s.PprofAddr,\n76: \t\t\tHandler: mux,\n77: \t\t}\n78: \n",
+			"line": "74-77",
+			"column": "20",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G112",
+			"details": "Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\metrics_service.go",
+			"code": "43: \n44: \ts.server = \u0026http.Server{\n45: \t\tAddr:    \"127.0.0.1:9090\",\n46: \t\tHandler: mux,\n47: \t}\n48: \n",
+			"line": "44-47",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G112",
+			"details": "Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\cluster_service.go",
+			"code": "90: \n91: \ts.server = \u0026http.Server{\n92: \t\tAddr:    fmt.Sprintf(\":%s\", httpPort),\n93: \t\tHandler: mux,\n94: \t}\n95: \n",
+			"line": "91-94",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G112",
+			"details": "Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\server.go",
+			"code": "72: \taddr := fmt.Sprintf(\"127.0.0.1:%d\", s.port)\n73: \ts.srv = \u0026http.Server{\n74: \t\tAddr:    addr,\n75: \t\tHandler: handler,\n76: \t}\n77: \n",
+			"line": "73-76",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "400",
+				"url": "https://cwe.mitre.org/data/definitions/400.html"
+			},
+			"rule_id": "G112",
+			"details": "Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\rest.go",
+			"code": "103: \n104: \ts.server = \u0026http.Server{\n105: \t\tAddr:    fmt.Sprintf(\":%d\", port),\n106: \t\tHandler: handler,\n107: \t}\n108: \n",
+			"line": "104-107",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "88",
+				"url": "https://cwe.mitre.org/data/definitions/88.html"
+			},
+			"rule_id": "G107",
+			"details": "Potential HTTP request made with variable url",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\updater.go",
+			"code": "175: func downloadBytes(url string) ([]byte, error) {\n176: \tresp, err := http.Get(url)\n177: \tif err != nil {\n",
+			"line": "176",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "88",
+				"url": "https://cwe.mitre.org/data/definitions/88.html"
+			},
+			"rule_id": "G107",
+			"details": "Potential HTTP request made with variable url",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\http.go",
+			"code": "80: \turl := fmt.Sprintf(\"http://%s/join\", leaderAddr)\n81: \tresp, err := http.Post(url, \"application/json\", bytes.NewReader(p)) // simplified: real implementation might need TLS and a robust HTTP client\n82: \tif err != nil {\n",
+			"line": "81",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "409",
+				"url": "https://cwe.mitre.org/data/definitions/409.html"
+			},
+			"rule_id": "G110",
+			"details": "Potential DoS vulnerability via decompression bomb",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "212: \t\t}\n213: \t\tio.Copy(df, rc)\n214: \t\trc.Close()\n",
+			"line": "213",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "499",
+				"url": "https://cwe.mitre.org/data/definitions/499.html"
+			},
+			"rule_id": "G117",
+			"details": "Marshaled struct field \"Password\" (JSON key \"password\") matches secret pattern",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "214: \t\tcase \"json\":\n215: \t\t\tdata, _ := json.MarshalIndent(hosts, \"\", \"  \")\n216: \t\t\tfmt.Println(string(data))\n",
+			"line": "215",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "499",
+				"url": "https://cwe.mitre.org/data/definitions/499.html"
+			},
+			"rule_id": "G117",
+			"details": "Marshaled struct field \"APIKey\" (JSON key \"api_key\") matches secret pattern",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\logsource_service.go",
+			"code": "142: \t}\n143: \tif data, err := json.Marshal(safe); err == nil {\n144: \t\ts.analytics.SaveConfig(configKeyLogSources, string(data))\n",
+			"line": "143",
+			"column": "18",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G305",
+			"details": "File traversal when extracting zip/tar archive",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "190: \t\t// HARDENING: Prevent Path Traversal\n191: \t\tdestPath := filepath.Join(s.dataDir, f.Name)\n192: \t\tif !strings.HasPrefix(filepath.Clean(destPath), filepath.Clean(s.dataDir)) {\n",
+			"line": "191",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "103: \t// Truncate the file payload by recreating it empty\n104: \tf, err := os.OpenFile(w.filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR|os.O_APPEND, 0644)\n105: \tif err != nil {\n",
+			"line": "104",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "34: \n35: \tf, err := os.OpenFile(walFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)\n36: \tif err != nil {\n",
+			"line": "35",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "69: \t\ttimestampedPath := filepath.Join(dirPath, fmt.Sprintf(\"logs_%d.parquet\", time.Now().Unix()))\n70: \t\tf, err = os.OpenFile(timestampedPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)\n71: \t\tif err != nil {\n",
+			"line": "70",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G302",
+			"details": "Expect file permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "54: \t// Open file for appending or create new\n55: \tf, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)\n56: \tif err != nil {\n",
+			"line": "55",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "28: \twalDir := filepath.Join(dataDir, \"wal\")\n29: \tif err := os.MkdirAll(walDir, 0755); err != nil {\n30: \t\treturn nil, fmt.Errorf(\"create wal dir: %w\", err)\n",
+			"line": "29",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "47: \tdirPath := filepath.Join(pa.dataDir, \"archives\", year, month, day)\n48: \tif err := os.MkdirAll(dirPath, 0755); err != nil {\n49: \t\treturn fmt.Errorf(\"failed to create archive directory: %w\", err)\n",
+			"line": "48",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\plugin\\sandbox.go",
+			"code": "149: \t\t\tpath := platform.DataDir() + \"/plugins/\" + s.manifest.ID + \"/storage\"\n150: \t\t\t_ = os.MkdirAll(path, 0755)\n151: \t\t\tL.Push(lua.LString(path))\n",
+			"line": "150",
+			"column": "8",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\plugin\\registry.go",
+			"code": "103: \n104: \terr := os.MkdirAll(r.pluginsDir, 0755)\n105: \tif err != nil {\n",
+			"line": "104",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\transfer_manager.go",
+			"code": "168: \t// Ensure destination directory exists\n169: \tif err := os.MkdirAll(filepath.Dir(job.LocalPath), 0755); err != nil {\n170: \t\tm.updateJobStatus(job.ID, StatusFailed, fmt.Errorf(\"create local dir: %v\", err))\n",
+			"line": "169",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "287: \t}\n288: \treturn os.MkdirAll(safePath, 0755)\n289: }\n",
+			"line": "288",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\updater.go",
+			"code": "149: \t// Write new binary\n150: \tif err := os.WriteFile(exePath, executable, 0755); err != nil {\n151: \t\t// Try to revert\n",
+			"line": "150",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "142: \tsidecarPath := bundlePath + \".sha256\"\n143: \tif err := os.WriteFile(sidecarPath, []byte(hashStr), 0644); err != nil {\n144: \t\treturn \"\", fmt.Errorf(\"write sidecar: %w\", err)\n",
+			"line": "143",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "79: \n80: \tif err := os.WriteFile(exePath, executable, 0755); err != nil {\n81: \t\tos.Rename(oldPath, exePath)\n",
+			"line": "80",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\security\\certs.go",
+			"code": "108: func SavePair(pair *CertificatePair, certPath, keyPath string) error {\n109: \tif err := os.WriteFile(certPath, pair.CertPEM, 0644); err != nil {\n110: \t\treturn err\n",
+			"line": "109",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "560: \t\tos.WriteFile(keyPath, priv, 0600)\n561: \t\tos.WriteFile(keyPath+\".pub\", pub, 0644)\n562: \t\tpubKey = pub\n",
+			"line": "561",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G306",
+			"details": "Expect WriteFile permissions to be 0600 or less",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "331: \t}\n332: \treturn os.WriteFile(safePath, b, 0644)\n333: }\n",
+			"line": "332",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "327",
+				"url": "https://cwe.mitre.org/data/definitions/327.html"
+			},
+			"rule_id": "G501",
+			"details": "Blocklisted import crypto/md5: weak cryptographic primitive",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ndr\\tls_extractor.go",
+			"code": "3: import (\n4: \t\"crypto/md5\"\n5: \t\"encoding/hex\"\n",
+			"line": "4",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\memory.go",
+			"code": "82: \t}\n83: \tb := unsafe.Slice(unsafe.StringData(*s), len(*s))\n84: \tfor i := range b {\n",
+			"line": "83",
+			"column": "7",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\memory.go",
+			"code": "82: \t}\n83: \tb := unsafe.Slice(unsafe.StringData(*s), len(*s))\n84: \tfor i := range b {\n",
+			"line": "83",
+			"column": "20",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "102: \tr1, _, err := procCredDeleteW.Call(\n103: \t\tuintptr(unsafe.Pointer(targetPtr)),\n104: \t\tcredTypeGeneric,\n",
+			"line": "103",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "91: \tblob := make([]byte, credPtr.CredentialBlobSize)\n92: \tsrc := unsafe.Slice(credPtr.CredentialBlob, credPtr.CredentialBlobSize)\n93: \tcopy(blob, src)\n",
+			"line": "92",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "88: \t}\n89: \tdefer procCredFree.Call(uintptr(unsafe.Pointer(credPtr)))\n90: \n",
+			"line": "89",
+			"column": "34",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "82: \t\t0,\n83: \t\tuintptr(unsafe.Pointer(\u0026credPtr)),\n84: \t)\n",
+			"line": "83",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "79: \tr1, _, err := procCredReadW.Call(\n80: \t\tuintptr(unsafe.Pointer(targetPtr)),\n81: \t\tcredTypeGeneric,\n",
+			"line": "80",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\keychain_windows.go",
+			"code": "66: \n67: \tr1, _, err := procCredWriteW.Call(uintptr(unsafe.Pointer(\u0026cred)), 0)\n68: \tif r1 == 0 {\n",
+			"line": "67",
+			"column": "44",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\memory\\secure.go",
+			"code": "51: \t// This uses the modern way (since Go 1.17+) to cast a pointer to a struct\n52: \tslice := unsafe.Slice((*byte)(unsafe.Pointer(addr)), size)\n53: \n",
+			"line": "52",
+			"column": "32",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "242",
+				"url": "https://cwe.mitre.org/data/definitions/242.html"
+			},
+			"rule_id": "G103",
+			"details": "Use of unsafe calls should be audited",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\memory\\secure.go",
+			"code": "51: \t// This uses the modern way (since Go 1.17+) to cast a pointer to a struct\n52: \tslice := unsafe.Slice((*byte)(unsafe.Pointer(addr)), size)\n53: \n",
+			"line": "52",
+			"column": "11",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\main.go",
+			"code": "139: \twType := fs.String(\"type\", \"\", \"Type of worker to start (detect, policy, enrich)\")\n140: \tfs.Parse(args)\n141: \n",
+			"line": "140",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\main.go",
+			"code": "139: \twType := fs.String(\"type\", \"\", \"Type of worker to start (detect, policy, enrich)\")\n140: \tfs.Parse(args)\n141: \n",
+			"line": "140",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\main.go",
+			"code": "139: \twType := fs.String(\"type\", \"\", \"Type of worker to start (detect, policy, enrich)\")\n140: \tfs.Parse(args)\n141: \n",
+			"line": "140",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "394: \t\t} else {\n395: \t\t\twm.repo.Create(row)\n396: \t\t}\n",
+			"line": "395",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "392: \t\tif found {\n393: \t\t\twm.repo.Update(row)\n394: \t\t} else {\n",
+			"line": "393",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "327: \t\tvar connections []WorkspaceConnection\n328: \t\tjson.Unmarshal([]byte(row.ConnectionsJSON), \u0026connections)\n329: \n",
+			"line": "328",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "324: \t\tvar layout PaneLayout\n325: \t\tjson.Unmarshal([]byte(row.LayoutJSON), \u0026layout)\n326: \n",
+			"line": "325",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "311: \twm.workspaces[ws.ID] = \u0026ws\n312: \twm.save()\n313: \n",
+			"line": "312",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "233: \twm.workspaces[dup.ID] = \u0026dup\n234: \twm.save()\n235: \n",
+			"line": "234",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "200: \twm.activeID = id\n201: \twm.save()\n202: \n",
+			"line": "201",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "157: \twm.workspaces[ws.ID] = ws\n158: \twm.save()\n159: \n",
+			"line": "158",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\workspace\\workspace.go",
+			"code": "85: \t\twm.activeID = defaultWS.ID\n86: \t\twm.save()\n87: \t}\n",
+			"line": "86",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\vault\\vault.go",
+			"code": "133: \tvar meta metadata\n134: \tjson.Unmarshal(data, \u0026meta)\n135: \treturn meta.YubiKeySerial\n",
+			"line": "134",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\updater.go",
+			"code": "151: \t\t// Try to revert\n152: \t\tos.Rename(oldPath, exePath)\n153: \t\treturn fmt.Errorf(\"write new executable: %w\", err)\n",
+			"line": "152",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\updater.go",
+			"code": "142: \toldPath := exePath + \".old\"\n143: \tos.Remove(oldPath) // ignore error\n144: \tif err := os.Rename(exePath, oldPath); err != nil {\n",
+			"line": "143",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "138: \tgw.Close()\n139: \tfile.Close()\n140: \n",
+			"line": "139",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "137: \ttw.Close()\n138: \tgw.Close()\n139: \tfile.Close()\n",
+			"line": "138",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "136: \t// Ensure writers flush to disk\n137: \ttw.Close()\n138: \tgw.Close()\n",
+			"line": "137",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "80: \tif err := os.WriteFile(exePath, executable, 0755); err != nil {\n81: \t\tos.Rename(oldPath, exePath)\n82: \t\treturn bundle, fmt.Errorf(\"write new: %w\", err)\n",
+			"line": "81",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\updater\\offline.go",
+			"code": "74: \toldPath := exePath + \".old\"\n75: \tos.Remove(oldPath)\n76: \tif err := os.Rename(exePath, oldPath); err != nil {\n",
+			"line": "75",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "180: \tif w.file != nil {\n181: \t\tw.file.Sync()\n182: \t\treturn w.file.Close()\n",
+			"line": "181",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "177: \tif w.writer != nil {\n178: \t\tw.writer.Flush()\n179: \t}\n",
+			"line": "178",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "126: \t// Flush anything pending to disk before reading\n127: \tw.writer.Flush()\n128: \n",
+			"line": "127",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "100: \tw.writer.Flush()\n101: \tw.file.Close()\n102: \n",
+			"line": "101",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\wal.go",
+			"code": "99: \t// Flush and close current file\n100: \tw.writer.Flush()\n101: \tw.file.Close()\n",
+			"line": "100",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\siem_badger.go",
+			"code": "309: \tprefix := []byte(\"event:\")\n310: \tr.store.ReverseIteratePrefix(prefix, 0, func(key, value []byte) error {\n311: \t\t// Key format: event:{host_id}:{timestamp_ns}:{id}\n312: \t\tparts := bytes.Split(key, []byte(\":\"))\n313: \t\tif len(parts) \u003e= 4 {\n314: \t\t\ttsNano, err := strconv.ParseInt(string(parts[2]), 10, 64)\n315: \t\t\tif err == nil {\n316: \t\t\t\tts := time.Unix(0, tsNano)\n317: \t\t\t\tif ts.Before(cutoff) {\n318: \t\t\t\t\treturn fmt.Errorf(\"cutoff_reached\") // Stop iteration\n319: \t\t\t\t}\n320: \n321: \t\t\t\tdayStr := ts.Format(\"2006-01-02\")\n322: \t\t\t\ttrendMap[dayStr]++\n323: \t\t\t}\n324: \t\t}\n325: \t\treturn nil\n326: \t})\n327: \n",
+			"line": "310-326",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\siem_badger.go",
+			"code": "251: \t// Scan last 5000 events for this host\n252: \tr.store.ReverseIteratePrefix(prefix, 5000, func(key, value []byte) error {\n253: \t\tif !bytes.Contains(value, []byte(`\"event_type\":\"failed_login\"`)) {\n254: \t\t\treturn nil\n255: \t\t}\n256: \n257: \t\tvar e database.HostEvent\n258: \t\tif err := json.Unmarshal(value, \u0026e); err != nil {\n259: \t\t\treturn nil\n260: \t\t}\n261: \n262: \t\tif e.EventType == \"failed_login\" {\n263: \t\t\tuniqueIPs[e.SourceIP] = true\n264: \t\t\ttotalAttempts++\n265: \t\t\tif e.User == \"root\" {\n266: \t\t\t\ttargetedRoot = true\n267: \t\t\t}\n268: \t\t}\n269: \t\treturn nil\n270: \t})\n271: \n",
+			"line": "252-270",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\siem_badger.go",
+			"code": "90: \t\t// We ignore error here so ingestion doesn't fail if Bleve is temporarily locked/busy\n91: \t\t(*r.search).Index(docID, \"siem_event\", searchData)\n92: \t}\n",
+			"line": "91",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "140: \n141: \t\tf.Close()\n142: \t}\n",
+			"line": "141",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "85: \tif err != nil {\n86: \t\twriter.Close()\n87: \t\treturn fmt.Errorf(\"write parquet rows: %w\", err)\n",
+			"line": "86",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\storage\\parquet.go",
+			"code": "67: \tif err == nil \u0026\u0026 info.Size() \u003e 0 {\n68: \t\tf.Close()\n69: \t\ttimestampedPath := filepath.Join(dirPath, fmt.Sprintf(\"logs_%d.parquet\", time.Now().Unix()))\n",
+			"line": "68",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "314: \tif t.listener != nil {\n315: \t\tt.listener.Close()\n316: \t\tt.listener = nil\n",
+			"line": "315",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "304: \tgo func() { io.Copy(a, b); done \u003c- struct{}{} }()\n305: \tgo func() { io.Copy(b, a); done \u003c- struct{}{} }()\n306: \t\u003c-done\n",
+			"line": "305",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "303: \tdone := make(chan struct{}, 2)\n304: \tgo func() { io.Copy(a, b); done \u003c- struct{}{} }()\n305: \tgo func() { io.Copy(b, a); done \u003c- struct{}{} }()\n",
+			"line": "304",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "293: \n294: \tconn.Write([]byte{0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0})\n295: \tt.mu.Lock()\n",
+			"line": "294",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "288: \tif err != nil {\n289: \t\tconn.Write([]byte{0x05, 0x04, 0x00, 0x01, 0, 0, 0, 0, 0, 0})\n290: \t\treturn\n",
+			"line": "289",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "282: \tdefault:\n283: \t\tconn.Write([]byte{0x05, 0x08, 0x00, 0x01, 0, 0, 0, 0, 0, 0})\n284: \t\treturn\n",
+			"line": "283",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "250: \tif buf[0] != 0x05 || buf[1] != 0x01 {\n251: \t\tconn.Write([]byte{0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0})\n252: \t\treturn\n",
+			"line": "251",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\tunnel.go",
+			"code": "242: \t}\n243: \tconn.Write([]byte{0x05, 0x00}) // no auth required\n244: \n",
+			"line": "243",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\session.go",
+			"code": "165: \tif s.sftpClient != nil {\n166: \t\ts.sftpClient.Close()\n167: \t\ts.sftpClient = nil\n",
+			"line": "166",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\session.go",
+			"code": "106: \tif err := s.client.StartShell(); err != nil {\n107: \t\ts.client.Close()\n108: \t\ts.setStatus(SessionError)\n",
+			"line": "107",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\pool.go",
+			"code": "80: \tfor id, session := range m.sessions {\n81: \t\tsession.Close()\n82: \t\tdelete(m.sessions, id)\n",
+			"line": "81",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\client.go",
+			"code": "445: \t\t\t\t\t})\n446: \t\t\t\t\tc.Close()\n447: \t\t\t\t\treturn\n",
+			"line": "446",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ssh\\auth.go",
+			"code": "131: \t\t}\n132: \t\tf.Close()\n133: \t}\n",
+			"line": "132",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "264: \t\t\tfile.Seek(0, 2) // End of file\n265: \t\t\tfile.WriteString(\"\\n\")\n266: \t\t\t_, err = file.Write(sigJSON)\n",
+			"line": "265",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "263: \t\t\tsigJSON, _ := json.Marshal(sigBlock)\n264: \t\t\tfile.Seek(0, 2) // End of file\n265: \t\t\tfile.WriteString(\"\\n\")\n",
+			"line": "264",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "236: \t\tfile.Write(eventJSON)\n237: \t\tfile.WriteString(\"\\n\")\n238: \t}\n",
+			"line": "237",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "235: \t\teventJSON, _ := json.Marshal(event)\n236: \t\tfile.Write(eventJSON)\n237: \t\tfile.WriteString(\"\\n\")\n",
+			"line": "236",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "228: \tfile.Write(headerJSON)\n229: \tfile.WriteString(\"\\n\")\n230: \n",
+			"line": "229",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\sharing\\recording.go",
+			"code": "227: \theaderJSON, _ := json.Marshal(header)\n228: \tfile.Write(headerJSON)\n229: \tfile.WriteString(\"\\n\")\n",
+			"line": "228",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\security\\siem.go",
+			"code": "131: \tif f.conn != nil {\n132: \t\tf.conn.Close()\n133: \t}\n",
+			"line": "132",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\plugin\\wasm_sandbox.go",
+			"code": "113: \tif s.runtime != nil {\n114: \t\ts.runtime.Close(context.Background())\n115: \t}\n",
+			"line": "114",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\plugin\\wasm_sandbox.go",
+			"code": "110: \tif s.mod != nil {\n111: \t\ts.mod.Close(context.Background())\n112: \t}\n",
+			"line": "111",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\monitoring\\metrics.go",
+			"code": "288: \t\tw.Header().Set(\"Content-Type\", \"text/plain; version=0.0.4; charset=utf-8\")\n289: \t\tw.Write([]byte(sb.String()))\n290: \t})\n",
+			"line": "289",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\monitoring\\health.go",
+			"code": "191: \t} else {\n192: \t\tconn.Close()\n193: \t}\n",
+			"line": "192",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\logsources\\sources.go",
+			"code": "655: \t\tm.log.Info(\"Stopped streaming Loki tail for source %s\", sourceID)\n656: \t\tc.Close()\n657: \t}()\n",
+			"line": "656",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\logsources\\sources.go",
+			"code": "210: \tvar info map[string]interface{}\n211: \tjson.Unmarshal(body, \u0026info)\n212: \n",
+			"line": "211",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\isolation\\manager.go",
+			"code": "100: \t\tif cmd.Process != nil {\n101: \t\t\tcmd.Process.Kill()\n102: \t\t\tm.log.Info(fmt.Sprintf(\"Killed worker: %s\", wType))\n",
+			"line": "101",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\syslog.go",
+			"code": "91: \tfor {\n92: \t\ts.udpConn.SetReadDeadline(time.Now().Add(1 * time.Second))\n93: \t\tn, addr, err := s.udpConn.ReadFromUDP(buf)\n",
+			"line": "92",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\syslog.go",
+			"code": "79: \tif s.tcpList != nil {\n80: \t\ts.tcpList.Close()\n81: \t}\n",
+			"line": "80",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\syslog.go",
+			"code": "76: \tif s.udpConn != nil {\n77: \t\ts.udpConn.Close()\n78: \t}\n",
+			"line": "77",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\syslog.go",
+			"code": "57: \tif err != nil {\n58: \t\ts.udpConn.Close()\n59: \t\treturn fmt.Errorf(\"listen tcp: %w\", err)\n",
+			"line": "58",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\pipeline.go",
+			"code": "77: \tif p.wal != nil {\n78: \t\tp.wal.Close()\n79: \t}\n",
+			"line": "78",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\agent_server.go",
+			"code": "246: \tw.WriteHeader(http.StatusOK)\n247: \tjson.NewEncoder(w).Encode(config)\n248: }\n",
+			"line": "247",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\ingest\\agent_server.go",
+			"code": "121: \t\tdefer cancel()\n122: \t\ts.server.Shutdown(ctx)\n123: \t}\n",
+			"line": "122",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\governance\\destruction.go",
+			"code": "72: \tf.Sync()\n73: \tf.Close()\n74: \n",
+			"line": "73",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\governance\\destruction.go",
+			"code": "71: \t}\n72: \tf.Sync()\n73: \tf.Close()\n",
+			"line": "72",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\governance\\destruction.go",
+			"code": "66: \t\tif err != nil {\n67: \t\t\tf.Close()\n68: \t\t\treturn fmt.Errorf(\"overwrite failed at offset %d: %w\", written, err)\n",
+			"line": "67",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "127: \t\t}\n128: \t\tf.Sync()\n129: \t}\n",
+			"line": "128",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "125: \t\t\trand.Read(random)\n126: \t\t\tf.Write(random)\n127: \t\t}\n",
+			"line": "126",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "120: \t\t\t// Last pass = zeros\n121: \t\t\tf.Write(make([]byte, size))\n122: \t\t} else {\n",
+			"line": "121",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\gdpr\\crypto_wipe.go",
+			"code": "117: \tfor pass := 0; pass \u003c 3; pass++ {\n118: \t\tf.Seek(0, 0)\n119: \t\tif pass == 2 {\n",
+			"line": "118",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\enrich\\geoip.go",
+			"code": "107: \tif g.asnDB != nil {\n108: \t\tg.asnDB.Close()\n109: \t}\n",
+			"line": "108",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\enrich\\geoip.go",
+			"code": "104: \tif g.cityDB != nil {\n105: \t\tg.cityDB.Close()\n106: \t}\n",
+			"line": "105",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\enrich\\geoip.go",
+			"code": "47: \t\t\tif city != nil {\n48: \t\t\t\tcity.Close()\n49: \t\t\t}\n",
+			"line": "48",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\discovery\\discovery.go",
+			"code": "155: \t\t\tcase \"port\":\n156: \t\t\t\tfmt.Sscanf(value, \"%d\", \u0026currentHost.Port)\n157: \t\t\tcase \"identityfile\":\n",
+			"line": "156",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\migrations.go",
+			"code": "417: \t\t); err != nil {\n418: \t\t\ttx.Rollback()\n419: \t\t\treturn fmt.Errorf(\"record migration %d: %w\", m.version, err)\n",
+			"line": "418",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\migrations.go",
+			"code": "409: \t\tif _, err := tx.Exec(m.sql); err != nil {\n410: \t\t\ttx.Rollback()\n411: \t\t\treturn fmt.Errorf(\"apply migration %d (%s): %w\", m.version, m.name, err)\n",
+			"line": "410",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\hosts.go",
+			"code": "428: \n429: \tjson.Unmarshal([]byte(tagsJSON), \u0026host.Tags)\n430: \tif host.Tags == nil {\n",
+			"line": "429",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\hosts.go",
+			"code": "388: \n389: \tjson.Unmarshal([]byte(tagsJSON), \u0026host.Tags)\n390: \tif host.Tags == nil {\n",
+			"line": "389",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\evidence.go",
+			"code": "264: \tif metaJSON.Valid {\n265: \t\tjson.Unmarshal([]byte(metaJSON.String), \u0026item.Metadata)\n266: \t}\n",
+			"line": "265",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\evidence.go",
+			"code": "261: \tif tagsJSON.Valid {\n262: \t\tjson.Unmarshal([]byte(tagsJSON.String), \u0026item.Tags)\n263: \t}\n",
+			"line": "262",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\evidence.go",
+			"code": "237: \tif metaJSON.Valid {\n238: \t\tjson.Unmarshal([]byte(metaJSON.String), \u0026item.Metadata)\n239: \t}\n",
+			"line": "238",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\evidence.go",
+			"code": "234: \tif tagsJSON.Valid {\n235: \t\tjson.Unmarshal([]byte(tagsJSON.String), \u0026item.Tags)\n236: \t}\n",
+			"line": "235",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\database_pure.go",
+			"code": "47: \tif err := db.Ping(); err != nil {\n48: \t\tdb.Close()\n49: \t\treturn fmt.Errorf(\"database ping failed: %w\", err)\n",
+			"line": "48",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\database\\database_pure.go",
+			"code": "27: \tif d.db != nil {\n28: \t\td.db.Close()\n29: \t}\n",
+			"line": "28",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\http.go",
+			"code": "64: \tw.WriteHeader(http.StatusOK)\n65: \tw.Write([]byte(`{\"status\":\"joined\"}`))\n66: }\n",
+			"line": "65",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "159: \tif s.snapshotPath != \"\" {\n160: \t\tos.Remove(s.snapshotPath)\n161: \t\ts.log.Info(\"[RAFT-FSM] Snapshot temp file cleaned up\")\n",
+			"line": "160",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "149: \tif _, err := io.Copy(sink, file); err != nil {\n150: \t\tsink.Cancel()\n151: \t\treturn fmt.Errorf(\"stream snapshot to sink: %w\", err)\n",
+			"line": "150",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "143: \tif err != nil {\n144: \t\tsink.Cancel()\n145: \t\treturn fmt.Errorf(\"open snapshot file: %w\", err)\n",
+			"line": "144",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "116: \tif err := os.Rename(tmpPath, f.dbPath); err != nil {\n117: \t\tos.Remove(tmpPath)\n118: \t\treturn fmt.Errorf(\"swap database file: %w\", err)\n",
+			"line": "117",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "107: \t}\n108: \ttmpFile.Close()\n109: \n",
+			"line": "108",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "104: \t\ttmpFile.Close()\n105: \t\tos.Remove(tmpPath)\n106: \t\treturn fmt.Errorf(\"write snapshot to temp: %w\", err)\n",
+			"line": "105",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "103: \tif _, err := io.Copy(tmpFile, rc); err != nil {\n104: \t\ttmpFile.Close()\n105: \t\tos.Remove(tmpPath)\n",
+			"line": "104",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "82: \tif err != nil {\n83: \t\tos.Remove(tmpPath)\n84: \t\treturn nil, fmt.Errorf(\"vacuum into snapshot: %w\", err)\n",
+			"line": "83",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\cluster\\fsm.go",
+			"code": "76: \ttmpPath := tmpFile.Name()\n77: \ttmpFile.Close()\n78: \n",
+			"line": "77",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\attestation\\runtime.go",
+			"code": "212: \t\t}\n213: \t\tf.Close()\n214: \n",
+			"line": "213",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\attestation\\runtime.go",
+			"code": "208: \t\tif _, err := io.Copy(h, f); err != nil {\n209: \t\t\tf.Close()\n210: \t\t\treport.Unknown = append(report.Unknown, fmt.Sprintf(\"%s (hash failed: %v)\", name, err))\n",
+			"line": "209",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\worker_telemetry.go",
+			"code": "89: \tvar diskTotalMB, diskUsedMB float64\n90: \tfmt.Sscanf(lines[3], \"%f %f\", \u0026diskTotalMB, \u0026diskUsedMB)\n91: \tt.DiskTotalGB = diskTotalMB / 1024.0\n",
+			"line": "90",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\worker_telemetry.go",
+			"code": "85: \t// 3. Memory (MB)\n86: \tfmt.Sscanf(lines[2], \"%f %f\", \u0026t.MemTotalMB, \u0026t.MemUsedMB)\n87: \n",
+			"line": "86",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\worker_telemetry.go",
+			"code": "82: \t// 2. CPU Usage\n83: \tfmt.Sscanf(lines[1], \"%f\", \u0026t.CPUUsage)\n84: \n",
+			"line": "83",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\worker_telemetry.go",
+			"code": "79: \t// 1. Load Average\n80: \tfmt.Sscanf(lines[0], \"%f\", \u0026t.LoadAvg)\n81: \n",
+			"line": "80",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\worker_audit.go",
+			"code": "67: \t\t\t\tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)\n68: \t\t\t\ts.siem.InsertHostEvent(ctx, event)\n69: \t\t\t\tcancel()\n",
+			"line": "68",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\vault_service.go",
+			"code": "222: \tif s.searchEngine != nil \u0026\u0026 *s.searchEngine != nil {\n223: \t\t(*s.searchEngine).Close()\n224: \t\t*s.searchEngine = nil\n",
+			"line": "223",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\vault_service.go",
+			"code": "65: \tif s.db != nil {\n66: \t\ts.db.Close()\n67: \t}\n",
+			"line": "66",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\vault_service.go",
+			"code": "62: \tif s.searchEngine != nil \u0026\u0026 *s.searchEngine != nil {\n63: \t\t(*s.searchEngine).Close()\n64: \t}\n",
+			"line": "63",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\vault_service.go",
+			"code": "59: \tif s.analytics != nil {\n60: \t\ts.analytics.Close()\n61: \t}\n",
+			"line": "60",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\tunnel_service.go",
+			"code": "176: \tfor id, tunnel := range s.tunnels {\n177: \t\ttunnel.Stop()\n178: \t\tif info, ok := s.meta[id]; ok {\n",
+			"line": "177",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\tunnel_service.go",
+			"code": "161: \t\t\tif tunnel, ok := s.tunnels[id]; ok {\n162: \t\t\t\ttunnel.Stop()\n163: \t\t\t\tdelete(s.tunnels, id)\n",
+			"line": "162",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\transfer_manager.go",
+			"code": "243: \t\t\tm.log.Info(\"Upload cancelled: %s\", job.ID)\n244: \t\t\tsc.Remove(job.RemotePath)\n245: \t\t\treturn\n",
+			"line": "244",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\transfer_manager.go",
+			"code": "191: \t\t\tm.log.Info(\"Download cancelled: %s\", job.ID)\n192: \t\t\tos.Remove(job.LocalPath)\n193: \t\t\treturn\n",
+			"line": "192",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "560: \t\tos.WriteFile(keyPath, priv, 0600)\n561: \t\tos.WriteFile(keyPath+\".pub\", pub, 0644)\n562: \t\tpubKey = pub\n",
+			"line": "561",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "559: \t\t}\n560: \t\tos.WriteFile(keyPath, priv, 0600)\n561: \t\tos.WriteFile(keyPath+\".pub\", pub, 0644)\n",
+			"line": "560",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "550: \tappDir := filepath.Join(home, \".oblivrashell\")\n551: \tos.MkdirAll(appDir, 0700)\n552: \tkeyPath := filepath.Join(appDir, \"id_ed25519\")\n",
+			"line": "551",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "456: \tif ok {\n457: \t\tsession.Write([]byte(output))\n458: \t\t// Also emit to frontend for rich rendering if overlay is active\n",
+			"line": "457",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "415: \t\t// Echo locally for commands so user sees what they type without remote involvement\n416: \t\tsession.Write(decoded)\n417: \t\treturn nil\n",
+			"line": "416",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\ssh_service.go",
+			"code": "395: \t\t\t\t// Clear the line on the terminal before executing\n396: \t\t\t\tsession.Write([]byte(\"\\r\\x1b[2K\"))\n397: \t\t\t\treturn s.handleSystemCommand(sessionID, cmd)\n",
+			"line": "396",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\pty_windows.go",
+			"code": "44: \t\tcloser: func() error {\n45: \t\t\tstdinPipe.Close()\n46: \t\t\treturn nil\n",
+			"line": "45",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\metrics_service.go",
+			"code": "58: \tif s.server != nil {\n59: \t\ts.server.Close()\n60: \t}\n",
+			"line": "59",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\logsource_service.go",
+			"code": "167: \tif data, err := json.Marshal(s.savedSearches); err == nil {\n168: \t\ts.analytics.SaveConfig(configKeySavedSearch, string(data))\n169: \t}\n",
+			"line": "168",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\logsource_service.go",
+			"code": "157: \tdefer s.savedMu.Unlock()\n158: \tjson.Unmarshal([]byte(data), \u0026s.savedSearches)\n159: }\n",
+			"line": "158",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\logsource_service.go",
+			"code": "143: \tif data, err := json.Marshal(safe); err == nil {\n144: \t\ts.analytics.SaveConfig(configKeyLogSources, string(data))\n145: \t}\n",
+			"line": "144",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "229: \n230: \ts.sessionMgr.UpdateStatus(sessionID, \"closed\")\n231: \tEmitEvent(s.ctx, \"session-closed-\"+sessionID, sessionID)\n",
+			"line": "230",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "226: \t\tsess.cmd.Process.Kill()\n227: \t\tsess.cmd.Wait()\n228: \t}\n",
+			"line": "227",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "225: \tif !processExited \u0026\u0026 sess.cmd.Process != nil {\n226: \t\tsess.cmd.Process.Kill()\n227: \t\tsess.cmd.Wait()\n",
+			"line": "226",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "221: \t} else if sess.stdin != nil {\n222: \t\tsess.stdin.Close()\n223: \t}\n",
+			"line": "222",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "219: \tif sess.pty != nil \u0026\u0026 sess.pty.closer != nil {\n220: \t\tsess.pty.closer()\n221: \t} else if sess.stdin != nil {\n",
+			"line": "220",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "155: \ttime.Sleep(50 * time.Millisecond) // let buffered output flush\n156: \ts.cleanup(sessionID, true)\n157: }\n",
+			"line": "156",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\local_service.go",
+			"code": "98: \t// Persist session\n99: \ts.sessionMgr.Create(database.Session{\n100: \t\tID:     id,\n101: \t\tHostID: \"local\",\n102: \t\tStatus: \"active\",\n103: \t})\n104: \n",
+			"line": "99-103",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\host_service.go",
+			"code": "107: \t\t\t\tif err == nil {\n108: \t\t\t\t\tconn.Close()\n109: \t\t\t\t\tstatus = true\n",
+			"line": "108",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "214: \t\trc.Close()\n215: \t\tdf.Close()\n216: \t}\n",
+			"line": "215",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "213: \t\tio.Copy(df, rc)\n214: \t\trc.Close()\n215: \t\tdf.Close()\n",
+			"line": "214",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "212: \t\t}\n213: \t\tio.Copy(df, rc)\n214: \t\trc.Close()\n",
+			"line": "213",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "209: \t\tif err != nil {\n210: \t\t\tdf.Close()\n211: \t\t\treturn err\n",
+			"line": "210",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "201: \n202: \t\tos.MkdirAll(filepath.Dir(destPath), 0700)\n203: \n",
+			"line": "202",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "197: \t\tif f.FileInfo().IsDir() {\n198: \t\t\tos.MkdirAll(destPath, 0700)\n199: \t\t\tcontinue\n",
+			"line": "198",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "147: \texportPath := filepath.Join(s.dataDir, \"exports\")\n148: \tos.MkdirAll(exportPath, 0700)\n149: \tfileName := fmt.Sprintf(\"bundle_%s.vbx\", time.Now().Format(\"20060102_150405\"))\n",
+			"line": "148",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\disaster_service.go",
+			"code": "129: \t}\n130: \tzw.Close()\n131: \n",
+			"line": "130",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\container.go",
+			"code": "532: \tif c.Log != nil {\n533: \t\tc.Log.Close()\n534: \t}\n",
+			"line": "533",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\container.go",
+			"code": "525: \tif c.HotStore != nil {\n526: \t\tc.HotStore.Close()\n527: \t}\n",
+			"line": "526",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\api_service.go",
+			"code": "61: \ts.log.Info(\"Shutting down APIService...\")\n62: \ts.server.Stop(context.Background())\n63: }\n",
+			"line": "62",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\alerting_service.go",
+			"code": "341: \tif data, err := json.Marshal(custom); err == nil {\n342: \t\ts.analytics.SaveConfig(configKeyMetricTrigs, string(data))\n343: \t}\n",
+			"line": "342",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\alerting_service.go",
+			"code": "286: \tif data, err := json.Marshal(cfg); err == nil {\n287: \t\ts.analytics.SaveConfig(configKeyNotification, string(data))\n288: \t}\n",
+			"line": "287",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\alerting_service.go",
+			"code": "276: \tif data, err := json.Marshal(custom); err == nil {\n277: \t\ts.analytics.SaveConfig(configKeyTriggers, string(data))\n278: \t}\n",
+			"line": "277",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\app\\alerting_service.go",
+			"code": "253: \t\t\tfor _, t := range triggers {\n254: \t\t\t\ts.alerts.AddTrigger(t.ID, t.Name, t.Pattern, t.Severity)\n255: \t\t\t}\n",
+			"line": "254",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\server.go",
+			"code": "294: \tw.Header().Set(\"Content-Type\", \"application/json\")\n295: \tjson.NewEncoder(w).Encode(map[string]string{\n296: \t\t\"output\": string(output),\n297: \t})\n298: }\n",
+			"line": "295-297",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\server.go",
+			"code": "286: \t\tw.WriteHeader(http.StatusInternalServerError)\n287: \t\tjson.NewEncoder(w).Encode(map[string]string{\n288: \t\t\t\"error\":  err.Error(),\n289: \t\t\t\"output\": string(output),\n290: \t\t})\n291: \t\treturn\n",
+			"line": "287-290",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\server.go",
+			"code": "218: \tw.Header().Set(\"Content-Type\", \"application/json\")\n219: \tjson.NewEncoder(w).Encode(map[string]interface{}{\n220: \t\t\"id\":       h.ID,\n221: \t\t\"label\":    h.Label,\n222: \t\t\"hostname\": h.Hostname,\n223: \t\t\"username\": h.Username,\n224: \t\t\"port\":     h.Port,\n225: \t})\n226: }\n",
+			"line": "219-225",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\server.go",
+			"code": "192: \tw.Header().Set(\"Content-Type\", \"application/json\")\n193: \tjson.NewEncoder(w).Encode(hosts)\n194: }\n",
+			"line": "193",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\server.go",
+			"code": "158: \t}\n159: \tjson.NewEncoder(w).Encode(map[string]string{\"status\": \"ok\"})\n160: }\n",
+			"line": "159",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\rest.go",
+			"code": "420: \u003c/html\u003e`\n421: \tw.Write([]byte(html))\n422: }\n",
+			"line": "421",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\rest.go",
+			"code": "367: \tif s.bus == nil {\n368: \t\tconn.WriteMessage(websocket.TextMessage, []byte(`{\"error\":\"Event bus not configured\"}`))\n369: \t\treturn\n",
+			"line": "368",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\api\\rest.go",
+			"code": "139: \tw.WriteHeader(status)\n140: \tjson.NewEncoder(w).Encode(data)\n141: }\n",
+			"line": "140",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "145: \t// Create FTS5 virtual table for forensic search\n146: \tdb.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS recording_frames_fts USING fts5(\n147: \t\tdata,\n148: \t\trecording_id UNINDEXED,\n149: \t\ttokenize='unicode61 remove_diacritics 1'\n150: \t)`)\n151: \n",
+			"line": "146-150",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "142: \t)`)\n143: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_rec_frames_id ON recording_frames(recording_id, timestamp)`)\n144: \n",
+			"line": "143",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "135: \t// Create recording_frames\n136: \tdb.Exec(`CREATE TABLE IF NOT EXISTS recording_frames (\n137: \t\trecording_id TEXT NOT NULL,\n138: \t\ttimestamp REAL NOT NULL,\n139: \t\ttype TEXT NOT NULL,\n140: \t\tdata TEXT NOT NULL,\n141: \t\tFOREIGN KEY(recording_id) REFERENCES session_recordings(id) ON DELETE CASCADE\n142: \t)`)\n143: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_rec_frames_id ON recording_frames(recording_id, timestamp)`)\n",
+			"line": "136-142",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "122: \t// Create session_recordings\n123: \tdb.Exec(`CREATE TABLE IF NOT EXISTS session_recordings (\n124: \t\tid TEXT PRIMARY KEY,\n125: \t\tsession_id TEXT NOT NULL,\n126: \t\thost_label TEXT NOT NULL,\n127: \t\tstarted_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n128: \t\tduration REAL DEFAULT 0,\n129: \t\tevent_count INTEGER DEFAULT 0,\n130: \t\tcols INTEGER NOT NULL,\n131: \t\trows INTEGER NOT NULL,\n132: \t\tstatus TEXT DEFAULT 'in_progress'\n133: \t)`)\n134: \n",
+			"line": "123-133",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "119: \t)`)\n120: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_alert_hist_ts ON alert_history(timestamp DESC)`)\n121: \n",
+			"line": "120",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "108: \t// Create alert_history table\n109: \tdb.Exec(`CREATE TABLE IF NOT EXISTS alert_history (\n110: \t\tid INTEGER PRIMARY KEY AUTOINCREMENT,\n111: \t\ttimestamp DATETIME DEFAULT CURRENT_TIMESTAMP,\n112: \t\ttrigger_id TEXT,\n113: \t\tname TEXT,\n114: \t\tseverity TEXT,\n115: \t\thost TEXT,\n116: \t\tsession_id TEXT,\n117: \t\tlog_line TEXT,\n118: \t\tsent INTEGER DEFAULT 0\n119: \t)`)\n120: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_alert_hist_ts ON alert_history(timestamp DESC)`)\n",
+			"line": "109-119",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "101: \t// Create app_config table for persistent settings\n102: \tdb.Exec(`CREATE TABLE IF NOT EXISTS app_config (\n103: \t\tkey TEXT PRIMARY KEY,\n104: \t\tvalue TEXT NOT NULL,\n105: \t\tupdated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n106: \t)`)\n107: \n",
+			"line": "102-106",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "98: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_session ON terminal_logs(session_id)`)\n99: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON terminal_logs(timestamp DESC)`)\n100: \n",
+			"line": "99",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "97: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_host ON terminal_logs(host)`)\n98: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_session ON terminal_logs(session_id)`)\n99: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON terminal_logs(timestamp DESC)`)\n",
+			"line": "98",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "96: \t// Create indexes for common query patterns\n97: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_host ON terminal_logs(host)`)\n98: \tdb.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_session ON terminal_logs(session_id)`)\n",
+			"line": "97",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "60: \tif err := e.bootstrap(db); err != nil {\n61: \t\tdb.Close()\n62: \t\treturn err\n",
+			"line": "61",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics_pure.go",
+			"code": "42: \t\t}\n43: \t\te.db.Close()\n44: \t}\n",
+			"line": "43",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "615: \tzw.Write([]byte(s))\n616: \tzw.Close()\n617: \treturn base64.StdEncoding.EncodeToString(buf.Bytes())\n",
+			"line": "616",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "614: \tzw := zlib.NewWriter(\u0026buf)\n615: \tzw.Write([]byte(s))\n616: \tzw.Close()\n",
+			"line": "615",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "381: \t}\n382: \te.db.Exec(\n383: \t\t\"INSERT INTO alert_history (trigger_id, name, severity, host, session_id, log_line, sent) VALUES (?, ?, ?, ?, ?, ?, ?)\",\n384: \t\ttriggerID, name, severity, host, sessionID, logLine, sentInt)\n385: }\n",
+			"line": "382-384",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "346: \t\tif rows \u003e 0 {\n347: \t\t\te.db.Exec(`VACUUM`)\n348: \t\t}\n",
+			"line": "347",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "330: \t\t\t\tif rows \u003e 0 {\n331: \t\t\t\t\te.db.Exec(`VACUUM`)\n332: \t\t\t\t}\n",
+			"line": "331",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "161: \t\tftsStmt.Close()\n162: \t\ttx.Commit()\n163: \t\tbatch = batch[:0]\n",
+			"line": "162",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "160: \t\tstmt.Close()\n161: \t\tftsStmt.Close()\n162: \t\ttx.Commit()\n",
+			"line": "161",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "159: \t\t}\n160: \t\tstmt.Close()\n161: \t\tftsStmt.Close()\n",
+			"line": "160",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "156: \t\t\tif frame.Type == \"o\" || frame.Type == \"i\" {\n157: \t\t\t\tftsStmt.Exec(frame.RecordingID, stripAnsi(frame.Data))\n158: \t\t\t}\n",
+			"line": "157",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "153: \n154: \t\t\tstmt.Exec(frame.RecordingID, frame.Timestamp, frame.Type, compressedData)\n155: \t\t\t// Only index output and input for FTS, and strip ANSI\n",
+			"line": "154",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "145: \t\t\tstmt.Close()\n146: \t\t\ttx.Rollback()\n147: \t\t\treturn\n",
+			"line": "146",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "144: \t\tif err != nil {\n145: \t\t\tstmt.Close()\n146: \t\t\ttx.Rollback()\n",
+			"line": "145",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "138: \t\tif err != nil {\n139: \t\t\ttx.Rollback()\n140: \t\t\treturn\n",
+			"line": "139",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "95: \t\tstmt.Close()\n96: \t\ttx.Commit()\n97: \t\tbatch = batch[:0]\n",
+			"line": "96",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "94: \t\t}\n95: \t\tstmt.Close()\n96: \t\ttx.Commit()\n",
+			"line": "95",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "86: \t\t\t\tdocID := uuid.New().String()\n87: \t\t\t\te.searchEngine.Index(docID, \"terminal_log\", map[string]interface{}{\n88: \t\t\t\t\t\"timestamp\":  entry.Timestamp.UTC().Format(time.RFC3339),\n89: \t\t\t\t\t\"session_id\": entry.SessionID,\n90: \t\t\t\t\t\"host\":       entry.Host,\n91: \t\t\t\t\t\"output\":     entry.Output,\n92: \t\t\t\t})\n93: \t\t\t}\n",
+			"line": "87-92",
+			"column": "5",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "81: \t\tfor _, entry := range batch {\n82: \t\t\tstmt.Exec(entry.Timestamp.UTC().Format(time.RFC3339), entry.SessionID, entry.Host, entry.Output)\n83: \n",
+			"line": "82",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\analytics\\analytics.go",
+			"code": "76: \t\tif err != nil {\n77: \t\t\ttx.Rollback()\n78: \t\t\treturn\n",
+			"line": "77",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\wal.go",
+			"code": "86: \tif w.file != nil {\n87: \t\tw.file.Close()\n88: \t}\n",
+			"line": "87",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\transport.go",
+			"code": "132: \t\t\t// Final flush attempt\n133: \t\t\tt.flushOnce(wal, onConfig)\n134: \t\t\treturn\n",
+			"line": "133",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\collectors.go",
+			"code": "97: \t// Seek to end\n98: \tf.Seek(0, 2)\n99: \n",
+			"line": "98",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\internal\\agent\\agent.go",
+			"code": "252: \ta.wg.Wait()\n253: \ta.wal.Close()\n254: \ta.transport.Close()\n",
+			"line": "253",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\tenant_test\\main.go",
+			"code": "133: \t\t\t\t\tif len(creds) \u003e 0 {\n134: \t\t\t\t\t\tcredRepo.GetByID(ctx, creds[rand.Intn(len(creds))].ID)\n135: \t\t\t\t\t}\n",
+			"line": "134",
+			"column": "7",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\tenant_test\\main.go",
+			"code": "130: \t\t\t\tcase 1:\n131: \t\t\t\t\tcredRepo.List(ctx, \"password\")\n132: \t\t\t\tcase 2:\n",
+			"line": "131",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\tenant_test\\main.go",
+			"code": "128: \t\t\t\tcase 0:\n129: \t\t\t\t\tcredRepo.List(ctx, \"\")\n130: \t\t\t\tcase 1:\n",
+			"line": "129",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\soak_test\\main.go",
+			"code": "50: \t\t\tlatencyMarker := fmt.Sprintf(\"\u003c34\u003e1 %s soak_machine su: 'su root' failed for hacker (SOAK_TEST_LATENCY_MARKER)\\n\", time.Now().Format(time.RFC3339))\n51: \t\t\tconn.Write([]byte(latencyMarker))\n52: \n",
+			"line": "51",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\soak_test\\main.go",
+			"code": "46: \t\t\tendMarker := fmt.Sprintf(\"\u003c34\u003e1 %s soak_machine su: SOAK_TEST_END_MARKER\\n\", time.Now().Format(time.RFC3339))\n47: \t\t\tconn.Write([]byte(endMarker))\n48: \n",
+			"line": "47",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\soak_test\\main.go",
+			"code": "36: \tstartMarker := fmt.Sprintf(\"\u003c34\u003e1 %s soak_machine su: SOAK_TEST_START_MARKER\\n\", time.Now().Format(time.RFC3339))\n37: \tconn.Write([]byte(startMarker))\n38: \n",
+			"line": "37",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "555: \t\tjh.Host = parts[0]\n556: \t\tfmt.Sscanf(parts[1], \"%d\", \u0026jh.Port)\n557: \t} else {\n",
+			"line": "556",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "528: \t\tfmt.Fprintf(os.Stderr, \"Shell failed: %v\\n\", err)\n529: \t\tclient.Close()\n530: \t\tos.Exit(1)\n",
+			"line": "529",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "370: \tdynamicForward := fs.String(\"D\", \"\", \"Dynamic SOCKS: local_port\")\n371: \tfs.Parse(args)\n372: \n",
+			"line": "371",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "353: \t\toutput, err := client.ExecuteCommand(command)\n354: \t\tclient.Close()\n355: \n",
+			"line": "354",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "286: \t// parallel := fs.Bool(\"parallel\", true, \"Execute in parallel\")\n287: \tfs.Parse(args)\n288: \n",
+			"line": "287",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "181: \tformat := fs.String(\"format\", \"table\", \"Output format (table, json, csv)\")\n182: \tfs.Parse(args)\n183: \n",
+			"line": "182",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "152: \t\thostname = parts[0]\n153: \t\tfmt.Sscanf(parts[1], \"%d\", port)\n154: \t}\n",
+			"line": "153",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "136: \t\t}\n137: \t\tdb.Close()\n138: \t}\n",
+			"line": "137",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\main.go",
+			"code": "101: \tjumpHost := fs.String(\"J\", \"\", \"Jump host (user@host:port)\")\n102: \tfs.Parse(args)\n103: \n",
+			"line": "102",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\client.go",
+			"code": "44: \tdir := filepath.Join(home, \".oblivrashell\")\n45: \tos.MkdirAll(dir, 0700)\n46: \n",
+			"line": "45",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\api_cmds.go",
+			"code": "50: \tfs := flag.NewFlagSet(\"stream\", flag.ExitOnError)\n51: \tfs.Parse(args)\n52: \n",
+			"line": "51",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\api_cmds.go",
+			"code": "30: \tlimit := fs.Int(\"limit\", 100, \"Maximum number of results\")\n31: \tfs.Parse(args)\n32: \n",
+			"line": "31",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\cli\\api_cmds.go",
+			"code": "11: \ttoken := fs.String(\"token\", \"\", \"API Token\")\n12: \tfs.Parse(args)\n13: \n",
+			"line": "12",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\chaos-harness\\main.go",
+			"code": "60: \t\t\t\t\t}\n61: \t\t\t\t\tresp.Body.Close()\n62: \t\t\t\t}\n",
+			"line": "61",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\certgen\\main.go",
+			"code": "50: \t}\n51: \tsecurity.SavePair(signPair, filepath.Join(appDir, \"codesign.pem\"), filepath.Join(appDir, \"codesign.key\"))\n52: \n",
+			"line": "51",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\certgen\\main.go",
+			"code": "42: \t}\n43: \tsecurity.SavePair(tlsPair, filepath.Join(appDir, \"cert.pem\"), filepath.Join(appDir, \"key.pem\"))\n44: \n",
+			"line": "43",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\certgen\\main.go",
+			"code": "28: \t\t}\n29: \t\tsecurity.SavePair(caPair, caCertPath, caKeyPath)\n30: \t} else {\n",
+			"line": "29",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "C:\\Users\\KingKnull\\Desktop\\sovereign-terminal\\cmd\\certgen\\main.go",
+			"code": "15: \tappDir := filepath.Join(home, \".oblivrashell\")\n16: \tos.MkdirAll(appDir, 0700)\n17: \n",
+			"line": "16",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		}
+	],
+	"Stats": {
+		"files": 242,
+		"lines": 41278,
+		"nosec": 0,
+		"found": 342
+	},
+	"GosecVersion": "dev"
+}

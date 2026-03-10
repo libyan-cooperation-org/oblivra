@@ -1,0 +1,21 @@
+[
+  {
+    "type": "log",
+    "host": "network-edge-01",
+    "payload": "{\"timestamp\":\"2026-03-10T15:00:01Z\",\"event_type\":\"conn\",\"src_ip\":\"10.0.0.5\",\"dest_ip\":\"8.8.8.8\",\"proto\":\"tcp\",\"service\":\"dns\",\"duration\":0.05,\"orig_bytes\":512,\"resp_bytes\":2048}",
+    "expect_alert": false
+  },
+  {
+    "type": "log",
+    "host": "network-edge-01",
+    "payload": "{\"timestamp\":\"2026-03-10T15:01:00Z\",\"event_type\":\"dns\",\"src_ip\":\"10.0.0.5\",\"query\":\"malicious-c2-domain.com\",\"qtype_name\":\"A\",\"rcode_name\":\"NOERROR\"}",
+    "expect_alert": true,
+    "expected_id": "builtin-alert-dns-c2"
+  },
+  {
+    "type": "log",
+    "host": "network-edge-01",
+    "payload": "{\"timestamp\":\"2026-03-10T15:02:00Z\",\"event_type\":\"file\",\"src_ip\":\"10.0.0.5\",\"file_name\":\"update.exe\",\"mime_type\":\"application/x-dosexec\",\"md5\":\"d41d8cd98f00b204e9800998ecf8427e\"}",
+    "expect_alert": false
+  }
+]

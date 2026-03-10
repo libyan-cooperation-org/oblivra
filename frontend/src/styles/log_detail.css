@@ -1,0 +1,79 @@
+.log-entry {
+    border-bottom: 1px solid var(--border-primary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.log-summary {
+    display: flex;
+    padding: 4px 8px;
+    cursor: pointer;
+    gap: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.log-summary:hover {
+    background-color: var(--bg-hover);
+}
+
+.log-details {
+    background-color: var(--bg-tertiary);
+    padding: 16px;
+    border-top: 1px dotted var(--border-primary);
+}
+
+.fields-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.field-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-surface);
+    padding: 4px 10px;
+    border-radius: var(--radius-xs);
+    border: 1px solid transparent;
+    transition: border var(--transition-fast);
+}
+
+.field-item:hover {
+    border-color: var(--border-primary);
+}
+
+.key {
+    color: var(--accent-secondary);
+    font-weight: 700;
+}
+
+.value {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.field-actions {
+    margin-left: auto;
+    display: none;
+    /* Hide actions until hover */
+}
+
+.field-item:hover .field-actions {
+    display: flex;
+}
+
+.field-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 10px;
+    padding: 0 2px;
+}
+
+.field-actions button:hover {
+    color: var(--accent-primary);
+}

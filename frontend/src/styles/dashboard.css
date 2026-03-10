@@ -1,0 +1,195 @@
+/* ===== Dashboard Page Specific Styles ===== */
+
+/* Header */
+.dash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--padding-xl);
+    border-bottom: 1px solid var(--border-primary);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.dash-title {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-black);
+    color: var(--text-heading);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-family: var(--font-ui);
+}
+
+.dash-subtitle {
+    margin: var(--gap-xs) 0 0 0;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* KPI Grid */
+.dash-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border-primary);
+    background: var(--bg-secondary);
+}
+
+.dash-kpi {
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid var(--border-primary);
+    background: transparent;
+    box-shadow: none;
+    padding: var(--padding-xl);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.dash-kpi:last-child {
+    border-right: none;
+}
+
+.dash-kpi:hover {
+    background: var(--bg-hover);
+}
+
+.dash-kpi-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-black);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: var(--gap-sm);
+    font-family: var(--font-ui);
+}
+
+.dash-kpi-value {
+    font-size: 32px;
+    font-weight: var(--font-weight-black);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    line-height: var(--line-height-tight);
+    letter-spacing: -1px;
+}
+
+.dash-kpi-sub {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--gap-xs);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+}
+
+.dash-trend-good {
+    color: var(--status-online);
+    font-weight: var(--font-weight-bold);
+}
+
+.dash-trend-bad {
+    color: var(--status-offline);
+    font-weight: var(--font-weight-bold);
+}
+
+.dash-kpi-alert .dash-kpi-label {
+    color: var(--status-offline);
+}
+
+.dash-kpi-alert .dash-kpi-value {
+    color: var(--status-offline);
+}
+
+/* Main Grid */
+.dash-main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-primary);
+}
+
+.dash-chart-card,
+.dash-heatmap-card {
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid var(--border-primary);
+    box-shadow: none;
+    padding: var(--padding-xl);
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+}
+
+.dash-chart-card {
+    border-right: 1px solid var(--border-primary);
+}
+
+.dash-section-header {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-black);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-bottom: var(--padding-sm);
+    border-bottom: 1px solid var(--border-primary);
+    margin-bottom: var(--gap-lg);
+    font-family: var(--font-ui);
+}
+
+.dash-chart {
+    flex: 1;
+    width: 100%;
+    min-height: 300px;
+}
+
+/* Heatmap */
+.dash-heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+    gap: 4px;
+    padding: var(--padding-xs);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+}
+
+.dash-heatmap-cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    transition: all var(--transition-fast);
+    cursor: crosshair;
+}
+
+.dash-heatmap-cell:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 1px var(--text-primary);
+    z-index: 2;
+}
+
+.dash-legend {
+    display: flex;
+    gap: var(--gap-lg);
+    margin-top: var(--gap-lg);
+}
+
+.dash-legend-item {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    gap: var(--gap-xs);
+}
+
+.dash-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+}

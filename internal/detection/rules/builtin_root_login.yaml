@@ -1,0 +1,12 @@
+id: "builtin-2"
+name: "Root Login"
+description: "Detects successful root logins."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+conditions:
+  EventType: "successful_login"
+  User: "root"
+mitre_tactics: ["TA0001"]
+mitre_techniques: ["T1078"]

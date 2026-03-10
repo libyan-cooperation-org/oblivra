@@ -1,0 +1,546 @@
+/* ═══════════════════════════════════════════════════════════════
+   OBLIVRA — Shared Component Library
+   One source of truth for buttons, inputs, cards, badges, tables.
+   Import this in global.css. All pages use these classes.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Buttons ── */
+
+.ob-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    user-select: none;
+    line-height: 1.4;
+}
+
+.ob-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-secondary);
+}
+
+.ob-btn:active {
+    background: var(--bg-active);
+}
+
+.ob-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Primary — accent CTA */
+.ob-btn-primary {
+    background: var(--accent-secondary);
+    color: #fff;
+    border-color: transparent;
+}
+
+.ob-btn-primary:hover {
+    background: #2563eb;
+    border-color: transparent;
+}
+
+/* Danger — destructive */
+.ob-btn-danger {
+    color: #f85149;
+    border-color: rgba(248, 81, 73, 0.3);
+}
+
+.ob-btn-danger:hover {
+    background: rgba(248, 81, 73, 0.12);
+    border-color: rgba(248, 81, 73, 0.5);
+}
+
+/* Ghost — minimal */
+.ob-btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-muted);
+}
+
+.ob-btn-ghost:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Small */
+.ob-btn-sm {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* Icon-only */
+.ob-btn-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 14px;
+}
+
+
+/* ── Inputs ── */
+
+.ob-input {
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color var(--transition-fast);
+}
+
+.ob-input:focus {
+    border-color: var(--accent-secondary);
+}
+
+.ob-input::placeholder {
+    color: var(--text-muted);
+}
+
+.ob-input-mono {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+/* Select */
+.ob-select {
+    appearance: none;
+    padding: 7px 28px 7px 10px;
+    font-size: 12px;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    background: var(--bg-primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236B7280'/%3E%3C/svg%3E") no-repeat right 10px center;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    outline: none;
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+}
+
+.ob-select:focus {
+    border-color: var(--accent-secondary);
+}
+
+/* Textarea */
+.ob-textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+
+/* ── Cards ── */
+
+.ob-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    transition: border-color var(--transition-fast);
+}
+
+.ob-card:hover {
+    border-color: var(--border-secondary);
+}
+
+.ob-card-flat {
+    background: var(--bg-primary);
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+}
+
+/* KPI Card */
+.ob-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+
+.ob-kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.ob-kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+}
+
+
+/* ── Badges ── */
+
+.ob-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.ob-badge-green {
+    color: #3fb950;
+    background: rgba(63, 185, 80, 0.1);
+    border-color: rgba(63, 185, 80, 0.3);
+}
+
+.ob-badge-red {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.1);
+    border-color: rgba(248, 81, 73, 0.3);
+}
+
+.ob-badge-yellow {
+    color: #d29922;
+    background: rgba(210, 153, 34, 0.1);
+    border-color: rgba(210, 153, 34, 0.3);
+}
+
+.ob-badge-blue {
+    color: #58a6ff;
+    background: rgba(88, 166, 255, 0.1);
+    border-color: rgba(88, 166, 255, 0.3);
+}
+
+
+/* ── Tables ── */
+
+.ob-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+}
+
+.ob-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.ob-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    white-space: nowrap;
+}
+
+.ob-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-primary);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.ob-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.ob-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+
+/* ── Section Headers ── */
+
+.ob-section-header {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+
+/* ── Page Layout ── */
+
+.ob-page {
+    padding: 0;
+    /* BRUTALISM: Edge to edge */
+    overflow-y: auto;
+    height: 100%;
+    background: var(--surface-0);
+}
+
+.ob-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: var(--surface-1);
+    border-bottom: 2px solid var(--border-primary);
+    margin-bottom: 0;
+}
+
+.ob-page-title {
+    font-size: 18px;
+    font-family: var(--font-mono);
+    /* Force mono for page display */
+    font-weight: 800;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.ob-page-subtitle {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+}
+
+
+/* ── Toolbar ── */
+
+.ob-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.ob-toolbar-spacer {
+    flex: 1;
+}
+
+
+/* ── Modal ── */
+
+.ob-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+    animation: fade-in-up 0.15s ease-out;
+}
+
+.ob-modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    min-width: 420px;
+    max-width: 560px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+.ob-modal h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.ob-modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+
+/* ── Form Layout ── */
+
+.ob-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ob-form label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+
+/* ── Stat Grid ── */
+
+.ob-stat-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.ob-stat-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.ob-stat-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+.ob-stat-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1024px) {
+
+    .ob-stat-grid-4,
+    .ob-stat-grid-5 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+
+/* ── Skeleton Loader ── */
+
+.ob-skeleton {
+    background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-hover) 50%, var(--bg-tertiary) 75%);
+    background-size: 200% 100%;
+    animation: ob-shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+}
+
+.ob-skeleton-text {
+    height: 12px;
+    margin-bottom: 8px;
+}
+
+.ob-skeleton-block {
+    height: 40px;
+}
+
+@keyframes ob-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+
+/* ── Empty State ── */
+
+.ob-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.ob-empty-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.ob-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.ob-empty-desc {
+    font-size: 12px;
+}
+
+
+/* ── Status Indicators ── */
+
+.ob-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ob-status-online {
+    background: var(--status-online);
+}
+
+.ob-status-warn {
+    background: var(--status-degraded);
+}
+
+.ob-status-offline {
+    background: var(--status-offline);
+}
+
+
+/* ── Code Block ── */
+
+.ob-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--code-bg);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-primary);
+    word-break: break-all;
+    white-space: pre-wrap;
+    color: var(--text-primary);
+    overflow-x: auto;
+}
+
+
+/* ── Responsive utility ── */
+
+@media (max-width: 1024px) {
+    .ob-page {
+        padding: 0;
+    }
+
+    .ob-modal {
+        min-width: 90vw;
+    }
+}
