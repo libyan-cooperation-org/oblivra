@@ -1,0 +1,14 @@
+id: "execution_wmi_activity"
+name: "Remote WMI Execution"
+description: "Detects Windows Management Instrumentation activity used to execute commands on remote systems."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 600
+mitre_tactics:
+  - "TA0002"
+mitre_techniques:
+  - "T1047"
+conditions:
+  EventType: "wmi_remote_exec"

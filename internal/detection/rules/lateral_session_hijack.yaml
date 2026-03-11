@@ -1,0 +1,14 @@
+id: "lateral_remote_session_hijack"
+name: "Remote Session Hijacking"
+description: "Detects hijacking of existing remote desktop or SSH sessions to move laterally without re-authenticating."
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0008"
+mitre_techniques:
+  - "T1563"
+conditions:
+  EventType: "session_hijack"

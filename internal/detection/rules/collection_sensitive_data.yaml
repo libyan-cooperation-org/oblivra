@@ -1,0 +1,15 @@
+id: "collection_sensitive_data_access"
+name: "Sensitive Data Access from Local System"
+description: "Detects access to files containing financial data, PII, or classified documents from unusual processes."
+severity: "medium"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0009"
+mitre_techniques:
+  - "T1005"
+conditions:
+  EventType: "file_access"
+  output_contains: "regex:(confidential|classified|secret|pii|ssn|credit.card)"

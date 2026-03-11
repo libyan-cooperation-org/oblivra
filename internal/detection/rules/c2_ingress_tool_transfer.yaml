@@ -1,0 +1,15 @@
+id: "c2_ingress_tool_transfer"
+name: "Ingress Tool Transfer"
+description: "Detects download of tools from external sources using curl, wget, certutil, or PowerShell download cradles."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 600
+mitre_tactics:
+  - "TA0011"
+mitre_techniques:
+  - "T1105"
+conditions:
+  EventType: "process_execution"
+  output_contains: "regex:(curl.*http|wget.*http|certutil.*urlcache|Invoke-WebRequest|DownloadString)"

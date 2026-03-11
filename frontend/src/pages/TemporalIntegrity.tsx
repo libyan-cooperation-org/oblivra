@@ -1,138 +1,177 @@
 import { Component, createSignal, For, Show, onMount, onCleanup } from 'solid-js';
 import { Violation } from '../wails';
 
+const typeColor = (t: string) => {
+    switch (t) {
+        case 'clock_drift':   return 'var(--alert-medium)';
+        case 'future_event':  return 'var(--alert-critical)';
+        case 'stale_event':   return 'var(--accent-primary)';
+        default:              return 'var(--text-muted)';
+    }
+};
+
+const driftColor = (ms: number) => {
+    const abs = Math.abs(ms);
+    if (abs > 5000) return 'var(--alert-critical)';
+    if (abs > 2000) return 'var(--alert-medium)';
+    return 'var(--alert-low)';
+};
+
 export const TemporalIntegrity: Component = () => {
     const [violations, setViolations] = createSignal<Violation[]>([]);
     const [agentDrift, setAgentDrift] = createSignal<Record<string, number>>({});
+    const [loading, setLoading]       = createSignal(true);
+    const [loadErr, setLoadErr]       = createSignal('');
+
+    const svc = () => (window as any).go?.app?.TemporalService;
 
     const loadData = async () => {
+        setLoadErr('');
         try {
-            if (window.go?.app?.TemporalService) {
-                const [vios, drift] = await Promise.all([
-                    window.go.app.TemporalService.GetViolations(),
-                    window.go.app.TemporalService.GetAgentDrift()
-                ]);
-                setViolations(vios || []);
-                setAgentDrift(drift || {});
-            }
-        } catch (err) {
-            console.error("Failed to load temporal data:", err);
+            const s = svc();
+            if (!s) { setLoadErr('TemporalService not available'); return; }
+            const [vios, drift] = await Promise.all([
+                s.GetViolations(),
+                s.GetAgentDrift(),
+            ]);
+            setViolations(vios || []);
+            setAgentDrift(drift || {});
+        } catch (err: any) {
+            setLoadErr(err?.message ?? String(err));
+        } finally {
+            setLoading(false);
         }
     };
 
     onMount(() => {
         loadData();
-        const timer = setInterval(loadData, 3000);
-        onCleanup(() => clearInterval(timer));
+        const t = setInterval(loadData, 3000);
+        onCleanup(() => clearInterval(t));
     });
 
-    const getTypeColor = (t: string) => {
-        switch (t) {
-            case 'clock_drift': return '#f59e0b';
-            case 'future_event': return '#ef4444';
-            case 'stale_event': return '#8b5cf6';
-            default: return '#6b7280';
-        }
-    };
-
-    const getDriftColor = (ms: number) => {
-        const abs = Math.abs(ms);
-        if (abs > 5000) return '#ef4444';
-        if (abs > 2000) return '#f59e0b';
-        return '#10b981';
-    };
+    const driftEntries = () => Object.entries(agentDrift());
 
     return (
-        <div class="temporal-page">
-            <header class="temporal-header">
+        <div style={{
+            display: 'flex',
+            'flex-direction': 'column',
+            height: '100%',
+            overflow: 'hidden',
+            background: 'var(--surface-0)',
+            padding: '28px 32px 0 32px',
+        }}>
+            {/* ── Header ── */}
+            <div style={{
+                display: 'flex',
+                'justify-content': 'space-between',
+                'align-items': 'flex-end',
+                'margin-bottom': '20px',
+                'padding-bottom': '16px',
+                'border-bottom': '1px solid var(--border-primary)',
+                'flex-shrink': 0,
+            }}>
                 <div>
-                    <h1>TEMPORAL INTEGRITY</h1>
-                    <p>Event timestamp validation and fleet clock drift monitoring</p>
+                    <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', 'font-weight': 700, color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '2px', 'margin-bottom': '4px' }}>AUDIT TRAIL</div>
+                    <h1 style={{ 'font-family': 'var(--font-mono)', 'font-size': '20px', 'font-weight': 800, color: 'var(--text-primary)', margin: 0, 'letter-spacing': '-0.5px' }}>
+                        Temporal Integrity
+                    </h1>
                 </div>
-                <div class="policy-badge">
-                    <span>Future Skew: 1h</span>
-                    <span>Max Age: 30d</span>
-                    <span>Drift Alert: 5000ms</span>
+                <div style={{ display: 'flex', gap: '16px', 'font-family': 'var(--font-mono)', 'font-size': '10px', color: 'var(--text-muted)', 'align-items': 'center' }}>
+                    <span style={{ border: '1px solid var(--border-primary)', padding: '4px 10px' }}>FUTURE SKEW: 1H</span>
+                    <span style={{ border: '1px solid var(--border-primary)', padding: '4px 10px' }}>MAX AGE: 30D</span>
+                    <span style={{ border: '1px solid var(--border-primary)', padding: '4px 10px' }}>DRIFT ALERT: 5000MS</span>
                 </div>
-            </header>
-
-            <div class="temporal-grid">
-                {/* Clock Drift Monitor */}
-                <section class="drift-panel">
-                    <h3>FLEET CLOCK DRIFT</h3>
-                    <div class="drift-list">
-                        <For each={Object.entries(agentDrift())}>
-                            {([host, drift]) => (
-                                <div class="drift-entry">
-                                    <span class="drift-host">{host}</span>
-                                    <div class="drift-bar-container">
-                                        <div class="drift-bar" style={{
-                                            width: `${Math.min(Math.abs(drift) / 100, 100)}%`,
-                                            background: getDriftColor(drift),
-                                            'margin-left': drift < 0 ? 'auto' : '0',
-                                        }}></div>
-                                    </div>
-                                    <span class="drift-value" style={{ color: getDriftColor(drift) }}>
-                                        {drift > 0 ? '+' : ''}{drift}ms
-                                    </span>
-                                </div>
-                            )}
-                        </For>
-                    </div>
-                </section>
-
-                {/* Violation Feed */}
-                <section class="violation-panel">
-                    <h3>TEMPORAL VIOLATIONS</h3>
-                    <div class="violation-list">
-                        <For each={violations()}>
-                            {(v) => (
-                                <div class="violation-entry" style={{ 'border-left-color': getTypeColor(v.type) }}>
-                                    <div class="violation-top">
-                                        <span class="violation-type" style={{ color: getTypeColor(v.type) }}>{v.type.toUpperCase().replace('_', ' ')}</span>
-                                        <span class="violation-time">{new Date(v.timestamp).toLocaleTimeString()}</span>
-                                    </div>
-                                    <div class="violation-host">Host: {v.host_id}</div>
-                                    <div class="violation-detail">{v.detail}</div>
-                                </div>
-                            )}
-                        </For>
-                        <Show when={violations().length === 0}>
-                            <div class="empty-state">No temporal violations detected.</div>
-                        </Show>
-                    </div>
-                </section>
             </div>
 
-            <style>{`
-                .temporal-page { padding: 1.5rem; height: calc(100vh - 60px); display: flex; flex-direction: column; gap: 1.5rem; overflow: hidden; }
-                .temporal-header { display: flex; justify-content: space-between; align-items: center; }
-                .temporal-header h1 { font-size: 1.4rem; letter-spacing: 2px; margin: 0; }
-                .temporal-header p { color: var(--tactical-gray); font-size: 0.8rem; margin: 0.25rem 0 0; }
-                .policy-badge { display: flex; gap: 1rem; font-size: 0.65rem; color: var(--tactical-gray); }
-                .policy-badge span { background: var(--tactical-surface); border: 1px solid var(--tactical-border); padding: 4px 8px; border-radius: 3px; }
+            {/* ── Load error ── */}
+            <Show when={loadErr()}>
+                <div style={{ padding: '10px 16px', 'margin-bottom': '16px', border: '1px solid var(--alert-critical)', 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--alert-critical)', 'flex-shrink': 0 }}>
+                    {loadErr()}
+                </div>
+            </Show>
 
-                .temporal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; flex: 1; overflow: hidden; }
+            {/* ── Grid ── */}
+            <div style={{ display: 'grid', 'grid-template-columns': '1fr 1fr', gap: '16px', flex: 1, 'min-height': 0, 'padding-bottom': '28px' }}>
 
-                .drift-panel, .violation-panel { background: var(--tactical-surface); border: 1px solid var(--tactical-border); border-radius: 8px; padding: 1.25rem; display: flex; flex-direction: column; overflow: hidden; }
-                .drift-panel h3, .violation-panel h3 { font-size: 0.7rem; letter-spacing: 2px; color: var(--tactical-gray); margin: 0 0 1rem; }
+                {/* Clock drift */}
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-primary)', display: 'flex', 'flex-direction': 'column', overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', 'border-bottom': '1px solid var(--border-primary)', 'font-family': 'var(--font-mono)', 'font-size': '9px', 'font-weight': 800, color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '1.5px', 'flex-shrink': 0 }}>
+                        FLEET CLOCK DRIFT — {driftEntries().length} HOSTS
+                    </div>
+                    <div style={{ flex: 1, 'overflow-y': 'auto', padding: '12px 16px', display: 'flex', 'flex-direction': 'column', gap: '10px' }}>
+                        <Show when={loading()}>
+                            <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--text-muted)', padding: '16px 0' }}>LOADING...</div>
+                        </Show>
+                        <Show when={!loading() && driftEntries().length === 0}>
+                            <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--text-muted)', 'text-transform': 'uppercase', padding: '24px 0', 'text-align': 'center' }}>
+                                NO DRIFT DATA
+                            </div>
+                        </Show>
+                        <For each={driftEntries()}>
+                            {([host, drift]) => {
+                                const color = driftColor(drift);
+                                const barWidth = Math.min(Math.abs(drift) / 100, 100);
+                                return (
+                                    <div style={{ display: 'grid', 'grid-template-columns': '140px 1fr 72px', gap: '0 12px', 'align-items': 'center' }}>
+                                        <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', color: 'var(--text-secondary)', overflow: 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap' }}>
+                                            {host}
+                                        </span>
+                                        <div style={{ height: '4px', background: 'var(--surface-2)', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${barWidth}%`, background: color, 'min-width': '2px', 'margin-left': drift < 0 ? 'auto' : '0', transition: 'width 0.4s' }} />
+                                        </div>
+                                        <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', 'font-weight': 800, color, 'text-align': 'right' }}>
+                                            {drift > 0 ? '+' : ''}{drift}ms
+                                        </span>
+                                    </div>
+                                );
+                            }}
+                        </For>
+                    </div>
+                </div>
 
-                .drift-list { display: flex; flex-direction: column; gap: 0.75rem; overflow: auto; }
-                .drift-entry { display: grid; grid-template-columns: 120px 1fr 80px; align-items: center; gap: 0.75rem; }
-                .drift-host { font-family: monospace; font-size: 0.75rem; color: #d1d5db; }
-                .drift-bar-container { height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden; }
-                .drift-bar { height: 100%; border-radius: 3px; transition: width 0.5s; min-width: 2px; }
-                .drift-value { font-family: monospace; font-size: 0.7rem; text-align: right; font-weight: 700; }
-
-                .violation-list { display: flex; flex-direction: column; gap: 0.5rem; overflow: auto; flex: 1; }
-                .violation-entry { border-left: 3px solid #6b7280; padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: 0 4px 4px 0; }
-                .violation-top { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
-                .violation-type { font-size: 0.65rem; font-weight: 800; letter-spacing: 1px; }
-                .violation-time { font-size: 0.6rem; color: var(--tactical-gray); font-family: monospace; }
-                .violation-host { font-size: 0.7rem; color: #9ca3af; margin-bottom: 0.25rem; }
-                .violation-detail { font-size: 0.7rem; color: #d1d5db; }
-                .empty-state { text-align: center; padding: 2rem; color: var(--tactical-gray); font-style: italic; }
-            `}</style>
+                {/* Violations */}
+                <div style={{ background: 'var(--surface-1)', border: '1px solid var(--border-primary)', display: 'flex', 'flex-direction': 'column', overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', 'border-bottom': '1px solid var(--border-primary)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'font-family': 'var(--font-mono)', 'font-size': '9px', 'font-weight': 800, color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '1.5px', 'flex-shrink': 0 }}>
+                        <span>TEMPORAL VIOLATIONS</span>
+                        <span style={{ color: violations().length > 0 ? 'var(--alert-critical)' : 'var(--alert-low)' }}>{violations().length} ACTIVE</span>
+                    </div>
+                    <div style={{ flex: 1, 'overflow-y': 'auto', padding: '8px', display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
+                        <Show when={!loading() && violations().length === 0}>
+                            <div style={{ padding: '32px', 'text-align': 'center', 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--alert-low)', 'text-transform': 'uppercase', 'letter-spacing': '0.5px' }}>
+                                ALL CLEAR — NO VIOLATIONS
+                            </div>
+                        </Show>
+                        <For each={violations()}>
+                            {(v) => {
+                                const color = typeColor(v.type);
+                                return (
+                                    <div style={{
+                                        padding: '10px 12px',
+                                        background: 'var(--surface-0)',
+                                        border: '1px solid var(--border-primary)',
+                                        'border-left': `3px solid ${color}`,
+                                    }}>
+                                        <div style={{ display: 'flex', 'justify-content': 'space-between', 'margin-bottom': '4px' }}>
+                                            <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '9px', 'font-weight': 800, color, 'text-transform': 'uppercase', 'letter-spacing': '0.5px' }}>
+                                                {v.type.replace('_', ' ')}
+                                            </span>
+                                            <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '9px', color: 'var(--text-muted)' }}>
+                                                {new Date(v.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </div>
+                                        <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', color: 'var(--text-muted)', 'margin-bottom': '4px' }}>
+                                            HOST: <span style={{ color: 'var(--text-secondary)' }}>{v.host_id}</span>
+                                        </div>
+                                        <div style={{ 'font-family': 'var(--font-ui)', 'font-size': '11px', color: 'var(--text-secondary)', 'line-height': 1.4 }}>
+                                            {v.detail}
+                                        </div>
+                                    </div>
+                                );
+                            }}
+                        </For>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

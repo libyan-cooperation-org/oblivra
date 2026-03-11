@@ -1,0 +1,15 @@
+id: "c2_application_layer"
+name: "Application Layer C2 Communication"
+description: "Detects command and control traffic disguised as legitimate application layer protocols such as HTTP/HTTPS or DNS."
+severity: "high"
+type: "frequency"
+threshold: 50
+window_sec: 300
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0011"
+mitre_techniques:
+  - "T1071"
+group_by: ["source_ip"]
+conditions:
+  EventType: "dns_query_anomalous"

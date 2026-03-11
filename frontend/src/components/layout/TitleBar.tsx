@@ -1,17 +1,18 @@
 import { Component, createSignal, onMount } from 'solid-js';
 import { AppLogo } from '../ui/AppLogo';
 import { WindowMinimise, WindowToggleMaximise, Quit, WindowIsMaximised } from '../../../wailsjs/runtime/runtime';
+import { useApp } from '@core/store';
 
 export const TitleBar: Component = () => {
+    const [, actions] = useApp();
     const [quickVal, setQuickVal] = createSignal('');
     const [isMaximized, setIsMaximized] = createSignal(false);
 
     const handleQuickConnect = () => {
         const val = quickVal().trim();
-        if (val) {
-            console.log('Quick connect to:', val);
-            setQuickVal('');
-        }
+        if (!val) return;
+        setQuickVal('');
+        actions.connectToHost(val);
     };
 
     onMount(async () => {

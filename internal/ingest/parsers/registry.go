@@ -30,6 +30,7 @@ func NewRegistry() *Registry {
 	// Order matters: More specific formats (JSON, structured) should be checked before generic regex fallbacks
 	r.Register(&CloudTrailParser{})
 	r.Register(&AzureActivityParser{})
+	r.Register(&GCPAuditParser{})
 	r.Register(&WindowsEventParser{})
 	r.Register(NewNetworkFirewallParser())
 	r.Register(NewLinuxAuthParser()) // Fallback for most syslog

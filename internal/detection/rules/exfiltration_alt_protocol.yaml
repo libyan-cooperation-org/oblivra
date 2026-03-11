@@ -1,0 +1,14 @@
+id: "exfiltration_alt_protocol"
+name: "Exfiltration Over Alternative Protocol"
+description: "Detects large data transfers over non-standard protocols such as DNS, ICMP, or custom encrypted channels."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 300
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0010"
+mitre_techniques:
+  - "T1048"
+conditions:
+  EventType: "dns_large_payload"

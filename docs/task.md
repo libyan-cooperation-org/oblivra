@@ -111,9 +111,9 @@
 
 ### 1.2 — Ingestion Pipeline
 - [x] Build **Syslog listener** (RFC 5424/3164) with TLS (`internal/ingest/syslog.go`)
-- [x] Build **JSON parser** (`internal/ingest/parsers/json.go`)
-- [x] Build **CEF parser** (`internal/ingest/parsers/cef.go`)
-- [x] Build **LEEF parser** (`internal/ingest/parsers/leef.go`)
+- [x] Build **JSON parser** (`internal/ingest/parsers.go` → `ParseJSON()`)
+- [x] Build **CEF parser** (`internal/ingest/parsers.go` → `ParseCEF()`)
+- [x] Build **LEEF parser** (`internal/ingest/parsers.go` → `ParseLEEF()`)
 - [x] Implement schema-on-read normalization
 - [x] Implement **backpressure + rate limiting** (`internal/ingest/pipeline.go`)
 - [x] Create `IngestService` in `internal/app/` to wire pipeline + bus
@@ -190,7 +190,7 @@
 ### 3.3 — Advanced Parsing
 - [x] Windows Event Log parser (`internal/ingest/parsers/windows.go`)
 - [x] Linux syslog + journald parser (`internal/ingest/parsers/linux.go`)
-- [x] Cloud audit (AWS/Azure/GCP) (`internal/ingest/parsers/cloud_aws.go`, etc.)
+- [x] Cloud audit (AWS/Azure/GCP) (`internal/ingest/parsers/cloud_aws.go`, `cloud_azure.go`, `cloud_gcp.go`)
 - [x] Network logs (NetFlow, DNS, firewall) (`internal/ingest/parsers/network.go`)
 - [x] Unified parser registry (`internal/ingest/parsers/registry.go`)
 
@@ -198,8 +198,8 @@
 
 ## Phase 4: Detection Engineering + MITRE ✅
 
-- [v] Author 50+ YAML detection rules covering MITRE ATT&CK
-- [v] Build MITRE ATT&CK technique mapper (`internal/detection/mitre/`)
+- [x] Author 50+ YAML detection rules covering MITRE ATT&CK (52 rules across all 12 tactics, 45+ techniques)
+- [x] Build MITRE ATT&CK technique mapper (`internal/detection/mitre.go` — 45 techniques, 12 tactics)
 - [x] Implement **correlation engine** (`internal/detection/correlation.go` — 7 builtin cross-source rules, LRU state, dedup, wired into SIEMService)
 - [v] Build **MITRE ATT&CK heatmap** (`MitreHeatmap.tsx`)
 - [s] Recruit 10 design partners (Current: 0 recruited, pilot agreement pending)
@@ -265,7 +265,7 @@
 #### Supply Chain Security
 - [x] SBOM auto-generation (`syft` or `cyclonedx-gomod` in GHA workflow)
 - [x] Signed releases (Cosign / Sigstore)
-- [x] Artifact provenance attestation (SLSA Level 2)
+- [x] Artifact provenance attestation (SLSA Level 3 via `slsa-github-generator`)
 - [x] Reproducible build verification
 
 #### Self-Observability
@@ -308,7 +308,7 @@
 - [x] Implement Sovereign Tactical UI Overhaul (Phase 1: Foundation)
     - [x] Redefine core design tokens in `variables.css` (Remove glass, sharp radii)
     - [x] Overhaul `global.css` (Brutalist geometry, edge-to-edge layout)
-    - [x] Refactor `NavigationBar.tsx` (Side-rail command interface)
+    - [x] Refactor `CommandRail.tsx` (Side-rail command interface)
     - [x] Restructure `AppLayout.tsx` (Flush tactical hierarchy)
 - [x] Refactor tactical dashboards (Phase 2: Components)
     - [x] `Dashboard.tsx` (KPI grids and data density)

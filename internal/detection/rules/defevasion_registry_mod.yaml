@@ -1,0 +1,15 @@
+id: "defense_evasion_registry_modification"
+name: "Suspicious Registry Modification"
+description: "Detects modification of Windows Registry keys commonly used for persistence, defense evasion, or privilege escalation."
+severity: "medium"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0005"
+mitre_techniques:
+  - "T1112"
+conditions:
+  EventType: "registry_modified"
+  output_contains: "regex:(Run|RunOnce|Services|Image File Execution|AppInit_DLLs)"

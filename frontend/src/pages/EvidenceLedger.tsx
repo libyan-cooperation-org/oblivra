@@ -3,173 +3,308 @@ import { Component, createSignal, onMount, For, Show } from 'solid-js';
 interface LedgerBlock {
     index: number;
     timestamp: string;
-    data: string;          // base64 encoded by wails originally, but actually the fields say []byte which goes over JSON as base64 string
+    data: string;
     data_type: string;
     previous_hash: string;
     hash: string;
 }
 
+type VerifyStatus = 'UNKNOWN' | 'VERIFYING' | 'VALID' | 'INVALID';
+
+const statusColor = (s: VerifyStatus) => {
+    switch (s) {
+        case 'VALID':     return 'var(--alert-low)';
+        case 'INVALID':   return 'var(--alert-critical)';
+        case 'VERIFYING': return 'var(--alert-medium)';
+        default:          return 'var(--text-muted)';
+    }
+};
+
+const Label: Component<{ children: any }> = (p) => (
+    <div style={{
+        'font-family': 'var(--font-mono)',
+        'font-size': '9px',
+        'font-weight': 800,
+        color: 'var(--text-muted)',
+        'text-transform': 'uppercase',
+        'letter-spacing': '1px',
+        'margin-bottom': '4px',
+    }}>{p.children}</div>
+);
+
+const Value: Component<{ children: any; accent?: string }> = (p) => (
+    <div style={{
+        'font-family': 'var(--font-mono)',
+        'font-size': '11px',
+        color: p.accent ?? 'var(--text-secondary)',
+        'word-break': 'break-all',
+        'line-height': 1.5,
+    }}>{p.children}</div>
+);
+
 export const EvidenceLedger: Component = () => {
-    const [blocks, setBlocks] = createSignal<LedgerBlock[]>([]);
-    const [status, setStatus] = createSignal<'UNKNOWN' | 'VERIFYING' | 'VALID' | 'INVALID'>('UNKNOWN');
-    const [errorMsg, setErrorMsg] = createSignal<string>('');
+    const [blocks, setBlocks]             = createSignal<LedgerBlock[]>([]);
+    const [status, setStatus]             = createSignal<VerifyStatus>('UNKNOWN');
+    const [errorMsg, setErrorMsg]         = createSignal('');
     const [selectedBlock, setSelectedBlock] = createSignal<LedgerBlock | null>(null);
+    const [loading, setLoading]           = createSignal(true);
+    const [loadErr, setLoadErr]           = createSignal('');
+
+    const svc = () => (window as any).go?.app?.LedgerService;
 
     const loadChain = async () => {
+        setLoading(true);
+        setLoadErr('');
         try {
-            const svc = (window as any).go?.app?.LedgerService;
-            if (!svc) return;
-            const chainData = await svc.GetChain();
-            setBlocks(chainData || []);
-        } catch (err) {
-            console.error("Failed to load ledger:", err);
-            setErrorMsg(String(err));
+            if (!svc()) { setLoadErr('LedgerService not available'); return; }
+            const data = await svc().GetChain();
+            setBlocks(data || []);
+        } catch (err: any) {
+            setLoadErr(err?.message ?? String(err));
+        } finally {
+            setLoading(false);
         }
     };
 
-    onMount(() => {
-        loadChain();
-    });
+    onMount(loadChain);
 
     const verifyLedger = async () => {
         setStatus('VERIFYING');
+        setErrorMsg('');
         try {
-            const svc = (window as any).go?.app?.LedgerService;
-            if (!svc) return;
-            const res = await svc.VerifyChain();
-            if (res === 'VALID') {
-                setStatus('VALID');
-                setErrorMsg('');
-            } else {
-                setStatus('INVALID');
-                setErrorMsg(res);
-            }
-        } catch (err) {
+            const res = await svc()?.VerifyChain();
+            setStatus(res === 'VALID' ? 'VALID' : 'INVALID');
+            if (res !== 'VALID') setErrorMsg(res);
+        } catch (err: any) {
             setStatus('INVALID');
-            setErrorMsg(String(err));
+            setErrorMsg(err?.message ?? String(err));
         }
     };
 
     const exportLedger = async () => {
         try {
-            const svc = (window as any).go?.app?.LedgerService;
-            if (!svc) return;
-            const jsonStr = await svc.ExportChain();
+            const jsonStr = await svc()?.ExportChain();
             const blob = new Blob([jsonStr], { type: 'application/json' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `sovereign_evidence_ledger_${new Date().getTime()}.json`;
+            const url = URL.createObjectURL(blob);
+            const a = Object.assign(document.createElement('a'), {
+                href: url,
+                download: `sovereign_evidence_ledger_${Date.now()}.json`,
+            });
             a.click();
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            alert("Failed to export ledger: " + err);
+            URL.revokeObjectURL(url);
+        } catch (err: any) {
+            setLoadErr(err?.message ?? String(err));
         }
     };
 
     const decodeData = (b64: string) => {
-        try {
-            return atob(b64);
-        } catch (e) {
-            return b64;
-        }
+        try { return atob(b64); } catch { return b64; }
     };
 
     return (
-        <div class="p-6 h-full flex flex-col bg-gray-900 text-gray-100 font-mono">
-            <div class="flex justify-between items-center mb-6 border-b border-gray-700 pb-4">
+        <div style={{
+            display: 'flex',
+            'flex-direction': 'column',
+            height: '100%',
+            overflow: 'hidden',
+            background: 'var(--surface-0)',
+            padding: '28px 32px 0 32px',
+        }}>
+            {/* ── Header ── */}
+            <div style={{
+                display: 'flex',
+                'justify-content': 'space-between',
+                'align-items': 'flex-end',
+                'margin-bottom': '20px',
+                'padding-bottom': '16px',
+                'border-bottom': '1px solid var(--border-primary)',
+                'flex-shrink': 0,
+            }}>
                 <div>
-                    <h1 class="text-2xl font-bold text-emerald-400">Cryptographic Evidence Ledger</h1>
-                    <p class="text-sm text-gray-400">Immutable, verifiable blockchain of platform decisions and events</p>
+                    <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', 'font-weight': 700, color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '2px', 'margin-bottom': '4px' }}>
+                        CRYPTOGRAPHIC AUDIT
+                    </div>
+                    <h1 style={{ 'font-family': 'var(--font-mono)', 'font-size': '20px', 'font-weight': 800, color: 'var(--text-primary)', margin: 0, 'letter-spacing': '-0.5px' }}>
+                        Evidence Ledger
+                    </h1>
                 </div>
-                <div class="flex gap-4">
+                <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                         onClick={verifyLedger}
-                        class="px-4 py-2 bg-slate-800 border border-emerald-500 text-emerald-400 hover:bg-emerald-900 transition-colors"
                         disabled={status() === 'VERIFYING'}
+                        style={{
+                            background: 'transparent',
+                            border: `1px solid ${statusColor(status())}`,
+                            color: statusColor(status()),
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '10px',
+                            'font-weight': 800,
+                            'text-transform': 'uppercase',
+                            'letter-spacing': '0.5px',
+                            padding: '6px 16px',
+                            cursor: status() === 'VERIFYING' ? 'wait' : 'pointer',
+                        }}
                     >
-                        {status() === 'VERIFYING' ? 'Verifying hashes...' : 'Verify Cryptographic Integrity'}
+                        {status() === 'VERIFYING' ? 'VERIFYING...' : 'VERIFY INTEGRITY'}
                     </button>
                     <button
                         onClick={exportLedger}
-                        class="px-4 py-2 bg-slate-800 border border-slate-600 hover:bg-slate-700 transition-colors"
+                        style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border-primary)',
+                            color: 'var(--text-secondary)',
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '10px',
+                            'font-weight': 700,
+                            'text-transform': 'uppercase',
+                            padding: '6px 16px',
+                            cursor: 'pointer',
+                        }}
                     >
-                        Export JSON
+                        EXPORT JSON
                     </button>
                 </div>
             </div>
 
+            {/* ── Verify result banner ── */}
             <Show when={status() !== 'UNKNOWN'}>
-                <div class={`p-4 mb-6 border ${status() === 'VALID' ? 'border-emerald-500 bg-emerald-900/30' : 'border-red-500 bg-red-900/30'}`}>
-                    <h3 class={`text-lg font-bold ${status() === 'VALID' ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {status() === 'VALID' ? '✓ Ledger Cryptographically Verified' : '⚠ Integrity Violation Detected'}
-                    </h3>
-                    <Show when={errorMsg()}>
-                        <p class="text-red-300 mt-2">{errorMsg()}</p>
-                    </Show>
+                <div style={{
+                    padding: '10px 16px',
+                    'margin-bottom': '16px',
+                    border: `1px solid ${statusColor(status())}`,
+                    background: status() === 'VALID' ? 'rgba(132,204,22,0.05)' : 'rgba(220,38,38,0.05)',
+                    display: 'flex',
+                    'align-items': 'center',
+                    'justify-content': 'space-between',
+                    'flex-shrink': 0,
+                }}>
+                    <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '11px', 'font-weight': 800, color: statusColor(status()), 'text-transform': 'uppercase', 'letter-spacing': '0.5px' }}>
+                        {status() === 'VALID' ? '✓ CHAIN CRYPTOGRAPHICALLY VALID' : `⚠ INTEGRITY VIOLATION — ${errorMsg()}`}
+                    </span>
                 </div>
             </Show>
 
-            <div class="flex gap-6 h-full overflow-hidden">
-                <div class="w-1/3 border border-gray-700 overflow-y-auto bg-gray-950 p-4">
-                    <h2 class="text-sm text-gray-500 mb-4 sticky top-0 bg-gray-950">LEDGER BLOCKS ({blocks().length})</h2>
-                    <div class="flex flex-col gap-4 relative">
-                        {/* Connecting line */}
-                        <div class="absolute left-4 top-0 bottom-0 w-px bg-emerald-500/30"></div>
+            {/* ── Load error ── */}
+            <Show when={loadErr()}>
+                <div style={{ padding: '10px 16px', 'margin-bottom': '16px', border: '1px solid var(--alert-critical)', 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--alert-critical)', 'flex-shrink': 0 }}>
+                    {loadErr()}
+                </div>
+            </Show>
 
+            {/* ── Main split ── */}
+            <div style={{ display: 'flex', gap: '16px', flex: 1, 'min-height': 0, 'padding-bottom': '28px' }}>
+
+                {/* Block list */}
+                <div style={{
+                    width: '280px',
+                    'min-width': '280px',
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-primary)',
+                    display: 'flex',
+                    'flex-direction': 'column',
+                    overflow: 'hidden',
+                }}>
+                    <div style={{
+                        padding: '10px 14px',
+                        'border-bottom': '1px solid var(--border-primary)',
+                        'font-family': 'var(--font-mono)',
+                        'font-size': '9px',
+                        'font-weight': 800,
+                        color: 'var(--text-muted)',
+                        'text-transform': 'uppercase',
+                        'letter-spacing': '1px',
+                        'flex-shrink': 0,
+                    }}>
+                        BLOCKS ({blocks().length})
+                    </div>
+                    <div style={{ flex: 1, 'overflow-y': 'auto', padding: '8px' }}>
+                        <Show when={loading()}>
+                            <div style={{ padding: '24px', 'text-align': 'center', 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--text-muted)' }}>LOADING...</div>
+                        </Show>
                         <For each={blocks()}>
-                            {(block) => (
-                                <div
-                                    class={`relative ml-10 p-3 border cursor-pointer transition-colors ${selectedBlock()?.index === block.index ? 'border-emerald-500 bg-slate-800' : 'border-gray-700 hover:border-gray-500 bg-gray-900'}`}
-                                    onClick={() => setSelectedBlock(block)}
-                                >
-                                    {/* Link node */}
-                                    <div class={`absolute -left-[30px] top-4 w-3 h-3 rounded-full border border-gray-900 ${block.index === 0 ? 'bg-amber-500' : 'bg-emerald-400'}`}></div>
-
-                                    <div class="flex justify-between items-center mb-1">
-                                        <span class="font-bold text-xs"># {block.index}</span>
-                                        <span class="text-[10px] text-gray-500 uppercase">{block.data_type}</span>
+                            {(block) => {
+                                const isSelected = () => selectedBlock()?.index === block.index;
+                                const isGenesis = block.index === 0;
+                                return (
+                                    <div
+                                        onClick={() => setSelectedBlock(block)}
+                                        style={{
+                                            padding: '10px 12px',
+                                            'margin-bottom': '4px',
+                                            background: isSelected() ? 'var(--surface-2)' : 'transparent',
+                                            border: `1px solid ${isSelected() ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                                            'border-left': `3px solid ${isGenesis ? 'var(--alert-medium)' : isSelected() ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', 'justify-content': 'space-between', 'margin-bottom': '4px' }}>
+                                            <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '11px', 'font-weight': 800, color: isGenesis ? 'var(--alert-medium)' : 'var(--text-primary)' }}>
+                                                #{block.index} {isGenesis ? '(GENESIS)' : ''}
+                                            </span>
+                                            <span style={{ 'font-family': 'var(--font-mono)', 'font-size': '9px', color: 'var(--text-muted)', 'text-transform': 'uppercase' }}>
+                                                {block.data_type}
+                                            </span>
+                                        </div>
+                                        <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', color: 'var(--accent-primary)', 'margin-bottom': '4px' }}>
+                                            {block.hash.substring(0, 20)}…
+                                        </div>
+                                        <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '9px', color: 'var(--text-muted)' }}>
+                                            {new Date(block.timestamp).toISOString().replace('T', ' ').substring(0, 19)}
+                                        </div>
                                     </div>
-                                    <div class="text-[11px] text-emerald-400 mb-2 truncate" title={block.hash}>
-                                        {block.hash.substring(0, 16)}...
-                                    </div>
-                                    <div class="text-[10px] text-gray-400">
-                                        {new Date(block.timestamp).toISOString()}
-                                    </div>
-                                </div>
-                            )}
+                                );
+                            }}
                         </For>
+                        <Show when={!loading() && blocks().length === 0 && !loadErr()}>
+                            <div style={{ padding: '24px', 'text-align': 'center', 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--text-muted)', 'text-transform': 'uppercase' }}>
+                                CHAIN EMPTY
+                            </div>
+                        </Show>
                     </div>
                 </div>
 
-                <div class="w-2/3 border border-gray-700 bg-gray-950 p-6 overflow-y-auto">
-                    <Show
-                        when={selectedBlock()}
-                        fallback={<div class="flex h-full items-center justify-center text-gray-600">Select a block to inspect its payload</div>}
-                    >
+                {/* Block detail */}
+                <div style={{
+                    flex: 1,
+                    background: 'var(--surface-1)',
+                    border: '1px solid var(--border-primary)',
+                    display: 'flex',
+                    'flex-direction': 'column',
+                    overflow: 'hidden',
+                }}>
+                    <Show when={!selectedBlock()}>
+                        <div style={{ display: 'flex', 'align-items': 'center', 'justify-content': 'center', height: '100%', 'font-family': 'var(--font-mono)', 'font-size': '11px', color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '1px' }}>
+                            SELECT A BLOCK TO INSPECT
+                        </div>
+                    </Show>
+                    <Show when={selectedBlock()}>
                         {(block) => (
-                            <div>
-                                <h2 class="text-xl font-bold text-gray-200 mb-6 border-b border-gray-700 pb-2">Block Details</h2>
-
-                                <div class="grid grid-cols-[120px_1fr] gap-4 mb-8">
-                                    <div class="text-gray-500 text-sm">Index</div>
-                                    <div class="text-gray-200">{block().index}</div>
-
-                                    <div class="text-gray-500 text-sm">Timestamp</div>
-                                    <div class="text-gray-200">{new Date(block().timestamp).toLocaleString()}</div>
-
-                                    <div class="text-gray-500 text-sm">Data Type</div>
-                                    <div class="text-emerald-400">{block().data_type}</div>
-
-                                    <div class="text-gray-500 text-sm">Hash</div>
-                                    <div class="text-emerald-400 text-xs break-all">{block().hash}</div>
-
-                                    <div class="text-gray-500 text-sm">Previous Hash</div>
-                                    <div class="text-gray-400 text-xs break-all">{block().previous_hash || '0000000000000000000000000000000000000000000000000000000000000000 (Genesis)'}</div>
+                            <div style={{ padding: '20px 24px', 'overflow-y': 'auto', flex: 1 }}>
+                                <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '10px', 'font-weight': 800, color: 'var(--text-muted)', 'text-transform': 'uppercase', 'letter-spacing': '1.5px', 'margin-bottom': '20px', 'padding-bottom': '12px', 'border-bottom': '1px solid var(--border-primary)' }}>
+                                    BLOCK #{block().index} DETAILS
                                 </div>
-
-                                <div class="mb-2 text-gray-500 text-sm">Evidence Payload (Decoded)</div>
-                                <pre class="bg-gray-900 border border-gray-700 p-4 text-sm text-gray-300 overflow-x-auto whitespace-pre-wrap">
+                                <div style={{ display: 'grid', 'grid-template-columns': '120px 1fr', gap: '12px 16px', 'margin-bottom': '24px' }}>
+                                    <Label>Index</Label>       <Value>{block().index}</Value>
+                                    <Label>Timestamp</Label>   <Value>{new Date(block().timestamp).toLocaleString()}</Value>
+                                    <Label>Data Type</Label>   <Value accent="var(--accent-primary)">{block().data_type}</Value>
+                                    <Label>Hash</Label>        <Value accent="var(--accent-primary)">{block().hash}</Value>
+                                    <Label>Prev Hash</Label>   <Value>{block().previous_hash || '0'.repeat(64) + ' (genesis)'}</Value>
+                                </div>
+                                <Label>Evidence Payload (Decoded)</Label>
+                                <pre style={{
+                                    background: 'var(--surface-0)',
+                                    border: '1px solid var(--border-primary)',
+                                    'border-left': '3px solid var(--accent-primary)',
+                                    padding: '16px',
+                                    'font-family': 'var(--font-mono)',
+                                    'font-size': '11px',
+                                    color: 'var(--text-secondary)',
+                                    'overflow-x': 'auto',
+                                    'white-space': 'pre-wrap',
+                                    'word-break': 'break-all',
+                                    'line-height': 1.6,
+                                    'margin-top': '8px',
+                                }}>
                                     {decodeData(block().data)}
                                 </pre>
                             </div>

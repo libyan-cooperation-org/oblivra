@@ -102,3 +102,50 @@ func TestNetworkFirewallParser(t *testing.T) {
 		t.Errorf("Expected srcip '192.168.1.200', got '%s'", event.SourceIP)
 	}
 }
+
+func TestGCPAuditParser(t *testing.T) {
+	rawLog := `{
+		"insertId": "abc123xyz",
+		"protoPayload": {
+			"@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+			"methodName": "google.iam.admin.v1.CreateServiceAccount",
+			"authenticationInfo": {
+				"principalEmail": "admin@example.gcp.com"
+			},
+			"requestMetadata": {
+				"callerIp": "203.0.113.42",
+				"callerSuppliedUserAgent": "gcloud/400.0.0"
+			},
+			"serviceName": "iam.googleapis.com",
+			"resourceName": "projects/my-project/serviceAccounts/sa-001"
+		},
+		"resource": {
+			"type": "service_account",
+			"labels": { "project_id": "my-project" }
+		},
+		"severity": "NOTICE",
+		"timestamp": "2025-06-15T10:30:00.000Z"
+	}`
+
+	parser := &GCPAuditParser{}
+	if !parser.CanParse(rawLog) {
+		t.Fatal("Parser missed valid GCP Audit Log JSON")
+	}
+
+	event := &database.HostEvent{}
+	info := Info{RawLine: rawLog}
+	err := parser.Parse(info, event)
+
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+	if event.EventType != "gcp_createserviceaccount" {
+		t.Errorf("Expected event_type 'gcp_createserviceaccount', got '%s'", event.EventType)
+	}
+	if event.SourceIP != "203.0.113.42" {
+		t.Errorf("Expected source_ip '203.0.113.42', got '%s'", event.SourceIP)
+	}
+	if event.User != "admin@example.gcp.com" {
+		t.Errorf("Expected user 'admin@example.gcp.com', got '%s'", event.User)
+	}
+}

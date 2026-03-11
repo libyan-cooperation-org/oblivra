@@ -1,0 +1,15 @@
+id: "privesc_sudo_abuse"
+name: "Privilege Escalation via Sudo Abuse"
+description: "Detects abuse of sudo or SUID binaries to escalate privileges, including GTFOBins-style elevation."
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 600
+mitre_tactics:
+  - "TA0004"
+mitre_techniques:
+  - "T1548"
+conditions:
+  EventType: "sudo_exec"
+  output_contains: "regex:(chmod.*\\+s|find.*-exec|python.*-c|nmap.*--interactive)"

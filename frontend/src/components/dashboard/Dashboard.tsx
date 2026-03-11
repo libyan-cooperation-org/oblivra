@@ -85,13 +85,19 @@ export const Dashboard: Component = () => {
         { label: 'Fleet Size', value: state.hosts.length, sub: 'Active agents' },
     ];
 
-    // Generate deterministic pseudo-random data for sparklines based on a seed value
+    // Deterministic sparkline — seeded by value so it's stable across re-renders.
+    // Uses a simple LCG so the shape reflects the magnitude without random thrash.
     const generateSparklineData = (baseValue: number, volatility: number = 0.2) => {
-        const data = [];
+        const data: number[] = [];
+        let seed = (baseValue || 10) * 2654435761;
+        const rand = () => {
+            seed = (seed * 1664525 + 1013904223) & 0xffffffff;
+            return ((seed >>> 16) & 0xffff) / 0xffff;
+        };
         let current = baseValue || 10;
         for (let i = 0; i < 20; i++) {
             data.push(current);
-            current += (Math.random() - 0.5) * current * volatility;
+            current = Math.max(0, current + (rand() - 0.5) * current * volatility);
         }
         return data;
     };

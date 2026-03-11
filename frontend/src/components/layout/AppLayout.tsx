@@ -75,7 +75,7 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
                     <CommandRail />
                 </Show>
 
-                <Show when={!state.focusMode && state.sidebarOpen && state.activeNavTab !== 'ops' && state.activeNavTab !== 'siem'}>
+                <Show when={!state.focusMode && state.sidebarOpen && !(['ops', 'siem', 'dashboard', 'health', 'metrics', 'topology', 'compliance', 'soc', 'temporal', 'lineage', 'decisions', 'ledger', 'replay'] as string[]).includes(state.activeNavTab)}>
                     <aside class="drawer-panel">
                         <DrawerPanel onAddHost={() => setShowAddHost(true)} />
                     </aside>

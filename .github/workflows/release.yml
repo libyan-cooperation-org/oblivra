@@ -132,6 +132,18 @@ jobs:
           cosign attest --yes --predicate <(syft ghcr.io/${{ github.repository }}:${{ github.ref_name }} -o spdx-json) \
             ghcr.io/${{ github.repository }}@${{ steps.docker-build.outputs.digest }}
 
+  # ---------- SLSA Provenance ----------
+  provenance:
+    needs: build-server
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.build-server.outputs.hashes }}"
+      upload-assets: true
+
   # ---------- Create GitHub Release ----------
   release:
     runs-on: ubuntu-latest

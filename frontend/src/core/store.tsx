@@ -28,7 +28,7 @@ export interface AppState {
     theme: string;
     sidebarOpen: boolean;
     loading: boolean;
-    activeNavTab: 'dashboard' | 'hosts' | 'snippets' | 'tunnels' | 'security' | 'terminal' | 'recordings' | 'notes' | 'compliance' | 'ops' | 'team' | 'sync' | 'plugins' | 'health' | 'metrics' | 'updater' | 'workspace' | 'alerts' | 'siem' | 'settings' | 'topology' | 'vault';
+    activeNavTab: 'dashboard' | 'hosts' | 'snippets' | 'tunnels' | 'security' | 'terminal' | 'recordings' | 'notes' | 'compliance' | 'ops' | 'team' | 'sync' | 'plugins' | 'health' | 'metrics' | 'updater' | 'workspace' | 'alerts' | 'siem' | 'settings' | 'topology' | 'vault' | 'soc' | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay';
     workspace: 'Personal' | 'Work' | 'Team';
     pluginPanels: PluginPanel[];
     pluginStatusIcons: PluginStatusIcon[];
@@ -71,7 +71,7 @@ export const AppProvider: ParentComponent = (props) => {
         theme: 'dark',
         sidebarOpen: true,
         loading: false,
-        activeNavTab: 'hosts',
+        activeNavTab: 'dashboard',
         workspace: 'Personal',
         pluginPanels: [],
         pluginStatusIcons: [],

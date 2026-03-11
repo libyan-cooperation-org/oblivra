@@ -1,0 +1,15 @@
+id: "impact_backup_deletion"
+name: "Backup or Shadow Copy Deletion"
+description: "Detects deletion of volume shadow copies or backup files, commonly performed by ransomware to prevent recovery."
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0040"
+mitre_techniques:
+  - "T1490"
+conditions:
+  EventType: "process_execution"
+  output_contains: "regex:(vssadmin.*delete|wmic.*shadowcopy|bcdedit.*recoveryenabled.*no)"

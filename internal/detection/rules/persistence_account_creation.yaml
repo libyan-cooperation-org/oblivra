@@ -1,0 +1,14 @@
+id: "persistence_account_creation"
+name: "New Local Account Created"
+description: "Detects creation of a new local user account, which may indicate persistence activity by an attacker."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0003"
+mitre_techniques:
+  - "T1136"
+conditions:
+  EventType: "user_account_created"

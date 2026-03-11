@@ -1,0 +1,15 @@
+id: "execution_scripting_interpreter"
+name: "Suspicious Script Interpreter Execution"
+description: "Detects invocation of common scripting interpreters (PowerShell, Python, Bash) with encoded or obfuscated command-line arguments."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 600
+mitre_tactics:
+  - "TA0002"
+mitre_techniques:
+  - "T1059"
+conditions:
+  EventType: "process_execution"
+  output_contains: "regex:(-enc|-EncodedCommand|base64|eval\\(|exec\\()"
