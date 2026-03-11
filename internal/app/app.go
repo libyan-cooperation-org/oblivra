@@ -95,66 +95,13 @@ type App struct {
 	TailingService        *TailingService
 }
 
-// New creates a new App instance
+// New creates a new App instance.
+// Service pointers are intentionally nil here; they are assigned in Startup()
+// after the container has fully initialised and StartAll() has run.
+// Wails binds the App struct by pointer, so nil fields are safe until first use.
 func New() *App {
 	return &App{
 		version: "0.1.0",
-
-		HostService:       &HostService{},
-		SSHService:        &SSHService{},
-		VaultService:      &VaultService{},
-		SessionService:    &SessionService{},
-		SettingsService:   &SettingsService{},
-		SnippetService:    &SnippetService{},
-		BroadcastService:  &BroadcastService{},
-		MultiExecService:  &MultiExecService{},
-		PluginService:     &PluginService{},
-		SecurityService:   &SecurityService{},
-		ComplianceService: &ComplianceService{},
-		TeamService:       &TeamService{},
-		SIEMService:       &SIEMService{},
-		LocalService:      &LocalService{},
-		AIService:         &AIService{},
-		TelemetryService:  &TelemetryService{},
-
-		AlertingService:       &AlertingService{},
-		HealthService:         &HealthService{},
-		MetricsService:        &MetricsService{},
-		TunnelService:         &TunnelService{},
-		ShareService:          &ShareService{},
-		RecordingService:      &RecordingService{},
-		LogSourceService:      &LogSourceService{},
-		WorkspaceService:      &WorkspaceService{},
-		NotesService:          &NotesService{},
-		UpdaterService:        &UpdaterService{},
-		SyncService:           &SyncService{},
-		FileService:           &FileService{},
-		DiscoveryService:      &DiscoveryService{},
-		AgentService:          &AgentService{},
-		GovernanceService:     &GovernanceService{},
-		ForensicsService:      &ForensicsService{},
-		PolicyService:         &PolicyService{},
-		IncidentService:       &IncidentService{},
-		PlaybookService:       &PlaybookService{},
-		SimulationService:     &simulation.SimulationService{},
-		ObservabilityService:  &ObservabilityService{},
-		UEBAService:           &UEBAService{},
-		GraphService:          &GraphService{},
-		NDRService:            &NDRService{},
-		RiskService:           &RiskService{},
-		TrustService:          &RuntimeTrustService{},
-		CredentialIntel:       &CredentialIntelService{},
-		DisasterService:       &DisasterService{},
-		IngestService:         &IngestService{},
-		TemporalService:       &TemporalService{},
-		LineageService:        &LineageService{},
-		DecisionService:       &DecisionService{},
-		CounterfactualService: &CounterfactualService{},
-		LedgerService:         &LedgerService{},
-		MemorySecurity:        &MemorySecurityService{},
-		DeterministicResponse: &DeterministicResponseService{},
-		SyntheticService:      &SyntheticService{},
-		TailingService:        &TailingService{},
 	}
 }
 
@@ -184,54 +131,56 @@ func (a *App) Startup(ctx context.Context) {
 	// Start all registered services
 	a.container.Registry.StartAll(ctx)
 
-	// Map container-managed services to Wails-bound pointers
-	// (Done AFTER StartAll so started state like context is copied)
-	*a.HostService = *a.container.HostService
-	*a.SSHService = *a.container.SSHService
-	*a.VaultService = *a.container.VaultService
-	*a.SessionService = *a.container.SessionService
-	*a.SettingsService = *a.container.SettingsService
-	*a.SnippetService = *a.container.SnippetService
-	*a.BroadcastService = *a.container.BroadcastService
-	*a.MultiExecService = *a.container.MultiExecService
-	*a.PluginService = *a.container.PluginService
-	*a.SecurityService = *a.container.SecurityService
-	*a.ComplianceService = *a.container.ComplianceService
-	*a.TeamService = *a.container.TeamService
-	*a.SIEMService = *a.container.SIEMService
-	*a.LocalService = *a.container.LocalService
-	*a.AIService = *a.container.AIService
-	*a.TelemetryService = *a.container.TelemetryService
-
-	// Newly wired
+	// Map container-managed services to Wails-bound pointers.
+	// ALL assignments use pointer assignment (a.X = a.container.X) so that
+	// the Wails-bound pointer always refers to the live container instance.
+	// Struct copies (*a.X = *a.container.X) were removed because they snapshot
+	// value state at startup time and diverge from the container if the service
+	// mutates internal fields after StartAll (goroutines, channels, caches).
+	a.HostService = a.container.HostService
+	a.SSHService = a.container.SSHService
+	a.VaultService = a.container.VaultService
+	a.SessionService = a.container.SessionService
+	a.SettingsService = a.container.SettingsService
+	a.SnippetService = a.container.SnippetService
+	a.BroadcastService = a.container.BroadcastService
+	a.MultiExecService = a.container.MultiExecService
+	a.PluginService = a.container.PluginService
+	a.SecurityService = a.container.SecurityService
+	a.ComplianceService = a.container.ComplianceService
+	a.TeamService = a.container.TeamService
+	a.SIEMService = a.container.SIEMService
+	a.LocalService = a.container.LocalService
+	a.AIService = a.container.AIService
+	a.TelemetryService = a.container.TelemetryService
 	a.AlertingService = a.container.AlertingService
-	*a.HealthService = *a.container.HealthService
-	*a.MetricsService = *a.container.MetricsService
-	*a.TunnelService = *a.container.TunnelService
-	*a.ShareService = *a.container.ShareService
-	*a.RecordingService = *a.container.RecordingService
-	*a.LogSourceService = *a.container.LogSourceService
-	*a.WorkspaceService = *a.container.WorkspaceService
-	*a.NotesService = *a.container.NotesService
-	*a.UpdaterService = *a.container.UpdaterService
-	*a.SyncService = *a.container.SyncService
-	*a.FileService = *a.container.FileService
-	*a.DiscoveryService = *a.container.DiscoveryService
-	*a.AgentService = *a.container.AgentService
+	a.HealthService = a.container.HealthService
+	a.MetricsService = a.container.MetricsService
+	a.TunnelService = a.container.TunnelService
+	a.ShareService = a.container.ShareService
+	a.RecordingService = a.container.RecordingService
+	a.LogSourceService = a.container.LogSourceService
+	a.WorkspaceService = a.container.WorkspaceService
+	a.NotesService = a.container.NotesService
+	a.UpdaterService = a.container.UpdaterService
+	a.SyncService = a.container.SyncService
+	a.FileService = a.container.FileService
+	a.DiscoveryService = a.container.DiscoveryService
+	a.AgentService = a.container.AgentService
 	a.GovernanceService = a.container.GovernanceService
-	*a.ForensicsService = *a.container.ForensicsService
-	*a.PolicyService = *a.container.PolicyService
-	*a.IncidentService = *a.container.IncidentService
-	*a.PlaybookService = *a.container.PlaybookService
-	*a.SimulationService = *a.container.SimulationService
+	a.ForensicsService = a.container.ForensicsService
+	a.PolicyService = a.container.PolicyService
+	a.IncidentService = a.container.IncidentService
+	a.PlaybookService = a.container.PlaybookService
+	a.SimulationService = a.container.SimulationService
 	a.ObservabilityService = a.container.ObservabilityService
-	*a.UEBAService = *a.container.UEBAService
-	*a.GraphService = *a.container.GraphService
-	*a.NDRService = *a.container.NDRService
+	a.UEBAService = a.container.UEBAService
+	a.GraphService = a.container.GraphService
+	a.NDRService = a.container.NDRService
 	a.RiskService = a.container.RiskService
 	a.CredentialIntel = a.container.CredentialIntel
 	a.DisasterService = a.container.DisasterService
-	*a.IngestService = *a.container.IngestService
+	a.IngestService = a.container.IngestService
 	a.TemporalService = a.container.TemporalService
 	a.LineageService = a.container.LineageService
 	a.DecisionService = a.container.DecisionService
@@ -239,8 +188,8 @@ func (a *App) Startup(ctx context.Context) {
 	a.LedgerService = a.container.LedgerService
 	a.MemorySecurity = a.container.MemorySecurity
 	a.DeterministicResponse = a.container.DeterministicResponse
-	*a.SyntheticService = *a.container.SyntheticService
-	*a.TailingService = *a.container.TailingService
+	a.SyntheticService = a.container.SyntheticService
+	a.TailingService = a.container.TailingService
 
 	a.ready = true
 	a.container.Log.Info("Application startup complete")

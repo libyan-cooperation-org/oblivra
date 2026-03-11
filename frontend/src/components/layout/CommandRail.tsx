@@ -115,50 +115,57 @@ const NavButton: Component<{
             title={props.item.label}
             onClick={props.onClick}
             style={{
-                background: props.active ? 'var(--surface-2)' : 'transparent',
+                background: props.active ? 'rgba(0,212,170,0.07)' : 'transparent',
                 border: 'none',
                 'border-left': props.active ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                color: props.active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                color: props.active ? 'var(--accent-primary)' : 'var(--text-muted)',
                 width: '100%',
-                padding: '6px 0',
+                padding: '7px 0 5px 0',
                 cursor: 'pointer',
                 display: 'flex',
                 'flex-direction': 'column',
                 'align-items': 'center',
-                gap: '2px',
+                gap: '3px',
                 position: 'relative',
-                transition: 'background 0.15s, color 0.15s',
+                transition: 'background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast)',
             }}
         >
-            <div style={{ width: '16px', height: '16px' }}>
+            <div style={{
+                width: '15px',
+                height: '15px',
+                opacity: props.active ? '1' : '0.6',
+                transition: 'opacity var(--transition-fast)',
+            }}>
                 <props.item.icon />
             </div>
             <span style={{
                 'font-family': 'var(--font-ui)',
-                'font-size': '8px',
-                'font-weight': props.active ? 700 : 400,
+                'font-size': '7.5px',
+                'font-weight': props.active ? 700 : 500,
                 'text-transform': 'uppercase',
-                'letter-spacing': '0.3px',
+                'letter-spacing': '0.4px',
                 'line-height': 1,
+                color: props.active ? 'var(--accent-primary)' : 'var(--text-muted)',
             }}>
                 {props.item.label}
             </span>
             <Show when={badge > 0}>
                 <div style={{
                     position: 'absolute',
-                    top: '2px',
-                    right: '6px',
+                    top: '3px',
+                    right: '5px',
                     background: props.item.urgent ? 'var(--alert-critical)' : 'var(--accent-primary)',
-                    color: '#fff',
+                    color: '#000',
                     'font-family': 'var(--font-mono)',
                     'font-size': '7px',
                     'font-weight': 800,
                     padding: '1px 3px',
                     'line-height': 1,
-                    'min-width': '12px',
+                    'min-width': '13px',
                     'text-align': 'center',
+                    'border-radius': '2px',
                 }}>
-                    {badge}
+                    {badge > 99 ? '99+' : badge}
                 </div>
             </Show>
         </button>
@@ -227,18 +234,25 @@ const AuditFlyout: Component<{
 // ── Divider ───────────────────────────────────────────────────────────────────
 const Divider: Component<{ label: string }> = (props) => (
     <div style={{
-        'font-family': 'var(--font-mono)',
-        'font-size': '7px',
-        'font-weight': 800,
-        color: 'var(--text-muted)',
-        'text-align': 'center',
-        padding: '6px 0 3px 0',
-        opacity: 0.5,
-        'letter-spacing': '0.8px',
-        'border-top': '1px solid var(--border-primary)',
-        'margin-top': '2px',
+        display: 'flex',
+        'align-items': 'center',
+        padding: '8px 8px 3px 8px',
+        'margin-top': '4px',
+        gap: '4px',
     }}>
-        {props.label}
+        <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+        <span style={{
+            'font-family': 'var(--font-mono)',
+            'font-size': '6.5px',
+            'font-weight': 700,
+            color: 'var(--text-muted)',
+            opacity: 0.45,
+            'letter-spacing': '0.8px',
+            'white-space': 'nowrap',
+        }}>
+            {props.label}
+        </span>
+        <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
     </div>
 );
 
@@ -306,31 +320,32 @@ export const CommandRail: Component = () => {
 
     return (
         <nav style={{
-            width: '64px',
-            'min-width': '64px',
+            width: '56px',
+            'min-width': '56px',
             height: '100%',
-            background: 'var(--surface-1)',
+            background: 'var(--surface-0)',
             'border-right': '1px solid var(--border-primary)',
             display: 'flex',
             'flex-direction': 'column',
-            'padding-top': '4px',
+            'padding-top': '0',
             'z-index': 1000,
             'overflow-y': 'auto',
             'overflow-x': 'hidden',
         }}>
-            {/* Wordmark */}
+            {/* Logo Mark */}
             <div style={{
-                'font-family': 'var(--font-mono)',
-                'font-weight': 800,
-                color: 'var(--accent-primary)',
-                'font-size': '10px',
-                'text-align': 'center',
-                padding: '4px 0 8px 0',
-                'letter-spacing': '2px',
+                height: '40px',
+                display: 'flex',
+                'align-items': 'center',
+                'justify-content': 'center',
                 'border-bottom': '1px solid var(--border-primary)',
-                'margin-bottom': '2px',
+                'flex-shrink': 0,
             }}>
-                OBV
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 2L3 6v8l7 4 7-4V6L10 2z" stroke="var(--accent-primary)" stroke-width="1.5" fill="none"/>
+                    <path d="M10 6l-4 2.3v4.6L10 15l4-2.1V8.3L10 6z" fill="var(--accent-primary)" opacity="0.25"/>
+                    <circle cx="10" cy="10" r="1.5" fill="var(--accent-primary)"/>
+                </svg>
             </div>
 
             {/* OBSERVE */}

@@ -341,16 +341,9 @@ func (c *Container) Init(ctx context.Context) error {
 	c.EnrichmentPipeline.Start(ctx)
 
 	// Init SIEM & Analytics
-	if c.HotStore != nil {
-		siemRepo = storage.NewBadgerSIEMRepository(c.HotStore, &c.SearchEngine, c.DB)
-	}
-	c.SIEMForwarder = security.NewSIEMForwarder(security.SIEMConfig{Enabled: false}, c.Log)
+	// NOTE: siemRepo was already constructed above from HotStore. Reuse the same instance.
+	// SIEMForwarder is already initialized above — no need to recreate it here.
 	c.SIEMService = NewSIEMService(siemRepo, c.SIEMForwarder, c.AIService, c.SnippetService, c.MatchEngine, c.Bus, c.Log)
-
-	// c.AnalyticsEngine is already initialized at 213
-	// We just need to ensure AlertEngine gets what it needs.
-	c.Notifier = notifications.NewNotificationService(c.Log)
-	c.AlertEngine = analytics.NewAlertEngine(c.Notifier, c.AnalyticsEngine)
 
 	// c.SIEMService registration moved to bottom of Init with other services
 	c.PluginService = NewPluginService(c.Bus, c.Log)
@@ -442,10 +435,6 @@ func (c *Container) Init(ctx context.Context) error {
 
 	// Data Lifecycle Management
 	c.Lifecycle = NewDataLifecycleService(c.DB, c.Bus, c.Log)
-
-	// Sovereign Hardening: Temporal Integrity (Integrated into pipeline above)
-	// c.TemporalService already initialized at 273
-	c.Registry.Register(c.TemporalService)
 
 	// Data Lineage Tracking
 	c.LineageEngine = lineage.NewLineageEngine(c.Bus, c.Log)
@@ -557,6 +546,7 @@ func (c *Container) Init(ctx context.Context) error {
 	c.Registry.Register(c.CredentialIntel)
 	c.Registry.Register(c.IdentityService)
 	c.Registry.Register(c.Lifecycle)
+	// TemporalService is registered once here — the early registration above has been removed.
 	c.Registry.Register(c.TemporalService)
 	c.Registry.Register(c.LineageService)
 	c.Registry.Register(c.DecisionService)

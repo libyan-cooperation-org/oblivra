@@ -4,28 +4,32 @@
 .dash-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: var(--padding-xl);
+    align-items: flex-start;
+    padding: 20px 24px 16px 24px;
     border-bottom: 1px solid var(--border-primary);
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--surface-0);
+    flex-shrink: 0;
 }
 
 .dash-title {
     margin: 0;
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-black);
+    font-size: 15px;
+    font-weight: 800;
     color: var(--text-heading);
-    letter-spacing: 1px;
+    letter-spacing: 2px;
     text-transform: uppercase;
-    font-family: var(--font-ui);
+    font-family: var(--font-mono);
+    line-height: 1;
 }
 
 .dash-subtitle {
-    margin: var(--gap-xs) 0 0 0;
+    margin: 5px 0 0 0;
     color: var(--text-muted);
-    font-size: var(--font-size-xs);
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    font-family: var(--font-mono);
+    font-weight: 400;
 }
 
 /* KPI Grid */
@@ -33,7 +37,8 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     border-bottom: 1px solid var(--border-primary);
-    background: var(--bg-secondary);
+    background: var(--surface-0);
+    flex-shrink: 0;
 }
 
 .dash-kpi {
@@ -42,10 +47,13 @@
     border-right: 1px solid var(--border-primary);
     background: transparent;
     box-shadow: none;
-    padding: var(--padding-xl);
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: background var(--transition-fast);
+    cursor: default;
 }
 
 .dash-kpi:last-child {
@@ -53,55 +61,67 @@
 }
 
 .dash-kpi:hover {
-    background: var(--bg-hover);
+    background: var(--surface-1);
 }
 
 .dash-kpi-label {
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-black);
+    font-size: 9px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.2px;
     color: var(--text-muted);
-    margin-bottom: var(--gap-sm);
-    font-family: var(--font-ui);
+    font-family: var(--font-mono);
+    line-height: 1;
 }
 
 .dash-kpi-value {
-    font-size: 32px;
-    font-weight: var(--font-weight-black);
+    font-size: 28px;
+    font-weight: 800;
     color: var(--text-primary);
     font-family: var(--font-mono);
-    line-height: var(--line-height-tight);
-    letter-spacing: -1px;
+    line-height: 1;
+    letter-spacing: -0.5px;
 }
 
 .dash-kpi-sub {
-    font-size: var(--font-size-xs);
+    font-size: 9px;
     color: var(--text-muted);
-    margin-top: var(--gap-xs);
     font-family: var(--font-mono);
     text-transform: uppercase;
+    letter-spacing: 0.5px;
     display: flex;
     align-items: center;
     gap: var(--gap-sm);
+    line-height: 1;
 }
 
 .dash-trend-good {
+    font-size: 9px;
     color: var(--status-online);
-    font-weight: var(--font-weight-bold);
+    font-weight: 700;
+    font-family: var(--font-mono);
+    background: rgba(55, 178, 77, 0.08);
+    padding: 2px 5px;
+    border-radius: 2px;
 }
 
 .dash-trend-bad {
+    font-size: 9px;
     color: var(--status-offline);
-    font-weight: var(--font-weight-bold);
+    font-weight: 700;
+    font-family: var(--font-mono);
+    background: rgba(240, 62, 62, 0.08);
+    padding: 2px 5px;
+    border-radius: 2px;
 }
 
 .dash-kpi-alert .dash-kpi-label {
-    color: var(--status-offline);
+    color: var(--alert-critical);
 }
 
 .dash-kpi-alert .dash-kpi-value {
-    color: var(--status-offline);
+    color: var(--alert-critical);
+    text-shadow: 0 0 20px rgba(240, 62, 62, 0.3);
 }
 
 /* Main Grid */
@@ -110,7 +130,7 @@
     grid-template-columns: 2fr 1fr;
     flex: 1;
     min-height: 0;
-    background: var(--bg-primary);
+    background: var(--surface-0);
 }
 
 .dash-chart-card,
@@ -119,10 +139,11 @@
     border: none;
     border-bottom: 1px solid var(--border-primary);
     box-shadow: none;
-    padding: var(--padding-xl);
+    padding: 20px 24px;
     display: flex;
     flex-direction: column;
     background: transparent;
+    gap: 0;
 }
 
 .dash-chart-card {
@@ -130,32 +151,46 @@
 }
 
 .dash-section-header {
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-black);
+    font-size: 9px;
+    font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 1px;
-    padding-bottom: var(--padding-sm);
-    border-bottom: 1px solid var(--border-primary);
-    margin-bottom: var(--gap-lg);
-    font-family: var(--font-ui);
+    letter-spacing: 1.5px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 16px;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dash-section-header::before {
+    content: '';
+    width: 3px;
+    height: 10px;
+    background: var(--accent-primary);
+    display: inline-block;
+    border-radius: 1px;
+    opacity: 0.7;
 }
 
 .dash-chart {
     flex: 1;
     width: 100%;
-    min-height: 300px;
+    min-height: 280px;
 }
 
 /* Heatmap */
 .dash-heatmap-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
-    gap: 4px;
-    padding: var(--padding-xs);
-    background: var(--bg-tertiary);
+    grid-template-columns: repeat(auto-fill, minmax(22px, 1fr));
+    gap: 3px;
+    padding: 10px;
+    background: var(--surface-1);
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
+    border-radius: 3px;
+    flex: 1;
 }
 
 .dash-heatmap-cell {
@@ -166,30 +201,33 @@
 }
 
 .dash-heatmap-cell:hover {
-    transform: scale(1.1);
-    box-shadow: 0 0 0 1px var(--text-primary);
+    transform: scale(1.15);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
     z-index: 2;
 }
 
 .dash-legend {
     display: flex;
     gap: var(--gap-lg);
-    margin-top: var(--gap-lg);
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
 }
 
 .dash-legend-item {
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text-muted);
-    font-weight: var(--font-weight-bold);
+    font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
     font-family: var(--font-mono);
     display: flex;
     align-items: center;
-    gap: var(--gap-xs);
+    gap: 5px;
 }
 
 .dash-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
 }

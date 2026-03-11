@@ -41,57 +41,80 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
 
     onCleanup(() => clearInterval(timer));
 
+    const sep = () => <span style="color: var(--border-secondary); font-family: var(--font-mono);">|</span>;
+
     return (
-        <footer class="status-bar">
-            <div class="status-left">
-                <div class="status-indicator">
-                    <span class={`dot ${activeHost() ? 'online' : 'disconnected'}`} />
-                    <span style="letter-spacing: 0.02em;">{activeHost() ? activeHost()?.label : 'Standby'}</span>
-                    <Show when={activeLatency() !== null}>
-                        <span style="opacity: 0.4; margin-left: 8px; font-family: var(--font-mono); font-size: 9px;">{activeLatency()}ms</span>
-                    </Show>
-                </div>
+        <footer style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 24px;
+            background: var(--surface-1);
+            border-top: 1px solid var(--border-primary);
+            padding: 0 12px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            flex-shrink: 0;
+            z-index: 50;
+        ">
+            {/* Left cluster */}
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style={`
+                    display: inline-block;
+                    width: 5px;
+                    height: 5px;
+                    border-radius: 50%;
+                    background: ${activeHost() ? 'var(--status-online)' : 'var(--text-muted)'};
+                    box-shadow: ${activeHost() ? '0 0 6px var(--status-online)' : 'none'};
+                    flex-shrink: 0;
+                `} />
+                <span style={`color: ${activeHost() ? 'var(--text-secondary)' : 'var(--text-muted)'}`}>
+                    {activeHost() ? activeHost()?.label : 'no active session'}
+                </span>
+                <Show when={activeLatency() !== null}>
+                    {sep()}
+                    <span style="color: var(--text-muted);">{activeLatency()}ms</span>
+                </Show>
             </div>
 
-            <div class="status-right">
+            {/* Right cluster */}
+            <div style="display: flex; align-items: center; gap: 10px;">
                 <For each={state.pluginStatusIcons}>
                     {(icon: any) => (
-                        <span
-                            class="plugin-status-icon"
-                            title={`${icon.plugin_id}: ${icon.tooltip}`}
-                            style="cursor: help;"
-                        >
-                            {icon.icon}
-                        </span>
+                        <span title={`${icon.plugin_id}: ${icon.tooltip}`} style="cursor: help; opacity: 0.7;">{icon.icon}</span>
                     )}
                 </For>
 
-                <div class="status-pill">
-                    <span style="opacity: 0.5; margin-right: 4px;">WORKSPACE</span>
-                    <span>{state.workspace}</span>
-                </div>
-
-                <div class="status-group">
-                    <span>{activeCount()} SESSIONS</span>
-                    <span style="opacity: 0.3;">/</span>
-                    <span>{state.hosts.length} HOSTS</span>
-                </div>
-
-                <Show when={transferCount() > 0 || state.transfers.length > 0}>
-                    <div
-                        class={`status-pill clickable ${transferCount() > 0 ? 'active' : ''}`}
+                <Show when={transferCount() > 0}>
+                    <span
+                        style="color: var(--accent-primary); cursor: pointer;"
                         onClick={props.onToggleTransfers}
-                    >
-                        <span class="pulse-icon">{transferCount() > 0 ? '⟳' : '⚐'}</span>
-                        <span>{transferCount()} TRANSFERS</span>
-                    </div>
+                    >⇅ {transferCount()} xfer</span>
+                    {sep()}
                 </Show>
 
-                <Show when={state.vaultUnlocked}>
-                    <span style="color: var(--success); font-size: 10px;">SECURE</span>
+                <span>
+                    <span style="color: var(--text-muted);">{activeCount()}</span>
+                    <span style="opacity: 0.35;"> sess · </span>
+                    <span style="color: var(--text-muted);">{state.hosts.length}</span>
+                    <span style="opacity: 0.35;"> hosts</span>
+                </span>
+
+                {sep()}
+
+                <Show
+                    when={state.vaultUnlocked}
+                    fallback={<span style="color: var(--text-muted); opacity: 0.4;">locked</span>}
+                >
+                    <span style="color: var(--accent-primary);">&#9679; secure</span>
                 </Show>
 
-                <span style="font-weight: 600; min-width: 50px; text-align: right;">{time()}</span>
+                {sep()}
+
+                <span style="color: var(--text-secondary); font-weight: 600; letter-spacing: 0.5px;">{time()}</span>
             </div>
         </footer>
     );

@@ -104,7 +104,9 @@ func main() {
 			application.CounterfactualService,
 			application.TailingService,
 			application.SyntheticService,
-			// Removed: LedgerService, MemorySecurity, DeterministicResponse
+			// NOTE: LedgerService, MemorySecurity, and DeterministicResponse are intentionally
+			// not exposed to the Wails frontend (no UI binding needed), but they ARE
+			// initialized and registered in the ServiceRegistry for internal lifecycle management.
 		},
 
 		Windows: &windows.Options{
@@ -134,6 +136,57 @@ func main() {
 	}
 }
 
+// WorkerDetectEngine is the RPC receiver for the detection worker subprocess.
+type WorkerDetectEngine struct{}
+
+func (e *WorkerDetectEngine) EvaluateEvent(args *isolation.EvaluateEventArgs, reply *isolation.EvaluateEventResponse) error {
+	// Stateless evaluation: parse the raw event JSON and apply basic rule matching.
+	// A full implementation would load rules from a shared config path passed via flag.
+	// For now, we return an empty match set — the subprocess is correctly wired and
+	// ready to receive events from the parent via JSON-RPC over stdin/stdout.
+	reply.Matches = []string{}
+	return nil
+}
+
+// WorkerPolicyEngine is the RPC receiver for the policy worker subprocess.
+type WorkerPolicyEngine struct{}
+
+type PolicyCheckArgs struct {
+	Tier   string
+	Action string
+}
+
+type PolicyCheckReply struct {
+	Allowed bool
+	Reason  string
+}
+
+func (e *WorkerPolicyEngine) CheckPolicy(args *PolicyCheckArgs, reply *PolicyCheckReply) error {
+	// Isolated policy decisions run outside the main process address space.
+	// Default: allow. A real implementation loads a policy bundle from disk.
+	reply.Allowed = true
+	reply.Reason = "default-allow"
+	return nil
+}
+
+// WorkerEnrichEngine is the RPC receiver for the enrichment worker subprocess.
+type WorkerEnrichEngine struct{}
+
+type EnrichArgs struct {
+	RawEventJSON []byte
+}
+
+type EnrichReply struct {
+	EnrichedEventJSON []byte
+}
+
+func (e *WorkerEnrichEngine) Enrich(args *EnrichArgs, reply *EnrichReply) error {
+	// Pass-through stub: returns the original event unchanged.
+	// A real implementation would apply GeoIP, DNS, and asset mapping.
+	reply.EnrichedEventJSON = args.RawEventJSON
+	return nil
+}
+
 func workerCmd(args []string) {
 	fs := flag.NewFlagSet("worker", flag.ExitOnError)
 	wType := fs.String("type", "", "Type of worker to start (detect, policy, enrich)")
@@ -145,11 +198,22 @@ func workerCmd(args []string) {
 
 	worker := isolation.NewIsolatedWorker(*wType)
 
-	// Here we would configure specific rpc receiver based on the worker type
-	// For example:
-	// if *wType == "detect" {
-	// 	 worker.Register("DetectEngine", newIsolatedDetectEngine())
-	// }
+	switch *wType {
+	case "detect":
+		if err := worker.Register("DetectEngine", &WorkerDetectEngine{}); err != nil {
+			log.Fatalf("Worker: failed to register DetectEngine: %v", err)
+		}
+	case "policy":
+		if err := worker.Register("PolicyEngine", &WorkerPolicyEngine{}); err != nil {
+			log.Fatalf("Worker: failed to register PolicyEngine: %v", err)
+		}
+	case "enrich":
+		if err := worker.Register("EnrichEngine", &WorkerEnrichEngine{}); err != nil {
+			log.Fatalf("Worker: failed to register EnrichEngine: %v", err)
+		}
+	default:
+		log.Fatalf("Worker error: unknown worker type %q (valid: detect, policy, enrich)", *wType)
+	}
 
 	// Serve forever on standard I/O
 	worker.ServeStdinStdout(os.Stdin, os.Stdout)
