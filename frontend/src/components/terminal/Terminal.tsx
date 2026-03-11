@@ -113,7 +113,8 @@ export const TerminalView: Component<TerminalProps> = (props) => {
             }
         });
 
-        // Auto-fit when container resizes
+        // Auto-fit when container resizes (covers both native ResizeObserver
+        // AND the custom 'sov:panel:resize' event fired by DraggablePanel)
         resizeObserver = new ResizeObserver(() => {
             requestAnimationFrame(() => {
                 if (containerRef && containerRef.clientWidth > 0 && containerRef.clientHeight > 0) {
@@ -122,6 +123,17 @@ export const TerminalView: Component<TerminalProps> = (props) => {
             });
         });
         resizeObserver.observe(containerRef);
+
+        // Also re-fit when a DraggablePanel emits its resize event
+        const onPanelResize = () => {
+            requestAnimationFrame(() => {
+                if (containerRef && containerRef.clientWidth > 0 && containerRef.clientHeight > 0) {
+                    try { fitAddon?.fit(); } catch (_) { }
+                }
+            });
+        };
+        window.addEventListener('sov:panel:resize', onPanelResize);
+        onCleanup(() => window.removeEventListener('sov:panel:resize', onPanelResize));
 
         terminal.focus();
     });

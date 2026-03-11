@@ -100,6 +100,11 @@ func (s *ObservabilityService) Startup(ctx context.Context) {
 
 	s.log.Info("ObservabilityService started — pprof on %s, goroutine threshold %d",
 		s.PprofAddr, s.GoroutineThreshold)
+
+	// Start background watchdog
+	if s.ctx != nil {
+		go s.watchdog()
+	}
 }
 
 // Shutdown stops the pprof server and watchdog.

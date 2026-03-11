@@ -91,6 +91,15 @@ func New(cfg Config) (*Logger, error) {
 	return l, nil
 }
 
+// NewStdoutLogger creates a logger that only writes to stdout.
+func NewStdoutLogger() *Logger {
+	return &Logger{
+		level:    InfoLevel,
+		logger:   log.New(os.Stdout, "", 0),
+		sanitize: true,
+	}
+}
+
 func (l *Logger) log(level Level, format string, args ...interface{}) {
 	if level < l.level {
 		return

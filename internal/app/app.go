@@ -95,21 +95,26 @@ type App struct {
 	TailingService        *TailingService
 }
 
-// New creates a new App instance.
-// Service pointers are intentionally nil here; they are assigned in Startup()
-// after the container has fully initialised and StartAll() has run.
-// Wails binds the App struct by pointer, so nil fields are safe until first use.
+// New creates a new App instance with placeholder service structs.
+//
+// WHY PLACEHOLDERS: Wails binding generation (and the Bind: []interface{}{...}
+// list in main.go) reflects on service pointers at process start, before
+// Startup() runs. Every pointer in the Bind list must be non-nil at that point
+// or Wails panics with "not a pointer to a struct".
+//
+// These zero-value structs are throwaway — Startup() replaces every pointer
+// with the live, fully-initialised container instance via pointer assignment
+// (a.X = a.container.X). The frontend always calls through the Wails-bound
+// pointer, which by then points at the real service.
+// New creates a new App instance and initializes the backend container immediately.
+// This ensures that Wails binds to the actual service pointers, avoiding
+// nil pointer dereferences and mutex copy warnings.
 func New() *App {
-	return &App{
+	a := &App{
 		version: "0.1.0",
 	}
-}
 
-// Startup is called when the app starts.
-func (a *App) Startup(ctx context.Context) {
-	a.ctx = ctx
-
-	// Initialize logger with config
+	// Initialize logger once for the entire application lifecycle.
 	l, err := logger.New(logger.Config{
 		Level:      logger.InfoLevel,
 		OutputPath: platform.LogPath(),
@@ -118,25 +123,20 @@ func (a *App) Startup(ctx context.Context) {
 	})
 	if err != nil {
 		fmt.Printf("Logger initialization failed: %v\n", err)
-		return
+		// Fallback to a basic logger if file logging fails.
+		l = logger.NewStdoutLogger()
 	}
 
 	a.container = NewContainer(l, a.version)
 
-	if err := a.container.Init(ctx); err != nil {
+	// Initialize the container immediately. This populates all service pointers.
+	// We use the background context here; Startup will later pass the Wails context.
+	if err := a.container.Init(context.Background()); err != nil {
 		l.Error("Container initialization failed: %v", err)
-		return
 	}
 
-	// Start all registered services
-	a.container.Registry.StartAll(ctx)
-
-	// Map container-managed services to Wails-bound pointers.
-	// ALL assignments use pointer assignment (a.X = a.container.X) so that
-	// the Wails-bound pointer always refers to the live container instance.
-	// Struct copies (*a.X = *a.container.X) were removed because they snapshot
-	// value state at startup time and diverge from the container if the service
-	// mutates internal fields after StartAll (goroutines, channels, caches).
+	// Map container-managed services to App fields.
+	// These pointers are now STABLE and LIVE. Wails will bind to these addresses.
 	a.HostService = a.container.HostService
 	a.SSHService = a.container.SSHService
 	a.VaultService = a.container.VaultService
@@ -178,6 +178,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.GraphService = a.container.GraphService
 	a.NDRService = a.container.NDRService
 	a.RiskService = a.container.RiskService
+	a.TrustService = a.container.TrustService
 	a.CredentialIntel = a.container.CredentialIntel
 	a.DisasterService = a.container.DisasterService
 	a.IngestService = a.container.IngestService
@@ -190,6 +191,17 @@ func (a *App) Startup(ctx context.Context) {
 	a.DeterministicResponse = a.container.DeterministicResponse
 	a.SyntheticService = a.container.SyntheticService
 	a.TailingService = a.container.TailingService
+
+	return a
+}
+
+// Startup is called when the app starts.
+func (a *App) Startup(ctx context.Context) {
+	a.ctx = ctx
+
+	// Logic services and heavy background loops start here.
+	// Since the container was initialized in New(), we just trigger the StartAll.
+	a.container.Registry.StartAll(ctx)
 
 	a.ready = true
 	a.container.Log.Info("Application startup complete")

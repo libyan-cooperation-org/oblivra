@@ -17,7 +17,7 @@ import (
 const (
 	// Argon2 parameters
 	argonTime    = 3
-	argonMemory  = 64 * 1024 // 64 MB
+	argonMemory  = 8 * 1024 // 8 MB (reduced from 64MB to avoid Wails/Windows 32-bit OOM silently hanging)
 	argonThreads = 4
 	argonKeyLen  = 32
 

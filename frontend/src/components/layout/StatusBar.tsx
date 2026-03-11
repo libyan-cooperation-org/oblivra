@@ -1,6 +1,7 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useApp } from '@core/store';
 import { GetAllHealth } from '../../../wailsjs/go/app/HealthService';
+import { usePanelManager } from './PanelManager';
 
 export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) => {
     const [state] = useApp();
@@ -8,6 +9,7 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
     const transferCount = () => state.transfers.filter(t => t.status === 'active' || t.status === 'pending').length;
     const [time, setTime] = createSignal('');
     const [healthMap, setHealthMap] = createSignal<Record<string, unknown>>({});
+    const { openPanelCount } = usePanelManager();
 
     const activeHost = createMemo(() => {
         if (!state.activeSessionId) return null;
@@ -102,6 +104,11 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
                     <span style="color: var(--text-muted);">{state.hosts.length}</span>
                     <span style="opacity: 0.35;"> hosts</span>
                 </span>
+
+                <Show when={openPanelCount() > 0}>
+                    {sep()}
+                    <span style="color: var(--accent-primary); font-weight: 700;">{openPanelCount()} panel{openPanelCount() === 1 ? '' : 's'}</span>
+                </Show>
 
                 {sep()}
 

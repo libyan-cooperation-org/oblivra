@@ -62,19 +62,24 @@ func (v *Vault) Setup(password string, yubiKeySerial string) error {
 }
 
 func (v *Vault) SetupWithTPM(password string, yubiKeySerial string, pcr int) error {
+	v.log.Info("Vault.SetupWithTPM: started")
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	v.log.Info("Vault.SetupWithTPM: acquired lock, creating directory: %s", v.config.StorePath)
 	if err := os.MkdirAll(v.config.StorePath, 0700); err != nil {
 		return err
 	}
 
+	v.log.Info("Vault.SetupWithTPM: generating salt")
 	salt, err := GenerateSalt()
 	if err != nil {
 		return err
 	}
 
+	v.log.Info("Vault.SetupWithTPM: deriving key")
 	key := DeriveKey(password, salt)
+	v.log.Info("Vault.SetupWithTPM: encrypting canary")
 	canary, err := Encrypt(key, []byte("oblivra"))
 	if err != nil {
 		return err
@@ -99,12 +104,16 @@ func (v *Vault) SetupWithTPM(password string, yubiKeySerial string, pcr int) err
 		}
 	}
 
+	v.log.Info("Vault.SetupWithTPM: marshaling meta")
 	data, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), data, 0600)
+	v.log.Info("Vault.SetupWithTPM: writing vault.json")
+	err = os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), data, 0600)
+	v.log.Info("Vault.SetupWithTPM: finished with err=%v", err)
+	return err
 }
 
 func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) error {

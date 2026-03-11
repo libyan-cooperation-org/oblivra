@@ -1,57 +1,65 @@
-/* ===== OblivraShell — SOVEREIGN BRUTALISM v2 ===== */
-/* Redesign: Deeper blacks, tighter grid, refined accent hierarchy */
+/* ===== SOVEREIGN TERMINAL — Termius-Inspired Dark Theme ===== */
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* ── Surfaces ── */
-  --surface-0: #080808;   /* True void black */
-  --surface-1: #0f0f0f;   /* Panel backgrounds — slightly lifted */
-  --surface-2: #1a1a1a;   /* Elevated / hover */
-  --surface-3: #242424;   /* Active / selected */
+  /* ── Surfaces — Softer, layered dark blues/grays ── */
+  --surface-0: #111318;   /* App background — deep navy-black */
+  --surface-1: #181c24;   /* Panel base */
+  --surface-2: #1e2330;   /* Elevated panels */
+  --surface-3: #252b3a;   /* Active / selected / hover */
+  --surface-4: #2d3347;   /* Highlight */
 
   /* Legacy mapping */
-  --bg-primary:  var(--surface-0);
+  --bg-primary:   var(--surface-0);
   --bg-secondary: var(--surface-1);
-  --bg-tertiary: var(--surface-2);
-  --bg-surface:  var(--surface-1);
-  --bg-hover:    var(--surface-2);
-  --bg-active:   var(--surface-3);
-  --bg-selected: rgba(0, 212, 170, 0.08);
-  --bg-elevated: var(--surface-2);
+  --bg-tertiary:  var(--surface-2);
+  --bg-surface:   var(--surface-1);
+  --bg-hover:     var(--surface-3);
+  --bg-active:    var(--surface-3);
+  --bg-selected:  rgba(87, 139, 255, 0.12);
+  --bg-elevated:  var(--surface-2);
 
-  /* ── Borders — more nuanced depth ── */
-  --border-subtle:    #1a1a1a;
-  --border-primary:   #2a2a2a;
-  --border-secondary: #3a3a3a;
-  --border-active:    #00d4aa;
-  --border-hover:     #444444;
+  /* ── Borders ── */
+  --border-subtle:    #1e2330;
+  --border-primary:   #252b3a;
+  --border-secondary: #313b52;
+  --border-active:    #578bff;
+  --border-hover:     #3d4a66;
 
   /* ── Semantic Alerts ── */
-  --alert-critical: #f03e3e;
+  --alert-critical: #f04040;
   --alert-high:     #f76707;
-  --alert-medium:   #f59f00;
-  --alert-low:      #37b24d;
-  --alert-info:     #00d4aa;
+  --alert-medium:   #f0a500;
+  --alert-low:      #34c47c;
+  --alert-info:     #578bff;
 
   /* Status aliases */
-  --status-online:   var(--alert-low);
-  --status-degraded: var(--alert-medium);
-  --status-offline:  var(--alert-critical);
-  --status-info:     var(--alert-info);
-  --status-warning:  var(--alert-high);
-  --success:         var(--alert-low);
-  --error:           var(--alert-critical);
+  --status-online:   #34c47c;
+  --status-degraded: #f0a500;
+  --status-offline:  #f04040;
+  --status-info:     #578bff;
+  --status-warning:  #f76707;
+  --success:         #34c47c;
+  --error:           #f04040;
 
-  /* ── Accent System — teal-based sovereign palette ── */
-  --accent-primary:     #00d4aa;   /* Sovereign teal */
-  --accent-primary-rgb: 0, 212, 170;
-  --accent-dim:         rgba(0, 212, 170, 0.15);
-  --accent-secondary:   #818cf8;   /* Indigo highlight */
-  --accent-danger:      #f03e3e;
-  --accent-warning:     #f59f00;
-  --accent-hover:       #00b899;
-  --accent-gradient:    linear-gradient(135deg, #00d4aa 0%, #818cf8 100%);
+  /* ── Accent System — Termius blue-violet ── */
+  --accent-primary:     #578bff;   /* Vivid electric blue */
+  --accent-primary-rgb: 87, 139, 255;
+  --accent-dim:         rgba(87, 139, 255, 0.15);
+  --accent-secondary:   #a78bfa;   /* Violet highlight */
+  --accent-danger:      #f04040;
+  --accent-warning:     #f0a500;
+  --accent-hover:       #6b9fff;
+  --accent-gradient:    linear-gradient(135deg, #578bff 0%, #a78bfa 100%);
+
+  /* Group badge colors — Termius-style colored group labels */
+  --group-aws:        #ff9a3c;
+  --group-prod:       #f04040;
+  --group-staging:    #f0a500;
+  --group-dev:        #34c47c;
+  --group-testing:    #a78bfa;
+  --group-acme:       #578bff;
 
   /* ── Typography ── */
   --font-ui:      "Inter", system-ui, sans-serif;
@@ -77,9 +85,9 @@
   --line-height-normal: 1.5;
 
   /* ── Text Colors ── */
-  --text-primary:   #f0f0f0;
-  --text-secondary: #909090;
-  --text-muted:     #585858;
+  --text-primary:   #e8eaf2;
+  --text-secondary: #8b93a8;
+  --text-muted:     #525c78;
   --text-accent:    var(--accent-primary);
   --text-heading:   #ffffff;
 
@@ -97,21 +105,22 @@
   --padding-lg: 12px 20px;
   --padding-xl: 16px 24px;
 
-  /* ── Radius — hairline softening only ── */
-  --radius-xs:   2px;
-  --radius-sm:   2px;
-  --radius-md:   3px;
-  --radius-lg:   4px;
-  --radius-xl:   6px;
+  /* ── Radius — Termius uses soft but not circular corners ── */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   10px;
+  --radius-xl:   12px;
   --radius-full: 9999px;
 
-  /* ── Shadows — subtle depth, not decoration ── */
-  --shadow-sm:   0 1px 3px rgba(0,0,0,0.4);
-  --shadow-md:   0 4px 12px rgba(0,0,0,0.5);
-  --shadow-lg:   0 8px 24px rgba(0,0,0,0.6);
+  /* ── Shadows ── */
+  --shadow-sm:   0 1px 4px rgba(0,0,0,0.4);
+  --shadow-md:   0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg:   0 8px 32px rgba(0,0,0,0.6);
   --shadow-xl:   0 16px 48px rgba(0,0,0,0.7);
-  --shadow-glow: 0 0 16px rgba(0, 212, 170, 0.2);
-  --shadow-glow-danger: 0 0 12px rgba(240,62,62,0.25);
+  --shadow-glow: 0 0 20px rgba(87, 139, 255, 0.25);
+  --shadow-glow-danger: 0 0 12px rgba(240,64,64,0.25);
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.35);
 
   /* ── Transitions ── */
   --transition-fast:   120ms ease;
@@ -120,25 +129,25 @@
   --transition-spring: 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ── Layout ── */
-  --header-height:  40px;
-  --nav-width:      56px;
-  --sidebar-width:  268px;
-  --status-bar-height: 24px;
+  --header-height:  48px;
+  --nav-width:      64px;
+  --sidebar-width:  280px;
+  --status-bar-height: 26px;
   --content-padding: 0px;
   --page-max-width:  100%;
 
   /* ── Focus ── */
-  --focus-ring:        0 0 0 1px var(--accent-primary);
+  --focus-ring:        0 0 0 2px rgba(87, 139, 255, 0.5);
   --border-focus:      var(--accent-primary);
 
   /* ── Tactical Effects ── */
-  --scanline-opacity: 0.03;
-  --flicker-opacity:  0.015;
+  --scanline-opacity: 0;
+  --flicker-opacity:  0;
   --war-red:  #7f1d1d;
   --war-glow: rgba(127, 29, 29, 0.5);
   --glass-border: var(--border-primary);
   --glass-border-highlight: var(--border-secondary);
-  --glass-bg-strong: rgba(15,15,15,0.97);
+  --glass-bg-strong: rgba(24,28,36,0.97);
 
   /* ── Legacy compatibility aliases ── */
   --tactical-red:    var(--alert-critical);
@@ -148,38 +157,31 @@
   --tactical-gray:   var(--text-muted);
   --tactical-border: var(--border-primary);
   --anim-easing-enter: cubic-bezier(0.22, 1, 0.36, 1);
-  --mesh-gradient: none;
+  --mesh-gradient: radial-gradient(ellipse at 20% 20%, rgba(87,139,255,0.06) 0%, transparent 60%),
+                   radial-gradient(ellipse at 80% 80%, rgba(167,139,250,0.04) 0%, transparent 60%);
 }
 
 /* ── Global Focus Ring ── */
 *:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 1px var(--accent-primary);
+  box-shadow: var(--focus-ring);
 }
 
-/* ── CRT Scanline Keyframes ── */
-@keyframes crt-flicker {
-  0% { opacity: 0.98; }
-  5% { opacity: 0.95; }
-  10% { opacity: 0.99; }
-  15% { opacity: 0.94; }
-  20% { opacity: 1; }
-  25% { opacity: 0.96; }
-  30% { opacity: 0.98; }
-  35% { opacity: 0.93; }
-  40% { opacity: 0.99; }
-  45% { opacity: 0.95; }
-  50% { opacity: 0.97; }
-  55% { opacity: 0.94; }
-  60% { opacity: 0.99; }
-  65% { opacity: 0.96; }
-  70% { opacity: 0.98; }
-  75% { opacity: 0.94; }
-  80% { opacity: 0.99; }
-  85% { opacity: 0.95; }
-  90% { opacity: 0.98; }
-  95% { opacity: 0.96; }
-  100% { opacity: 0.99; }
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 2px rgba(87, 139, 255, 0.2) !important;
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.page-enter {
+  animation: none;
 }
 
 @keyframes war-aberration {
@@ -188,22 +190,4 @@
   50% { transform: translate(-1px, 1px); }
   75% { transform: translate(1px, 1px); }
   100% { transform: translate(0, 0); }
-}
-
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  border-color: var(--accent-primary) !important;
-  box-shadow: none !important;
-}
-
-button:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 2px var(--accent-primary);
-}
-
-/* Eliminate useless animations */
-.page-enter {
-  animation: none;
 }

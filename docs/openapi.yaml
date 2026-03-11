@@ -1,77 +1,673 @@
-openapi: 3.0.0
+openapi: "3.1.0"
+
 info:
-  title: Oblivra API
-  description: Headless REST API for interacting with the OblivraShell security platform.
-  version: 1.0.0
+  title: OBLIVRA Sovereign Terminal API
+  description: |
+    Headless REST API for the OBLIVRA security platform.
+
+    ## Authentication
+    All protected endpoints require a Bearer token in the `Authorization` header
+    **or** an `X-API-Key` header. API keys are configured in **Settings → API Keys**.
+
+    ```
+    Authorization: Bearer <your-api-key>
+    # or
+    X-API-Key: <your-api-key>
+    ```
+
+    Public endpoints (`/healthz`, `/readyz`, `/metrics`) require no authentication.
+
+    ## Rate Limiting
+    20 requests/second with a burst of 50. Exceeding this returns `429 Too Many Requests`.
+
+    ## Base URL
+    Default local instance: `http://localhost:8080`
+    TLS-enabled (recommended): `https://localhost:8080`
+  version: "1.0.0"
+  license:
+    name: Proprietary
+
 servers:
-  - url: http://localhost:8080/api/v1
-    description: Local Oblivra instance
+  - url: http://localhost:8080
+    description: Local OBLIVRA instance (plain HTTP fallback)
+  - url: https://localhost:8080
+    description: Local OBLIVRA instance (TLS — recommended)
+
+tags:
+  - name: System
+    description: Health, readiness, and build attestation
+  - name: Metrics
+    description: Prometheus-compatible operational metrics
+  - name: SIEM
+    description: Security event search and correlation
+  - name: Alerts
+    description: Active security alert management
+  - name: Ingest
+    description: Log ingestion pipeline monitoring
+  - name: Events
+    description: Real-time WebSocket event stream
+  - name: Agents
+    description: Remote agent fleet management
+
 paths:
-  /siem/search:
-    post:
-      summary: Search SIEM Events
-      description: Search across all collected security events and logs.
+
+  # ─── System ──────────────────────────────────────────────────────────────────
+
+  /healthz:
+    get:
+      tags: [System]
+      summary: Liveness probe
+      description: Returns 200 OK if the process is alive. Use for Docker/Kubernetes liveness checks. No auth required.
+      operationId: getHealthz
+      security: []
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: alive
+                time: "2026-03-11T09:00:00Z"
+
+  /readyz:
+    get:
+      tags: [System]
+      summary: Readiness probe
+      description: Returns 200 OK once the platform is fully initialised. No auth required.
+      operationId: getReadyz
+      security: []
+      responses:
+        "200":
+          description: Platform is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+
+  /debug/attestation:
+    get:
+      tags: [System]
+      summary: Build attestation
+      description: |
+        Returns cryptographic build provenance, binary hash, and uptime.
+        Useful for supply chain verification and compliance evidence.
+      operationId: getAttestation
       security:
         - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                query:
-                  type: string
-                  description: Bleve search query string (e.g. `+EventType:ssh_login -Status:success`)
-                filters:
-                  type: object
-                  properties:
-                    limit:
-                      type: integer
-                      default: 100
+        - ApiKeyHeader: []
+      responses:
+        "200":
+          description: Attestation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttestationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ─── Metrics ─────────────────────────────────────────────────────────────────
+
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Prometheus metrics
+      description: |
+        Prometheus text exposition format. Suitable for Prometheus, Grafana Agent, VictoriaMetrics.
+        No auth required (scraper-friendly).
+
+        Exported metrics:
+        - `oblivra_ingest_eps` — current events/second
+        - `oblivra_ingest_total` — cumulative events processed
+        - `oblivra_active_alerts` — active security alert count
+      operationId: getMetrics
+      security: []
+      responses:
+        "200":
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP oblivra_ingest_eps Current events processed per second
+                # TYPE oblivra_ingest_eps gauge
+                oblivra_ingest_eps 4821
+
+  # ─── SIEM ────────────────────────────────────────────────────────────────────
+
+  /api/v1/siem/search:
+    get:
+      tags: [SIEM]
+      summary: Search security events (GET)
+      description: |
+        Query the SIEM event store using Bleve full-text syntax.
+
+        **Examples:**
+        - `+EventType:ssh_login -Status:success` — failed SSH logins
+        - `+SourceIP:10.0.0.0/8 +Severity:high` — high-severity internal events
+        - `ProcessName:powershell.exe` — PowerShell executions
+
+        Requires **Analyst** or **Admin** role.
+      operationId: searchEventsGet
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Bleve query string
+          schema:
+            type: string
+          example: "+EventType:ssh_login -Status:success"
+        - name: limit
+          in: query
+          required: false
+          description: Max results (default 100, max 10000)
+          schema:
+            type: integer
+            default: 100
+            maximum: 10000
       responses:
         "200":
           description: Search results
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  query:
-                    type: string
-                  count:
-                    type: integer
-                  events:
-                    type: array
-                    items:
-                      type: object
+                $ref: "#/components/schemas/SIEMSearchResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
 
-  /events:
+    post:
+      tags: [SIEM]
+      summary: Search security events (POST)
+      description: Same as GET but accepts a JSON body. Preferred for complex queries. Requires **Analyst** or **Admin** role.
+      operationId: searchEventsPost
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SIEMSearchRequest"
+            example:
+              query: "+EventType:lateral_movement +Severity:critical"
+              filters:
+                limit: 250
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SIEMSearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: Request body exceeds 1 MB limit
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ─── Alerts ──────────────────────────────────────────────────────────────────
+
+  /api/v1/alerts:
     get:
-      summary: WebSocket Event Stream
-      description: Upgrade connection to a WebSocket taking a stream of all internal system events via the central EventBus.
+      tags: [Alerts]
+      summary: List active alerts
+      description: Returns active security anomalies ordered by severity. Requires **Analyst** or **Admin** role.
+      operationId: listAlerts
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      responses:
+        "200":
+          description: Active alert list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ─── Ingest ──────────────────────────────────────────────────────────────────
+
+  /api/v1/ingest/status:
+    get:
+      tags: [Ingest]
+      summary: Ingestion pipeline status
+      description: Real-time throughput metrics for the log ingestion pipeline. Requires authentication.
+      operationId: getIngestStatus
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      responses:
+        "200":
+          description: Pipeline metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngestStatusResponse"
+              example:
+                eps: 4821
+                total_processed: 91234567
+                buffer_usage: 312
+                buffer_capacity: 4096
+                dropped_events: 0
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+
+  # ─── Events WebSocket ─────────────────────────────────────────────────────────
+
+  /api/v1/events:
+    get:
+      tags: [Events]
+      summary: Real-time event stream (WebSocket)
+      description: |
+        Upgrades the HTTP connection to a WebSocket and streams all internal
+        platform events in real time via the central EventBus.
+
+        Each message is a JSON-encoded Event object:
+        ```json
+        { "type": "siem.alert", "data": { ... } }
+        ```
+
+        Messages are dropped silently if the client's read buffer fills (slow consumer protection).
+
+        Authenticate via query parameter since WebSocket headers are unreliable in some clients:
+        ```
+        ws://localhost:8080/api/v1/events?token=<api-key>
+        ```
+      operationId: subscribeEvents
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      parameters:
+        - name: token
+          in: query
+          required: false
+          description: API key as URL parameter (fallback for WebSocket clients)
+          schema:
+            type: string
       responses:
         "101":
-          description: Switching Protocols to WebSocket
+          description: Switching Protocols — WebSocket handshake successful
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /alerts:
-    get:
-      summary: List Active Alerts
-      description: Retrieve the list of active security anomalies.
+  # ─── Agents ──────────────────────────────────────────────────────────────────
+
+  /api/v1/agent/register:
+    post:
+      tags: [Agents]
+      summary: Register agent
+      description: Called by the OBLIVRA agent binary on startup to register itself with the platform.
+      operationId: registerAgent
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRegistration"
       responses:
         "200":
-          description: Active alerts
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRegistrationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
-  /ingest/status:
+  /api/v1/agent/ingest:
+    post:
+      tags: [Agents]
+      summary: Agent log batch ingest
+      description: |
+        Accepts a batch of log events from a registered agent and feeds them into
+        the ingestion pipeline. Events are normalised on receipt.
+        Max batch size: **1000 events per request**.
+      operationId: agentIngest
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentIngestRequest"
+      responses:
+        "202":
+          description: Events accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentIngestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/v1/agent/fleet:
     get:
-      summary: Ingestion Pipeline Status
-      description: Retrieve metrics for the log ingest pipeline (e.g. Events Per Second).
+      tags: [Agents]
+      summary: List registered agents
+      description: Returns the current fleet of registered agents and their status.
+      operationId: listAgents
+      security:
+        - BearerAuth: []
+        - ApiKeyHeader: []
       responses:
         "200":
-          description: Ingest pipeline metrics
+          description: Agent fleet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentFleetResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+# ─── Components ──────────────────────────────────────────────────────────────────
 
 components:
+
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
+      description: "Authorization: Bearer <api-key>"
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: "X-API-Key: <api-key>"
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Unauthorized: invalid or missing API key"
+    Forbidden:
+      description: Authenticated but insufficient role
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Forbidden: Analysts only"
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotImplemented:
+      description: Feature disabled or subsystem not initialised
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Rate limit exceeded (20 req/s, burst 50)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: "Too Many Requests"
+
+  schemas:
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [alive]
+        time:
+          type: string
+          format: date-time
+      required: [status, time]
+
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, starting]
+      required: [status]
+
+    AttestationResponse:
+      type: object
+      properties:
+        attestation:
+          type: object
+          additionalProperties: true
+        build:
+          type: object
+          additionalProperties: true
+        uptime_secs:
+          type: number
+
+    IngestStatusResponse:
+      type: object
+      properties:
+        eps:
+          type: integer
+          description: Events per second (current)
+        total_processed:
+          type: integer
+        buffer_usage:
+          type: integer
+        buffer_capacity:
+          type: integer
+        dropped_events:
+          type: integer
+      required: [eps, total_processed, buffer_usage, buffer_capacity, dropped_events]
+
+    SIEMEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        event_type:
+          type: string
+        host_id:
+          type: string
+        source_ip:
+          type: string
+        severity:
+          type: string
+          enum: [info, low, medium, high, critical]
+        timestamp:
+          type: string
+          format: date-time
+        raw:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      additionalProperties: true
+
+    SIEMSearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Bleve full-text query string
+        filters:
+          type: object
+          properties:
+            limit:
+              type: integer
+              default: 100
+              maximum: 10000
+            offset:
+              type: integer
+              default: 0
+          additionalProperties: true
+
+    SIEMSearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        count:
+          type: integer
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/SIEMEvent"
+      required: [query, count, events]
+
+    AlertsResponse:
+      type: object
+      properties:
+        active_alerts:
+          type: integer
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SIEMEvent"
+      required: [active_alerts, alerts]
+
+    AgentRegistration:
+      type: object
+      properties:
+        id:
+          type: string
+        hostname:
+          type: string
+        os:
+          type: string
+          example: linux
+        arch:
+          type: string
+          example: amd64
+        version:
+          type: string
+        collectors:
+          type: array
+          items:
+            type: string
+          example: [file_tail, windows_event_log, system_metrics, ebpf]
+      required: [id, hostname, os, arch, version]
+
+    AgentRegistrationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [registered, already_registered]
+        agent_id:
+          type: string
+        server_time:
+          type: string
+          format: date-time
+      required: [status, agent_id]
+
+    AgentIngestRequest:
+      type: object
+      properties:
+        agent_id:
+          type: string
+        events:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              source:
+                type: string
+              raw:
+                type: string
+              parsed:
+                type: object
+                additionalProperties: true
+            required: [timestamp, source, raw]
+      required: [agent_id, events]
+
+    AgentIngestResponse:
+      type: object
+      properties:
+        accepted:
+          type: integer
+        dropped:
+          type: integer
+      required: [accepted, dropped]
+
+    AgentInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        hostname:
+          type: string
+        os:
+          type: string
+        arch:
+          type: string
+        version:
+          type: string
+        collectors:
+          type: array
+          items:
+            type: string
+        last_seen:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [online, degraded, offline]
+      required: [id, hostname, os, arch, version, status]
+
+    AgentFleetResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentInfo"
+      required: [total, agents]

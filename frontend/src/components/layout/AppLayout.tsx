@@ -23,6 +23,8 @@ import '../../styles/suggestion.css';
 import { AlertToastContainer } from '../notifications/AlertSystem';
 
 import { JSX } from 'solid-js/jsx-runtime';
+import { PanelManagerProvider } from './PanelManager';
+import { usePanelShortcuts } from '../../hooks/usePanelShortcuts';
 export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
     const [state, actions] = useApp();
     const [showSecurityKeys, setShowSecurityKeys] = createSignal(false);
@@ -41,6 +43,9 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
             console.error("Failed to load workspace:", err);
         }
     });
+
+    // Panel keyboard shortcuts (Ctrl+Shift+T = terminal, Ctrl+Shift+D = dashboard, …)
+    usePanelShortcuts();
 
     // Global Hotkeys
     useHotkeys({
@@ -63,6 +68,7 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
     });
 
     return (
+        <PanelManagerProvider>
         <div class={`app-layout ${state.focusMode ? 'focus-mode' : ''}`}>
             <QuickSwitcher />
 
@@ -112,5 +118,6 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
             <IncidentSuggestion />
             <AlertToastContainer />
         </div>
+        </PanelManagerProvider>
     );
 };
