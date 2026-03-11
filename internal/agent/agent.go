@@ -111,6 +111,11 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 		a.collectors = append(a.collectors, NewEventLogCollector(hostname, log.WithPrefix("eventlog")))
 	}
 
+	// eBPF kernel telemetry — Linux only; gracefully degrades to /proc fallback
+	if runtime.GOOS == "linux" {
+		a.collectors = append(a.collectors, NewEBPFCollector(hostname, log.WithPrefix("ebpf")))
+	}
+
 	return a, nil
 }
 

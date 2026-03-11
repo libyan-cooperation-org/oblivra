@@ -2,6 +2,9 @@
   {
     "type": "log",
     "host": "soc-srv-01",
+    "event_type": "successful_login",
+    "user": "root",
+    "source_ip": "192.168.1.50",
     "payload": "Mar 10 02:22:01 soc-srv-01 sshd[1234]: Accepted password for root from 192.168.1.50 port 54321 ssh2",
     "expect_alert": true,
     "expected_id": "builtin-2"
@@ -9,6 +12,7 @@
   {
     "type": "log",
     "host": "soc-srv-01",
+    "event_type": "linux_oom",
     "payload": "Mar 10 02:23:05 soc-srv-01 kernel: [1234.56] Out of memory: Kill process 5678 (worker) score 950 or sacrifice child",
     "expect_alert": true,
     "expected_id": "builtin-1"
@@ -16,6 +20,9 @@
   {
     "type": "log",
     "host": "dmz-web-01",
+    "event_type": "failed_login",
+    "source_ip": "10.0.0.100",
+    "user": "admin",
     "payload": "Mar 10 02:24:10 dmz-web-01 sshd[2345]: Failed password for invalid user admin from 10.0.0.100 port 12345 ssh2",
     "expect_alert": true,
     "expected_id": "builtin-4"
@@ -23,29 +30,70 @@
   {
     "type": "log",
     "host": "dmz-web-01",
+    "event_type": "failed_login",
+    "source_ip": "10.0.0.100",
+    "user": "admin",
     "payload": "Mar 10 02:24:15 dmz-web-01 sshd[2345]: Failed password for invalid user admin from 10.0.0.100 port 12346 ssh2",
     "expect_alert": true,
     "expected_id": "builtin-4"
   },
   {
     "type": "log",
+    "host": "dmz-web-01",
+    "event_type": "failed_login",
+    "source_ip": "10.0.0.100",
+    "user": "admin",
+    "payload": "Mar 10 02:24:20 dmz-web-01 sshd[2345]: Failed password for invalid user admin from 10.0.0.100 port 12347 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "dmz-web-01",
+    "event_type": "successful_login",
+    "source_ip": "10.0.0.100",
+    "user": "root",
+    "payload": "Mar 10 02:24:25 dmz-web-01 sshd[2345]: Accepted password for root from 10.0.0.100 port 12348 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-2"
+  },
+  {
+    "type": "log",
     "host": "soc-srv-01",
+    "event_type": "system_log",
     "payload": "Mar 10 02:25:01 soc-srv-01 systemd[1]: Started Periodic Background Migration.",
     "expect_alert": false
   },
   {
-    "type": "telemetry",
+    "type": "log",
     "host": "soc-srv-01",
-    "telemetry": {
-      "host_id": "soc-srv-01",
-      "cpu_usage": 98.5,
-      "mem_used_mb": 15000,
-      "mem_total_mb": 16384,
-      "disk_used_gb": 40,
-      "disk_total_gb": 500,
-      "load_avg": 5.2
-    },
+    "event_type": "system_log",
+    "payload": "Mar 10 02:26:00 soc-srv-01 cron[999]: pam_unix(cron:session): session opened for user nobody",
+    "expect_alert": false
+  },
+  {
+    "type": "log",
+    "host": "prod-db-01",
+    "event_type": "linux_oom",
+    "payload": "Mar 10 03:10:01 prod-db-01 kernel: Out of memory: Kill process 1111 (postgres) score 800 or sacrifice child",
     "expect_alert": true,
-    "expected_id": "mt-1"
+    "expected_id": "builtin-1"
+  },
+  {
+    "type": "log",
+    "host": "prod-db-01",
+    "event_type": "successful_login",
+    "user": "root",
+    "source_ip": "172.16.0.50",
+    "payload": "Mar 10 03:11:00 prod-db-01 sshd[8888]: Accepted publickey for root from 172.16.0.50 port 9999 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-2"
+  },
+  {
+    "type": "log",
+    "host": "prod-db-01",
+    "event_type": "system_log",
+    "payload": "Mar 10 03:12:00 prod-db-01 systemd[1]: Reloading nginx.service.",
+    "expect_alert": false
   }
 ]

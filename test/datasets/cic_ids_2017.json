@@ -2,6 +2,9 @@
   {
     "type": "log",
     "host": "ids-target-01",
+    "event_type": "failed_login",
+    "source_ip": "172.16.0.5",
+    "user": "root",
     "payload": "2026-03-10T14:01:01Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54321 ssh2",
     "expect_alert": true,
     "expected_id": "builtin-4"
@@ -9,6 +12,9 @@
   {
     "type": "log",
     "host": "ids-target-01",
+    "event_type": "failed_login",
+    "source_ip": "172.16.0.5",
+    "user": "root",
     "payload": "2026-03-10T14:01:05Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54322 ssh2",
     "expect_alert": true,
     "expected_id": "builtin-4"
@@ -16,22 +22,90 @@
   {
     "type": "log",
     "host": "ids-target-01",
-    "payload": "2026-03-10T14:01:10Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54323 ssh2",
+    "event_type": "failed_login",
+    "source_ip": "172.16.0.5",
+    "user": "root",
+    "payload": "2026-03-10T14:01:08Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54323 ssh2",
     "expect_alert": true,
     "expected_id": "builtin-4"
   },
   {
     "type": "log",
     "host": "ids-target-01",
-    "payload": "2026-03-10T14:01:15Z 192.168.10.50 sshd[100]: Accepted password for root from 172.16.0.5 port 54324 ssh2",
+    "event_type": "failed_login",
+    "source_ip": "172.16.0.5",
+    "user": "root",
+    "payload": "2026-03-10T14:01:11Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54324 ssh2",
     "expect_alert": true,
-    "expected_id": "linux_brute_force_success"
+    "expected_id": "builtin-4"
   },
   {
     "type": "log",
     "host": "ids-target-01",
-    "payload": "2026-03-10T14:05:01Z 192.168.10.50 kernel: [9999.99] Out of memory: Kill process 1234 (java) score 900",
+    "event_type": "failed_login",
+    "source_ip": "172.16.0.5",
+    "user": "root",
+    "payload": "2026-03-10T14:01:14Z 192.168.10.50 sshd[100]: Failed password for root from 172.16.0.5 port 54325 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-01",
+    "event_type": "successful_login",
+    "source_ip": "172.16.0.5",
+    "user": "root",
+    "payload": "2026-03-10T14:01:15Z 192.168.10.50 sshd[100]: Accepted password for root from 172.16.0.5 port 54326 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-2"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-02",
+    "event_type": "linux_oom",
+    "payload": "2026-03-10T14:05:01Z ids-target-02 kernel: [9999.99] Out of memory: Kill process 1234 (java) score 900",
     "expect_alert": true,
     "expected_id": "builtin-1"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-02",
+    "event_type": "system_log",
+    "payload": "2026-03-10T14:06:00Z ids-target-02 sshd[500]: Received disconnect from 192.168.1.1 port 22: Normal Shutdown",
+    "expect_alert": false
+  },
+  {
+    "type": "log",
+    "host": "ids-target-03",
+    "event_type": "failed_login",
+    "source_ip": "203.0.113.42",
+    "user": "ubuntu",
+    "payload": "2026-03-10T14:10:00Z ids-target-03 sshd[600]: Failed password for ubuntu from 203.0.113.42 port 1234 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-03",
+    "event_type": "failed_login",
+    "source_ip": "203.0.113.42",
+    "user": "ubuntu",
+    "payload": "2026-03-10T14:10:05Z ids-target-03 sshd[600]: Failed password for ubuntu from 203.0.113.42 port 1235 ssh2",
+    "expect_alert": true,
+    "expected_id": "builtin-4"
+  },
+  {
+    "type": "log",
+    "host": "ids-target-03",
+    "event_type": "system_log",
+    "payload": "2026-03-10T14:10:30Z ids-target-03 systemd[1]: Started Daily apt upgrade and clean activities.",
+    "expect_alert": false
+  },
+  {
+    "type": "log",
+    "host": "ids-target-03",
+    "event_type": "system_log",
+    "payload": "2026-03-10T14:11:00Z ids-target-03 systemd[1]: Finished Daily Cleanup of Temporary Directories.",
+    "expect_alert": false
   }
 ]

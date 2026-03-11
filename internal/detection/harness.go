@@ -127,5 +127,17 @@ func containsOne(s string, terms ...string) bool {
 }
 
 func contains(s, term string) bool {
-	return (len(s) >= len(term)) && (s[:len(term)] == term || s[len(s)-len(term):] == term)
+	if len(term) == 0 {
+		return true
+	}
+	if len(s) < len(term) {
+		return false
+	}
+	// Linear scan — avoids importing strings to keep the package dependency-free
+	for i := 0; i <= len(s)-len(term); i++ {
+		if s[i:i+len(term)] == term {
+			return true
+		}
+	}
+	return false
 }

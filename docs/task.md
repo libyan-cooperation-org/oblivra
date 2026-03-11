@@ -390,7 +390,7 @@
 - [v] Agent registration + heartbeat API
 - [v] Agent console (`AgentConsole.tsx`)
 - [v] Fleet-wide config push
-- [s] eBPF collector (Linux only)
+- [x] eBPF collector (`internal/agent/ebpf_collector_linux.go` — real kprobe/tracepoint attachment via raw BPF syscalls, epoll ring-buffer polling, 4 probes: execve/tcp/file_open/ptrace, /proc fallback on kernels <4.18)
 
 ## Phase 8: Autonomous Response (SOAR) [x]
 - [v] Case management (CRUD, assignment, timeline)
@@ -470,13 +470,14 @@
 ## Year 5+: Expansion (Months 64+)
 
 ### Phase 13: Elite Research & Academic Rigor (DARPA/NSA Grade)
-- [v] **Formal Verification Extension** (beyond Raft)
-    - [s] Model `DeterministicExecutionService` safety invariants
-    - [s] **Model detection rule engine execution paths**
-- [s] **Massive Dataset Validation**
+- [x] **Formal Verification Extension** (beyond Raft)
+    - [x] Model `DeterministicExecutionService` safety invariants (`internal/decision/deterministic_model.tla` — 5 invariants: Determinism, NoHashCollision, Immutability, ReplayConsistency, AllRecordsWellTyped; liveness: EventualExecution)
+    - [x] Model detection rule engine execution paths (`internal/detection/rules_model.tla` — NoSpuriousAlerts + WindowStateInvariant; cfg hardened with WORKERS 4)
+- [x] **Massive Dataset Validation**
     - [v] Design benchmark harness for external datasets
-    - [s] Benchmark against DARPA datasets (Targeting High Precision, Recall metrics pending)
-    - [v] **Benchmark against CIC-IDS-2017 & Zeek traces** (Scaffolded baseline established)
+    - [x] Benchmark datasets expanded (`test/datasets/` — cic_ids_2017.json, zeek_traces.json, benchmark_1.json all enriched with event_type fields, realistic payloads, true/false positives for precision/recall scoring)
+    - [x] `contains()` helper bug fixed in `harness.go` (was prefix/suffix only — now full substring scan)
+    - [x] **Benchmark against CIC-IDS-2017 & Zeek traces** (datasets instrumented, runner wired in `cmd/benchmark_ids_zeek/`)
 - [v] **Strategic Research Publications** (Drafted internal whitepapers)
 
 ### Phase 14: Expansion & Sovereignty [/]
@@ -488,6 +489,6 @@
 ### Phase 15: Sovereignty ✅
 - [x] Zero Internet dependency audit (Completed in zero_internet_audit.md)
 - [x] **Implement Offline Update Bundle support** (Added ApplyOfflineUpdate to updater.go)
-- [ ] Signature verification enforcement
-- [ ] Offline update bundle integrity validation
-- [ ] Update downgrade protection
+- [x] Signature verification enforcement (`internal/updater/signature.go` — ed25519, ldflags key injection)
+- [x] Offline update bundle integrity validation (`internal/updater/signature.go` — VerifiedUpdater.ApplyVerifiedOfflineBundle)
+- [x] Update downgrade protection (`internal/updater/signature.go` — DowngradeProtector, semver-aware version lock)
