@@ -1018,3 +1018,18 @@ func (s *SSHService) ClearTransfers() {
 func (s *SSHService) Name() string {
 	return "SSHService"
 }
+
+// GetActiveSessionForHost returns the first active SSH session ID for a given hostID.
+// Implements isolation.HostSessionResolver so NetworkIsolator can execute remote commands.
+func (s *SSHService) GetActiveSessionForHost(hostID string) (string, bool) {
+	if s.manager == nil {
+		return "", false
+	}
+	all := s.manager.GetAll()
+	for _, sess := range all {
+		if sess.HostID == hostID && sess.Status == ssh.SessionActive {
+			return sess.ID, true
+		}
+	}
+	return "", false
+}

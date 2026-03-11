@@ -200,6 +200,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	host := events[0].Host
 	if host != "" {
 		s.mu.Lock()
+		_, isNew := s.activeAgents[host]
 		s.activeAgents[host] = AgentInfo{
 			ID:            host,
 			Hostname:      host,
@@ -208,6 +209,23 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			RemoteAddress: r.RemoteAddr,
 		}
 		s.mu.Unlock()
+
+		if s.pipeline != nil && s.pipeline.Bus() != nil {
+			if !isNew {
+				// First time we've seen this agent — fire registration event
+				s.pipeline.Bus().Publish("agent.registered", map[string]interface{}{
+					"host_id":        host,
+					"remote_address": r.RemoteAddr,
+					"version":        agentVersion,
+				})
+			} else {
+				// Subsequent contact — fire heartbeat event
+				s.pipeline.Bus().Publish("agent.heartbeat", map[string]interface{}{
+					"host_id":  host,
+					"last_seen": time.Now().Format(time.RFC3339),
+				})
+			}
+		}
 	}
 
 	// Route events to the pipeline

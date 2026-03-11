@@ -264,6 +264,11 @@ func (p *Pipeline) metricCollector() {
 	}
 }
 
+// Bus returns the event bus attached to this pipeline.
+func (p *Pipeline) Bus() *eventbus.Bus {
+	return p.bus
+}
+
 // isSecurityAnomaly contains very basic heuristics to route failed logins and sudo actions to the SIEM tier.
 func isSecurityAnomaly(evt ParsedEvent) bool {
 	// Let all advanced parsed types flow into the SIEM directly

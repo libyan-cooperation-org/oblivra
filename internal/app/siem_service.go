@@ -7,36 +7,39 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/database"
+	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
-	
 )
 
 // SIEMService exposes SIEM configurations to the frontend
 type SIEMService struct {
 	BaseService
-	ctx       context.Context
-	repo      database.SIEMStore
-	forwarder *security.SIEMForwarder
-	ai        AIPrompter
-	snippets  *SnippetService
-	matcher       *threatintel.MatchEngine
-	bus           *eventbus.Bus
-	log           *logger.Logger
+	ctx         context.Context
+	repo        database.SIEMStore
+	forwarder   *security.SIEMForwarder
+	ai          AIPrompter
+	snippets    *SnippetService
+	matcher     *threatintel.MatchEngine
+	correlation *detection.CorrelationEngine
+	bus         *eventbus.Bus
+	log         *logger.Logger
 	lastRiskCheck *sync.Map
 }
 
 func (s *SIEMService) Name() string { return "SIEMService" }
 
 func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, bus *eventbus.Bus, log *logger.Logger) *SIEMService {
+	correlationEngine := detection.NewCorrelationEngine(bus, log.WithPrefix("correlation"))
 	return &SIEMService{
-		repo:      r,
-		forwarder: forwarder,
-		ai:        ai,
+		repo:          r,
+		forwarder:     forwarder,
+		ai:            ai,
 		snippets:      snippets,
 		matcher:       matcher,
+		correlation:   correlationEngine,
 		bus:           bus,
 		log:           log.WithPrefix("siem"),
 		lastRiskCheck: &sync.Map{},

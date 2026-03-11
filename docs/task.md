@@ -200,7 +200,7 @@
 
 - [v] Author 50+ YAML detection rules covering MITRE ATT&CK
 - [v] Build MITRE ATT&CK technique mapper (`internal/detection/mitre/`)
-- [s] Implement **correlation engine** (multi-event, cross-source, stateful)
+- [x] Implement **correlation engine** (`internal/detection/correlation.go` — 7 builtin cross-source rules, LRU state, dedup, wired into SIEMService)
 - [v] Build **MITRE ATT&CK heatmap** (`MitreHeatmap.tsx`)
 - [s] Recruit 10 design partners (Current: 0 recruited, pilot agreement pending)
 - [v] Validate: <5% false positives, 30+ ATT&CK techniques
@@ -392,19 +392,19 @@
 - [v] Fleet-wide config push
 - [s] eBPF collector (Linux only)
 
-## Phase 8: Autonomous Response (SOAR) [v]
+## Phase 8: Autonomous Response (SOAR) [x]
 - [v] Case management (CRUD, assignment, timeline)
 - [v] Playbook Engine: Selective response & Approval gating (Validated [v])
 - [v] Rollback Integrity: State-aware recovery (Validated [v])
-- [s] Jira/ServiceNow integration
+- [x] Jira/ServiceNow integration (`internal/incident/integrations.go` — native REST API v3 + Table API, ADF, severity mapping)
 - [v] Batch 1-4 CSS Standardization
 - [v] Deterministic Execution Service (Validated [v])
 
-## Phase 9: Ransomware Defense [/]
-- [s] Entropy-based behavioral detection
-- [s] Canary file deployment
+## Phase 9: Ransomware Defense [x]
+- [x] Entropy-based behavioral detection (`internal/detection/ransomware_engine.go` — multi-signal: entropy, ext rename, ransom note, shadow copy, canary)
+- [x] Canary file deployment (`canary_deployment_service.go` — auto-deploys on `agent.registered`, monitors FIM hits)
 - [v] Honeypot infrastructure
-- [s] Automated network isolation
+- [x] Automated network isolation (`network_isolator_service.go` — subscribes to `ransomware.isolation_requested`, executes via playbook + SSH, exposes frontend controls)
 - [v] Forensic Deep-Dive UI
 
 ## Phase 10: UEBA / ML [v]
@@ -413,12 +413,12 @@
 - [v] Identity Threat Detection & Response (EMA behavior tracking) [v]
 - [v] Threat hunting interface (`ThreatHunter.tsx`)
 
-## Phase 11: NDR [/]
+## Phase 11: NDR [x]
 - [v] NetFlow/IPFIX collector
-- [s] DNS log analysis engine
-- [s] TLS metadata extraction (JA3)
+- [v] DNS log analysis engine
+- [v] TLS metadata extraction (JA3)
 - [v] NDR Network Map (`NetworkMap.tsx`)
-- [s] LateralMovementEngine
+- [x] LateralMovementEngine (`internal/ndr/lateral_movement.go` — multi-hop RFC-1918 correlation, MITRE T1021/T1210, risk scoring)
 
 ## Phase 12: Enterprise [/]
 - [v] Multi-tenancy with data partitioning

@@ -13,24 +13,26 @@ import (
 
 // NDRService exposes Network Detection & Response capabilities to the frontend.
 type NDRService struct {
-	collector    *ndr.FlowCollector
-	dnsAnalyzer  *ndr.DNSAnalyzer
-	tlsExtractor *ndr.TLSMetadataExtractor
-	bus          *eventbus.Bus
-	log          *logger.Logger
-	ctx          context.Context
+	collector       *ndr.FlowCollector
+	dnsAnalyzer     *ndr.DNSAnalyzer
+	tlsExtractor    *ndr.TLSMetadataExtractor
+	lateralEngine   *ndr.LateralMovementEngine
+	bus             *eventbus.Bus
+	log             *logger.Logger
+	ctx             context.Context
 
 	flowHistory []ndr.NetworkFlow
 }
 
 func NewNDRService(collector *ndr.FlowCollector, bus *eventbus.Bus, log *logger.Logger) *NDRService {
 	return &NDRService{
-		collector:    collector,
-		dnsAnalyzer:  ndr.NewDNSAnalyzer(bus, log),
-		tlsExtractor: ndr.NewTLSMetadataExtractor(bus, log),
-		bus:          bus,
-		log:          log.WithPrefix("ndr"),
-		flowHistory:  make([]ndr.NetworkFlow, 0),
+		collector:     collector,
+		dnsAnalyzer:   ndr.NewDNSAnalyzer(bus, log),
+		tlsExtractor:  ndr.NewTLSMetadataExtractor(bus, log),
+		lateralEngine: ndr.NewLateralMovementEngine(bus, log),
+		bus:           bus,
+		log:           log.WithPrefix("ndr"),
+		flowHistory:   make([]ndr.NetworkFlow, 0),
 	}
 }
 
@@ -55,6 +57,9 @@ func (s *NDRService) Startup(ctx context.Context) {
 			s.flowHistory = s.flowHistory[1:]
 		}
 
+		// Route through dedicated LateralMovementEngine for multi-hop correlation
+		s.lateralEngine.ProcessFlow(flow)
+		// Legacy inline check retained for compatibility
 		s.detectLateralMovement(flow)
 	})
 

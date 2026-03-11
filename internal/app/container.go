@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
+	"github.com/kingknull/oblivrashell/internal/isolation"
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/compliance"
@@ -172,9 +173,13 @@ type Container struct {
 	PolicyService        *PolicyService
 	IncidentService      *IncidentService
 	PlaybookService      *PlaybookService
-	RansomwareEngine     *detection.RansomwareEngine
-	CanaryService        *security.CanaryService
-	SimulationService    *simulation.SimulationService
+	RansomwareEngine         *detection.RansomwareEngine
+	CanaryService            *security.CanaryService
+	CanaryDeploymentService  *CanaryDeploymentService
+	SimulationService        *simulation.SimulationService
+	NetworkIsolator          *isolation.NetworkIsolator
+	NetworkIsolatorService   *NetworkIsolatorService
+	RansomwareService        *RansomwareService
 
 	// Phase 9.5 & 11: Strategic Intelligence
 	GraphEngine  *graph.GraphEngine
@@ -398,6 +403,13 @@ func (c *Container) Init(ctx context.Context) error {
 	// Phase 9: Ransomware Defense
 	c.RansomwareEngine = detection.NewRansomwareEngine(c.Bus, c.DB, c.Log)
 	c.CanaryService = security.NewCanaryService(c.Log, c.SSHService)
+	c.CanaryService.SetBus(c.Bus) // wire event bus for auto-deploy + hit detection
+	c.NetworkIsolator = isolation.NewNetworkIsolator(c.SSHService, c.SSHService, "", c.Bus, c.Log)
+	c.RansomwareService = NewRansomwareService(c.NetworkIsolator, c.Bus, c.Log)
+	// Phase 9 completion: automatic canary deployment on agent registration
+	c.CanaryDeploymentService = NewCanaryDeploymentService(c.CanaryService, c.SSHService, c.Bus, c.Log)
+	// Phase 9 completion: sovereign NetworkIsolatorService (event-driven, frontend-exposed)
+	c.NetworkIsolatorService = NewNetworkIsolatorService(c.SSHService, c.PlaybookService, c.Bus, c.Log)
 	c.SimulationService = simulation.NewSimulationService(c.Bus, c.Log)
 
 	// Phase 9.5 & 11: Strategic Intelligence
@@ -521,8 +533,12 @@ func (c *Container) Init(ctx context.Context) error {
 	c.Registry.Register(c.IncidentService)
 	c.Registry.Register(c.PlaybookService)
 	c.Registry.Register(c.RansomwareEngine)
+	c.Registry.Register(c.RansomwareService)
 	c.Registry.Register(c.SimulationService)
 	c.Registry.Register(c.CanaryService)
+	c.Registry.Register(c.CanaryDeploymentService)
+	c.Registry.Register(c.NetworkIsolator)
+	c.Registry.Register(c.NetworkIsolatorService)
 	c.Registry.Register(c.APIService)
 	c.Registry.Register(c.ForensicsService)
 	c.Registry.Register(c.ObservabilityService)
