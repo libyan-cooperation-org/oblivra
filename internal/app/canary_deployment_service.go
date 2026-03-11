@@ -98,7 +98,7 @@ func (s *CanaryDeploymentService) Startup(ctx context.Context) {
 	})
 
 	// Watch FIM modified events too — ransomware writes before it renames
-	s.bus.Subscribe(string(eventbus.EventFIMModified), func(e eventbus.Event) {
+	s.bus.Subscribe(eventbus.EventFIMModified, func(e eventbus.Event) {
 		data, ok := e.Data.(map[string]interface{})
 		if !ok {
 			return

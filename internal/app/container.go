@@ -537,7 +537,6 @@ func (c *Container) Init(ctx context.Context) error {
 	c.Registry.Register(c.SimulationService)
 	c.Registry.Register(c.CanaryService)
 	c.Registry.Register(c.CanaryDeploymentService)
-	c.Registry.Register(c.NetworkIsolator)
 	c.Registry.Register(c.NetworkIsolatorService)
 	c.Registry.Register(c.APIService)
 	c.Registry.Register(c.ForensicsService)
