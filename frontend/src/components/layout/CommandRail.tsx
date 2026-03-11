@@ -2,7 +2,10 @@ import { Component, Show, For, createSignal } from 'solid-js';
 import { useApp, AppState } from '@core/store';
 import { useNavigate } from '@solidjs/router';
 
-type NavTab = AppState['activeNavTab'] | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay' | 'soc';
+type NavTab = AppState['activeNavTab'] | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay' | 'soc'
+    | 'agents' | 'ueba' | 'threat-hunter' | 'ndr' | 'purple-team' | 'graph'
+    | 'war-mode' | 'forensics' | 'identity' | 'response' | 'ransomware' | 'credentials'
+    | 'executive' | 'simulation' | 'data-destruction' | 'risk' | 'governance' | 'features';
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const Icons = {
@@ -30,31 +33,62 @@ const Icons = {
     SOC:        () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>,
     Audit:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>,
     ChevronRight: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>,
+    // New icons for missing pages
+    Agents:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><path d="M9 15h6"/></svg>,
+    UEBA:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>,
+    Hunter:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg>,
+    NDR:        () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><line x1="6" y1="9" x2="6" y2="15"/><line x1="18" y1="9" x2="18" y2="15"/><line x1="9" y1="6" x2="15" y2="6"/><line x1="9" y1="18" x2="15" y2="18"/></svg>,
+    Purple:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+    Graph:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><line x1="12" y1="8" x2="5" y2="16"/><line x1="12" y1="8" x2="19" y2="16"/><line x1="8" y1="19" x2="16" y2="19"/></svg>,
+    War:        () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+    Forensics:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    Identity:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2M15 12h2"/><path d="M7 16h10"/></svg>,
+    Response:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
+    Executive:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>,
 };
 
 // ── Route map ─────────────────────────────────────────────────────────────────
 const routeMap: Record<string, string> = {
-    dashboard: '/dashboard',
-    siem:      '/siem',
-    topology:  '/topology',
-    terminal:  '/terminal',
-    hosts:     '/hosts',
-    ops:       '/ops',
-    compliance:'/compliance',
-    vault:     '/vault',
-    team:      '/team',
-    plugins:   '/plugins',
-    workspace: '/workspace',
-    security:  '/trust',
-    health:    '/monitoring',
-    metrics:   '/executive',
-    settings:  '/workspace',
-    temporal:  '/temporal-integrity',
-    lineage:   '/lineage',
-    decisions: '/decisions',
-    ledger:    '/ledger',
-    replay:    '/response-replay',
-    soc:       '/soc',
+    // OBSERVE
+    dashboard:  '/dashboard',
+    siem:       '/siem',
+    alerts:     '/siem',  // Alerts are within SIEM
+    topology:   '/topology',
+    health:     '/monitoring',
+    // OPERATE
+    terminal:   '/terminal',
+    hosts:      '/hosts',
+    agents:     '/agents',
+    ops:        '/ops',
+    soc:        '/soc',
+    tunnels:    '/terminal',
+    response:   '/response',
+    // INTEL
+    ueba:           '/ueba',
+    'threat-hunter':'/threat-hunter',
+    ndr:            '/ndr',
+    'purple-team':  '/purple-team',
+    graph:          '/graph',
+    ransomware:     '/ransomware',
+    simulation:     '/simulation',
+    // GOVERN
+    compliance: '/compliance',
+    vault:      '/vault',
+    identity:   '/identity',
+    'war-mode': '/war-mode',
+    forensics:  '/forensics',
+    security:   '/trust',
+    team:       '/team',
+    // AUDIT flyout
+    temporal:   '/temporal-integrity',
+    lineage:    '/lineage',
+    decisions:  '/decisions',
+    ledger:     '/ledger',
+    replay:     '/response-replay',
+    // SYSTEM
+    plugins:    '/plugins',
+    executive:  '/executive',
+    settings:   '/workspace',
 };
 
 // ── Primary nav items (always visible) ───────────────────────────────────────
@@ -86,21 +120,22 @@ const NavButton: Component<{
                 'border-left': props.active ? '2px solid var(--accent-primary)' : '2px solid transparent',
                 color: props.active ? 'var(--text-primary)' : 'var(--text-secondary)',
                 width: '100%',
-                padding: '8px 0',
+                padding: '6px 0',
                 cursor: 'pointer',
                 display: 'flex',
                 'flex-direction': 'column',
                 'align-items': 'center',
-                gap: '3px',
+                gap: '2px',
                 position: 'relative',
+                transition: 'background 0.15s, color 0.15s',
             }}
         >
-            <div style={{ width: '18px', height: '18px' }}>
+            <div style={{ width: '16px', height: '16px' }}>
                 <props.item.icon />
             </div>
             <span style={{
                 'font-family': 'var(--font-ui)',
-                'font-size': '9px',
+                'font-size': '8px',
                 'font-weight': props.active ? 700 : 400,
                 'text-transform': 'uppercase',
                 'letter-spacing': '0.3px',
@@ -111,16 +146,16 @@ const NavButton: Component<{
             <Show when={badge > 0}>
                 <div style={{
                     position: 'absolute',
-                    top: '4px',
+                    top: '2px',
                     right: '6px',
                     background: props.item.urgent ? 'var(--alert-critical)' : 'var(--accent-primary)',
                     color: '#fff',
                     'font-family': 'var(--font-mono)',
-                    'font-size': '8px',
+                    'font-size': '7px',
                     'font-weight': 800,
                     padding: '1px 3px',
                     'line-height': 1,
-                    'min-width': '14px',
+                    'min-width': '12px',
                     'text-align': 'center',
                 }}>
                     {badge}
@@ -140,7 +175,7 @@ const AuditFlyout: Component<{
     <div
         style={{
             position: 'fixed',
-            left: '80px',
+            left: '64px',
             top: 'auto',
             background: 'var(--surface-1)',
             border: '1px solid var(--border-primary)',
@@ -193,15 +228,15 @@ const AuditFlyout: Component<{
 const Divider: Component<{ label: string }> = (props) => (
     <div style={{
         'font-family': 'var(--font-mono)',
-        'font-size': '8px',
+        'font-size': '7px',
         'font-weight': 800,
         color: 'var(--text-muted)',
         'text-align': 'center',
-        padding: '8px 0 4px 0',
+        padding: '6px 0 3px 0',
         opacity: 0.5,
         'letter-spacing': '0.8px',
         'border-top': '1px solid var(--border-primary)',
-        'margin-top': '4px',
+        'margin-top': '2px',
     }}>
         {props.label}
     </div>
@@ -222,47 +257,63 @@ export const CommandRail: Component = () => {
 
     const auditActive = () => auditItems.some(i => i.id === state.activeNavTab);
 
-    // Primary items — 16 total across 4 logical groups
+    // ── OBSERVE — Monitoring & Detection ──────────────────────────────────
     const observe: PrimaryItem[] = [
         { id: 'dashboard', icon: Icons.Dashboard, label: 'Dash' },
         { id: 'siem',      icon: Icons.SIEM,      label: 'SIEM' },
-        { id: 'alerts',    icon: Icons.Alerts,    label: 'Alerts',
+        { id: 'alerts',    icon: Icons.Alerts,     label: 'Alerts',
           badge: () => state.notifications.filter((n: any) => n.type === 'error').length,
           urgent: true },
-        { id: 'topology',  icon: Icons.Topology,  label: 'Net' },
-        { id: 'health',    icon: Icons.Health,    label: 'Health' },
+        { id: 'topology',  icon: Icons.Topology,   label: 'Net' },
+        { id: 'health',    icon: Icons.Health,      label: 'Health' },
     ];
 
+    // ── OPERATE — Hands-on Infrastructure ─────────────────────────────────
     const operate: PrimaryItem[] = [
-        { id: 'terminal', icon: Icons.Terminal, label: 'Shell' },
-        { id: 'hosts',    icon: Icons.Hosts,    label: 'Hosts' },
-        { id: 'ops',      icon: Icons.Ops,      label: 'Ops' },
-        { id: 'soc',      icon: Icons.SOC,      label: 'SOC' },
-        { id: 'tunnels',  icon: Icons.Tunnels,  label: 'Tunnel' },
+        { id: 'terminal',  icon: Icons.Terminal,  label: 'Shell' },
+        { id: 'hosts',     icon: Icons.Hosts,     label: 'Hosts' },
+        { id: 'agents',    icon: Icons.Agents,    label: 'Agents' },
+        { id: 'ops',       icon: Icons.Ops,       label: 'Ops' },
+        { id: 'soc',       icon: Icons.SOC,       label: 'SOC' },
+        { id: 'response',  icon: Icons.Response,  label: 'SOAR' },
     ];
 
+    // ── INTEL — Threat Intelligence & Hunting ─────────────────────────────
+    const intel: PrimaryItem[] = [
+        { id: 'ueba',           icon: Icons.UEBA,     label: 'UEBA' },
+        { id: 'threat-hunter',  icon: Icons.Hunter,   label: 'Hunt' },
+        { id: 'ndr',            icon: Icons.NDR,      label: 'NDR' },
+        { id: 'purple-team',    icon: Icons.Purple,   label: 'Purple' },
+        { id: 'graph',          icon: Icons.Graph,     label: 'Graph' },
+    ];
+
+    // ── GOVERN — Compliance, Identity, Security ───────────────────────────
     const govern: PrimaryItem[] = [
-        { id: 'security',   icon: Icons.Security,   label: 'Secure' },
-        { id: 'compliance', icon: Icons.Compliance, label: 'Comply' },
-        { id: 'vault',      icon: Icons.Vault,      label: 'Vault' },
-        { id: 'team',       icon: Icons.Team,       label: 'Team' },
+        { id: 'compliance',  icon: Icons.Compliance, label: 'Comply' },
+        { id: 'vault',       icon: Icons.Vault,      label: 'Vault' },
+        { id: 'identity',    icon: Icons.Identity,   label: 'Users' },
+        { id: 'security',    icon: Icons.Security,   label: 'Trust' },
+        { id: 'forensics',   icon: Icons.Forensics,  label: 'Forensic' },
+        { id: 'war-mode',    icon: Icons.War,        label: 'WarMode' },
     ];
 
+    // ── SYSTEM — Configuration & Admin ────────────────────────────────────
     const system: PrimaryItem[] = [
-        { id: 'plugins',  icon: Icons.Plugins,  label: 'Plugin' },
-        { id: 'settings', icon: Icons.Settings, label: 'Config' },
+        { id: 'executive', icon: Icons.Executive, label: 'Exec' },
+        { id: 'plugins',   icon: Icons.Plugins,   label: 'Plugin' },
+        { id: 'settings',  icon: Icons.Settings,  label: 'Config' },
     ];
 
     return (
         <nav style={{
-            width: '80px',
-            'min-width': '80px',
+            width: '64px',
+            'min-width': '64px',
             height: '100%',
             background: 'var(--surface-1)',
             'border-right': '1px solid var(--border-primary)',
             display: 'flex',
             'flex-direction': 'column',
-            'padding-top': '8px',
+            'padding-top': '4px',
             'z-index': 1000,
             'overflow-y': 'auto',
             'overflow-x': 'hidden',
@@ -272,12 +323,12 @@ export const CommandRail: Component = () => {
                 'font-family': 'var(--font-mono)',
                 'font-weight': 800,
                 color: 'var(--accent-primary)',
-                'font-size': '11px',
+                'font-size': '10px',
                 'text-align': 'center',
-                padding: '6px 0 12px 0',
+                padding: '4px 0 8px 0',
                 'letter-spacing': '2px',
                 'border-bottom': '1px solid var(--border-primary)',
-                'margin-bottom': '4px',
+                'margin-bottom': '2px',
             }}>
                 OBV
             </div>
@@ -297,6 +348,18 @@ export const CommandRail: Component = () => {
             {/* OPERATE */}
             <Divider label="OPS" />
             <For each={operate}>
+                {(item) => (
+                    <NavButton
+                        item={item}
+                        active={state.activeNavTab === item.id}
+                        onClick={() => go(item.id)}
+                    />
+                )}
+            </For>
+
+            {/* INTEL */}
+            <Divider label="INTEL" />
+            <For each={intel}>
                 {(item) => (
                     <NavButton
                         item={item}
@@ -331,21 +394,21 @@ export const CommandRail: Component = () => {
                     'border-left': auditActive() ? '2px solid var(--accent-primary)' : '2px solid transparent',
                     color: auditActive() ? 'var(--text-primary)' : 'var(--text-secondary)',
                     width: '100%',
-                    padding: '8px 0',
+                    padding: '6px 0',
                     cursor: 'pointer',
                     display: 'flex',
                     'flex-direction': 'column',
                     'align-items': 'center',
-                    gap: '3px',
+                    gap: '2px',
                     position: 'relative',
                 }}
             >
-                <div style={{ width: '18px', height: '18px' }}>
+                <div style={{ width: '16px', height: '16px' }}>
                     <Icons.Audit />
                 </div>
                 <span style={{
                     'font-family': 'var(--font-ui)',
-                    'font-size': '9px',
+                    'font-size': '8px',
                     'font-weight': auditActive() ? 700 : 400,
                     'text-transform': 'uppercase',
                     'letter-spacing': '0.3px',
@@ -353,13 +416,13 @@ export const CommandRail: Component = () => {
                 }}>
                     Audit
                 </span>
-                <div style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', width: '10px', height: '10px', opacity: 0.4 }}>
+                <div style={{ position: 'absolute', right: '2px', top: '50%', transform: 'translateY(-50%)', width: '8px', height: '8px', opacity: 0.4 }}>
                     <Icons.ChevronRight />
                 </div>
             </button>
 
             <Show when={auditOpen()}>
-                <div style={{ position: 'fixed', left: '80px', top: `${flyoutTop()}px`, 'z-index': 2000 }}>
+                <div style={{ position: 'fixed', left: '64px', top: `${flyoutTop()}px`, 'z-index': 2000 }}>
                     <AuditFlyout
                         active={auditActive()}
                         currentTab={state.activeNavTab as string}
@@ -383,7 +446,7 @@ export const CommandRail: Component = () => {
                     />
                 )}
             </For>
-            <div style={{ height: '8px' }} />
+            <div style={{ height: '4px' }} />
         </nav>
     );
 };
