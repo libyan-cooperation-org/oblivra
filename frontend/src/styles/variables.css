@@ -143,6 +143,19 @@
   --flicker-opacity: 0.02;
   --war-red: #991b1b;
   --war-glow: rgba(153, 27, 27, 0.4);
+
+  /* ── Legacy / compatibility aliases (do not use in new code) ── */
+  /* Maps old --tactical-* tokens that leaked into several components */
+  --tactical-red:    var(--alert-critical);
+  --tactical-amber:  var(--alert-medium);
+  --tactical-green:  var(--alert-low);
+  --tactical-blue:   var(--accent-primary);
+  --tactical-gray:   var(--text-muted);
+  --tactical-border: var(--border-primary);
+
+  /* Focus ring shorthand */
+  --border-focus:    var(--accent-primary);
+  --border-hover:    var(--border-secondary);
 }
 
 /* ── Global Focus Ring ── */

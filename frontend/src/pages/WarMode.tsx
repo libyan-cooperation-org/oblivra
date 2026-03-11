@@ -1,35 +1,133 @@
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import * as DisasterService from '../../wailsjs/go/app/DisasterService';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const modeColor = (mode: string | undefined) => {
+    switch (mode) {
+        case 'read_only': return 'var(--alert-critical)';
+        case 'air_gap':   return 'var(--alert-medium)';
+        default:          return 'var(--alert-low)';
+    }
+};
+
+const modeLabel = (mode: string | undefined) =>
+    mode ? mode.replace('_', '-').toUpperCase() : 'NOMINAL';
+
+// ── Shared card wrapper ───────────────────────────────────────────────────────
+const Card: Component<{ accent?: string; children: any }> = (props) => (
+    <section style={{
+        background: 'var(--surface-1)',
+        border: '1px solid var(--border-primary)',
+        'border-top': `2px solid ${props.accent ?? 'var(--border-primary)'}`,
+        padding: '24px',
+        display: 'flex',
+        'flex-direction': 'column',
+        gap: '16px',
+    }}>
+        {props.children}
+    </section>
+);
+
+// ── Section label ─────────────────────────────────────────────────────────────
+const SectionLabel: Component<{ children: any }> = (props) => (
+    <div style={{
+        'font-family': 'var(--font-mono)',
+        'font-size': '10px',
+        'font-weight': 800,
+        color: 'var(--text-muted)',
+        'text-transform': 'uppercase',
+        'letter-spacing': '1.5px',
+    }}>
+        {props.children}
+    </div>
+);
+
+// ── Action button ─────────────────────────────────────────────────────────────
+const ActionRow: Component<{
+    label: string;
+    sub: string;
+    active?: boolean;
+    danger?: boolean;
+    onClick: () => void;
+}> = (props) => {
+    const borderColor = props.active
+        ? (props.danger ? 'var(--alert-critical)' : 'var(--alert-medium)')
+        : 'var(--border-primary)';
+    const bg = props.active
+        ? (props.danger ? 'rgba(220,38,38,0.06)' : 'rgba(245,158,11,0.06)')
+        : 'transparent';
+
+    return (
+        <button
+            onClick={props.onClick}
+            style={{
+                display: 'flex',
+                'flex-direction': 'column',
+                gap: '4px',
+                'text-align': 'left',
+                background: bg,
+                border: `1px solid ${borderColor}`,
+                'border-left': `3px solid ${borderColor}`,
+                padding: '14px 16px',
+                cursor: 'pointer',
+                width: '100%',
+            }}
+        >
+            <span style={{
+                'font-family': 'var(--font-mono)',
+                'font-size': '11px',
+                'font-weight': 800,
+                color: props.active
+                    ? (props.danger ? 'var(--alert-critical)' : 'var(--alert-medium)')
+                    : 'var(--text-primary)',
+                'text-transform': 'uppercase',
+                'letter-spacing': '0.5px',
+            }}>
+                {props.label}
+            </span>
+            <span style={{
+                'font-family': 'var(--font-ui)',
+                'font-size': '11px',
+                color: 'var(--text-muted)',
+            }}>
+                {props.sub}
+            </span>
+        </button>
+    );
+};
+
+// ── WarMode page ──────────────────────────────────────────────────────────────
 export const WarMode: Component = () => {
-    const [status, setStatus] = createSignal<any>(null);
-    const [passphrase, setPassphrase] = createSignal("");
+    const [status, setStatus]       = createSignal<any>(null);
+    const [loading, setLoading]     = createSignal(true);
+    const [passphrase, setPassphrase] = createSignal('');
     const [exporting, setExporting] = createSignal(false);
     const [lastExport, setLastExport] = createSignal<string | null>(null);
+    const [exportErr, setExportErr] = createSignal('');
 
-    const refreshStatus = async () => {
-        const mode = await DisasterService.GetMode();
-        setStatus({ mode });
+    const refresh = async () => {
+        try {
+            const mode = await DisasterService.GetMode();
+            setStatus({ mode });
+        } catch { /* service may not be ready yet */ }
+        finally { setLoading(false); }
     };
 
     onMount(() => {
-        refreshStatus();
-        const interval = setInterval(refreshStatus, 5000);
-        return () => clearInterval(interval);
+        refresh();
+        const t = setInterval(refresh, 5_000);
+        return () => clearInterval(t);
     });
 
     const handleExport = async () => {
-        if (!passphrase()) {
-            alert("Passphrase required for encryption");
-            return;
-        }
+        if (!passphrase()) { setExportErr('Passphrase required'); return; }
         setExporting(true);
+        setExportErr('');
         try {
             const path = await DisasterService.ExportResilienceBundle(passphrase());
             setLastExport(path);
-        } catch (err) {
-            console.error("Export failed:", err);
-            alert("Export failed: " + err);
+        } catch (err: any) {
+            setExportErr(err?.message ?? String(err));
         } finally {
             setExporting(false);
         }
@@ -41,177 +139,275 @@ export const WarMode: Component = () => {
         } else {
             await DisasterService.ActivateAirGapMode();
         }
-        refreshStatus();
+        refresh();
     };
 
     const toggleKillSwitch = async () => {
         if (status()?.mode === 'read_only') {
             await DisasterService.DeactivateKillSwitch();
         } else {
-            const reason = prompt("Reason for Kill-Switch activation:");
+            const reason = prompt('KILL-SWITCH ACTIVATION — State reason for audit log:');
             if (reason) await DisasterService.ActivateKillSwitch(reason);
         }
-        refreshStatus();
+        refresh();
     };
 
-    const getModeColor = () => {
-        switch (status()?.mode) {
-            case 'read_only': return 'var(--tactical-red)';
-            case 'air_gap': return 'var(--tactical-amber)';
-            default: return 'var(--tactical-green)';
-        }
-    };
+    const mode = () => status()?.mode as string | undefined;
 
     return (
-        <div class="war-mode-page">
-            <header class="page-header">
-                <div class="header-main">
-                    <h1>RESILIENCE & WAR-MODE</h1>
-                    <p>Disconnected node operations & emergency isolation</p>
-                </div>
-                <div class="status-indicator" style={{ border: `1px solid ${getModeColor()}` }}>
-                    <div class="dot" style={{ background: getModeColor() }}></div>
-                    <span>{status()?.mode?.toUpperCase() || 'LOADING...'}</span>
-                </div>
-            </header>
-
-            <div class="war-grid">
-                {/* Node Control */}
-                <section class="war-card primary">
-                    <div class="card-header">
-                        <h3>NODE ISOLATION</h3>
-                        <span class="warning-icon">⚠️</span>
+        <div style={{
+            display: 'flex',
+            'flex-direction': 'column',
+            height: '100%',
+            overflow: 'auto',
+            padding: '28px 32px',
+            background: 'var(--surface-0)',
+        }}>
+            {/* ── Header ── */}
+            <div style={{
+                display: 'flex',
+                'justify-content': 'space-between',
+                'align-items': 'flex-end',
+                'margin-bottom': '24px',
+                'padding-bottom': '16px',
+                'border-bottom': '1px solid var(--border-primary)',
+            }}>
+                <div>
+                    <div style={{
+                        'font-family': 'var(--font-mono)',
+                        'font-size': '10px',
+                        'font-weight': 700,
+                        color: 'var(--text-muted)',
+                        'text-transform': 'uppercase',
+                        'letter-spacing': '2px',
+                        'margin-bottom': '4px',
+                    }}>
+                        SOVEREIGN RESILIENCE
                     </div>
-                    <p class="card-desc">Instantly sever network ties or enter forensic-only mode.</p>
+                    <h1 style={{
+                        'font-family': 'var(--font-mono)',
+                        'font-size': '20px',
+                        'font-weight': 800,
+                        color: 'var(--text-primary)',
+                        margin: 0,
+                        'letter-spacing': '-0.5px',
+                    }}>
+                        War-Mode & Emergency Isolation
+                    </h1>
+                </div>
 
-                    <div class="action-stack">
-                        <button
-                            class={`war-btn ${status()?.mode === 'air_gap' ? 'active' : ''}`}
+                {/* Live mode badge */}
+                <div style={{
+                    display: 'flex',
+                    'align-items': 'center',
+                    gap: '8px',
+                    border: `1px solid ${modeColor(mode())}`,
+                    padding: '6px 16px',
+                    'font-family': 'var(--font-mono)',
+                    'font-size': '11px',
+                    'font-weight': 800,
+                    color: modeColor(mode()),
+                    'text-transform': 'uppercase',
+                    'letter-spacing': '1px',
+                }}>
+                    <div style={{
+                        width: '6px',
+                        height: '6px',
+                        background: modeColor(mode()),
+                        animation: mode() && mode() !== 'nominal' ? 'wr-pulse 1.2s infinite' : 'none',
+                    }} />
+                    {loading() ? 'CHECKING...' : modeLabel(mode())}
+                </div>
+            </div>
+
+            {/* ── Grid ── */}
+            <div style={{
+                display: 'grid',
+                'grid-template-columns': 'repeat(auto-fit, minmax(360px, 1fr))',
+                gap: '16px',
+            }}>
+                {/* NODE ISOLATION */}
+                <Card accent={mode() === 'read_only' || mode() === 'air_gap' ? 'var(--alert-critical)' : 'var(--border-primary)'}>
+                    <SectionLabel>Node Isolation</SectionLabel>
+                    <p style={{ 'font-size': '11px', color: 'var(--text-muted)', margin: 0, 'font-family': 'var(--font-ui)' }}>
+                        Sever network ties or enter forensic read-only mode.
+                        Both actions are logged to the audit ledger.
+                    </p>
+                    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '8px' }}>
+                        <ActionRow
+                            label={mode() === 'air_gap' ? 'Restore Network' : 'Activate Air-Gap'}
+                            sub={mode() === 'air_gap' ? 'Re-enable outbound traffic' : 'Kill all outbound network activity immediately'}
+                            active={mode() === 'air_gap'}
                             onClick={toggleAirGap}
-                        >
-                            <span class="icon">📡</span>
-                            <div class="btn-text">
-                                <strong>{status()?.mode === 'air_gap' ? 'RESTORE NETWORK' : 'ACTIVATE AIR-GAP'}</strong>
-                                <span>{status()?.mode === 'air_gap' ? 'Enable outbound traffic' : 'Kill all outbound network activity'}</span>
-                            </div>
-                        </button>
-
-                        <button
-                            class={`war-btn danger ${status()?.mode === 'read_only' ? 'active' : ''}`}
+                        />
+                        <ActionRow
+                            label={mode() === 'read_only' ? 'Release Kill-Switch' : 'Activate Kill-Switch'}
+                            sub={mode() === 'read_only' ? 'Restore read-write ingestion' : 'Freeze all event ingestion — forensic mode only'}
+                            active={mode() === 'read_only'}
+                            danger
                             onClick={toggleKillSwitch}
-                        >
-                            <span class="icon">💀</span>
-                            <div class="btn-text">
-                                <strong>{status()?.mode === 'read_only' ? 'RELEASE KILL-SWITCH' : 'ACTIVATE KILL-SWITCH'}</strong>
-                                <span>{status()?.mode === 'read_only' ? 'Restore read-write operations' : 'Freeze all ingestion (Read-Only)'}</span>
-                            </div>
-                        </button>
+                        />
                     </div>
-                </section>
+                </Card>
 
-                {/* Dead-Drop Replication */}
-                <section class="war-card">
-                    <div class="card-header">
-                        <h3>DEAD-DROP REPLICATION</h3>
-                        <span class="icon">📦</span>
-                    </div>
-                    <p class="card-desc">Export encrypted state for physical transport to air-gapped clones.</p>
-
-                    <div class="input-group">
-                        <label>DECRYPTION PASSPHRASE</label>
+                {/* DEAD-DROP REPLICATION */}
+                <Card>
+                    <SectionLabel>Dead-Drop Replication</SectionLabel>
+                    <p style={{ 'font-size': '11px', color: 'var(--text-muted)', margin: 0, 'font-family': 'var(--font-ui)' }}>
+                        Export encrypted state bundle for physical transport to air-gapped clones.
+                    </p>
+                    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
+                        <label style={{
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '9px',
+                            'font-weight': 800,
+                            color: 'var(--text-muted)',
+                            'text-transform': 'uppercase',
+                            'letter-spacing': '1px',
+                        }}>
+                            Encryption Passphrase
+                        </label>
                         <input
                             type="password"
-                            placeholder="Enter tactical secret..."
+                            placeholder="Enter passphrase..."
                             value={passphrase()}
                             onInput={(e) => setPassphrase(e.currentTarget.value)}
+                            style={{
+                                background: 'var(--surface-0)',
+                                border: '1px solid var(--border-primary)',
+                                color: 'var(--text-primary)',
+                                'font-family': 'var(--font-mono)',
+                                'font-size': '12px',
+                                padding: '8px 12px',
+                                outline: 'none',
+                                width: '100%',
+                            }}
                         />
                     </div>
 
-                    <button class="action-btn" onClick={handleExport} disabled={exporting()}>
+                    <Show when={exportErr()}>
+                        <div style={{
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '10px',
+                            color: 'var(--alert-critical)',
+                            padding: '6px 10px',
+                            border: '1px solid var(--alert-critical)',
+                        }}>
+                            {exportErr()}
+                        </div>
+                    </Show>
+
+                    <button
+                        onClick={handleExport}
+                        disabled={exporting()}
+                        style={{
+                            background: exporting() ? 'var(--surface-2)' : 'var(--accent-primary)',
+                            border: 'none',
+                            color: exporting() ? 'var(--text-muted)' : 'var(--surface-0)',
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '11px',
+                            'font-weight': 800,
+                            'text-transform': 'uppercase',
+                            'letter-spacing': '1px',
+                            padding: '10px',
+                            cursor: exporting() ? 'wait' : 'pointer',
+                            width: '100%',
+                        }}
+                    >
                         {exporting() ? 'EXPORTING...' : 'GENERATE RESILIENCE BUNDLE'}
                     </button>
 
                     <Show when={lastExport()}>
-                        <div class="export-success">
-                            <span class="label">LAST EXPORT:</span>
-                            <span class="path">{lastExport()}</span>
+                        <div style={{
+                            padding: '10px 12px',
+                            background: 'rgba(132,204,22,0.05)',
+                            border: '1px solid var(--alert-low)',
+                            display: 'flex',
+                            'flex-direction': 'column',
+                            gap: '4px',
+                        }}>
+                            <span style={{
+                                'font-family': 'var(--font-mono)',
+                                'font-size': '9px',
+                                'font-weight': 800,
+                                color: 'var(--alert-low)',
+                                'text-transform': 'uppercase',
+                                'letter-spacing': '1px',
+                            }}>
+                                LAST EXPORT
+                            </span>
+                            <span style={{
+                                'font-family': 'var(--font-mono)',
+                                'font-size': '11px',
+                                color: 'var(--text-secondary)',
+                                'word-break': 'break-all',
+                            }}>
+                                {lastExport()}
+                            </span>
                         </div>
                     </Show>
-                </section>
+                </Card>
 
-                {/* Update & Recovery */}
-                <section class="war-card">
-                    <div class="card-header">
-                        <h3>OFFLINE UPDATE</h3>
-                        <span class="icon">💾</span>
+                {/* OFFLINE UPDATE */}
+                <Card>
+                    <SectionLabel>Offline Update</SectionLabel>
+                    <p style={{ 'font-size': '11px', color: 'var(--text-muted)', margin: 0, 'font-family': 'var(--font-ui)' }}>
+                        Apply signed update bundles from physical media.
+                        No internet required. Signature verified before apply.
+                    </p>
+                    <div style={{
+                        border: '1px dashed var(--border-primary)',
+                        padding: '32px 16px',
+                        display: 'flex',
+                        'flex-direction': 'column',
+                        'align-items': 'center',
+                        gap: '12px',
+                        color: 'var(--text-muted)',
+                    }}>
+                        <div style={{
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '11px',
+                            'text-align': 'center',
+                        }}>
+                            DROP UPDATE BUNDLE (.vbx)
+                        </div>
+                        <button style={{
+                            background: 'transparent',
+                            border: '1px solid var(--border-primary)',
+                            color: 'var(--text-secondary)',
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '10px',
+                            'font-weight': 700,
+                            'text-transform': 'uppercase',
+                            'letter-spacing': '0.5px',
+                            padding: '6px 16px',
+                            cursor: 'pointer',
+                        }}>
+                            SELECT FILE
+                        </button>
                     </div>
-                    <p class="card-desc">Verify and apply signed updates from physical media.</p>
-
-                    <div class="dropzone">
-                        <span class="icon">📜</span>
-                        <p>Drag & Drop Update Bundle (.vbx)</p>
-                        <button class="btn-outline">SELECT FILE</button>
+                    <div style={{
+                        display: 'flex',
+                        'justify-content': 'space-between',
+                        'font-family': 'var(--font-mono)',
+                        'font-size': '10px',
+                        color: 'var(--text-muted)',
+                        'text-transform': 'uppercase',
+                    }}>
+                        <span>
+                            INTEGRITY:{' '}
+                            <span style={{ color: 'var(--alert-low)', 'font-weight': 800 }}>VERIFIED</span>
+                        </span>
+                        <span>CHANNEL: OFFLINE_ONLY</span>
                     </div>
-
-                    <div class="info-footer">
-                        <span>Binary Integrity: <strong style={{ color: 'var(--tactical-green)' }}>VERIFIED</strong></span>
-                        <span>Update Channel: <strong>OFFLINE_ONLY</strong></span>
-                    </div>
-                </section>
+                </Card>
             </div>
 
             <style>{`
-                .war-mode-page { padding: 2rem; }
-                .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
-                .page-header h1 { font-size: 1.5rem; letter-spacing: 2px; margin: 0; }
-                .page-header p { color: var(--tactical-gray); font-size: 0.9rem; }
-                .status-indicator { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 800; font-size: 0.8rem; }
-                .status-indicator .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
-                
-                .war-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
-                .war-card { background: rgba(0,0,0,0.3); border: 1px solid var(--tactical-border); padding: 1.5rem; border-radius: 8px; display: flex; flex-direction: column; }
-                .war-card.primary { border-color: var(--tactical-red); background: rgba(255,0,0,0.02); }
-                .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-                .card-header h3 { font-size: 0.9rem; letter-spacing: 1.5px; margin: 0; }
-                .card-desc { font-size: 0.8rem; color: var(--tactical-gray); margin-bottom: 1.5rem; }
-                
-                .action-stack { display: flex; flex-direction: column; gap: 1rem; }
-                .war-btn {
-                    display: flex; gap: 1rem; align-items: center; text-align: left;
-                    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);
-                    padding: 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+                @keyframes wr-pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.2; }
                 }
-                .war-btn:hover { background: rgba(255,255,255,0.06); transform: translateX(4px); }
-                .war-btn.active { border-color: var(--tactical-amber); background: rgba(251, 191, 36, 0.05); }
-                .war-btn.danger.active { border-color: var(--tactical-red); background: rgba(239, 68, 68, 0.05); }
-                .war-btn .icon { font-size: 1.5rem; }
-                .btn-text { display: flex; flex-direction: column; gap: 0.25rem; }
-                .btn-text strong { font-size: 0.85rem; }
-                .btn-text span { font-size: 0.7rem; color: var(--tactical-gray); }
-                
-                .input-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
-                .input-group label { font-size: 0.65rem; font-weight: 800; color: var(--tactical-gray); }
-                .input-group input { 
-                    background: rgba(0,0,0,0.5); border: 1px solid var(--tactical-border); 
-                    padding: 0.75rem; color: #fff; font-family: 'JetBrains Mono', monospace; border-radius: 4px;
-                }
-                
-                .action-btn {
-                    background: var(--tactical-blue); color: #fff; border: none; padding: 0.75rem;
-                    font-weight: 800; border-radius: 4px; cursor: pointer; letter-spacing: 1px;
-                }
-                .action-btn:hover { background: #60a5fa; }
-                .export-success { margin-top: 1.5rem; padding: 1rem; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 4px; }
-                .export-success .label { display: block; font-size: 0.6rem; font-weight: 800; color: var(--tactical-green); margin-bottom: 0.25rem; }
-                .export-success .path { font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; word-break: break-all; }
-                
-                .dropzone {
-                    flex: 1; border: 2px dashed var(--tactical-border); border-radius: 6px;
-                    display: flex; flex-direction: column; align-items: center; justify-content: center;
-                    padding: 2rem; gap: 1rem; color: var(--tactical-gray); margin-bottom: 1.5rem;
-                }
-                .btn-outline { background: transparent; border: 1px solid var(--tactical-border); color: #fff; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
-                .info-footer { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--tactical-gray); }
             `}</style>
         </div>
     );
