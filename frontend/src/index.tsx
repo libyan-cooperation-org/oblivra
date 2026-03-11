@@ -39,6 +39,10 @@ import { PasswordVault } from './pages/PasswordVault';
 import { WarMode } from './pages/WarMode';
 import { SettingsManager } from './components/settings/SettingsManager';
 import { SOCWorkspace } from './components/soc/SOCWorkspace';
+import { LineageExplorer } from './pages/LineageExplorer';
+import { DecisionInspector } from './pages/DecisionInspector';
+import { OfflineUpdate } from './pages/OfflineUpdate';
+import { SplunkDashboard } from './pages/SplunkDashboard';
 import './styles/incident.css';
 
 const root = document.getElementById('root');
@@ -82,5 +86,9 @@ render(() => (
         <Route path="/executive" component={ExecutiveDashboard} />
         <Route path="/vault" component={PasswordVault} />
         <Route path="/soc" component={SOCWorkspace} />
+        <Route path="/lineage" component={LineageExplorer} />
+        <Route path="/decisions" component={DecisionInspector} />
+        <Route path="/offline-update" component={OfflineUpdate} />
+        <Route path="/analytics" component={SplunkDashboard} />
     </HashRouter>
 ), root);
