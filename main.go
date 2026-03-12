@@ -107,6 +107,7 @@ func main() {
 			application.TailingService,
 			application.SyntheticService,
 			application.IdentityService,
+			application.ObservabilityService,
 			application.TransferManager,
 			application.NetworkIsolatorService,
 			application.LedgerService,

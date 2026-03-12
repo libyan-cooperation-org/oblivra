@@ -309,7 +309,7 @@ func (a *App) GetObservabilityStatus() map[string]interface{} {
 	if a.ObservabilityService == nil {
 		return nil
 	}
-	return a.ObservabilityService.GetStatus()
+	return a.ObservabilityService.GetObservabilityStatus()
 }
 
 // GetTrustDriftMetrics exposes the rolling slope and anticipated Time-To-Failure

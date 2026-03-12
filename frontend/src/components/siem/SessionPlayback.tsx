@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, For, Show, createEffect } from 'solid-js';
+import { Component, createSignal, onMount, Show, createEffect } from 'solid-js';
 import * as AnalyticsService from '../../../wailsjs/go/app/AnalyticsService';
 
 interface PlaybackProps {

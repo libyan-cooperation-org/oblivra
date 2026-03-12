@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, For } from 'solid-js';
 import * as MetricsService from '../../../wailsjs/go/app/MetricsService';
-import * as App from '../../../wailsjs/go/app/App';
+import * as ObservabilityService from '../../../wailsjs/go/app/ObservabilityService';
 import { monitoring } from '../../../wailsjs/go/models';
 
 export const SelfMonitor: Component = () => {
@@ -12,7 +12,7 @@ export const SelfMonitor: Component = () => {
         try {
             const [m, s] = await Promise.all([
                 (MetricsService as any).GetAllMetrics(),
-                (App as any).GetObservabilityStatus()
+                (ObservabilityService as any).GetObservabilityStatus()
             ]);
             setMetrics(m || []);
             setStatus(s);

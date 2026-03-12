@@ -1,5 +1,5 @@
 import { Component, createSignal, createResource, For, Show } from 'solid-js';
-import * as App from '../../../wailsjs/go/app/App';
+import * as AnalyticsService from '../../../wailsjs/go/app/AnalyticsService';
 import { ForensicView } from './ForensicView';
 import * as UEBAService from '../../../wailsjs/go/app/UEBAService';
 import * as IncidentService from '../../../wailsjs/go/app/IncidentService';
@@ -24,7 +24,7 @@ export const ThreatHunter: Component = () => {
         e.preventDefault();
         setIsHunting(true);
         try {
-            const results = await App.SearchLogs(searchQuery(), 'lucene', 50, 0);
+            const results = await (AnalyticsService as any).SearchLogs(searchQuery(), 'lucene', 50, 0);
             setSearchResults(results);
         } catch (err) {
             console.error('Hunting search failed:', err);

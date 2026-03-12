@@ -117,8 +117,8 @@ func (s *ObservabilityService) Shutdown() {
 	s.log.Info("ObservabilityService stopped")
 }
 
-// GetStatus returns current system health metrics.
-func (s *ObservabilityService) GetStatus() map[string]interface{} {
+// GetObservabilityStatus returns current system health metrics.
+func (s *ObservabilityService) GetObservabilityStatus() map[string]interface{} {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
@@ -242,7 +242,7 @@ func (s *ObservabilityService) checkMemory() {
 }
 
 func (s *ObservabilityService) healthHandler(w http.ResponseWriter, r *http.Request) {
-	status := s.GetStatus()
+	status := s.GetObservabilityStatus()
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"status":"ok","goroutines":%d,"heap_mb":%.1f}`,
 		status["goroutines"], status["heap_alloc_mb"])

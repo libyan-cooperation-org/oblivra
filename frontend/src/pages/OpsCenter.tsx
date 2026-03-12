@@ -2,7 +2,7 @@ import { Component, createSignal, For, Show } from 'solid-js';
 import { LogDetail } from '../components/analytics/LogDetail';
 import { SplunkDashboard } from './SplunkDashboard';
 import { SourcesPanel } from '../components/ops/SourcesPanel';
-import { SearchLogs, RunOsquery } from '../../wailsjs/go/app/App';
+import { SearchLogs, RunOsquery } from '../../wailsjs/go/app/AnalyticsService';
 import {
     GetOsqueryTemplates, GetTriggers, AddTrigger, RemoveTrigger,
     GetAlertHistory, UpdateNotificationConfig, GetNotificationConfig, TestNotification

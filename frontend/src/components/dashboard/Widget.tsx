@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, onCleanup, createEffect, Switch, Match, Show, For } from 'solid-js';
 import * as echarts from 'echarts';
-import { RunWidgetQuery, RunOsquery } from '../../../wailsjs/go/app/App';
+import { RunWidgetQuery, RunOsquery } from '../../../wailsjs/go/app/AnalyticsService';
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { Badge } from '../ui/TacticalComponents';
 import type { Widget as WidgetConfig } from '../../types/dashboard';

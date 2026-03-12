@@ -1,7 +1,7 @@
 import { Component, createSignal, For, Show, onMount } from 'solid-js';
 import { Widget } from '../components/dashboard/Widget';
 import type { Dashboard, Widget as DashboardWidget } from '../types/dashboard';
-import { SaveDashboard, LoadDashboard } from '../../wailsjs/go/app/App';
+import { SaveDashboard, LoadDashboard } from '../../wailsjs/go/app/AnalyticsService';
 import { GetSources } from '../../wailsjs/go/app/LogSourceService';
 import { Card, Button } from '../components/ui/TacticalComponents';
 import '../styles/splunk.css';

@@ -1,7 +1,9 @@
 import * as AIService from "../../wailsjs/go/app/AIService";
 import * as AgentService from "../../wailsjs/go/app/AgentService";
 import * as AlertingService from "../../wailsjs/go/app/AlertingService";
-import * as App from "../../wailsjs/go/app/App";
+import * as AnalyticsService from "../../wailsjs/go/app/AnalyticsService";
+import * as ObservabilityService from "../../wailsjs/go/app/ObservabilityService";
+import * as RuntimeTrustService from "../../wailsjs/go/app/RuntimeTrustService";
 import * as BroadcastService from "../../wailsjs/go/app/BroadcastService";
 import * as ComplianceService from "../../wailsjs/go/app/ComplianceService";
 import * as DiscoveryService from "../../wailsjs/go/app/DiscoveryService";
@@ -39,7 +41,9 @@ declare global {
         AIService: typeof AIService;
         AgentService: typeof AgentService;
         AlertingService: typeof AlertingService;
-        App: typeof App;
+        AnalyticsService: typeof AnalyticsService;
+        ObservabilityService: typeof ObservabilityService;
+        RuntimeTrustService: typeof RuntimeTrustService;
         BroadcastService: typeof BroadcastService;
         ComplianceService: typeof ComplianceService;
         DiscoveryService: typeof DiscoveryService;

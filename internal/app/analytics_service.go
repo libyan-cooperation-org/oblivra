@@ -59,3 +59,8 @@ func (s *AnalyticsService) RunWidgetQuery(query string, limit int) ([]map[string
 	}
 	return s.engine.Search(query, "sql", limit, 0)
 }
+
+// RunOsquery executes an osquery-style query (stub — osquery integration planned for Phase 6).
+func (s *AnalyticsService) RunOsquery(query string) ([]map[string]interface{}, error) {
+	return nil, fmt.Errorf("osquery integration not yet available — planned for Phase 6 Agent Framework")
+}
