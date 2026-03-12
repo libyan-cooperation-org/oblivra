@@ -51,10 +51,10 @@ func (s *ComplianceService) Startup(ctx context.Context) {
 
 // GenerateReport creates a new compliance report
 func (s *ComplianceService) GenerateReport(reportType string, startUnix, endUnix int64) (*compliance.ComplianceReport, error) {
-	start := time.Unix(startUnix, 0)
-	end := time.Unix(endUnix, 0)
+	start := time.Unix(startUnix, 0).Format(time.RFC3339)
+	end := time.Unix(endUnix, 0).Format(time.RFC3339)
 
-	s.log.Info("Generating %s report from %s to %s", reportType, start.Format(time.RFC3339), end.Format(time.RFC3339))
+	s.log.Info("Generating %s report from %s to %s", reportType, start, end)
 	return s.reportGenerator.GenerateReport(compliance.ReportType(reportType), start, end)
 }
 

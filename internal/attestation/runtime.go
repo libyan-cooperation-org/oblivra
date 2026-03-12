@@ -16,7 +16,7 @@ type AttestationStatus struct {
 	BinaryHash      string        `json:"binary_hash"`
 	ExpectedHash    string        `json:"expected_hash"`
 	Verified        bool          `json:"verified"`
-	Timestamp       time.Time     `json:"timestamp"`
+	Timestamp       string        `json:"timestamp"`
 	MemoryIntegrity *MemoryReport `json:"memory_integrity,omitempty"`
 	ModuleVerify    *ModuleReport `json:"module_verification,omitempty"`
 }
@@ -99,7 +99,7 @@ func (s *AttestationService) GetStatus() AttestationStatus {
 		BinaryHash:      hash,
 		ExpectedHash:    s.expectedHash,
 		Verified:        s.expectedHash == "" || hash == s.expectedHash,
-		Timestamp:       time.Now(),
+		Timestamp:       time.Now().Format(time.RFC3339),
 		MemoryIntegrity: memReport,
 		ModuleVerify:    modReport,
 	}

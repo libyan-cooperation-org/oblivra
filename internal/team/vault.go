@@ -37,7 +37,7 @@ type TeamMember struct {
 	Email     string    `json:"email"`
 	Name      string    `json:"name"`
 	Role      Role      `json:"role"`
-	JoinedAt  time.Time `json:"joined_at"`
+	JoinedAt  string    `json:"joined_at"`
 	IsActive  bool      `json:"is_active"`
 	PublicKey string    `json:"public_key,omitempty"` // For E2E encrypted sharing
 }
@@ -50,15 +50,15 @@ type VaultEntry struct {
 	EntryType     string        `json:"entry_type"`     // "password", "ssh_key", "api_token"
 	EncryptedData string        `json:"encrypted_data"` // Encrypted with the team/folder key
 	Tags          []string      `json:"tags"`
-	CreatedAt     time.Time     `json:"created_at"`
-	UpdatedAt     time.Time     `json:"updated_at"`
+	CreatedAt     string        `json:"created_at"`
+	UpdatedAt     string        `json:"updated_at"`
 	CreatedBy     string        `json:"created_by"`
 	AccessLog     []AccessEvent `json:"access_log"`
 }
 
 // AccessEvent records who accessed what and when
 type AccessEvent struct {
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 	MemberID  string    `json:"member_id"`
 	Action    string    `json:"action"` // "view", "edit", "share"
 	IPAddress string    `json:"ip_address,omitempty"`
@@ -67,7 +67,7 @@ type AccessEvent struct {
 // TeamActivity represents a high-level team event
 type TeamActivity struct {
 	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 	ActorID   string    `json:"actor_id"`
 	ActorName string    `json:"actor_name"`
 	Action    string    `json:"action"` // "member_added", "secret_added", "secret_accessed"
@@ -137,7 +137,7 @@ func (tv *TeamVault) LogActivity(actorID string, action string, details string) 
 
 	activity := TeamActivity{
 		ID:        uuid.New().String(),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		ActorID:   actorID,
 		ActorName: actorName,
 		Action:    action,
@@ -183,7 +183,7 @@ func (tv *TeamVault) AddMember(actorID string, email, name string, role Role) (*
 		Email:    email,
 		Name:     name,
 		Role:     role,
-		JoinedAt: time.Now(),
+		JoinedAt: time.Now().Format(time.RFC3339),
 		IsActive: true,
 	}
 
@@ -210,8 +210,8 @@ func (tv *TeamVault) AddEntry(actorID string, title, entryType string, rawData [
 		Title:         title,
 		EntryType:     entryType,
 		EncryptedData: encryptedData,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		CreatedAt:     time.Now().Format(time.RFC3339),
+		UpdatedAt:     time.Now().Format(time.RFC3339),
 		CreatedBy:     actorID,
 		AccessLog:     make([]AccessEvent, 0),
 	}
@@ -238,7 +238,7 @@ func (tv *TeamVault) GetEntry(actorID string, entryID string) ([]byte, error) {
 
 	// Log access
 	entry.AccessLog = append(entry.AccessLog, AccessEvent{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		MemberID:  actorID,
 		Action:    "view",
 	})

@@ -65,7 +65,7 @@ func TestFullFlow(t *testing.T) {
 	t.Run("SIEM_Ingestion_and_Search", func(t *testing.T) {
 		evt := ingest.ParsedEvent{
 			Host:      "test-host-1",
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Format(time.RFC3339),
 			EventType: "failed_login",
 			SourceIP:  "10.0.0.1",
 			User:      "admin",
@@ -126,7 +126,7 @@ func TestFullFlow(t *testing.T) {
 			for i := 0; i < 10; i++ {
 				evt := ingest.ParsedEvent{
 					Host:      "test-host-alert",
-					Timestamp: time.Now(),
+					Timestamp: time.Now().Format(time.RFC3339),
 					EventType: "failed_login",
 					SourceIP:  ip,
 					User:      "user" + strconv.Itoa(i),
@@ -141,7 +141,7 @@ func TestFullFlow(t *testing.T) {
 		for i := 0; i < 10; i++ {
 			evt := ingest.ParsedEvent{
 				Host:      "test-host-alert",
-				Timestamp: time.Now(),
+				Timestamp: time.Now().Format(time.RFC3339),
 				EventType: "failed_login",
 				SourceIP:  "192.168.1.106",
 				User:      "root",

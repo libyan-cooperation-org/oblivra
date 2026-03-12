@@ -32,8 +32,8 @@ type Workspace struct {
 	SidebarWidth int                   `json:"sidebar_width"`
 	ActiveTab    string                `json:"active_tab,omitempty"`
 	Theme        string                `json:"theme,omitempty"`
-	CreatedAt    time.Time             `json:"created_at"`
-	UpdatedAt    time.Time             `json:"updated_at"`
+	CreatedAt    string                `json:"created_at"`
+	UpdatedAt    string                `json:"updated_at"`
 	IsDefault    bool                  `json:"is_default"`
 	Icon         string                `json:"icon,omitempty"`
 	Tags         []string              `json:"tags,omitempty"`
@@ -76,8 +76,8 @@ func NewWorkspaceManager(repo *database.WorkspaceRepository) *WorkspaceManager {
 			},
 			SidebarOpen:  true,
 			SidebarWidth: 260,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			CreatedAt:    time.Now().Format(time.RFC3339),
+			UpdatedAt:    time.Now().Format(time.RFC3339),
 			IsDefault:    true,
 			Icon:         "🏠",
 		}
@@ -146,8 +146,8 @@ func (wm *WorkspaceManager) Create(name, description, icon string) (*Workspace, 
 		},
 		SidebarOpen:  true,
 		SidebarWidth: 260,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    time.Now().Format(time.RFC3339),
+		UpdatedAt:    time.Now().Format(time.RFC3339),
 	}
 
 	if ws.Icon == "" {
@@ -182,7 +182,7 @@ func (wm *WorkspaceManager) SaveCurrent(
 	ws.SidebarOpen = sidebarOpen
 	ws.SidebarWidth = sidebarWidth
 	ws.ActiveTab = activeTab
-	ws.UpdatedAt = time.Now()
+	ws.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	return wm.save()
 }
@@ -227,8 +227,8 @@ func (wm *WorkspaceManager) Duplicate(id string) (*Workspace, error) {
 	dup.ID = uuid.New().String()
 	dup.Name = src.Name + " (Copy)"
 	dup.IsDefault = false
-	dup.CreatedAt = time.Now()
-	dup.UpdatedAt = time.Now()
+	dup.CreatedAt = time.Now().Format(time.RFC3339)
+	dup.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	wm.workspaces[dup.ID] = &dup
 	wm.save()
@@ -247,7 +247,7 @@ func (wm *WorkspaceManager) Rename(id, name string) error {
 	}
 
 	ws.Name = name
-	ws.UpdatedAt = time.Now()
+	ws.UpdatedAt = time.Now().Format(time.RFC3339)
 	return wm.save()
 }
 
@@ -302,8 +302,8 @@ func (wm *WorkspaceManager) ImportWorkspace(data []byte) (*Workspace, error) {
 
 	ws.ID = uuid.New().String()
 	ws.IsDefault = false
-	ws.CreatedAt = time.Now()
-	ws.UpdatedAt = time.Now()
+	ws.CreatedAt = time.Now().Format(time.RFC3339)
+	ws.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
@@ -397,3 +397,5 @@ func (wm *WorkspaceManager) save() error {
 	}
 	return nil
 }
+
+

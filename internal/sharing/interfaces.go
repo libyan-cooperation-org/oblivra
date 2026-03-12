@@ -1,5 +1,8 @@
 package sharing
 
+
+
+
 // RecordingProvider defines the interface for managing TTY recordings.
 type RecordingProvider interface {
 	StartRecording(sessionID, hostLabel string, cols, rows int) (*ActiveRecording, error)
@@ -13,6 +16,9 @@ type RecordingProvider interface {
 	GetRecordingMeta(id string) (map[string]interface{}, error)
 	ExportRecording(id, destPath string) error
 }
+
+
+
 
 // SessionExecutor defines the interface for interacting with active SSH/Terminal sessions.
 type SessionExecutor interface {

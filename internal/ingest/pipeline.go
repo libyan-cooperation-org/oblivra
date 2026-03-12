@@ -178,7 +178,7 @@ func (p *Pipeline) processEvent(evt ParsedEvent) {
 	}
 
 	if p.temporal != nil {
-		p.temporal.ValidateTimestamp(evt.Host, evt.Timestamp)
+		p.temporal.ValidateTimestamp(evt.Host, parseTime(evt.Timestamp))
 	}
 
 	p.indexEvent(evt)
@@ -191,7 +191,7 @@ func (p *Pipeline) indexEvent(evt ParsedEvent) {
 		if p.siem != nil {
 			hostEvent := &database.HostEvent{
 				HostID:    evt.Host,
-				Timestamp: evt.Timestamp.Format(time.RFC3339),
+				Timestamp: evt.Timestamp,
 				EventType: evt.EventType,
 				SourceIP:  evt.SourceIP,
 				User:      evt.User,

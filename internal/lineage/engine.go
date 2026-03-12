@@ -29,7 +29,7 @@ type LineageRecord struct {
 	ID        string                 `json:"id"`
 	EntityID  string                 `json:"entity_id"`
 	Stage     StageType              `json:"stage"`
-	Timestamp time.Time              `json:"timestamp"`
+	Timestamp string                 `json:"timestamp"`
 	ParentID  string                 `json:"parent_id,omitempty"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 	ProofHash string                 `json:"proof_hash"`
@@ -107,7 +107,7 @@ func (e *LineageEngine) AddRecord(entityID string, stage StageType, parentID str
 		ID:        id,
 		EntityID:  entityID,
 		Stage:     stage,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		ParentID:  parentID,
 		Metadata:  metadata,
 		ProofHash: e.computeProof(entityID, stage, parentID),
@@ -174,7 +174,7 @@ func (e *LineageEngine) GetRecentLineage(limit int) []LineageRecord {
 	// Sort by timestamp descending
 	for i := 0; i < len(all); i++ {
 		for j := i + 1; j < len(all); j++ {
-			if all[j].Timestamp.After(all[i].Timestamp) {
+			if parseTime(all[j].Timestamp).After(parseTime(all[i].Timestamp)) {
 				all[i], all[j] = all[j], all[i]
 			}
 		}
@@ -222,7 +222,7 @@ func (e *LineageEngine) evictOldest() {
 	}
 	var all []aged
 	for id, rec := range e.records {
-		all = append(all, aged{id: id, ts: rec.Timestamp})
+		all = append(all, aged{id: id, ts: parseTime(rec.Timestamp)})
 	}
 	// Sort ascending
 	for i := 0; i < len(all); i++ {

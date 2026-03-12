@@ -35,7 +35,7 @@ func TestHoneypotService(t *testing.T) {
 		t.Error("expected LastTrigger to be set after trigger")
 	}
 
-	if time.Since(*decoys[0].LastTrigger) > time.Second {
+	if time.Since(parseTime(*decoys[0].LastTrigger)) > time.Second {
 		t.Error("LastTrigger time is too far in the past")
 	}
 

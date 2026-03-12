@@ -71,7 +71,7 @@ func (r *AuditRepository) Log(ctx context.Context, eventType string, hostID stri
 	_, err = r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO audit_logs (tenant_id, timestamp, event_type, host_id, session_id, details, merkle_hash, merkle_index)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		tenantID, time.Now(), eventType, hostID, sessionID, string(detailsJSON), hash, index,
+		tenantID, time.Now().Format(time.RFC3339), eventType, hostID, sessionID, string(detailsJSON), hash, index,
 	)
 	if err != nil {
 		return fmt.Errorf("insert audit log: %w", err)
@@ -119,7 +119,7 @@ func (r *AuditRepository) GetRecent(ctx context.Context, limit int) ([]AuditLog,
 }
 
 // GetByDateRange returns logs within a specific time window.
-func (r *AuditRepository) GetByDateRange(ctx context.Context, from, to time.Time, limit int) ([]AuditLog, error) {
+func (r *AuditRepository) GetByDateRange(ctx context.Context, from, to string, limit int) ([]AuditLog, error) {
 	r.db.RLock()
 	defer r.db.RUnlock()
 
@@ -185,7 +185,7 @@ func (r *AuditRepository) ValidateIntegrity(ctx context.Context) bool {
 }
 
 // Export returns audit logs as a JSON blob.
-func (r *AuditRepository) Export(ctx context.Context, from, to time.Time) ([]byte, error) {
+func (r *AuditRepository) Export(ctx context.Context, from, to string) ([]byte, error) {
 	logs, err := r.GetByDateRange(ctx, from, to, 100000)
 	if err != nil {
 		return nil, err

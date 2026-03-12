@@ -16,7 +16,7 @@ import (
 // of a specific automated response action given exact inputs.
 type ExecutionSignature struct {
 	ID           string    `json:"id"`
-	Timestamp    time.Time `json:"timestamp"`
+	Timestamp    string    `json:"timestamp"`
 	EventBatchID string    `json:"event_batch_id"`
 	PolicyHash   string    `json:"policy_hash"` // State of rules at time of execution
 	ActionTaken  string    `json:"action_taken"`
@@ -57,7 +57,7 @@ func (e *DeterministicExecutor) ExecuteAndSign(action string, eventPayload strin
 	// Create record
 	sig := ExecutionSignature{
 		ID:           finalHash[:16],
-		Timestamp:    time.Now().UTC(),
+		Timestamp:    time.Now().Format(time.RFC3339),
 		EventBatchID: inputHash[:12],
 		PolicyHash:   policyStateHash,
 		ActionTaken:  action,

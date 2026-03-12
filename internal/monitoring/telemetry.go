@@ -14,7 +14,7 @@ type HostTelemetry struct {
 	DiskUsedGB  float64   `json:"disk_used_gb"`
 	DiskTotalGB float64   `json:"disk_total_gb"`
 	LoadAvg     float64   `json:"load_avg"` // 1-minute load average
-	UpdatedAt   time.Time `json:"updated_at"`
+	UpdatedAt   string    `json:"updated_at"`
 }
 
 // TelemetryManager orchestrates background polling of telemetry data
@@ -46,7 +46,7 @@ func (tm *TelemetryManager) UpdateHost(hostID string, t HostTelemetry) {
 	defer tm.mu.Unlock()
 
 	copyData := t
-	copyData.UpdatedAt = time.Now()
+	copyData.UpdatedAt = time.Now().Format(time.RFC3339)
 	tm.data[hostID] = &copyData
 
 	if tm.onUpdate != nil {

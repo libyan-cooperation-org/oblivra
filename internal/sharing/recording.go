@@ -28,7 +28,7 @@ type ActiveRecording struct {
 	ID         string    `json:"id"`
 	SessionID  string    `json:"session_id"`
 	HostLabel  string    `json:"host_label"`
-	StartedAt  time.Time `json:"started_at"`
+	StartedAt  string    `json:"started_at"`
 	EventCount int       `json:"event_count"`
 	IsActive   bool      `json:"is_active"`
 	Cols       int       `json:"cols"`
@@ -40,7 +40,7 @@ type RecordingMetadata struct {
 	ID         string    `json:"id"`
 	SessionID  string    `json:"session_id"`
 	HostLabel  string    `json:"host_label"`
-	StartedAt  time.Time `json:"started_at"`
+	StartedAt  string    `json:"started_at"`
 	Duration   float64   `json:"duration"` // seconds
 	EventCount int       `json:"event_count"`
 	Cols       int       `json:"cols"`
@@ -67,7 +67,7 @@ func (m *RecordingManager) StartRecording(sessionID, hostLabel string, cols, row
 		ID:        id,
 		SessionID: sessionID,
 		HostLabel: hostLabel,
-		StartedAt: time.Now(),
+		StartedAt: time.Now().Format(time.RFC3339),
 		IsActive:  true,
 		Cols:      cols,
 		Rows:      rows,
@@ -94,7 +94,7 @@ func (m *RecordingManager) RecordOutput(sessionID string, data []byte) {
 		return
 	}
 
-	timestamp := time.Since(recording.StartedAt).Seconds()
+	timestamp := time.Since(parseTime(recording.StartedAt)).Seconds()
 	m.analytics.IngestFrame(recording.ID, timestamp, "o", string(data))
 	recording.EventCount++
 }
@@ -109,7 +109,7 @@ func (m *RecordingManager) RecordInput(sessionID string, data []byte) {
 		return
 	}
 
-	timestamp := time.Since(recording.StartedAt).Seconds()
+	timestamp := time.Since(parseTime(recording.StartedAt)).Seconds()
 	m.analytics.IngestFrame(recording.ID, timestamp, "i", string(data))
 	recording.EventCount++
 }
@@ -129,7 +129,7 @@ func (m *RecordingManager) StopRecording(sessionID string) (*RecordingMetadata, 
 	}
 
 	recording.IsActive = false
-	duration := time.Since(recording.StartedAt).Seconds()
+	duration := time.Since(parseTime(recording.StartedAt)).Seconds()
 
 	// Update final metadata and mark as completed
 	err := m.analytics.SaveRecording(recording.ID, recording.SessionID, recording.HostLabel, recording.Cols, recording.Rows, duration, recording.EventCount, "completed")
@@ -168,7 +168,7 @@ func (m *RecordingManager) ListRecordings() ([]RecordingMetadata, error) {
 			ID:         raw["id"].(string),
 			SessionID:  raw["session_id"].(string),
 			HostLabel:  raw["host_label"].(string),
-			StartedAt:  parseTime(raw["started_at"].(string)),
+			StartedAt:  raw["started_at"].(string),
 			Duration:   raw["duration"].(float64),
 			EventCount: int(raw["event_count"].(int64)),
 			Cols:       int(raw["cols"].(int64)),
@@ -279,10 +279,4 @@ func (m *RecordingManager) GetRecordingMeta(id string) (map[string]interface{}, 
 	return m.analytics.GetRecordingMeta(id)
 }
 
-func parseTime(ts string) time.Time {
-	t, _ := time.Parse(time.RFC3339, ts)
-	if t.IsZero() {
-		t, _ = time.Parse("2006-01-02 15:04:05", ts)
-	}
-	return t
-}
+

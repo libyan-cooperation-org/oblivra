@@ -15,7 +15,7 @@ import (
 // DecisionTrace captures the full reasoning chain behind a security decision.
 type DecisionTrace struct {
 	ID              string                 `json:"id"`
-	Timestamp       time.Time              `json:"timestamp"`
+	Timestamp       string                 `json:"timestamp"`
 	RuleID          string                 `json:"rule_id"`
 	RuleName        string                 `json:"rule_name"`
 	InputEvents     []EventSummary         `json:"input_events"`
@@ -35,7 +35,7 @@ type EventSummary struct {
 	SourceIP  string    `json:"source_ip,omitempty"`
 	User      string    `json:"user,omitempty"`
 	HostID    string    `json:"host_id,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 }
 
 // EvidenceLink connects a decision to its supporting evidence.
@@ -109,7 +109,7 @@ func (e *DecisionEngine) CaptureDecision(trace *DecisionTrace) string {
 	defer e.mu.Unlock()
 
 	trace.ID = e.generateID(trace.RuleID)
-	trace.Timestamp = time.Now()
+	trace.Timestamp = time.Now().Format(time.RFC3339)
 	trace.CryptoProof = e.generateProof(trace)
 	trace.Explanation = e.generateExplanation(trace)
 
@@ -217,7 +217,7 @@ func (e *DecisionEngine) generateProof(trace *DecisionTrace) string {
 		parts = append(parts, fmt.Sprintf("%s:%.2f", ev.Type, ev.Confidence))
 	}
 	parts = append(parts, fmt.Sprintf("%.4f", trace.ConfidenceScore))
-	parts = append(parts, trace.Timestamp.Format(time.RFC3339Nano))
+	parts = append(parts, trace.Timestamp)
 
 	h := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(h[:])
@@ -227,7 +227,7 @@ func (e *DecisionEngine) generateExplanation(trace *DecisionTrace) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("Detection rule '%s' (ID: %s) fired at %s.\n",
-		trace.RuleName, trace.RuleID, trace.Timestamp.Format(time.RFC3339)))
+		trace.RuleName, trace.RuleID, trace.Timestamp))
 
 	if len(trace.InputEvents) > 0 {
 		sb.WriteString(fmt.Sprintf("Triggered by %d input event(s).\n", len(trace.InputEvents)))

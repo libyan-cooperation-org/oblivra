@@ -130,7 +130,6 @@ func (s *AlertingService) Startup(ctx context.Context) {
 			}
 
 			// Run event through the YAML detection state machine
-			ts, _ := time.Parse(time.RFC3339, evt.Timestamp)
 			detEvt := detection.Event{
 				EventType: evt.EventType,
 				SourceIP:  evt.SourceIP,
@@ -138,7 +137,7 @@ func (s *AlertingService) Startup(ctx context.Context) {
 				HostID:    evt.HostID,
 				RawLog:    evt.RawLog,
 				Location:  evt.Location,
-				Timestamp: ts,
+				Timestamp: evt.Timestamp,
 			}
 			matches := s.evaluator.ProcessEvent(detEvt)
 			for _, match := range matches {

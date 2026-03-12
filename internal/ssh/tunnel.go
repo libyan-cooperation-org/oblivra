@@ -44,7 +44,7 @@ type Tunnel struct {
 	ID        string       `json:"id"`
 	Config    TunnelConfig `json:"config"`
 	State     TunnelState  `json:"state"`
-	StartedAt time.Time    `json:"started_at"`
+	StartedAt string       `json:"started_at"`
 
 	client   *Client
 	listener net.Listener
@@ -94,7 +94,7 @@ func (t *Tunnel) startLocal() error {
 
 	t.mu.Lock()
 	t.listener = listener
-	t.StartedAt = time.Now()
+	t.StartedAt = time.Now().Format(time.RFC3339)
 	t.setState(TunnelStateActive)
 	t.mu.Unlock()
 
@@ -153,7 +153,7 @@ func (t *Tunnel) startRemote() error {
 
 	t.mu.Lock()
 	t.listener = listener
-	t.StartedAt = time.Now()
+	t.StartedAt = time.Now().Format(time.RFC3339)
 	t.setState(TunnelStateActive)
 	t.mu.Unlock()
 
@@ -203,7 +203,7 @@ func (t *Tunnel) startDynamic() error {
 
 	t.mu.Lock()
 	t.listener = listener
-	t.StartedAt = time.Now()
+	t.StartedAt = time.Now().Format(time.RFC3339)
 	t.setState(TunnelStateActive)
 	t.mu.Unlock()
 

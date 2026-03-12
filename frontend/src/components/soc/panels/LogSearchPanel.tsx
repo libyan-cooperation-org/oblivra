@@ -87,7 +87,7 @@ export const LogSearchPanel: Component = () => {
                                     <td style={{ ...cell(), color: 'var(--accent-primary)', 'font-weight': 700 }}>{log.src}</td>
                                     <td style={{ ...cell(), color: 'var(--status-online)', 'font-weight': 700 }}>{log.dst}</td>
                                     <td style={{ ...cell(), color: 'var(--alert-medium)', opacity: '0.8' }}>{log.proto}</td>
-                                    <td style={{ ...cell({ 'border-right': 'none', overflow: 'hidden', 'text-overflow': 'ellipsis', 'max-width': 0, color: 'var(--text-secondary)' })} title={log.msg}>{log.msg}</td>
+                                    <td style={{ ...cell({ 'border-right': 'none', overflow: 'hidden', 'text-overflow': 'ellipsis', 'max-width': '0', color: 'var(--text-secondary)' }) }} title={log.msg}>{log.msg}</td>
                                 </tr>
                             )}
                         </For>

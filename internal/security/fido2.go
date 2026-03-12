@@ -18,8 +18,8 @@ type FIDO2Credential struct {
 	PublicKey       []byte    `json:"public_key"`
 	SignCount       uint32    `json:"sign_count"`
 	DeviceName      string    `json:"device_name"`
-	CreatedAt       time.Time `json:"created_at"`
-	LastUsedAt      time.Time `json:"last_used_at"`
+	CreatedAt       string    `json:"created_at"`
+	LastUsedAt      string    `json:"last_used_at"`
 	AttestationType string    `json:"attestation_type"`
 }
 
@@ -29,8 +29,8 @@ type FIDO2Challenge struct {
 	Challenge []byte    `json:"challenge"`
 	RPID      string    `json:"rp_id"`
 	UserID    []byte    `json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt string    `json:"created_at"`
+	ExpiresAt string    `json:"expires_at"`
 }
 
 // FIDO2Manager handles WebAuthn/FIDO2 operations
@@ -68,8 +68,8 @@ func (m *FIDO2Manager) BeginRegistration(userID string, userName string) (*FIDO2
 		Challenge: challenge,
 		RPID:      m.rpID,
 		UserID:    uid[:],
-		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(5 * time.Minute),
+		CreatedAt: time.Now().Format(time.RFC3339),
+		ExpiresAt: time.Now().Add(5 * time.Minute).Format(time.RFC3339),
 	}
 
 	m.challenges[c.ID] = c
@@ -92,7 +92,7 @@ func (m *FIDO2Manager) CompleteRegistration(
 		return nil, fmt.Errorf("challenge not found")
 	}
 
-	if time.Now().After(challenge.ExpiresAt) {
+	if time.Now().After(parseTime(challenge.ExpiresAt)) {
 		delete(m.challenges, challengeID)
 		return nil, fmt.Errorf("challenge expired")
 	}
@@ -105,8 +105,8 @@ func (m *FIDO2Manager) CompleteRegistration(
 		PublicKey:       publicKey,
 		SignCount:       0,
 		DeviceName:      deviceName,
-		CreatedAt:       time.Now(),
-		LastUsedAt:      time.Now(),
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		LastUsedAt:      time.Now().Format(time.RFC3339),
 		AttestationType: attestationType,
 	}
 
@@ -132,8 +132,8 @@ func (m *FIDO2Manager) BeginAuthentication() (*FIDO2Challenge, []FIDO2Credential
 		ID:        base64.URLEncoding.EncodeToString(challenge[:8]),
 		Challenge: challenge,
 		RPID:      m.rpID,
-		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(5 * time.Minute),
+		CreatedAt: time.Now().Format(time.RFC3339),
+		ExpiresAt: time.Now().Add(5 * time.Minute).Format(time.RFC3339),
 	}
 
 	m.challenges[c.ID] = c
@@ -164,7 +164,7 @@ func (m *FIDO2Manager) CompleteAuthentication(
 		return fmt.Errorf("challenge not found")
 	}
 
-	if time.Now().After(challenge.ExpiresAt) {
+	if time.Now().After(parseTime(challenge.ExpiresAt)) {
 		delete(m.challenges, challengeID)
 		return fmt.Errorf("challenge expired")
 	}
@@ -206,7 +206,7 @@ func (m *FIDO2Manager) CompleteAuthentication(
 
 	// Update credential
 	cred.SignCount = newSignCount
-	cred.LastUsedAt = time.Now()
+	cred.LastUsedAt = time.Now().Format(time.RFC3339)
 
 	return nil
 }
@@ -257,3 +257,4 @@ func parsePublicKey(data []byte) (*ecdsa.PublicKey, error) {
 		Y:     y,
 	}, nil
 }
+

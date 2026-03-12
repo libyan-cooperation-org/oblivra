@@ -56,7 +56,7 @@ const (
 type Event struct {
 	Type      EventType   `json:"type"`
 	Data      interface{} `json:"data"`
-	Timestamp time.Time   `json:"timestamp"`
+	Timestamp string      `json:"timestamp"`
 }
 
 type Handler func(event Event)
@@ -146,7 +146,7 @@ func (b *Bus) Publish(eventType EventType, data interface{}) {
 	event := Event{
 		Type:      eventType,
 		Data:      data,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	// Dispatch to specific handlers

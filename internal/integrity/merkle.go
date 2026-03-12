@@ -23,7 +23,7 @@ type ProofNode struct {
 type LeafRecord struct {
 	Index     int       `json:"index"`
 	Hash      Hash      `json:"hash"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 	DataSize  int       `json:"data_size"`
 }
 
@@ -65,7 +65,7 @@ func (t *MerkleTree) AddLeaf(data []byte) (Hash, int, error) {
 	t.meta = append(t.meta, LeafRecord{
 		Index:     idx,
 		Hash:      h,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		DataSize:  len(data),
 	})
 	persist := t.OnPersist

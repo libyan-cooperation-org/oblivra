@@ -2,7 +2,6 @@ package ndr
 
 import (
 	"context"
-	"time"
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -10,7 +9,7 @@ import (
 
 // NetworkFlow represents a summarized network session.
 type NetworkFlow struct {
-	Timestamp  time.Time `json:"timestamp"`
+	Timestamp  string    `json:"timestamp"`
 	SourceIP   string    `json:"src_ip"`
 	SourcePort int       `json:"src_port"`
 	DestIP     string    `json:"dest_ip"`

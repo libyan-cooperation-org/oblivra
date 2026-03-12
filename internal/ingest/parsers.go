@@ -14,7 +14,7 @@ var advancedRegistry = parsers.NewRegistry()
 
 // ParsedEvent represents a normalized log event ready for storage and indexing.
 type ParsedEvent struct {
-	Timestamp time.Time
+	Timestamp string
 	Host      string
 	SourceIP  string
 	EventType string
@@ -34,7 +34,7 @@ func ParseSyslog(raw string) (ParsedEvent, error) {
 	// OR: <34>Oct 11 22:14:15 mymachine su: 'su root' failed...
 
 	evt := ParsedEvent{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 		Host:      "unknown",
 		EventType: "syslog",
@@ -74,7 +74,7 @@ func ParseSyslog(raw string) (ParsedEvent, error) {
 // ParseJSON handles beautifully structured logs like Zeek or Suricata.
 func ParseJSON(raw string) (ParsedEvent, error) {
 	evt := ParsedEvent{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 	}
 
@@ -114,8 +114,8 @@ func ParseJSON(raw string) (ParsedEvent, error) {
 	// Try to find a timestamp
 	if ts, ok := data["timestamp"].(string); ok {
 		// Try RFC3339
-		if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
-			evt.Timestamp = parsed
+		if _, err := time.Parse(time.RFC3339, ts); err == nil {
+			evt.Timestamp = ts
 		}
 	}
 
@@ -126,7 +126,7 @@ func ParseJSON(raw string) (ParsedEvent, error) {
 func ParseCEF(raw string) (ParsedEvent, error) {
 	// CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension
 	evt := ParsedEvent{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 		EventType: "cef",
 	}
@@ -168,7 +168,7 @@ func ParseCEF(raw string) (ParsedEvent, error) {
 func ParseLEEF(raw string) (ParsedEvent, error) {
 	// LEEF:Version|Vendor|Product|Version|EventID|Extension (Tab separated usually)
 	evt := ParsedEvent{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 		EventType: "leef",
 	}
@@ -233,7 +233,7 @@ func AutoParse(raw string) ParsedEvent {
 	info := parsers.Info{RawLine: rawTrimmed}
 	if advancedRegistry.Process(info, hEvt) {
 		return ParsedEvent{
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Format(time.RFC3339),
 			RawLine:   rawTrimmed,
 			EventType: hEvt.EventType,
 			SourceIP:  hEvt.SourceIP,

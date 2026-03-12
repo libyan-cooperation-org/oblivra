@@ -43,7 +43,7 @@ type AgentInfo struct {
 	Arch       string    `json:"arch"`
 	Version    string    `json:"version"`
 	Collectors []string  `json:"collectors"`
-	LastSeen   time.Time `json:"last_seen"`
+	LastSeen   string    `json:"last_seen"`
 	Status     string    `json:"status"`
 }
 

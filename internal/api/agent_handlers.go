@@ -13,7 +13,7 @@ import (
 
 // AgentEvent mirrors the agent's Event struct for deserialization.
 type AgentEvent struct {
-	Timestamp time.Time              `json:"timestamp"`
+	Timestamp string                 `json:"timestamp"`
 	Source    string                 `json:"source"`
 	Type      string                 `json:"type"`
 	Host      string                 `json:"host"`
@@ -68,7 +68,7 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	// Update agent last-seen from the host field
 	if providedHost != "" {
 		if agent, ok := s.agents[providedHost]; ok {
-			agent.LastSeen = time.Now()
+			agent.LastSeen = time.Now().Format(time.RFC3339)
 			agent.Status = "online"
 		}
 	}
@@ -91,7 +91,7 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 				EventType: ev.Type,
 				SourceIP:  ev.Source,
 				RawLog:    rawLog,
-				Timestamp: ev.Timestamp.Format(time.RFC3339),
+				Timestamp: ev.Timestamp,
 			}
 			if err := s.siem.InsertHostEvent(ctx, hostEvent); err != nil {
 				s.log.Warn("[Agent] Failed to insert event from %s: %v", ev.Host, err)
@@ -134,7 +134,7 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		Arch:       reg.Arch,
 		Version:    reg.Version,
 		Collectors: reg.Collectors,
-		LastSeen:   time.Now(),
+		LastSeen:   time.Now().Format(time.RFC3339),
 		Status:     "online",
 	}
 
@@ -166,7 +166,8 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 	// Mark agents as degraded/offline based on last_seen
 	now := time.Now()
 	for _, agent := range s.agents {
-		since := now.Sub(agent.LastSeen)
+		ts, _ := time.Parse(time.RFC3339, agent.LastSeen)
+		since := now.Sub(ts)
 		switch {
 		case since < 30*time.Second:
 			agent.Status = "online"

@@ -25,8 +25,8 @@ type Session struct {
 	HostID    string        `json:"host_id"`
 	HostLabel string        `json:"host_label"`
 	Status    SessionStatus `json:"status"`
-	StartedAt time.Time     `json:"started_at"`
-	EndedAt   *time.Time    `json:"ended_at,omitempty"`
+	StartedAt string        `json:"started_at"`
+	EndedAt   *string       `json:"ended_at,omitempty"`
 
 	client     *Client
 	sftpClient *sftp.Client
@@ -52,7 +52,7 @@ func NewSessionWithID(id string, hostID string, hostLabel string, cfg Connection
 		HostID:    hostID,
 		HostLabel: hostLabel,
 		Status:    SessionActive,
-		StartedAt: time.Now(),
+		StartedAt: time.Now().Format(time.RFC3339),
 		client:    NewClient(cfg),
 		Ctx:       ctx,
 		cancel:    cancel,
@@ -195,7 +195,7 @@ func (s *Session) setStatus(status SessionStatus) {
 	defer s.mu.Unlock()
 	s.Status = status
 	if status == SessionClosed || status == SessionError {
-		now := time.Now()
+		now := time.Now().Format(time.RFC3339)
 		s.EndedAt = &now
 	}
 }

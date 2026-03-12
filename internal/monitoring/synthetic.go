@@ -46,7 +46,7 @@ type ProbeResult struct {
 	Status    ProbeStatus   `json:"status"`
 	Latency   time.Duration `json:"latency"`
 	Error     string        `json:"error,omitempty"`
-	Timestamp time.Time     `json:"timestamp"`
+	Timestamp string        `json:"timestamp"`
 }
 
 // SyntheticManager manages the lifecycle of probes
@@ -135,7 +135,7 @@ func (m *SyntheticManager) runProbe(ctx context.Context, p *SyntheticProbe) {
 		ProbeID:   p.ID,
 		Status:    StatusUp,
 		Latency:   time.Since(start),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	if err != nil {

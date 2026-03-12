@@ -26,9 +26,9 @@ type ApprovalRequest struct {
 	ActionType     string
 	TargetResource string
 	Status         ApprovalStatus
-	CreatedAt      time.Time
+	CreatedAt      string
 	ApprovedBy     string
-	ApprovedAt     time.Time
+	ApprovedAt     string
 }
 
 // ApprovalManager orchestrates the multi-party authorization workflows
@@ -58,7 +58,7 @@ func (m *ApprovalManager) RequestApproval(requesterID, actionType, targetResourc
 		ActionType:     actionType,
 		TargetResource: targetResource,
 		Status:         StatusPending,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().Format(time.RFC3339),
 	}
 
 	m.requests[req.ID] = req
@@ -96,7 +96,7 @@ func (m *ApprovalManager) GrantApproval(reqID string, approver *auth.UserAccount
 
 	req.Status = StatusApproved
 	req.ApprovedBy = approver.ID
-	req.ApprovedAt = time.Now()
+	req.ApprovedAt = time.Now().Format(time.RFC3339)
 
 	m.log.Info("[POLICY] Approval GRANTED: %s by %s", reqID, approver.ID)
 	m.bus.Publish(eventbus.EventPolicyApprovalGranted, req)
@@ -125,7 +125,7 @@ func (m *ApprovalManager) DenyApproval(reqID string, denier *auth.UserAccount) e
 
 	req.Status = StatusDenied
 	req.ApprovedBy = denier.ID // Use ApprovedBy to track who closed it
-	req.ApprovedAt = time.Now()
+	req.ApprovedAt = time.Now().Format(time.RFC3339)
 
 	m.log.Info("[POLICY] Approval DENIED: %s by %s", reqID, denier.ID)
 	m.bus.Publish(eventbus.EventPolicyApprovalDenied, req)

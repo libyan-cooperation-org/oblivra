@@ -50,7 +50,7 @@ type AgentInfo struct {
 	ID            string    `json:"id"`
 	Hostname      string    `json:"hostname"`
 	Version       string    `json:"version"`
-	LastSeen      time.Time `json:"last_seen"`
+	LastSeen      string    `json:"last_seen"`
 	RemoteAddress string    `json:"remote_address"`
 }
 
@@ -133,7 +133,7 @@ func (s *AgentServer) GetActiveAgents() []AgentInfo {
 	var active []AgentInfo
 
 	for _, info := range s.activeAgents {
-		if info.LastSeen.After(cutoff) {
+		if parseTime(info.LastSeen).After(cutoff) {
 			active = append(active, info)
 		}
 	}
@@ -205,7 +205,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			ID:            host,
 			Hostname:      host,
 			Version:       agentVersion,
-			LastSeen:      time.Now(),
+			LastSeen:      time.Now().Format(time.RFC3339),
 			RemoteAddress: r.RemoteAddr,
 		}
 		s.mu.Unlock()

@@ -1,7 +1,7 @@
 package detection
 
 import (
-	"errors"
+
 	"fmt"
 	"net"
 	"regexp"
@@ -21,7 +21,7 @@ type Event struct {
 	HostID    string
 	RawLog    string
 	Location  string
-	Timestamp time.Time
+	Timestamp string
 }
 
 // Match represents a triggered detection rule.
@@ -32,7 +32,7 @@ type Match struct {
 	Description     string
 	MitreTactics    []string
 	MitreTechniques []string
-	TriggeredAt     time.Time
+	TriggeredAt     string
 	Events          []Event           // The events that contributed to this match
 	Context         map[string]string // Additional context (e.g., grouped by IP)
 }
@@ -109,7 +109,7 @@ func safeRegexMatch(pattern, s string, timeout time.Duration) (bool, error) {
 	case res := <-resultCh:
 		return res, nil
 	case <-time.After(timeout):
-		return false, errors.New("regex execution timed out (ReDoS protection)")
+		return false, fmt.Errorf("regex execution timed out (ReDoS protection)")
 	}
 }
 
@@ -185,6 +185,12 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 	e.stateMu.Lock()
 	defer e.stateMu.Unlock()
 
+	// Helper to parse string timestamp for window comparison
+	parseEvtTime := func(ts string) time.Time {
+		t, _ := time.Parse(time.RFC3339, ts)
+		return t
+	}
+
 	// 1. Determine Grouping Key
 	groupKey := "global"
 	if len(rule.GroupBy) > 0 {
@@ -218,7 +224,7 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 	var activeEvents []Event
 	if val, ok := e.state[rule.ID].Get(groupKey); ok {
 		for _, tracked := range val {
-			if tracked.Timestamp.After(windowCutoff) {
+			if parseEvtTime(tracked.Timestamp).After(windowCutoff) {
 				activeEvents = append(activeEvents, tracked)
 			}
 		}
@@ -290,7 +296,7 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 			Severity:        rule.Severity,
 			MitreTactics:    rule.MitreTactics,
 			MitreTechniques: rule.MitreTechniques,
-			TriggeredAt:     time.Now(),
+			TriggeredAt:     time.Now().Format(time.RFC3339),
 			Events:          activeEvents,
 			Context: map[string]string{
 				"group_key": groupKey,

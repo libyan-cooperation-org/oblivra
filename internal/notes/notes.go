@@ -22,8 +22,8 @@ type Note struct {
 	Category  string    `json:"category"` // "runbook", "note", "incident", "config"
 	Tags      []string  `json:"tags"`
 	IsPinned  bool      `json:"is_pinned"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt string    `json:"created_at"`
+	UpdatedAt string    `json:"updated_at"`
 }
 
 // RunbookStep is a single step in a runbook
@@ -45,8 +45,8 @@ type Runbook struct {
 	Description string        `json:"description"`
 	Steps       []RunbookStep `json:"steps"`
 	Tags        []string      `json:"tags"`
-	CreatedAt   time.Time     `json:"created_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
+	CreatedAt   string        `json:"created_at"`
+	UpdatedAt   string        `json:"updated_at"`
 }
 
 type Storage struct {
@@ -105,10 +105,10 @@ func (nm *NotesManager) SaveNote(note Note) (*Note, error) {
 
 	if note.ID == "" {
 		note.ID = uuid.New().String()
-		note.CreatedAt = time.Now()
+		note.CreatedAt = time.Now().Format(time.RFC3339)
 	}
 
-	note.UpdatedAt = time.Now()
+	note.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	n := &note
 	nm.storage.Notes[n.ID] = n
@@ -163,10 +163,10 @@ func (nm *NotesManager) SaveRunbook(rb Runbook) (*Runbook, error) {
 
 	if rb.ID == "" {
 		rb.ID = uuid.New().String()
-		rb.CreatedAt = time.Now()
+		rb.CreatedAt = time.Now().Format(time.RFC3339)
 	}
 
-	rb.UpdatedAt = time.Now()
+	rb.UpdatedAt = time.Now().Format(time.RFC3339)
 
 	r := &rb
 	nm.storage.Runbooks[r.ID] = r

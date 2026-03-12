@@ -60,7 +60,7 @@ func (s *RansomwareService) ListIsolations() []IsolationRecordDTO {
 	for _, r := range records {
 		dto := IsolationRecordDTO{
 			HostID:      r.HostID,
-			IsolatedAt:  r.IsolatedAt.Format(time.RFC3339),
+			IsolatedAt:  r.IsolatedAt,
 			Reason:      r.Reason,
 			ThreatScore: r.ThreatScore,
 			Auto:        r.Auto,
@@ -68,8 +68,7 @@ func (s *RansomwareService) ListIsolations() []IsolationRecordDTO {
 			Error:       r.Error,
 		}
 		if r.RestoredAt != nil {
-			ts := r.RestoredAt.Format(time.RFC3339)
-			dto.RestoredAt = &ts
+			dto.RestoredAt = r.RestoredAt
 		}
 		dtos = append(dtos, dto)
 	}

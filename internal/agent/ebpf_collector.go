@@ -53,7 +53,7 @@ func (c *EBPFCollector) Start(ctx context.Context, ch chan<- Event) error {
 			return nil
 		case <-ticker.C:
 			ch <- Event{
-				Timestamp: time.Now(),
+				Timestamp: time.Now().Format(time.RFC3339),
 				Source:    "ebpf",
 				Type:      "kernel_telemetry",
 				Host:      c.hostname,

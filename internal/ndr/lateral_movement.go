@@ -14,8 +14,8 @@ import (
 type HopChain struct {
 	OriginIP    string    `json:"origin_ip"`
 	Hops        []string  `json:"hops"`
-	FirstSeen   time.Time `json:"first_seen"`
-	LastSeen    time.Time `json:"last_seen"`
+	FirstSeen   string    `json:"first_seen"`
+	LastSeen    string    `json:"last_seen"`
 	Ports       []int     `json:"ports"`
 	Protocols   []string  `json:"protocols"`
 	RiskScore   float64   `json:"risk_score"`
@@ -25,7 +25,7 @@ type HopChain struct {
 // LateralMovementEvent is published on the event bus when a multi-hop pattern is confirmed.
 type LateralMovementEvent struct {
 	Chain       HopChain  `json:"chain"`
-	DetectedAt  time.Time `json:"detected_at"`
+	DetectedAt  string    `json:"detected_at"`
 	Severity    string    `json:"severity"`
 	Description string    `json:"description"`
 }
@@ -39,7 +39,7 @@ type connectionKey struct {
 type flowRecord struct {
 	ports     map[int]bool
 	protocols map[string]bool
-	seen      time.Time
+	seen      string
 }
 
 // LateralMovementEngine correlates multi-hop internal connections to detect
@@ -102,7 +102,7 @@ func (e *LateralMovementEngine) evaluate(sourceIP string) {
 	protocolSet := make(map[string]bool)
 
 	for k, rec := range e.connections {
-		if k.src != sourceIP || rec.seen.Before(cutoff) {
+		if k.src != sourceIP || parseTime(rec.seen).Before(cutoff) {
 			continue
 		}
 		if isInternalIP(k.dst) {
@@ -164,8 +164,8 @@ func (e *LateralMovementEngine) evaluate(sourceIP string) {
 	chain := HopChain{
 		OriginIP:  sourceIP,
 		Hops:      hops,
-		FirstSeen: time.Now().Add(-e.window),
-		LastSeen:  time.Now(),
+		FirstSeen: time.Now().Add(-e.window).Format(time.RFC3339),
+		LastSeen:  time.Now().Format(time.RFC3339),
 		Ports:     ports,
 		Protocols: protocols,
 		RiskScore: score,
@@ -174,7 +174,7 @@ func (e *LateralMovementEngine) evaluate(sourceIP string) {
 
 	evt := LateralMovementEvent{
 		Chain:      chain,
-		DetectedAt: time.Now(),
+		DetectedAt: time.Now().Format(time.RFC3339),
 		Severity:   severity,
 		Description: fmt.Sprintf(
 			"Source %s connected to %d internal hosts via %s in %s. MITRE %s. Risk: %.2f",
@@ -203,7 +203,7 @@ func (e *LateralMovementEngine) runGC() {
 		cutoff := time.Now().Add(-e.window)
 		e.mu.Lock()
 		for k, rec := range e.connections {
-			if rec.seen.Before(cutoff) {
+			if parseTime(rec.seen).Before(cutoff) {
 				delete(e.connections, k)
 			}
 		}
@@ -223,4 +223,9 @@ func isInternalIP(ip string) bool {
 		}
 	}
 	return false
+}
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
 }

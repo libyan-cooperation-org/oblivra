@@ -18,7 +18,7 @@ import (
 
 // LogEntry represents a single terminal log record
 type LogEntry struct {
-	Timestamp time.Time
+	Timestamp string
 	SessionID string
 	Host      string
 	Output    string
@@ -81,13 +81,13 @@ func (e *AnalyticsEngine) backgroundWriter(ctx context.Context) {
 		searchBatch := make(map[string]interface{})
 
 		for _, entry := range batch {
-			stmt.Exec(entry.Timestamp.UTC().Format(time.RFC3339), entry.SessionID, entry.Host, entry.Output)
+			stmt.Exec(entry.Timestamp, entry.SessionID, entry.Host, entry.Output)
 
 			// Buffer for Bleve batching
 			if e.searchEngine != nil {
 				docID := uuid.New().String()
 				searchBatch[docID] = map[string]interface{}{
-					"timestamp":  entry.Timestamp.UTC().Format(time.RFC3339),
+					"timestamp":  entry.Timestamp,
 					"session_id": entry.SessionID,
 					"host":       entry.Host,
 					"output":     entry.Output,
@@ -202,7 +202,7 @@ func (e *AnalyticsEngine) Ingest(sessionID, host, output string) {
 
 	select {
 	case e.ingestCh <- LogEntry{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		SessionID: sessionID,
 		Host:      host,
 		Output:    output,

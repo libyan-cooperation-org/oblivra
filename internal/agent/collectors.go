@@ -43,7 +43,7 @@ func (c *MetricsCollector) collectSystemMetrics() Event {
 	runtime.ReadMemStats(&m)
 
 	return Event{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		Source:    "metrics",
 		Type:      "system_metrics",
 		Host:      c.hostname,
@@ -109,7 +109,7 @@ func (c *FileTailCollector) tailFile(ctx context.Context, path string, ch chan<-
 				continue
 			}
 			ch <- Event{
-				Timestamp: time.Now(),
+				Timestamp: time.Now().Format(time.RFC3339),
 				Source:    "file_tail",
 				Type:      "log_line",
 				Host:      c.hostname,
@@ -163,7 +163,7 @@ func (c *FIMCollector) Start(ctx context.Context, ch chan<- Event) error {
 				oldMod, exists := baseline[path]
 				if exists && modTime != oldMod {
 					ch <- Event{
-						Timestamp: time.Now(),
+						Timestamp: time.Now().Format(time.RFC3339),
 						Source:    "fim",
 						Type:      "file_modified",
 						Host:      c.hostname,
@@ -217,7 +217,7 @@ func (c *EventLogCollector) Start(ctx context.Context, ch chan<- Event) error {
 			// Placeholder: Windows Event Log reading requires wevtutil or win32 API
 			// Will be implemented with platform-specific build tags
 			ch <- Event{
-				Timestamp: time.Now(),
+				Timestamp: time.Now().Format(time.RFC3339),
 				Source:    "eventlog",
 				Type:      "windows_event",
 				Host:      c.hostname,

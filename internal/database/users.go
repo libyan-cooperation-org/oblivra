@@ -21,9 +21,9 @@ type User struct {
 	IsMFAEnabled bool      `json:"is_mfa_enabled"`
 	MFASecret    string    `json:"-"`
 	RoleID       string    `json:"role_id"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	LastLoginAt  time.Time `json:"last_login_at"`
+	CreatedAt    string    `json:"created_at"`
+	UpdatedAt    string    `json:"updated_at"`
+	LastLoginAt  string    `json:"last_login_at"`
 }
 
 // Role defines a set of permissions
@@ -34,8 +34,8 @@ type Role struct {
 	Description string    `json:"description"`
 	Permissions []string  `json:"permissions"`
 	IsSystem    bool      `json:"is_system"` // System roles cannot be deleted
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedAt   string    `json:"created_at"`
+	UpdatedAt   string    `json:"updated_at"`
 }
 
 // UserRepository handles user data persistence
@@ -52,7 +52,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *User) error {
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	u.CreatedAt = now
 	u.UpdatedAt = now
 	u.TenantID = TenantFromContext(ctx)
@@ -89,7 +89,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 	tenantID := TenantFromContext(ctx)
 
 	var u User
-	var lastLogin sql.NullTime
+	var lastLogin sql.NullString
 
 	err = conn.QueryRow(`
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
@@ -109,7 +109,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 	}
 
 	if lastLogin.Valid {
-		u.LastLoginAt = lastLogin.Time
+		u.LastLoginAt = lastLogin.String
 	}
 
 	return &u, nil
@@ -128,7 +128,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 	tenantID := TenantFromContext(ctx)
 
 	var u User
-	var lastLogin sql.NullTime
+	var lastLogin sql.NullString
 
 	err = conn.QueryRow(`
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
@@ -148,7 +148,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 	}
 
 	if lastLogin.Valid {
-		u.LastLoginAt = lastLogin.Time
+		u.LastLoginAt = lastLogin.String
 	}
 
 	return &u, nil
@@ -159,7 +159,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, u *User) error {
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	u.UpdatedAt = time.Now()
+	u.UpdatedAt = time.Now().Format(time.RFC3339)
 	u.TenantID = TenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
@@ -186,7 +186,7 @@ func (r *UserRepository) RecordLogin(ctx context.Context, id string) error {
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE users SET last_login_at = ? WHERE id = ? AND tenant_id = ?
-	`, time.Now(), id, tenantID)
+	`, time.Now().Format(time.RFC3339), id, tenantID)
 
 	return err
 }
@@ -218,7 +218,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		var lastLogin sql.NullTime
+		var lastLogin sql.NullString
 		if err := rows.Scan(
 			&u.ID, &u.TenantID, &u.Email, &u.Name, &u.PasswordHash, &u.AuthProvider,
 			&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
@@ -226,7 +226,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}
 		if lastLogin.Valid {
-			u.LastLoginAt = lastLogin.Time
+			u.LastLoginAt = lastLogin.String
 		}
 		users = append(users, u)
 	}
@@ -248,7 +248,7 @@ func (r *RoleRepository) CreateRole(ctx context.Context, role *Role) error {
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	role.CreatedAt = now
 	role.UpdatedAt = now
 	role.TenantID = TenantFromContext(ctx)
@@ -361,7 +361,7 @@ func (r *RoleRepository) UpdateRole(ctx context.Context, role *Role) error {
 	// Ensure system roles are not mutated lightly
 	// (Enforced at service layer. At repo layer, just update.)
 
-	role.UpdatedAt = time.Now()
+	role.UpdatedAt = time.Now().Format(time.RFC3339)
 	role.TenantID = TenantFromContext(ctx)
 
 	permsBytes, err := json.Marshal(role.Permissions)

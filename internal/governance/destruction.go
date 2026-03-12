@@ -13,7 +13,7 @@ import (
 // DestructionRecord is an immutable audit entry for data wipe operations.
 type DestructionRecord struct {
 	ID          string    `json:"id"`
-	Timestamp   time.Time `json:"timestamp"`
+	Timestamp   string    `json:"timestamp"`
 	InitiatedBy string    `json:"initiated_by"`
 	Scope       string    `json:"scope"`  // "credential", "host_events", "full_database"
 	Method      string    `json:"method"` // "crypto_wipe", "sql_delete"
@@ -79,7 +79,7 @@ func (s *DataDestructionService) CryptoWipeFile(path string, initiatedBy string)
 
 	record := DestructionRecord{
 		ID:          fmt.Sprintf("wipe_%d", time.Now().UnixNano()),
-		Timestamp:   time.Now(),
+		Timestamp:   time.Now().Format(time.RFC3339),
 		InitiatedBy: initiatedBy,
 		Scope:       "file:" + path,
 		Method:      "crypto_wipe",

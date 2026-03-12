@@ -39,7 +39,7 @@ type SIEMConfig struct {
 
 // SIEMEvent is a security event to forward
 type SIEMEvent struct {
-	Timestamp time.Time              `json:"timestamp"`
+	Timestamp string                 `json:"timestamp"`
 	EventType string                 `json:"event_type"`
 	Severity  string                 `json:"severity"` // "info", "low", "medium", "high", "critical"
 	Source    string                 `json:"source"`
@@ -142,7 +142,7 @@ func (f *SIEMForwarder) Send(event SIEMEvent) {
 		return
 	}
 
-	event.Timestamp = time.Now()
+	event.Timestamp = time.Now().Format(time.RFC3339)
 	event.Source = "sovereign-terminal"
 	f.queue = append(f.queue, event)
 
@@ -169,7 +169,7 @@ func (f *SIEMForwarder) Configure(config SIEMConfig) {
 
 // SendImmediate sends an event immediately (for critical events)
 func (f *SIEMForwarder) SendImmediate(event SIEMEvent) error {
-	event.Timestamp = time.Now()
+	event.Timestamp = time.Now().Format(time.RFC3339)
 	event.Source = "sovereign-terminal"
 
 	switch f.config.Type {
@@ -298,7 +298,7 @@ func (f *SIEMForwarder) sendSyslog(event SIEMEvent) error {
 
 	msg := fmt.Sprintf("<%d>1 %s %s %s - - - %s",
 		priority,
-		event.Timestamp.Format(time.RFC3339),
+		event.Timestamp,
 		"sovereign-terminal",
 		event.EventType,
 		event.Message,
@@ -313,7 +313,7 @@ func (f *SIEMForwarder) sendSplunk(events []SIEMEvent) error {
 
 	for _, event := range events {
 		splunkEvent := map[string]interface{}{
-			"time":       event.Timestamp.Unix(),
+			"time":       parseTime(event.Timestamp).Unix(),
 			"host":       "sovereign-terminal",
 			"source":     "sovereign-terminal",
 			"sourcetype": "sovereign:security",

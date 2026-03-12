@@ -10,8 +10,8 @@ type Campaign struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Scenarios   []string  `json:"scenarios"` // Slice of Scenario IDs
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time,omitempty"`
+	StartTime string    `json:"start_time"`
+	EndTime   string    `json:"end_time,omitempty"`
 	Status      string    `json:"status"` // "running", "completed", "failed"
 	TotalSteps  int       `json:"total_steps"`
 	PassedSteps int       `json:"passed_steps"`
@@ -37,7 +37,7 @@ func (m *CampaignManager) StartCampaign(id, name string, scenarios []string) *Ca
 		ID:         id,
 		Name:       name,
 		Scenarios:  scenarios,
-		StartTime:  time.Now(),
+		StartTime:  time.Now().Format(time.RFC3339),
 		Status:     "running",
 		TotalSteps: len(scenarios),
 	}

@@ -31,7 +31,7 @@ func TestPipeline_TemporalIntegrity(t *testing.T) {
 	// 1. Valid event
 	p.QueueEvent(ParsedEvent{
 		Host:      "test-host",
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   "Valid log entry",
 	})
 
@@ -39,7 +39,7 @@ func TestPipeline_TemporalIntegrity(t *testing.T) {
 	futureTime := time.Now().Add(10 * time.Minute)
 	p.QueueEvent(ParsedEvent{
 		Host:      "test-host-skewed",
-		Timestamp: futureTime,
+		Timestamp: futureTime.Format(time.RFC3339),
 		RawLine:   "Futuristic log entry",
 	})
 

@@ -14,7 +14,7 @@ type ConfigChangeEvent struct {
 	Type      string    `json:"type"`
 	Target    string    `json:"target"` // host_id or "fleet"
 	Changes   []string  `json:"changes"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 }
 
 type RiskScore struct {
@@ -23,7 +23,7 @@ type RiskScore struct {
 	Level     string    `json:"level"` // "Low", "Medium", "High", "Critical"
 	Impact    string    `json:"impact"`
 	Reason    string    `json:"reason"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 }
 
 type RiskEngine struct {
@@ -109,6 +109,6 @@ func (e *RiskEngine) CalculateScore(event ConfigChangeEvent) RiskScore {
 		Level:     level,
 		Reason:    reason,
 		Impact:    "Performance overhead / Security posture shift",
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 }

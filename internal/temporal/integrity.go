@@ -31,7 +31,7 @@ func DefaultPolicy() Policy {
 
 // Violation represents a detected temporal anomaly.
 type Violation struct {
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 	HostID    string    `json:"host_id"`
 	Type      string    `json:"type"` // "future_event", "stale_event", "clock_drift"
 	Detail    string    `json:"detail"`
@@ -45,7 +45,7 @@ type IntegrityService struct {
 	log        *logger.Logger
 	violations []Violation
 	agentDrift map[string]int64     // hostID -> last known drift in ms
-	highWater  map[string]time.Time // hostID -> latest processed timestamp
+	highWater  map[string]string    // hostID -> latest processed timestamp
 	mu         sync.RWMutex
 }
 
@@ -56,7 +56,7 @@ func NewIntegrityService(policy Policy, bus *eventbus.Bus, log *logger.Logger) *
 		bus:        bus,
 		log:        log.WithPrefix("temporal"),
 		agentDrift: make(map[string]int64),
-		highWater:  make(map[string]time.Time),
+		highWater:  make(map[string]string),
 	}
 }
 
@@ -69,7 +69,7 @@ func (s *IntegrityService) ValidateTimestamp(hostID string, eventTime time.Time)
 	// 1. Future event check
 	if delta > s.policy.MaxFutureSkew {
 		v := &Violation{
-			Timestamp: now,
+			Timestamp: now.Format(time.RFC3339),
 			HostID:    hostID,
 			Type:      "future_event",
 			Detail:    fmt.Sprintf("Event timestamp %s is %.1f minutes in the future", eventTime.Format(time.RFC3339), delta.Minutes()),
@@ -82,7 +82,7 @@ func (s *IntegrityService) ValidateTimestamp(hostID string, eventTime time.Time)
 	// 2. Stale event check
 	if -delta > s.policy.MaxPastAge {
 		v := &Violation{
-			Timestamp: now,
+			Timestamp: now.Format(time.RFC3339),
 			HostID:    hostID,
 			Type:      "stale_event",
 			Detail:    fmt.Sprintf("Event timestamp %s is %.0f days old", eventTime.Format(time.RFC3339), (-delta).Hours()/24),
@@ -94,13 +94,14 @@ func (s *IntegrityService) ValidateTimestamp(hostID string, eventTime time.Time)
 
 	// 3. Sequence manipulation (Monotonicity) check
 	s.mu.RLock()
-	lastTime, exists := s.highWater[hostID]
+	lastTs, exists := s.highWater[hostID]
+	lastTime := parseTime(lastTs)
 	s.mu.RUnlock()
 
 	if exists && eventTime.Before(lastTime.Add(-s.policy.GracePeriod)) {
 		inversion := lastTime.Sub(eventTime).Milliseconds()
 		v := &Violation{
-			Timestamp: now,
+			Timestamp: now.Format(time.RFC3339),
 			HostID:    hostID,
 			Type:      "sequence_manipulation",
 			Detail:    fmt.Sprintf("Timestamp inversion detected: event is %dms older than host high-water mark", inversion),
@@ -113,7 +114,7 @@ func (s *IntegrityService) ValidateTimestamp(hostID string, eventTime time.Time)
 	// Update High-Water Mark if this event moves time forward
 	if !exists || eventTime.After(lastTime) {
 		s.mu.Lock()
-		s.highWater[hostID] = eventTime
+		s.highWater[hostID] = eventTime.Format(time.RFC3339)
 		s.mu.Unlock()
 	}
 
@@ -130,7 +131,7 @@ func (s *IntegrityService) RecordHeartbeat(hostID string, agentTime time.Time) {
 
 	if abs(drift) > s.policy.DriftAlertMs {
 		v := Violation{
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Format(time.RFC3339),
 			HostID:    hostID,
 			Type:      "clock_drift",
 			Detail:    fmt.Sprintf("Agent clock drift: %dms (threshold: %dms)", drift, s.policy.DriftAlertMs),
@@ -193,7 +194,7 @@ type FleetDriftReport struct {
 	MeanDriftMs float64        `json:"mean_drift_ms"`
 	StdDevMs    float64        `json:"std_dev_ms"`
 	Outliers    []DriftOutlier `json:"outliers"`
-	Timestamp   time.Time      `json:"timestamp"`
+	Timestamp   string         `json:"timestamp"`
 }
 
 // DriftOutlier represents an agent with anomalous clock drift.
@@ -205,7 +206,7 @@ type DriftOutlier struct {
 
 // TimestampedEvent is a minimal event with timestamp and source for sequence analysis.
 type TimestampedEvent struct {
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 	HostID    string    `json:"host_id"`
 	EventID   string    `json:"event_id"`
 }
@@ -215,8 +216,8 @@ type SequenceAnomaly struct {
 	HostID      string    `json:"host_id"`
 	EventIDA    string    `json:"event_id_a"`
 	EventIDB    string    `json:"event_id_b"`
-	TimestampA  time.Time `json:"timestamp_a"`
-	TimestampB  time.Time `json:"timestamp_b"`
+	TimestampA  string    `json:"timestamp_a"`
+	TimestampB  string    `json:"timestamp_b"`
 	InversionMs int64     `json:"inversion_ms"`
 	Detail      string    `json:"detail"`
 }
@@ -233,7 +234,7 @@ func (s *IntegrityService) DetectFleetDrift() *FleetDriftReport {
 
 	report := &FleetDriftReport{
 		TotalAgents: len(drifts),
-		Timestamp:   time.Now(),
+		Timestamp:   time.Now().Format(time.RFC3339),
 	}
 
 	if len(drifts) < 2 {
@@ -301,8 +302,8 @@ func (s *IntegrityService) DetectSequenceManipulation(events []TimestampedEvent)
 			curr := hostEvents[i]
 
 			// Timestamp inversion: current event's timestamp is older than previous
-			if curr.Timestamp.Before(prev.Timestamp) {
-				inversion := prev.Timestamp.Sub(curr.Timestamp).Milliseconds()
+			if parseTime(curr.Timestamp).Before(parseTime(prev.Timestamp)) {
+				inversion := parseTime(prev.Timestamp).Sub(parseTime(curr.Timestamp)).Milliseconds()
 				anomalies = append(anomalies, SequenceAnomaly{
 					HostID:      hostID,
 					EventIDA:    prev.EventID,
@@ -314,7 +315,7 @@ func (s *IntegrityService) DetectSequenceManipulation(events []TimestampedEvent)
 				})
 
 				s.recordViolation(Violation{
-					Timestamp: time.Now(),
+					Timestamp: time.Now().Format(time.RFC3339),
 					HostID:    hostID,
 					Type:      "sequence_manipulation",
 					Detail:    fmt.Sprintf("Timestamp inversion: %dms between events %s and %s", inversion, prev.EventID, curr.EventID),
@@ -326,3 +327,9 @@ func (s *IntegrityService) DetectSequenceManipulation(events []TimestampedEvent)
 
 	return anomalies
 }
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
+}
+

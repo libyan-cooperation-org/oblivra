@@ -27,12 +27,12 @@ type HostSessionResolver interface {
 // IsolationRecord stores the state of a host isolation operation.
 type IsolationRecord struct {
 	HostID      string    `json:"host_id"`
-	IsolatedAt  time.Time `json:"isolated_at"`
+	IsolatedAt  string    `json:"isolated_at"`
 	Reason      string    `json:"reason"`
 	ThreatScore int       `json:"threat_score"`
 	Auto        bool      `json:"auto"`           // true = autonomous, false = analyst-triggered
 	Restored    bool      `json:"restored"`
-	RestoredAt  *time.Time `json:"restored_at,omitempty"`
+	RestoredAt  *string    `json:"restored_at,omitempty"`
 	Error       string    `json:"error,omitempty"`
 }
 
@@ -143,7 +143,7 @@ func (n *NetworkIsolator) IsolateHost(ctx context.Context, hostID, reason string
 
 	record := &IsolationRecord{
 		HostID:      hostID,
-		IsolatedAt:  time.Now(),
+		IsolatedAt:  time.Now().Format(time.RFC3339),
 		Reason:      reason,
 		ThreatScore: threatScore,
 		Auto:        auto,
@@ -159,7 +159,7 @@ func (n *NetworkIsolator) IsolateHost(ctx context.Context, hostID, reason string
 	// Publish isolation confirmed event
 	n.bus.Publish("ransomware.isolation_applied", map[string]interface{}{
 		"host_id":      hostID,
-		"isolated_at":  record.IsolatedAt.Format(time.RFC3339),
+		"isolated_at":  record.IsolatedAt,
 		"reason":       reason,
 		"threat_score": threatScore,
 		"auto":         auto,
@@ -216,7 +216,7 @@ func (n *NetworkIsolator) RestoreHost(ctx context.Context, hostID string) error 
 		}
 	}
 
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	n.mu.Lock()
 	rec.Restored = true
 	rec.RestoredAt = &now
@@ -224,7 +224,7 @@ func (n *NetworkIsolator) RestoreHost(ctx context.Context, hostID string) error 
 
 	n.bus.Publish("ransomware.isolation_restored", map[string]interface{}{
 		"host_id":     hostID,
-		"restored_at": now.Format(time.RFC3339),
+		"restored_at": now,
 	})
 
 	n.log.Info("[ISOLATOR] Host %s network access restored", hostID)

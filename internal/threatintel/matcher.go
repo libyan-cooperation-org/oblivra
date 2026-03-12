@@ -35,7 +35,7 @@ func (m *MatchEngine) Load(indicators []Indicator) int {
 
 	for _, ind := range indicators {
 		// Drop expired indicators
-		if !ind.ExpiresAt.IsZero() && ind.ExpiresAt.Before(now) {
+		if ind.ExpiresAt != "" && parseTime(ind.ExpiresAt).Before(now) {
 			continue
 		}
 
@@ -69,7 +69,7 @@ func (m *MatchEngine) Match(iocType, value string) (*Indicator, bool) {
 	}
 
 	// Check expiry lazily during match to avoid heavy GC sweeper routines
-	if !ind.ExpiresAt.IsZero() && ind.ExpiresAt.Before(time.Now()) {
+	if ind.ExpiresAt != "" && parseTime(ind.ExpiresAt).Before(time.Now()) {
 		return nil, false
 	}
 
@@ -85,7 +85,7 @@ func (m *MatchEngine) MatchAny(value string) (*Indicator, bool) {
 	for _, typeMap := range m.store {
 		ind, match := typeMap[value]
 		if match {
-			if !ind.ExpiresAt.IsZero() && ind.ExpiresAt.Before(time.Now()) {
+			if ind.ExpiresAt != "" && parseTime(ind.ExpiresAt).Before(time.Now()) {
 				return nil, false
 			}
 			return &ind, true

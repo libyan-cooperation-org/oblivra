@@ -76,7 +76,7 @@ func (m *ITDRManager) AnalyzeEvent(event *database.HostEvent) float64 {
 
 		if lastIP != "" && lastIP != event.SourceIP {
 			// If we switched IPs, check the time delta
-			if time.Since(p.LastSeen) < 5*time.Minute {
+			if time.Since(parseTime(p.LastSeen)) < 5*time.Minute {
 				riskIncrement += 0.4 // "Impossible Travel" or Proxy/VPN usage
 			}
 		}

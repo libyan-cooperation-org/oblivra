@@ -22,7 +22,7 @@ type SyncItem struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type"` // "host", "snippet", "setting"
 	Content   string    `json:"content"`
-	UpdatedAt time.Time `json:"updated_at"`
+	UpdatedAt string    `json:"updated_at"`
 	DeviceID  string    `json:"device_id"`
 	Signature string    `json:"signature"`
 	Deleted   bool      `json:"deleted"`
@@ -40,8 +40,8 @@ type Conflict struct {
 	ItemID     string     `json:"item_id"`
 	LocalItem  SyncItem   `json:"local_item"`
 	RemoteItem SyncItem   `json:"remote_item"`
-	DetectedAt time.Time  `json:"detected_at"`
-	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	DetectedAt string     `json:"detected_at"`
+	ResolvedAt *string    `json:"resolved_at,omitempty"`
 	Resolution string     `json:"resolution,omitempty"` // "keep_local", "keep_remote", "merge"
 }
 
@@ -51,7 +51,7 @@ type SyncEngine struct {
 	deviceID      string
 	encryptionKey []byte
 	syncEndpoint  string
-	lastSync      time.Time
+	lastSync      string
 	queue         []SyncItem
 	conflicts     []Conflict
 	httpClient    *http.Client
@@ -88,7 +88,7 @@ func (e *SyncEngine) QueueUpdate(itemType string, content interface{}, isDeleted
 		ID:        uuid.New().String(), // In reality, use the actual entity ID
 		Type:      itemType,
 		Content:   string(contentBytes),
-		UpdatedAt: time.Now(),
+		UpdatedAt: time.Now().Format(time.RFC3339),
 		DeviceID:  e.deviceID,
 		Deleted:   isDeleted,
 	}
@@ -157,7 +157,7 @@ func (e *SyncEngine) Sync() error {
 	e.mu.Lock()
 	// Clear queue of items successfully sent (assuming success for stub)
 	e.queue = e.queue[len(localQueue):]
-	e.lastSync = time.Now()
+	e.lastSync = time.Now().Format(time.RFC3339)
 	e.mu.Unlock()
 
 	return nil
@@ -170,7 +170,7 @@ func (e *SyncEngine) ResolveConflict(conflictItemID string, resolution string) e
 
 	for i, c := range e.conflicts {
 		if c.ItemID == conflictItemID {
-			now := time.Now()
+			now := time.Now().Format(time.RFC3339)
 			e.conflicts[i].ResolvedAt = &now
 			e.conflicts[i].Resolution = resolution
 
@@ -243,7 +243,7 @@ func (e *SyncEngine) pushToCloud(payload EncryptedPayload) error {
 }
 
 func (e *SyncEngine) fetchFromCloud() (*EncryptedPayload, error) {
-	url := fmt.Sprintf("%s?device_id=%s&since=%d", e.syncEndpoint, e.deviceID, e.lastSync.Unix())
+	url := fmt.Sprintf("%s?device_id=%s&since=%d", e.syncEndpoint, e.deviceID, parseTime(e.lastSync).Unix())
 	resp, err := e.httpClient.Get(url)
 	if err != nil {
 		return nil, err
@@ -260,4 +260,9 @@ func (e *SyncEngine) fetchFromCloud() (*EncryptedPayload, error) {
 	}
 
 	return &payload, nil
+}
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
 }

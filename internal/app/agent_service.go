@@ -46,7 +46,7 @@ func (s *AgentService) ListAgents() []AgentDTO {
 
 	for _, a := range active {
 		status := "online"
-		if time.Since(a.LastSeen) > 2*time.Minute {
+		if time.Since(parseTime(a.LastSeen)) > 2*time.Minute {
 			status = "offline"
 		}
 
@@ -54,7 +54,7 @@ func (s *AgentService) ListAgents() []AgentDTO {
 			ID:            a.ID,
 			Hostname:      a.Hostname,
 			Version:       a.Version,
-			LastSeen:      a.LastSeen.Format(time.RFC3339),
+			LastSeen:      a.LastSeen,
 			RemoteAddress: a.RemoteAddress,
 			Status:        status,
 		})

@@ -8,7 +8,7 @@ import (
 // CounterfactualResult captures the delta between original and simulated detection outcomes.
 type CounterfactualResult struct {
 	ID                    string    `json:"id"`
-	Timestamp             time.Time `json:"timestamp"`
+	Timestamp             string    `json:"timestamp"`
 	EventCount            int       `json:"event_count"`
 	DisabledRules         []string  `json:"disabled_rules"`
 	OriginalMatches       []Match   `json:"original_matches"`
@@ -36,7 +36,7 @@ func NewCounterfactualEngine(evaluator *Evaluator) *CounterfactualEngine {
 func (e *CounterfactualEngine) RunSimulation(events []Event, disabledRuleIDs []string) *CounterfactualResult {
 	result := &CounterfactualResult{
 		ID:            fmt.Sprintf("cf-%d", time.Now().UnixNano()),
-		Timestamp:     time.Now(),
+		Timestamp:     time.Now().Format(time.RFC3339),
 		EventCount:    len(events),
 		DisabledRules: disabledRuleIDs,
 	}
@@ -89,10 +89,10 @@ func (e *CounterfactualEngine) RunSimulation(events []Event, disabledRuleIDs []s
 	// Calculate false positives removed (matches that appeared in original but not simulated)
 	simMatchSet := make(map[string]bool)
 	for _, m := range result.SimulatedMatches {
-		simMatchSet[m.RuleID+":"+m.TriggeredAt.String()] = true
+		simMatchSet[m.RuleID+":"+m.TriggeredAt] = true
 	}
 	for _, m := range result.OriginalMatches {
-		key := m.RuleID + ":" + m.TriggeredAt.String()
+		key := m.RuleID + ":" + m.TriggeredAt
 		if !simMatchSet[key] {
 			result.FalsePositivesRemoved = append(result.FalsePositivesRemoved, m)
 		}

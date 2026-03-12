@@ -161,7 +161,7 @@ func (s *SSHService) Connect(hostID string) (string, error) {
 	dbSess := database.Session{
 		ID:        session.ID,
 		HostID:    hostID,
-		StartedAt: session.StartedAt.Format(time.RFC3339),
+		StartedAt: session.StartedAt,
 		Status:    "active",
 	}
 	_ = s.sessions.Create(context.Background(), &dbSess)
@@ -226,7 +226,7 @@ func (s *SSHService) ConnectToSession(hostID string, sessionID string) (string, 
 	dbSess := database.Session{
 		ID:        session.ID,
 		HostID:    hostID,
-		StartedAt: session.StartedAt.Format(time.RFC3339),
+		StartedAt: session.StartedAt,
 		Status:    "active",
 	}
 	_ = s.sessions.Create(context.Background(), &dbSess)
@@ -616,7 +616,7 @@ func (s *SSHService) GetActiveSessions() []map[string]interface{} {
 			"hostId":    sess.HostID,
 			"hostLabel": sess.HostLabel,
 			"status":    string(sess.Status),
-			"startedAt": sess.StartedAt.Format(time.RFC3339),
+			"startedAt": sess.StartedAt,
 			"bytesIn":   bytesIn,
 			"bytesOut":  bytesOut,
 			"uptime":    uptime.Seconds(),

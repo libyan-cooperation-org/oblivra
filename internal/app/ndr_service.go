@@ -85,7 +85,7 @@ func (s *NDRService) detectLateralMovement(flow ndr.NetworkFlow) {
 
 	for i := len(s.flowHistory) - 1; i >= 0; i-- {
 		prev := s.flowHistory[i]
-		if time.Since(prev.Timestamp) > window {
+		if time.Since(parseTime(prev.Timestamp)) > window {
 			break
 		}
 		if prev.SourceIP == flow.SourceIP && strings.HasPrefix(prev.DestIP, internalIPPrefix) {
@@ -118,7 +118,7 @@ func (s *NDRService) GetLiveTraffic() ([]ndr.NetworkFlow, error) {
 	// In production, this would query the HotStore or an in-memory cache of recent flows.
 	return []ndr.NetworkFlow{
 		{
-			Timestamp:  time.Now(),
+			Timestamp:  time.Now().Format(time.RFC3339),
 			SourceIP:   "192.168.1.10",
 			SourcePort: 44321,
 			DestIP:     "8.8.8.8",
@@ -130,3 +130,5 @@ func (s *NDRService) GetLiveTraffic() ([]ndr.NetworkFlow, error) {
 		},
 	}, nil
 }
+
+

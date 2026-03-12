@@ -11,7 +11,7 @@ import (
 type EntityProfile struct {
 	ID             string             `json:"id"`
 	EntityType     string             `json:"type"` // "user" or "host"
-	LastSeen       time.Time          `json:"last_seen"`
+	LastSeen       string             `json:"last_seen"`
 	RiskScore      float64            `json:"risk_score"`
 	FeatureVectors map[string]float64 `json:"features"`
 	Observations   int64              `json:"observations"`
@@ -26,7 +26,7 @@ const (
 )
 
 type RiskPoint struct {
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string  `json:"timestamp"`
 	Score     float64   `json:"score"`
 }
 
@@ -70,7 +70,7 @@ func (s *BaselineStore) GetOrCreateProfile(id string, entityType string) *Entity
 		EntityType:     entityType,
 		FeatureVectors: make(map[string]float64),
 		RiskHistory:    make([]RiskPoint, 0),
-		LastSeen:       time.Now(),
+		LastSeen:       time.Now().Format(time.RFC3339),
 	}
 	s.profiles[id] = p
 	return p
@@ -91,7 +91,7 @@ func (p *EntityProfile) UpdateFeature(name string, value float64) {
 	}
 
 	p.Observations++
-	p.LastSeen = time.Now()
+	p.LastSeen = time.Now().Format(time.RFC3339)
 }
 
 func (p *EntityProfile) SetRiskScore(score float64) {
@@ -100,7 +100,7 @@ func (p *EntityProfile) SetRiskScore(score float64) {
 	p.RiskScore = score
 
 	p.RiskHistory = append(p.RiskHistory, RiskPoint{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		Score:     score,
 	})
 
@@ -163,4 +163,9 @@ func (s *BaselineStore) LoadAll() error {
 		s.mu.Unlock()
 		return nil
 	})
+}
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
 }

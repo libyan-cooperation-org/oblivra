@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
-	"time"
+
 )
 
 type WorkspaceRepository struct {
@@ -25,8 +25,8 @@ type WorkspaceRow struct {
 	ActiveTab       sql.NullString
 	IsDefault       bool
 	Icon            sql.NullString
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	CreatedAt       string
+	UpdatedAt       string
 }
 
 func (r *WorkspaceRepository) Create(ws *WorkspaceRow) error {

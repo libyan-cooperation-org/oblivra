@@ -44,7 +44,7 @@ type CorrelationMatch struct {
 	MitreTechnique  string
 	GroupKey        string
 	ContributingEvt []Event
-	TriggeredAt     time.Time
+	TriggeredAt     string
 }
 
 // correlationState tracks which required conditions have been seen per group key.
@@ -177,7 +177,7 @@ func (e *CorrelationEngine) evaluate(rule CrossSourceRule, evt Event) {
 		MitreTechnique:  rule.MitreTechnique,
 		GroupKey:        groupKey,
 		ContributingEvt: contributing,
-		TriggeredAt:     time.Now(),
+		TriggeredAt:     time.Now().Format(time.RFC3339),
 	}
 
 	e.log.Warn("[CorrelationEngine] Rule fired: %s | Group: %s | Technique: %s",

@@ -58,7 +58,7 @@ type Collector interface {
 
 // Event represents a collected data point sent to the server.
 type Event struct {
-	Timestamp time.Time              `json:"timestamp"`
+	Timestamp string                 `json:"timestamp"`
 	Source    string                 `json:"source"`
 	Type      string                 `json:"type"`
 	Host      string                 `json:"host"`

@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
-	"time"
+
 
 	"github.com/kingknull/oblivrashell/internal/cluster"
 )
@@ -63,9 +63,9 @@ type SessionStore interface {
 type AuditStore interface {
 	Log(ctx context.Context, eventType string, hostID string, sessionID string, details map[string]interface{}) error
 	GetRecent(ctx context.Context, limit int) ([]AuditLog, error)
-	GetByDateRange(ctx context.Context, from, to time.Time, limit int) ([]AuditLog, error)
+	GetByDateRange(ctx context.Context, from, to string, limit int) ([]AuditLog, error)
 	Count(ctx context.Context) (int64, error)
-	Export(ctx context.Context, from, to time.Time) ([]byte, error)
+	Export(ctx context.Context, from, to string) ([]byte, error)
 	InitIntegrity(ctx context.Context) error
 	ValidateIntegrity(ctx context.Context) bool
 }

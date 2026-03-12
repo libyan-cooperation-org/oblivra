@@ -29,8 +29,8 @@ type SessionShare struct {
 	HostLabel      string             `json:"host_label"`
 	Mode           ShareMode          `json:"mode"`
 	CreatedBy      string             `json:"created_by"`
-	CreatedAt      time.Time          `json:"created_at"`
-	ExpiresAt      time.Time          `json:"expires_at"`
+	CreatedAt      string             `json:"created_at"`
+	ExpiresAt      string             `json:"expires_at"`
 	MaxViewers     int                `json:"max_viewers"`
 	CurrentViewers int                `json:"current_viewers"`
 	AccessToken    string             `json:"access_token"` // hashed, never stored raw
@@ -41,7 +41,7 @@ type SessionShare struct {
 
 // ShareAccessEntry records who accessed a shared session
 type ShareAccessEntry struct {
-	Timestamp  time.Time `json:"timestamp"`
+	Timestamp  string    `json:"timestamp"`
 	ViewerID   string    `json:"viewer_id"`
 	ViewerName string    `json:"viewer_name"`
 	Action     string    `json:"action"` // "joined", "left", "input_attempt"
@@ -127,8 +127,8 @@ type ShareManager struct {
 type ShareViewer struct {
 	ID        string      `json:"id"`
 	Name      string      `json:"name"`
-	JoinedAt  time.Time   `json:"joined_at"`
-	LastPoll  time.Time   `json:"last_poll"`
+	JoinedAt  string      `json:"joined_at"`
+	LastPoll  string      `json:"last_poll"`
 	BufferIdx int         `json:"-"`
 	DataChan  chan []byte `json:"-"`
 }
@@ -186,8 +186,8 @@ func (m *ShareManager) CreateShare(
 		HostLabel:      hostLabel,
 		Mode:           mode,
 		CreatedBy:      createdBy,
-		CreatedAt:      time.Now(),
-		ExpiresAt:      time.Now().Add(expiresIn),
+		CreatedAt:      time.Now().Format(time.RFC3339),
+		ExpiresAt:      time.Now().Add(expiresIn).Format(time.RFC3339),
 		MaxViewers:     maxViewers,
 		CurrentViewers: 0,
 		AccessToken:    tokenHash,
@@ -226,7 +226,7 @@ func (m *ShareManager) ValidateAccess(shareID string, token string) (*SessionSha
 		return nil, fmt.Errorf("share is no longer active")
 	}
 
-	if time.Now().After(share.ExpiresAt) {
+	if time.Now().After(parseTime(share.ExpiresAt)) {
 		return nil, fmt.Errorf("share has expired")
 	}
 
@@ -255,8 +255,8 @@ func (m *ShareManager) JoinShare(shareID string, viewerName string) (*ShareViewe
 	viewer := &ShareViewer{
 		ID:       uuid.New().String(),
 		Name:     viewerName,
-		JoinedAt: time.Now(),
-		LastPoll: time.Now(),
+		JoinedAt: time.Now().Format(time.RFC3339),
+		LastPoll: time.Now().Format(time.RFC3339),
 		DataChan: make(chan []byte, 256),
 	}
 
@@ -265,7 +265,7 @@ func (m *ShareManager) JoinShare(shareID string, viewerName string) (*ShareViewe
 
 	// Log access
 	share.AccessLog = append(share.AccessLog, ShareAccessEntry{
-		Timestamp:  time.Now(),
+		Timestamp:  time.Now().Format(time.RFC3339),
 		ViewerID:   viewer.ID,
 		ViewerName: viewerName,
 		Action:     "joined",
@@ -314,7 +314,7 @@ func (m *ShareManager) HandleViewerInput(shareID string, viewerID string, token 
 	// Log input attempt
 	m.mu.Lock()
 	share.AccessLog = append(share.AccessLog, ShareAccessEntry{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		ViewerID:  viewerID,
 		Action:    "input_attempt",
 	})
@@ -338,7 +338,7 @@ func (m *ShareManager) LeaveShare(shareID string, viewerID string) {
 	if share, ok := m.shares[shareID]; ok {
 		share.CurrentViewers--
 		share.AccessLog = append(share.AccessLog, ShareAccessEntry{
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Format(time.RFC3339),
 			ViewerID:  viewerID,
 			Action:    "left",
 		})
@@ -422,7 +422,7 @@ func (m *ShareManager) GetActiveShares() []SessionShare {
 
 	var shares []SessionShare
 	for _, share := range m.shares {
-		if share.IsActive && time.Now().Before(share.ExpiresAt) {
+		if share.IsActive && time.Now().Before(parseTime(share.ExpiresAt)) {
 			shares = append(shares, *share)
 		}
 	}
@@ -487,7 +487,7 @@ func (m *ShareManager) CleanupExpired() int {
 	now := time.Now()
 
 	for id, share := range m.shares {
-		if now.After(share.ExpiresAt) {
+		if now.After(parseTime(share.ExpiresAt)) {
 			share.IsActive = false
 			// Disconnect viewers
 			if viewers, ok := m.viewers[id]; ok {

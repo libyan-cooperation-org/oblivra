@@ -26,7 +26,7 @@ type Scenario struct {
 type SimulationResult struct {
 	ScenarioID string    `json:"scenario_id"`
 	Target     string    `json:"target"`
-	Timestamp  time.Time `json:"timestamp"`
+	Timestamp  string    `json:"timestamp"`
 	Detected   bool      `json:"detected"`
 	AlertID    string    `json:"alert_id,omitempty"`
 }
@@ -148,7 +148,7 @@ func (s *SimulationService) RunScenario(id string, target string) error {
 	s.activeSimulations[id+target] = &SimulationResult{
 		ScenarioID: id,
 		Target:     target,
-		Timestamp:  time.Now(),
+		Timestamp:  time.Now().Format(time.RFC3339),
 		Detected:   false,
 	}
 
@@ -175,7 +175,7 @@ func (s *SimulationService) simulateBruteForce(hostID string) error {
 			"host_id":    hostID,
 			"source_ip":  "192.168.1.50",
 			"user":       "admin",
-			"timestamp":  time.Now(),
+			"timestamp":  time.Now().Format(time.RFC3339),
 			"simulation": true,
 		})
 		time.Sleep(100 * time.Millisecond)
@@ -192,7 +192,7 @@ func (s *SimulationService) simulateRansomware(hostID string) error {
 			"path":       filePath,
 			"entropy":    7.8, // High entropy
 			"size":       1024 * 1024,
-			"timestamp":  time.Now(),
+			"timestamp":  time.Now().Format(time.RFC3339),
 			"simulation": true,
 		})
 		time.Sleep(50 * time.Millisecond)
@@ -205,7 +205,7 @@ func (s *SimulationService) simulateCanaryTamper(filePath string) error {
 		"host_id":    "local-node",
 		"path":       filePath,
 		"user":       "intruder",
-		"timestamp":  time.Now(),
+		"timestamp":  time.Now().Format(time.RFC3339),
 		"is_canary":  true,
 		"simulation": true,
 	})
@@ -231,7 +231,7 @@ func (s *SimulationService) simulateLateralPortSweep(sourceIP string) error {
 	for i := 1; i <= 15; i++ {
 		destIP := fmt.Sprintf("192.168.1.%d", i+20)
 		s.bus.Publish("ndr.flow_captured", map[string]interface{}{
-			"Timestamp":  time.Now(),
+			"Timestamp":  time.Now().Format(time.RFC3339),
 			"SourceIP":   sourceIP,
 			"SourcePort": 54321,
 			"DestIP":     destIP,
@@ -390,7 +390,7 @@ func (s *SimulationService) RunContinuousValidation() error {
 	coverage := s.GetCoverageReport()
 	run := ValidationRun{
 		ID:             fmt.Sprintf("val_%d", time.Now().Unix()),
-		Timestamp:      start,
+		Timestamp:      start.Format(time.RFC3339),
 		TotalScenarios: len(scenarios),
 		Detected:       detected,
 		Missed:         len(scenarios) - detected,

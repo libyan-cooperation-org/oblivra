@@ -23,8 +23,8 @@ type HoneypotDecoy struct {
 	Type        DecoyType  `json:"type"`
 	Target      string     `json:"target"` // HostID or path
 	Value       string     `json:"value"`  // e.g., Username or Port number
-	DeployTime  time.Time  `json:"deploy_time"`
-	LastTrigger *time.Time `json:"last_trigger,omitempty"`
+	DeployTime  string     `json:"deploy_time"`
+	LastTrigger *string    `json:"last_trigger,omitempty"`
 }
 
 // HoneypotService manages decoy "honeypot" elements across the infrastructure.
@@ -54,7 +54,7 @@ func (s *HoneypotService) InjectHoneypotCredential(id string, username string) s
 		ID:         id,
 		Type:       DecoyCredential,
 		Value:      username,
-		DeployTime: time.Now(),
+		DeployTime: time.Now().Format(time.RFC3339),
 	}
 	s.decoys[id] = decoy
 	s.log.Info("Injected honeypot credential: %s", username)
@@ -67,7 +67,7 @@ func (s *HoneypotService) RegisterTrigger(id string) {
 	defer s.mu.Unlock()
 
 	if decoy, ok := s.decoys[id]; ok {
-		now := time.Now()
+		now := time.Now().Format(time.RFC3339)
 		decoy.LastTrigger = &now
 		s.decoys[id] = decoy
 		s.log.Warn("HONEYPOT TRIGGERED: %s interaction with %s (%s)", decoy.ID, decoy.Value, decoy.Type)

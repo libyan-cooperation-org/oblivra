@@ -12,7 +12,7 @@ import (
 // SignedBundle represents a cryptographically verified policy bundle for air-gapped nodes
 type SignedBundle struct {
 	Config    Config    `json:"config"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ExpiresAt string    `json:"expires_at"`
 	Signature []byte    `json:"signature"`
 }
 
@@ -20,13 +20,13 @@ type SignedBundle struct {
 func CreateBundle(config Config, duration time.Duration, privKey ed25519.PrivateKey) ([]byte, error) {
 	bundle := SignedBundle{
 		Config:    config,
-		ExpiresAt: time.Now().Add(duration),
+		ExpiresAt: time.Now().Add(duration).Format(time.RFC3339),
 	}
 
 	// Payload is the JSON representation without the signature
 	payloadBytes, err := json.Marshal(struct {
 		Config    Config    `json:"config"`
-		ExpiresAt time.Time `json:"expires_at"`
+		ExpiresAt string    `json:"expires_at"`
 	}{
 		Config:    bundle.Config,
 		ExpiresAt: bundle.ExpiresAt,
@@ -55,14 +55,14 @@ func LoadBundle(filePath string, pubKey ed25519.PublicKey) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse policy bundle: %w", err)
 	}
 
-	if time.Now().After(bundle.ExpiresAt) {
+	if time.Now().After(parseTime(bundle.ExpiresAt)) {
 		return nil, errors.New("policy bundle has expired")
 	}
 
 	// Payload is the JSON representation without the signature
 	payloadBytes, err := json.Marshal(struct {
 		Config    Config    `json:"config"`
-		ExpiresAt time.Time `json:"expires_at"`
+		ExpiresAt string    `json:"expires_at"`
 	}{
 		Config:    bundle.Config,
 		ExpiresAt: bundle.ExpiresAt,
@@ -77,4 +77,9 @@ func LoadBundle(filePath string, pubKey ed25519.PublicKey) (*Config, error) {
 	}
 
 	return &bundle.Config, nil
+}
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
 }

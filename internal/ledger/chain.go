@@ -12,7 +12,7 @@ import (
 // Block represents a single piece of evidence in the immutable chain.
 type Block struct {
 	Index        uint64    `json:"index"`
-	Timestamp    time.Time `json:"timestamp"`
+	Timestamp    string    `json:"timestamp"`
 	Data         []byte    `json:"data"`          // The actual evidence payload (e.g. JSON string of the decision)
 	DataType     string    `json:"data_type"`     // E.g. "decision", "alert", "file_change"
 	PreviousHash string    `json:"previous_hash"` // The SHA-256 hash of the previous block
@@ -39,7 +39,7 @@ func NewChain() *Chain {
 
 // CalculateHash generates the SHA256 string for a Block.
 func CalculateHash(b *Block) string {
-	record := fmt.Sprintf("%d%s%s%s%s", b.Index, b.Timestamp.String(), string(b.Data), b.DataType, b.PreviousHash)
+	record := fmt.Sprintf("%d%s%s%s%s", b.Index, b.Timestamp, string(b.Data), b.DataType, b.PreviousHash)
 	h := sha256.New()
 	h.Write([]byte(record))
 	hashed := h.Sum(nil)
@@ -65,7 +65,7 @@ func (c *Chain) AddBlock(data []byte, dataType string) *Block {
 
 	newBlock := &Block{
 		Index:        newIndex,
-		Timestamp:    time.Now().UTC(),
+		Timestamp:    time.Now().UTC().Format(time.RFC3339),
 		Data:         data,
 		DataType:     dataType,
 		PreviousHash: prevHash,

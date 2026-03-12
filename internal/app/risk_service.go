@@ -61,7 +61,7 @@ func (s *RiskService) EvaluateManual(type_ string, target string, changes []stri
 		Type:      type_,
 		Target:    target,
 		Changes:   changes,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 	return s.engine.CalculateScore(event)
 }

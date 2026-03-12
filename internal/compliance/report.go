@@ -85,20 +85,23 @@ func NewReportGenerator(audit database.AuditStore, session database.SessionStore
 // GenerateReport creates a compliance report for a given period
 func (g *ReportGenerator) GenerateReport(
 	reportType ReportType,
-	periodStart time.Time,
-	periodEnd time.Time,
+	periodStartStr string,
+	periodEndStr string,
 ) (*ComplianceReport, error) {
+	periodStart, _ := time.Parse(time.RFC3339, periodStartStr)
+	periodEnd, _ := time.Parse(time.RFC3339, periodEndStr)
+
 	report := &ComplianceReport{
 		ID:          fmt.Sprintf("report-%d", time.Now().UnixNano()),
 		Type:        reportType,
 		Title:       fmt.Sprintf("%s Compliance Report", string(reportType)),
 		GeneratedAt: time.Now().Format(time.RFC3339),
-		PeriodStart: periodStart.Format(time.RFC3339),
-		PeriodEnd:   periodEnd.Format(time.RFC3339),
+		PeriodStart: periodStartStr,
+		PeriodEnd:   periodEndStr,
 	}
 
 	// Gather data
-	auditLogs, err := g.auditRepo.GetByDateRange(context.Background(), periodStart, periodEnd, 100000)
+	auditLogs, err := g.auditRepo.GetByDateRange(context.Background(), periodStartStr, periodEndStr, 100000)
 	if err != nil {
 		return nil, fmt.Errorf("fetch audit logs: %w", err)
 	}

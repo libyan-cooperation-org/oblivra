@@ -18,7 +18,7 @@ type Indicator struct {
 	Severity    string    `json:"severity"` // low, medium, high, critical
 	Description string    `json:"description"`
 	CampaignID  string    `json:"campaign_id,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at"`
+	ExpiresAt   string    `json:"expires_at"`
 }
 
 // Campaign represents a cluster of activity attributed to a common actor or goal.
@@ -76,7 +76,7 @@ func ParseOfflineCSV(path string, source string) ([]Indicator, error) {
 			Source:      source,
 			Severity:    severity,
 			Description: desc,
-			ExpiresAt:   time.Now().AddDate(1, 0, 0), // Expire in 1 year default
+			ExpiresAt:   time.Now().AddDate(1, 0, 0).Format(time.RFC3339), // Expire in 1 year default
 		})
 	}
 
@@ -138,7 +138,7 @@ func ConvertSTIX(bundle *Bundle, source string) ([]Indicator, error) {
 			Source:      source,
 			Severity:    "high", // Could map from obj.Labels but default high for now
 			Description: obj.Name,
-			ExpiresAt:   obj.ValidFrom.AddDate(1, 0, 0),
+			ExpiresAt:   parseTime(obj.ValidFrom).AddDate(1, 0, 0).Format(time.RFC3339),
 		})
 	}
 
@@ -157,4 +157,9 @@ func ParseOfflineSTIXFile(path string) ([]Indicator, error) {
 	}
 
 	return ConvertSTIX(&bundle, filepath.Base(path))
+}
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
 }

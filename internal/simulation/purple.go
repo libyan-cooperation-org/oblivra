@@ -1,6 +1,6 @@
 package simulation
 
-import "time"
+
 
 // CoverageReport summarizes detection posture against MITRE ATT&CK.
 type CoverageReport struct {
@@ -34,7 +34,7 @@ type TechniqueStatus struct {
 // ValidationRun captures the outcome of a continuous validation pass.
 type ValidationRun struct {
 	ID             string    `json:"id"`
-	Timestamp      time.Time `json:"timestamp"`
+	Timestamp      string    `json:"timestamp"`
 	TotalScenarios int       `json:"total_scenarios"`
 	Detected       int       `json:"detected"`
 	Missed         int       `json:"missed"`

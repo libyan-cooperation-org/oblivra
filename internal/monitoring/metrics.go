@@ -26,7 +26,7 @@ type Metric struct {
 	Value       float64           `json:"value"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Description string            `json:"description,omitempty"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	UpdatedAt   string            `json:"updated_at"`
 }
 
 type metricMeta struct {
@@ -222,7 +222,7 @@ func (mc *MetricsCollector) GetAll() []Metric {
 			Value:       float64(atomic.LoadInt64(counter)),
 			Labels:      meta.labels,
 			Description: meta.description,
-			UpdatedAt:   time.Now(),
+			UpdatedAt:   time.Now().Format(time.RFC3339),
 		})
 	}
 
@@ -234,7 +234,7 @@ func (mc *MetricsCollector) GetAll() []Metric {
 			Value:       *gauge,
 			Labels:      meta.labels,
 			Description: meta.description,
-			UpdatedAt:   time.Now(),
+			UpdatedAt:   time.Now().Format(time.RFC3339),
 		})
 	}
 

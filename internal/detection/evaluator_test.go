@@ -47,7 +47,7 @@ conditions:
 		EventType: "failed_login",
 		SourceIP:  "192.168.1.150",
 		RawLog:    "sshd: auth error occurred",
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	matches := evaluator.ProcessEvent(evt)
@@ -60,7 +60,7 @@ conditions:
 		EventType: "failed_login",
 		SourceIP:  "10.0.0.5", // Fails CIDR
 		RawLog:    "sshd: auth error occurred",
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	if len(evaluator.ProcessEvent(evtFail)) > 0 {
@@ -114,7 +114,7 @@ sequence:
 	matches := evaluator.ProcessEvent(Event{
 		EventType: "failed_login",
 		SourceIP:  ip,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	})
 	if len(matches) > 0 {
 		t.Fatal("Alerted prematurely on step 1")
@@ -124,7 +124,7 @@ sequence:
 	matches = evaluator.ProcessEvent(Event{
 		EventType: "failed_login",
 		SourceIP:  ip,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	})
 	if len(matches) > 0 {
 		t.Fatal("Alerted prematurely on step 2")
@@ -134,7 +134,7 @@ sequence:
 	matches = evaluator.ProcessEvent(Event{
 		EventType: "successful_login",
 		SourceIP:  ip,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	})
 
 	if len(matches) == 0 {

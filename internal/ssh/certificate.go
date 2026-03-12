@@ -17,8 +17,8 @@ type CertificateInfo struct {
 	KeyID           string            `json:"key_id"`
 	Serial          uint64            `json:"serial"`
 	ValidPrincipals []string          `json:"valid_principals"`
-	ValidAfter      time.Time         `json:"valid_after"`
-	ValidBefore     time.Time         `json:"valid_before"`
+	ValidAfter      string            `json:"valid_after"`
+	ValidBefore     string            `json:"valid_before"`
 	IsExpired       bool              `json:"is_expired"`
 	ExpiresIn       string            `json:"expires_in"`
 	CriticalOptions map[string]string `json:"critical_options"`
@@ -64,8 +64,8 @@ func (m *CertificateManager) ParseCertificateData(data []byte) (*CertificateInfo
 		KeyID:           cert.KeyId,
 		Serial:          cert.Serial,
 		ValidPrincipals: cert.ValidPrincipals,
-		ValidAfter:      validAfter,
-		ValidBefore:     validBefore,
+		ValidAfter:      validAfter.Format(time.RFC3339),
+		ValidBefore:     validBefore.Format(time.RFC3339),
 		IsExpired:       now.After(validBefore),
 		CriticalOptions: cert.CriticalOptions,
 		Extensions:      cert.Extensions,
@@ -227,10 +227,15 @@ func (m *CertificateManager) CheckExpiry(threshold time.Duration) ([]Certificate
 	cutoff := time.Now().Add(threshold)
 
 	for _, cert := range certs {
-		if cert.ValidBefore.Before(cutoff) {
+		if parseTime(cert.ValidBefore).Before(cutoff) {
 			expiring = append(expiring, cert)
 		}
 	}
 
 	return expiring, nil
+}
+
+func parseTime(ts string) time.Time {
+	t, _ := time.Parse(time.RFC3339, ts)
+	return t
 }

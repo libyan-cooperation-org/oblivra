@@ -23,13 +23,13 @@ type Bundle struct {
 type Object struct {
 	Type        string    `json:"type"`
 	ID          string    `json:"id"`
-	Created     time.Time `json:"created"`
-	Modified    time.Time `json:"modified"`
+	Created     string    `json:"created"`
+	Modified    string    `json:"modified"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Pattern     string    `json:"pattern"`
 	PatternType string    `json:"pattern_type"`
-	ValidFrom   time.Time `json:"valid_from"`
+	ValidFrom   string    `json:"valid_from"`
 	Labels      []string  `json:"labels"`
 }
 

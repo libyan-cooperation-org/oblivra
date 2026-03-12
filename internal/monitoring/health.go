@@ -24,7 +24,7 @@ type HostHealth struct {
 	Status       HostStatus `json:"status"`
 	Latency      int64      `json:"latency_ms"`           // average latency in milliseconds
 	UptimeSec    int64      `json:"uptime_sec,omitempty"` // populated via SSH if possible
-	LastCheck    time.Time  `json:"last_check"`
+	LastCheck    string     `json:"last_check"`
 	SuccessRate  float64    `json:"success_rate"` // percentage 0-100
 	ChecksTotal  int        `json:"checks_total"`
 	ChecksFailed int        `json:"checks_failed"`
@@ -207,7 +207,7 @@ func (hc *HealthChecker) updateHostHealth(id string, success bool, latency int64
 	prevStatus := health.Status
 
 	health.ChecksTotal++
-	health.LastCheck = time.Now()
+	health.LastCheck = time.Now().Format(time.RFC3339)
 
 	if success {
 		// Moving average latency

@@ -78,7 +78,7 @@ func (r *BenchmarkRunner) RunBenchmark(filePath string) (*BenchmarkResult, error
 			User:      e.User,
 			HostID:    e.Host,
 			RawLog:    e.Payload,
-			Timestamp: time.Now(),
+			Timestamp: time.Now().Format(time.RFC3339),
 		}
 
 		// If no EventType provided, we simulate the first step of parsing
