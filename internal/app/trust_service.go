@@ -19,10 +19,10 @@ import (
 )
 
 type TrustStatus struct {
-	Component string    `json:"component"`
-	Status    string    `json:"status"` // "TRUSTED", "WARNING", "UNTRUSTED"
-	Detail    string    `json:"detail"`
-	LastCheck time.Time `json:"last_check"`
+	Component string `json:"component"`
+	Status    string `json:"status"` // "TRUSTED", "WARNING", "UNTRUSTED"
+	Detail    string `json:"detail"`
+	LastCheck string `json:"last_check"`
 }
 
 type RuntimeTrustService struct {
@@ -44,7 +44,7 @@ type RuntimeTrustService struct {
 type TrustSnapshot struct {
 	Score     float64            `json:"score"`
 	Pillars   map[string]float64 `json:"pillars"`
-	Timestamp time.Time          `json:"timestamp"`
+	Timestamp string             `json:"timestamp"`
 }
 
 type PillarDrift struct {
@@ -177,7 +177,7 @@ func (s *RuntimeTrustService) updateStatus(component, status, detail string) {
 		Component: component,
 		Status:    status,
 		Detail:    detail,
-		LastCheck: time.Now(),
+		LastCheck: time.Now().Format(time.RFC3339),
 	}
 }
 
@@ -251,7 +251,7 @@ func (s *RuntimeTrustService) trackDrift() {
 	s.history = append(s.history, TrustSnapshot{
 		Score:     total,
 		Pillars:   pillars,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	})
 
 	// Retain up to 2 hours of trailing data (assuming 5m polling ~ 24 snapshots)
@@ -298,7 +298,9 @@ func (s *RuntimeTrustService) calculateDriftMetricsLocked() TrustDriftMetrics {
 
 	oldest := s.history[0]
 	newest := s.history[n-1]
-	durationHours := newest.Timestamp.Sub(oldest.Timestamp).Hours()
+	tOld, _ := time.Parse(time.RFC3339, oldest.Timestamp)
+	tNew, _ := time.Parse(time.RFC3339, newest.Timestamp)
+	durationHours := tNew.Sub(tOld).Hours()
 
 	if durationHours <= 0 {
 		return metrics

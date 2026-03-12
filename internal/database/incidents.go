@@ -161,8 +161,8 @@ func scanIncident(row rowScanner) (*Incident, error) {
 		return nil, err
 	}
 
-	i.FirstSeenAt = firstSeen
-	i.LastSeenAt = lastSeen
+	i.FirstSeenAt = firstSeen.Format(time.RFC3339)
+	i.LastSeenAt = lastSeen.Format(time.RFC3339)
 	_ = json.Unmarshal([]byte(tacticsStr), &i.MitreTactics)
 	_ = json.Unmarshal([]byte(techniquesStr), &i.MitreTechniques)
 

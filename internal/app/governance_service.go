@@ -16,7 +16,7 @@ type BiasEntry struct {
 	AnomalyID string                   `json:"anomaly_id"`
 	Reason    string                   `json:"reason"`
 	Evidence  []map[string]interface{} `json:"evidence"`
-	Timestamp time.Time                `json:"timestamp"`
+	Timestamp string                   `json:"timestamp"`
 	User      string                   `json:"user"` // Operator who marked it
 }
 
@@ -46,7 +46,7 @@ func (s *GovernanceService) MarkFalsePositive(anomalyID string, reason string, e
 		AnomalyID: anomalyID,
 		Reason:    reason,
 		Evidence:  evidence,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		User:      "admin", // Placeholder
 	}
 

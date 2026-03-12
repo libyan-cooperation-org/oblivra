@@ -256,7 +256,7 @@ func cmdList(args []string) {
 			duration := time.Duration(s.DurationSeconds) * time.Second
 			fmt.Printf("%-12s %-20s %-20s %-10s %-10s\n",
 				s.ID[:12], s.HostID[:20],
-				s.StartedAt.Format("2006-01-02 15:04"),
+				s.StartedAt,
 				duration.String(), s.Status)
 		}
 

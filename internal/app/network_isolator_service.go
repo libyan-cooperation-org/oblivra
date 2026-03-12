@@ -15,7 +15,7 @@ type IsolationStatus struct {
 	HostID      string    `json:"host_id"`
 	Reason      string    `json:"reason"`
 	ThreatScore int       `json:"threat_score"`
-	IsolatedAt  time.Time `json:"isolated_at"`
+	IsolatedAt  string    `json:"isolated_at"`
 	Auto        bool      `json:"auto"` // true = triggered by engine, false = manual
 	RolledBack  bool      `json:"rolled_back"`
 }
@@ -140,7 +140,7 @@ func (s *NetworkIsolatorService) isolate(hostID, reason string, score int, auto 
 		HostID:      hostID,
 		Reason:      reason,
 		ThreatScore: score,
-		IsolatedAt:  time.Now(),
+		IsolatedAt:  time.Now().Format(time.RFC3339),
 		Auto:        auto,
 	}
 	s.mu.Unlock()

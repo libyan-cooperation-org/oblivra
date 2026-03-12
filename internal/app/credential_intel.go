@@ -13,7 +13,7 @@ type CredentialAnomaly struct {
 	Type      string    `json:"type"`
 	Severity  string    `json:"severity"`
 	Details   string    `json:"details"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 }
 
 type CredentialIntelService struct {
@@ -70,7 +70,7 @@ func (s *CredentialIntelService) handleAccess(event eventbus.Event) {
 			Type:      "BURST_DETECTION",
 			Severity:  "HIGH",
 			Details:   "Rapid successive access to credential: " + label,
-			Timestamp: now,
+			Timestamp: now.Format(time.RFC3339),
 		}
 		s.anomalies = append(s.anomalies, anomaly)
 		s.bus.Publish(eventbus.EventSIEMAlert, anomaly)

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
@@ -160,7 +161,7 @@ func (s *SSHService) Connect(hostID string) (string, error) {
 	dbSess := database.Session{
 		ID:        session.ID,
 		HostID:    hostID,
-		StartedAt: session.StartedAt,
+		StartedAt: session.StartedAt.Format(time.RFC3339),
 		Status:    "active",
 	}
 	_ = s.sessions.Create(context.Background(), &dbSess)
@@ -225,7 +226,7 @@ func (s *SSHService) ConnectToSession(hostID string, sessionID string) (string, 
 	dbSess := database.Session{
 		ID:        session.ID,
 		HostID:    hostID,
-		StartedAt: session.StartedAt,
+		StartedAt: session.StartedAt.Format(time.RFC3339),
 		Status:    "active",
 	}
 	_ = s.sessions.Create(context.Background(), &dbSess)
@@ -615,7 +616,7 @@ func (s *SSHService) GetActiveSessions() []map[string]interface{} {
 			"hostId":    sess.HostID,
 			"hostLabel": sess.HostLabel,
 			"status":    string(sess.Status),
-			"startedAt": sess.StartedAt,
+			"startedAt": sess.StartedAt.Format(time.RFC3339),
 			"bytesIn":   bytesIn,
 			"bytesOut":  bytesOut,
 			"uptime":    uptime.Seconds(),
@@ -735,7 +736,7 @@ func (s *SSHService) ListDirectory(ctxID string, path string) ([]FileInfo, error
 			Name:    f.Name(),
 			Size:    f.Size(),
 			Mode:    f.Mode().String(),
-			ModTime: f.ModTime(),
+			ModTime: f.ModTime().Format(time.RFC3339),
 			IsDir:   f.IsDir(),
 		})
 	}

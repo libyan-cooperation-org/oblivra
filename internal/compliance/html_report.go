@@ -238,9 +238,9 @@ func (g *ReportGenerator) ExportHTML(report *ComplianceReport) ([]byte, error) {
 		ID:          report.ID,
 		Title:       report.Title,
 		Type:        string(report.Type),
-		GeneratedAt: report.GeneratedAt.Format("2006-01-02 15:04 MST"),
-		PeriodStart: report.PeriodStart.Format("2006-01-02"),
-		PeriodEnd:   report.PeriodEnd.Format("2006-01-02"),
+		GeneratedAt: report.GeneratedAt,
+		PeriodStart: report.PeriodStart,
+		PeriodEnd:   report.PeriodEnd,
 		Summary:     report.Summary,
 		ScoreClass:  scoreClass,
 		Sections:    report.Sections,
@@ -312,7 +312,7 @@ func ExportPackResultHTML(result *PackResult) ([]byte, error) {
 		EvaluatedAt string
 	}{
 		PackResult:  result,
-		EvaluatedAt: result.EvaluatedAt.Format("2006-01-02 15:04 MST"),
+		EvaluatedAt: result.EvaluatedAt,
 	}
 
 	var buf bytes.Buffer

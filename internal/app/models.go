@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"sync"
-	"time"
 )
 
 // FileInfo represents a file on either a local or remote system
@@ -11,7 +10,7 @@ type FileInfo struct {
 	Name    string    `json:"name"`
 	Size    int64     `json:"size"`
 	Mode    string    `json:"mode"`
-	ModTime time.Time `json:"mod_time"`
+	ModTime string    `json:"mod_time"`
 	IsDir   bool      `json:"is_dir"`
 }
 
@@ -41,8 +40,8 @@ type TransferJob struct {
 	SpeedBytesS float64        `json:"speed_bytes_s"`
 	Status      TransferStatus `json:"status"`
 	Error       string         `json:"error,omitempty"`
-	StartedAt   time.Time      `json:"started_at"`
-	CompletedAt *time.Time     `json:"completed_at,omitempty"`
+	StartedAt   string         `json:"started_at"`
+	CompletedAt *string        `json:"completed_at,omitempty"`
 	cancelFn    context.CancelFunc
 	ctx         context.Context
 }
@@ -65,8 +64,8 @@ type MultiExecJob struct {
 	Command   string            `json:"command"`
 	HostIDs   []string          `json:"host_ids"`
 	Results   []MultiExecResult `json:"results"`
-	StartedAt time.Time         `json:"started_at"`
-	EndedAt   *time.Time        `json:"ended_at,omitempty"`
+	StartedAt string            `json:"started_at"`
+	EndedAt   *string           `json:"ended_at,omitempty"`
 	Status    string            `json:"status"` // "running", "completed", "partial"
 	mu        sync.Mutex
 }

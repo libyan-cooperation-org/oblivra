@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jung-kurt/gofpdf"
@@ -29,9 +30,9 @@ type ComplianceReport struct {
 	ID          string          `json:"id"`
 	Type        ReportType      `json:"type"`
 	Title       string          `json:"title"`
-	GeneratedAt time.Time       `json:"generated_at"`
-	PeriodStart time.Time       `json:"period_start"`
-	PeriodEnd   time.Time       `json:"period_end"`
+	GeneratedAt string          `json:"generated_at"`
+	PeriodStart string          `json:"period_start"`
+	PeriodEnd   string          `json:"period_end"`
 	Summary     ReportSummary   `json:"summary"`
 	Sections    []ReportSection `json:"sections"`
 	Findings    []Finding       `json:"findings"`
@@ -91,9 +92,9 @@ func (g *ReportGenerator) GenerateReport(
 		ID:          fmt.Sprintf("report-%d", time.Now().UnixNano()),
 		Type:        reportType,
 		Title:       fmt.Sprintf("%s Compliance Report", string(reportType)),
-		GeneratedAt: time.Now(),
-		PeriodStart: periodStart,
-		PeriodEnd:   periodEnd,
+		GeneratedAt: time.Now().Format(time.RFC3339),
+		PeriodStart: periodStart.Format(time.RFC3339),
+		PeriodEnd:   periodEnd.Format(time.RFC3339),
 	}
 
 	// Gather data
@@ -110,7 +111,8 @@ func (g *ReportGenerator) GenerateReport(
 	// Filter sessions to period
 	var periodSessions []database.Session
 	for _, s := range sessions {
-		if s.StartedAt.After(periodStart) && s.StartedAt.Before(periodEnd) {
+		ts, _ := time.Parse(time.RFC3339, s.StartedAt)
+		if ts.After(periodStart) && ts.Before(periodEnd) {
 			periodSessions = append(periodSessions, s)
 		}
 	}
@@ -441,10 +443,12 @@ func (g *ReportGenerator) ExportToFile(report *ComplianceReport) (string, error)
 		return "", err
 	}
 
+	tsStart := strings.ReplaceAll(strings.ReplaceAll(report.PeriodStart, ":", "-"), "T", "_")
+	tsEnd := strings.ReplaceAll(strings.ReplaceAll(report.PeriodEnd, ":", "-"), "T", "_")
 	filename := fmt.Sprintf("%s_%s_%s.json",
 		report.Type,
-		report.PeriodStart.Format("2006-01-02"),
-		report.PeriodEnd.Format("2006-01-02"),
+		tsStart,
+		tsEnd,
 	)
 
 	filePath := filepath.Join(reportsDir, filename)
@@ -499,7 +503,8 @@ func (g *ReportGenerator) evaluateSecurityPosture(sessions []database.Session, l
 func (g *ReportGenerator) countUnusualHourSessions(sessions []database.Session) int {
 	count := 0
 	for _, s := range sessions {
-		hour := s.StartedAt.Hour()
+		ts, _ := time.Parse(time.RFC3339, s.StartedAt)
+		hour := ts.Hour()
 		if hour >= 22 || hour < 6 {
 			count++
 		}
@@ -511,7 +516,9 @@ func (g *ReportGenerator) countRapidConnections(sessions []database.Session) int
 	// Count sessions opened within 5 seconds of each other
 	count := 0
 	for i := 1; i < len(sessions); i++ {
-		diff := sessions[i].StartedAt.Sub(sessions[i-1].StartedAt)
+		tsI, _ := time.Parse(time.RFC3339, sessions[i].StartedAt)
+		tsPrev, _ := time.Parse(time.RFC3339, sessions[i-1].StartedAt)
+		diff := tsI.Sub(tsPrev)
 		if diff < 5*time.Second && diff > 0 {
 			count++
 		}
@@ -524,7 +531,8 @@ func (g *ReportGenerator) detectFailedAuthSpikes(logs []database.AuditLog) bool 
 	windows := make(map[int64]int)
 	for _, l := range logs {
 		if l.EventType == "auth.failed" {
-			window := l.Timestamp.Unix() / 300 // 5-minute windows
+			ts, _ := time.Parse(time.RFC3339, l.Timestamp)
+			window := ts.Unix() / 300 // 5-minute windows
 			windows[window]++
 		}
 	}
@@ -547,7 +555,8 @@ func (g *ReportGenerator) buildSessionBreakdown(sessions []database.Session) map
 	byStatus := make(map[string]int)
 
 	for _, s := range sessions {
-		byHour[s.StartedAt.Hour()]++
+		ts, _ := time.Parse(time.RFC3339, s.StartedAt)
+		byHour[ts.Hour()]++
 		byStatus[s.Status]++
 	}
 
@@ -584,9 +593,9 @@ func (g *ReportGenerator) ExportPDF(report *ComplianceReport) ([]byte, error) {
 
 	pdf.SetFont("Arial", "", 10)
 	pdf.SetTextColor(120, 120, 120)
-	pdf.Cell(0, 5, fmt.Sprintf("Generated At: %s", report.GeneratedAt.Format("2006-01-02 15:04")))
+	pdf.Cell(0, 5, fmt.Sprintf("Generated At: %s", report.GeneratedAt))
 	pdf.Ln(5)
-	pdf.Cell(0, 5, fmt.Sprintf("Period: %s to %s", report.PeriodStart.Format("2006-01-02"), report.PeriodEnd.Format("2006-01-02")))
+	pdf.Cell(0, 5, fmt.Sprintf("Period: %s to %s", report.PeriodStart, report.PeriodEnd))
 	pdf.Ln(10)
 
 	// Summary Score

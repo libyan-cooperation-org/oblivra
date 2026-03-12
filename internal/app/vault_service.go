@@ -493,8 +493,11 @@ func (s *VaultService) PasswordHealthAudit() ([]CredentialHealth, error) {
 		}
 
 		// Age check
-		if !cred.CreatedAt.IsZero() {
-			health.Age = int(now.Sub(cred.CreatedAt).Hours() / 24)
+		if cred.CreatedAt != "" {
+			parsed, err := time.Parse(time.RFC3339, cred.CreatedAt)
+			if err == nil {
+				health.Age = int(now.Sub(parsed).Hours() / 24)
+			}
 		}
 		if health.Age > 365 {
 			health.Issues = append(health.Issues, "Password older than 1 year")

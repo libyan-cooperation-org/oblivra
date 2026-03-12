@@ -46,8 +46,8 @@ func formatIPKey(ip string, ts time.Time, id int64) []byte {
 // InsertHostEvent records a new security anomaly.
 // Writes to Badger with a 30-day TTL (since events are archived or age out anyway).
 func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *database.HostEvent) error {
-	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now()
+	if event.Timestamp == "" {
+		event.Timestamp = time.Now().Format(time.RFC3339)
 	}
 
 	// We use UnixNano as a pseudo-ID since Badger is KV.
@@ -63,14 +63,16 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 	ttl := 30 * 24 * time.Hour
 
 	// 1. Primary write
-	primaryKey := formatEventKey(event.HostID, event.Timestamp, event.ID)
+	ts, _ := time.Parse(time.RFC3339, event.Timestamp)
+	primaryKey := formatEventKey(event.HostID, ts, event.ID)
 	if err := r.store.Put(primaryKey, data, ttl); err != nil {
 		return fmt.Errorf("failed to write primary event: %w", err)
 	}
 
 	// 2. Secondary index for IP lookups (useful for risk scoring)
 	if event.SourceIP != "" && event.SourceIP != "-" {
-		ipKey := formatIPKey(event.SourceIP, event.Timestamp, event.ID)
+	ts, _ := time.Parse(time.RFC3339, event.Timestamp)
+		ipKey := formatIPKey(event.SourceIP, ts, event.ID)
 		if err := r.store.Put(ipKey, data, ttl); err != nil {
 			return fmt.Errorf("failed to write IP index: %w", err)
 		}
@@ -85,7 +87,7 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 			"event_type": event.EventType,
 			"user":       event.User,
 			"output":     event.RawLog, // Maps to Bleve's text analyzer
-			"timestamp":  event.Timestamp.UnixNano(),
+			"timestamp":  ts.UnixNano(),
 		}
 		// We ignore error here so ingestion doesn't fail if Bleve is temporarily locked/busy
 		(*r.search).Index(docID, "siem_event", searchData)
@@ -139,7 +141,7 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 
 				// Timestamp is indexed as float64 by bleve
 				if tsFloat, ok := res.Data["timestamp"].(float64); ok {
-					e.Timestamp = time.Unix(0, int64(tsFloat))
+					e.Timestamp = time.Unix(0, int64(tsFloat)).Format(time.RFC3339)
 				}
 
 				events = append(events, e)
@@ -209,7 +211,7 @@ func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID
 			if agg[e.SourceIP][e.User] == nil {
 				agg[e.SourceIP][e.User] = &stats{
 					attempts:    0,
-					lastAttempt: e.Timestamp.Format(time.RFC3339),
+					lastAttempt: e.Timestamp,
 				}
 			}
 			s := agg[e.SourceIP][e.User]

@@ -33,7 +33,7 @@ const (
 // SnapshotMeta stores metadata about an encrypted snapshot.
 type SnapshotMeta struct {
 	ID         string    `json:"id"`
-	CreatedAt  time.Time `json:"created_at"`
+	CreatedAt  string    `json:"created_at"`
 	SizeBytes  int64     `json:"size_bytes"`
 	DataDir    string    `json:"data_dir"`
 	Encrypted  bool      `json:"encrypted"`
@@ -45,7 +45,7 @@ type SnapshotMeta struct {
 type ResilienceBundle struct {
 	BatchID   string    `json:"batch_id"`
 	SourceID  string    `json:"source_id"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 	Payload   []byte    `json:"payload"` // Encrypted zip contents
 	Signature []byte    `json:"signature"`
 }
@@ -258,7 +258,7 @@ func (s *DisasterService) ActivateKillSwitch(reason string) error {
 	s.bus.Publish("disaster:killswitch", map[string]interface{}{
 		"mode":   "read_only",
 		"reason": reason,
-		"time":   time.Now(),
+		"time":   time.Now().Format(time.RFC3339),
 	})
 	return nil
 }
@@ -283,7 +283,7 @@ func (s *DisasterService) TriggerNuclearDestruction() error {
 
 	// 1. Notify all services to purge immediately
 	s.bus.Publish("disaster:nuclear", map[string]interface{}{
-		"time": time.Now(),
+		"time": time.Now().Format(time.RFC3339),
 	})
 
 	// 2. Wipe the Vault

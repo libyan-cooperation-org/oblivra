@@ -99,7 +99,7 @@ func TestRuntimeTrustService_DriftPrediction(t *testing.T) {
 	s.history = append(s.history, TrustSnapshot{
 		Score:     100.0,
 		Pillars:   s.GetPillarScores(),
-		Timestamp: time.Now().Add(-1 * time.Hour),
+		Timestamp: time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
 	})
 	
 	// T=1h: Attestation State drops to UNTRUSTED (-20.0 pts)
@@ -107,7 +107,7 @@ func TestRuntimeTrustService_DriftPrediction(t *testing.T) {
 	s.history = append(s.history, TrustSnapshot{
 		Score:     80.0, // 100 - 20
 		Pillars:   s.GetPillarScores(),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	})
 	
 	metrics := s.GetTrustDriftMetrics()

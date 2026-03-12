@@ -56,7 +56,7 @@ func (s *SSHService) startSecurityAudit(ctx context.Context, sessionID string, h
 
 			event := &database.HostEvent{
 				HostID:    hostID,
-				Timestamp: time.Now(),
+				Timestamp: time.Now().Format(time.RFC3339),
 				EventType: "failed_login",
 				SourceIP:  ip,
 				User:      user,

@@ -1,6 +1,6 @@
 package database
 
-import "time"
+
 
 type Host struct {
 	ID              string     `json:"id"`
@@ -18,10 +18,10 @@ type Host struct {
 	Color           string     `json:"color"`
 	Notes           string     `json:"notes"`
 	IsFavorite      bool       `json:"is_favorite"`
-	LastConnectedAt *time.Time `json:"last_connected_at,omitempty"`
+	LastConnectedAt *string `json:"last_connected_at,omitempty"`
 	ConnectionCount int        `json:"connection_count"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
 }
 
 type Credential struct {
@@ -31,16 +31,16 @@ type Credential struct {
 	Type          string    `json:"type"`
 	EncryptedData []byte    `json:"-"`
 	Fingerprint   string    `json:"fingerprint"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 type Session struct {
 	ID              string     `json:"id"`
 	TenantID        string     `json:"tenant_id"`
 	HostID          string     `json:"host_id"`
-	StartedAt       time.Time  `json:"started_at"`
-	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	StartedAt       string  `json:"started_at"`
+	EndedAt         *string `json:"ended_at,omitempty"`
 	DurationSeconds int        `json:"duration_seconds"`
 	BytesSent       int64      `json:"bytes_sent"`
 	BytesReceived   int64      `json:"bytes_received"`
@@ -51,7 +51,7 @@ type Session struct {
 type AuditLog struct {
 	ID          int64     `json:"id"`
 	TenantID    string    `json:"tenant_id"`
-	Timestamp   time.Time `json:"timestamp"`
+	Timestamp   string `json:"timestamp"`
 	EventType   string    `json:"event_type"`
 	HostID      string    `json:"host_id,omitempty"`
 	SessionID   string    `json:"session_id,omitempty"`
@@ -70,8 +70,8 @@ type Snippet struct {
 	Tags        []string  `json:"tags"`
 	Variables   []string  `json:"variables"`
 	UseCount    int       `json:"use_count"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 type Tunnel struct {
@@ -83,14 +83,14 @@ type Tunnel struct {
 	RemoteHost  string    `json:"remote_host"`
 	RemotePort  int       `json:"remote_port"`
 	AutoConnect bool      `json:"auto_connect"`
-	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type HostEvent struct {
 	ID        int64     `json:"id"`
 	TenantID  string    `json:"tenant_id"`
 	HostID    string    `json:"host_id"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 	EventType string    `json:"event_type"` // e.g., "failed_login"
 	SourceIP  string    `json:"source_ip"`
 	Location  string    `json:"location"` // Enriched Geographic/DNS data
@@ -103,7 +103,7 @@ type SavedSearch struct {
 	TenantID  string    `json:"tenant_id"`
 	Name      string    `json:"name"`
 	Query     string    `json:"query"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt string `json:"created_at"`
 }
 
 type Incident struct {
@@ -115,8 +115,8 @@ type Incident struct {
 	Severity         string    `json:"severity"`
 	Description      string    `json:"description"`
 	Title            string    `json:"title"`
-	FirstSeenAt      time.Time `json:"first_seen_at"`
-	LastSeenAt       time.Time `json:"last_seen_at"`
+	FirstSeenAt      string `json:"first_seen_at"`
+	LastSeenAt       string `json:"last_seen_at"`
 	EventCount       int       `json:"event_count"`
 	Owner            string    `json:"owner,omitempty"`
 	MitreTactics     []string  `json:"mitre_tactics"`
@@ -127,7 +127,7 @@ type Incident struct {
 type ConfigChange struct {
 	ID        string    `json:"id"`
 	TenantID  string    `json:"tenant_id"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string `json:"timestamp"`
 	Category  string    `json:"category"` // "settings", "rules", "sources"
 	Key       string    `json:"key"`
 	OldValue  string    `json:"old_value,omitempty"`
@@ -146,9 +146,9 @@ type EvidenceItem struct {
 	SHA256      string            `json:"sha256"`
 	Size        int64             `json:"size"`
 	Collector   string            `json:"collector"`
-	CollectedAt time.Time         `json:"collected_at"`
+	CollectedAt string         `json:"collected_at"`
 	Sealed      bool              `json:"sealed"`
-	SealedAt    *time.Time        `json:"sealed_at,omitempty"`
+	SealedAt    *string        `json:"sealed_at,omitempty"`
 	Tags        []string          `json:"tags,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
@@ -159,7 +159,7 @@ type ChainEntry struct {
 	EvidenceID   string    `json:"evidence_id"`
 	Action       string    `json:"action"`
 	Actor        string    `json:"actor"`
-	Timestamp    time.Time `json:"timestamp"`
+	Timestamp    string `json:"timestamp"`
 	Notes        string    `json:"notes,omitempty"`
 	PreviousHash string    `json:"previous_hash"`
 	EntryHash    string    `json:"entry_hash"`

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // EvidenceRepository handles persistence for forensic evidence and chain-of-custody.
@@ -229,7 +230,8 @@ func (r *EvidenceRepository) scanEvidence(row *sql.Row) (*EvidenceItem, error) {
 	}
 
 	if sealedAt.Valid {
-		item.SealedAt = &sealedAt.Time
+		t := sealedAt.Time.Format(time.RFC3339)
+		item.SealedAt = &t
 	}
 	if tagsJSON.Valid {
 		json.Unmarshal([]byte(tagsJSON.String), &item.Tags)
@@ -256,7 +258,8 @@ func (r *EvidenceRepository) scanEvidenceRows(rows *sql.Rows) (*EvidenceItem, er
 	}
 
 	if sealedAt.Valid {
-		item.SealedAt = &sealedAt.Time
+		t := sealedAt.Time.Format(time.RFC3339)
+		item.SealedAt = &t
 	}
 	if tagsJSON.Valid {
 		json.Unmarshal([]byte(tagsJSON.String), &item.Tags)

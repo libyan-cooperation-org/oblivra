@@ -191,7 +191,7 @@ func (p *Pipeline) indexEvent(evt ParsedEvent) {
 		if p.siem != nil {
 			hostEvent := &database.HostEvent{
 				HostID:    evt.Host,
-				Timestamp: evt.Timestamp,
+				Timestamp: evt.Timestamp.Format(time.RFC3339),
 				EventType: evt.EventType,
 				SourceIP:  evt.SourceIP,
 				User:      evt.User,

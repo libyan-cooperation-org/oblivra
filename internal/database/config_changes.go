@@ -18,8 +18,8 @@ func (d *Database) RecordChange(ctx context.Context, change *ConfigChange) error
 	if change.ID == "" {
 		change.ID = fmt.Sprintf("cfg-%d", time.Now().UnixNano())
 	}
-	if change.Timestamp.IsZero() {
-		change.Timestamp = time.Now()
+	if change.Timestamp == "" {
+		change.Timestamp = time.Now().Format(time.RFC3339)
 	}
 
 	query := `

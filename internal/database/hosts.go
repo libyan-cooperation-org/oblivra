@@ -32,7 +32,7 @@ func (r *HostRepository) Create(ctx context.Context, host *Host) error {
 		return fmt.Errorf("marshal tags: %w", err)
 	}
 
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	host.CreatedAt = now
 	host.UpdatedAt = now
 	host.TenantID = TenantFromContext(ctx)
@@ -225,7 +225,7 @@ func (r *HostRepository) Update(ctx context.Context, host *Host) error {
 		return fmt.Errorf("marshal tags: %w", err)
 	}
 
-	host.UpdatedAt = time.Now()
+	host.UpdatedAt = time.Now().Format(time.RFC3339)
 	host.TenantID = TenantFromContext(ctx)
 
 	// Security: Encrypt password if vault is available and unlocked
@@ -293,7 +293,7 @@ func (r *HostRepository) ToggleFavorite(ctx context.Context, id string) (bool, e
 	newStatus := !current
 	_, err = r.db.ReplicatedExecContext(ctx,
 		"UPDATE hosts SET is_favorite = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
-		newStatus, time.Now(), id, tenantID,
+		newStatus, time.Now().Format(time.RFC3339), id, tenantID,
 	)
 	if err != nil {
 		return false, fmt.Errorf("toggle favorite: %w", err)
@@ -313,7 +313,7 @@ func (r *HostRepository) RecordConnection(ctx context.Context, id string) error 
 			connection_count = connection_count + 1,
 			updated_at = ?
 		WHERE id = ? AND tenant_id = ?`,
-		time.Now(), time.Now(), id, tenantID,
+		time.Now().Format(time.RFC3339), time.Now().Format(time.RFC3339), id, tenantID,
 	)
 	return err
 }
@@ -383,7 +383,8 @@ func (r *HostRepository) scanHost(row *sql.Row) (*Host, error) {
 	}
 
 	if lastConnected.Valid {
-		host.LastConnectedAt = &lastConnected.Time
+		t := lastConnected.Time.Format(time.RFC3339)
+		host.LastConnectedAt = &t
 	}
 
 	json.Unmarshal([]byte(tagsJSON), &host.Tags)
@@ -423,7 +424,8 @@ func (r *HostRepository) scanHostRows(rows *sql.Rows) (*Host, error) {
 	}
 
 	if lastConnected.Valid {
-		host.LastConnectedAt = &lastConnected.Time
+		t := lastConnected.Time.Format(time.RFC3339)
+		host.LastConnectedAt = &t
 	}
 
 	json.Unmarshal([]byte(tagsJSON), &host.Tags)

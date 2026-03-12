@@ -29,7 +29,7 @@ func (r *SessionRepository) Create(ctx context.Context, session *Session) error 
 func (r *SessionRepository) End(ctx context.Context, id string, status string, bytesSent, bytesReceived int64) error {
 	tenantID := TenantFromContext(ctx)
 
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE sessions SET
 			ended_at = ?,
@@ -81,7 +81,8 @@ func (r *SessionRepository) GetRecent(ctx context.Context, limit int) ([]Session
 		}
 
 		if endedAt.Valid {
-			s.EndedAt = &endedAt.Time
+			t := endedAt.Time.Format(time.RFC3339)
+			s.EndedAt = &t
 		}
 
 		sessions = append(sessions, s)
@@ -124,7 +125,8 @@ func (r *SessionRepository) GetByHostID(ctx context.Context, hostID string, limi
 		}
 
 		if endedAt.Valid {
-			s.EndedAt = &endedAt.Time
+			t := endedAt.Time.Format(time.RFC3339)
+			s.EndedAt = &t
 		}
 
 		sessions = append(sessions, s)

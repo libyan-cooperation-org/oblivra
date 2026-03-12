@@ -93,12 +93,12 @@ func (s *AlertingService) Startup(ctx context.Context) {
 				Severity:    "high", // Could scale based on score
 				Description: msg,
 				Title:       fmt.Sprintf("Heuristic Security Alert: Host %s", hostID),
-				FirstSeenAt: time.Now(),
+				FirstSeenAt: time.Now().Format(time.RFC3339),
 				EventCount:  0,
 			}
 		}
 
-		incident.LastSeenAt = time.Now()
+		incident.LastSeenAt = time.Now().Format(time.RFC3339)
 		incident.EventCount++
 
 		if err := s.incidents.Upsert(s.ctx, incident); err != nil {
@@ -130,6 +130,7 @@ func (s *AlertingService) Startup(ctx context.Context) {
 			}
 
 			// Run event through the YAML detection state machine
+			ts, _ := time.Parse(time.RFC3339, evt.Timestamp)
 			detEvt := detection.Event{
 				EventType: evt.EventType,
 				SourceIP:  evt.SourceIP,
@@ -137,7 +138,7 @@ func (s *AlertingService) Startup(ctx context.Context) {
 				HostID:    evt.HostID,
 				RawLog:    evt.RawLog,
 				Location:  evt.Location,
-				Timestamp: evt.Timestamp,
+				Timestamp: ts,
 			}
 			matches := s.evaluator.ProcessEvent(detEvt)
 			for _, match := range matches {
@@ -166,14 +167,14 @@ func (s *AlertingService) Startup(ctx context.Context) {
 						Severity:        match.Severity,
 						Description:     match.Description,
 						Title:           fmt.Sprintf("Detection Alert: %s (Entity: %s)", match.RuleName, groupKey),
-						FirstSeenAt:     time.Now(),
+						FirstSeenAt:     time.Now().Format(time.RFC3339),
 						EventCount:      0,
 						MitreTactics:    match.MitreTactics,
 						MitreTechniques: match.MitreTechniques,
 					}
 				}
 
-				incident.LastSeenAt = time.Now()
+				incident.LastSeenAt = time.Now().Format(time.RFC3339)
 				incident.EventCount++
 
 				if err := s.incidents.Upsert(s.ctx, incident); err != nil {

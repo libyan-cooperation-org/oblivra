@@ -22,8 +22,8 @@ type RetentionPolicy struct {
 
 // LifecycleStats holds metrics from the last purge cycle
 type LifecycleStats struct {
-	LastRunAt        time.Time        `json:"last_run_at"`
-	NextRunAt        time.Time        `json:"next_run_at"`
+	LastRunAt        string           `json:"last_run_at"`
+	NextRunAt        string           `json:"next_run_at"`
 	CategoriesPurged map[string]int64 `json:"categories_purged"`
 	TotalRowsPurged  int64            `json:"total_rows_purged"`
 	LegalHoldActive  bool             `json:"legal_hold_active"`
@@ -146,8 +146,8 @@ func (s *DataLifecycleService) executePurgeCycle() {
 
 	s.mu.Lock()
 	s.stats = LifecycleStats{
-		LastRunAt:        start,
-		NextRunAt:        start.Add(6 * time.Hour),
+		LastRunAt:        start.Format(time.RFC3339),
+		NextRunAt:        start.Add(6 * time.Hour).Format(time.RFC3339),
 		CategoriesPurged: categoriesPurged,
 		TotalRowsPurged:  totalPurged,
 		LegalHoldActive:  s.legalHold,

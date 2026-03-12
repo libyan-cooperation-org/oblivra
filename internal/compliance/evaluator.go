@@ -76,7 +76,7 @@ type ControlResult struct {
 type PackResult struct {
 	PackID         string          `json:"pack_id"`
 	PackName       string          `json:"pack_name"`
-	EvaluatedAt    time.Time       `json:"evaluated_at"`
+	EvaluatedAt    string          `json:"evaluated_at"`
 	TotalControls  int             `json:"total_controls"`
 	PassedControls int             `json:"passed_controls"`
 	FailedControls int             `json:"failed_controls"`
@@ -158,7 +158,7 @@ func (e *Evaluator) Evaluate(packID string, state SystemState) (*PackResult, err
 	result := &PackResult{
 		PackID:      pack.ID,
 		PackName:    pack.Name,
-		EvaluatedAt: time.Now(),
+		EvaluatedAt: time.Now().Format(time.RFC3339),
 	}
 
 	for _, ctrl := range pack.Controls {

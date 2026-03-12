@@ -15,7 +15,7 @@ type TailEvent struct {
 	SessionID string    `json:"session_id"`
 	HostLabel string    `json:"host_label"`
 	Data      string    `json:"data"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp string    `json:"timestamp"`
 }
 
 // TailingService aggregates output from multiple SSH sessions for a unified feed
@@ -69,7 +69,7 @@ func (s *TailingService) RegisterOutput(sessionID, hostLabel, data string) {
 		SessionID: sessionID,
 		HostLabel: hostLabel,
 		Data:      data,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
 	if s.onEvent != nil {

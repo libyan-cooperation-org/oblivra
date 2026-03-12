@@ -291,7 +291,7 @@ func (s *LocalService) ListDirectory(ctxID string, path string) ([]FileInfo, err
 		}
 		result = append(result, FileInfo{
 			Name: e.Name(), Size: info.Size(), Mode: info.Mode().String(),
-			ModTime: info.ModTime(), IsDir: e.IsDir(),
+			ModTime: info.ModTime().Format(time.RFC3339), IsDir: e.IsDir(),
 		})
 	}
 	return result, nil

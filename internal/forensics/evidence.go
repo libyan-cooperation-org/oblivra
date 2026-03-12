@@ -40,7 +40,7 @@ const (
 type ChainEntry struct {
 	Action       CustodyAction `json:"action"`
 	Actor        string        `json:"actor"`
-	Timestamp    time.Time     `json:"timestamp"`
+	Timestamp    string `json:"timestamp"`
 	Notes        string        `json:"notes,omitempty"`
 	PreviousHash string        `json:"previous_hash"` // HMAC of the prior entry
 	EntryHash    string        `json:"entry_hash"`    // HMAC of this entry
@@ -56,9 +56,9 @@ type EvidenceItem struct {
 	SHA256         string            `json:"sha256"`
 	Size           int64             `json:"size"`
 	Collector      string            `json:"collector"`
-	CollectedAt    time.Time         `json:"collected_at"`
+	CollectedAt    string         `json:"collected_at"`
 	Sealed         bool              `json:"sealed"`
-	SealedAt       *time.Time        `json:"sealed_at,omitempty"`
+	SealedAt       *string        `json:"sealed_at,omitempty"`
 	ChainOfCustody []ChainEntry      `json:"chain_of_custody"`
 	Tags           []string          `json:"tags,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
@@ -104,7 +104,7 @@ func (l *EvidenceLocker) Collect(
 		SHA256:      sha256Hex,
 		Size:        int64(len(data)),
 		Collector:   collector,
-		CollectedAt: time.Now(),
+		CollectedAt: time.Now().Format(time.RFC3339),
 		Metadata:    make(map[string]string),
 		Data:        data,
 	}
@@ -113,7 +113,7 @@ func (l *EvidenceLocker) Collect(
 	entry := ChainEntry{
 		Action:       ActionCollected,
 		Actor:        collector,
-		Timestamp:    time.Now(),
+		Timestamp:    time.Now().Format(time.RFC3339),
 		Notes:        notes,
 		PreviousHash: "", // First entry has no previous
 	}
@@ -157,7 +157,7 @@ func (l *EvidenceLocker) Seal(itemID string, sealer string, notes string) error 
 		return fmt.Errorf("evidence %s is already sealed", itemID)
 	}
 
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	item.Sealed = true
 	item.SealedAt = &now
 
@@ -316,7 +316,7 @@ func (l *EvidenceLocker) appendChainEntry(itemID string, action CustodyAction, a
 	entry := ChainEntry{
 		Action:       action,
 		Actor:        actor,
-		Timestamp:    time.Now(),
+		Timestamp:    time.Now().Format(time.RFC3339),
 		Notes:        notes,
 		PreviousHash: lastHash,
 	}
@@ -337,7 +337,7 @@ func (l *EvidenceLocker) signEntry(entry ChainEntry) string {
 	payload := fmt.Sprintf("%s|%s|%s|%s|%s",
 		entry.Action,
 		entry.Actor,
-		entry.Timestamp.UTC().Format(time.RFC3339Nano),
+		entry.Timestamp,
 		entry.Notes,
 		entry.PreviousHash,
 	)

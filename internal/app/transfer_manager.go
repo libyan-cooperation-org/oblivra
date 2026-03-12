@@ -55,7 +55,7 @@ func (m *TransferManager) SftpDownloadAsync(sessionID, remotePath, localPath str
 		Filename:   filepath.Base(remotePath),
 		TotalBytes: fileSize,
 		Status:     StatusQueued,
-		StartedAt:  time.Now(),
+		StartedAt:  time.Now().Format(time.RFC3339),
 		cancelFn:   cancel,
 		ctx:        ctx,
 	}
@@ -90,7 +90,7 @@ func (m *TransferManager) SftpUploadAsync(sessionID, localPath, remotePath strin
 		Filename:   filepath.Base(localPath),
 		TotalBytes: stat.Size(),
 		Status:     StatusQueued,
-		StartedAt:  time.Now(),
+		StartedAt:  time.Now().Format(time.RFC3339),
 		cancelFn:   cancel,
 		ctx:        ctx,
 	}
@@ -266,8 +266,8 @@ func (m *TransferManager) updateJobStatus(id string, status TransferStatus, err 
 	}
 
 	if status == StatusCompleted || status == StatusFailed || status == StatusCancelled {
-		now := time.Now()
-		job.CompletedAt = &now
+		nowStr := time.Now().Format(time.RFC3339)
+		job.CompletedAt = &nowStr
 	}
 
 	m.bus.Publish("sftp_transfer_update", *job)

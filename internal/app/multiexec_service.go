@@ -146,7 +146,7 @@ func (s *MultiExecService) Execute(command string, hostIDs []string, timeoutSeco
 		Command:   command,
 		HostIDs:   hostIDs,
 		Results:   results,
-		StartedAt: time.Now(),
+		StartedAt: time.Now().Format(time.RFC3339),
 		Status:    "running",
 	}
 
@@ -206,9 +206,9 @@ func (s *MultiExecService) executeAll(job *MultiExecJob, command string, timeout
 	wg.Wait()
 
 	// Determine final status
-	now := time.Now()
+	nowStr := time.Now().Format(time.RFC3339)
 	job.mu.Lock()
-	job.EndedAt = &now
+	job.EndedAt = &nowStr
 	job.mu.Unlock()
 
 	hasError := false
@@ -361,7 +361,9 @@ func (s *MultiExecService) GetRecentJobs(limit int) []*MultiExecJob {
 	// Sort by started_at desc
 	for i := 0; i < len(jobs)-1; i++ {
 		for j := i + 1; j < len(jobs); j++ {
-			if jobs[j].StartedAt.After(jobs[i].StartedAt) {
+			ts_i, _ := time.Parse(time.RFC3339, jobs[i].StartedAt)
+			ts_j, _ := time.Parse(time.RFC3339, jobs[j].StartedAt)
+			if ts_j.After(ts_i) {
 				jobs[i], jobs[j] = jobs[j], jobs[i]
 			}
 		}

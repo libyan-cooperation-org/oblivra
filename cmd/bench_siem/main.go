@@ -71,7 +71,7 @@ func main() {
 
 		evt := &database.HostEvent{
 			HostID:    hostID,
-			Timestamp: time.Now().Add(-time.Duration(i) * time.Minute),
+			Timestamp: time.Now().Add(-time.Duration(i) * time.Minute).Format(time.RFC3339),
 			EventType: evtType,
 			SourceIP:  fmt.Sprintf("192.168.1.%d", i%255),
 			User:      "root",

@@ -93,7 +93,7 @@ func (r *SnippetRepository) Get(ctx context.Context, id string) (Snippet, error)
 func (r *SnippetRepository) Create(ctx context.Context, s *Snippet) error {
 	tagsJSON, _ := json.Marshal(s.Tags)
 	variablesJSON, _ := json.Marshal(s.Variables)
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	s.CreatedAt = now
 	s.UpdatedAt = now
 	s.TenantID = TenantFromContext(ctx)
@@ -114,7 +114,7 @@ func (r *SnippetRepository) Update(ctx context.Context, s *Snippet) error {
 
 	tagsJSON, _ := json.Marshal(s.Tags)
 	variablesJSON, _ := json.Marshal(s.Variables)
-	now := time.Now()
+	now := time.Now().Format(time.RFC3339)
 	s.UpdatedAt = now
 	tenantID := TenantFromContext(ctx)
 

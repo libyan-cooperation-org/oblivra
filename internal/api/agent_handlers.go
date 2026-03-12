@@ -91,7 +91,7 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 				EventType: ev.Type,
 				SourceIP:  ev.Source,
 				RawLog:    rawLog,
-				Timestamp: ev.Timestamp,
+				Timestamp: ev.Timestamp.Format(time.RFC3339),
 			}
 			if err := s.siem.InsertHostEvent(ctx, hostEvent); err != nil {
 				s.log.Warn("[Agent] Failed to insert event from %s: %v", ev.Host, err)
