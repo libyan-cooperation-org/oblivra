@@ -11,8 +11,10 @@ type SecureBytes struct {
 
 // NewSecureBytes creates a new secure byte slice
 func NewSecureBytes(size int) *SecureBytes {
+	data := make([]byte, size)
+	_ = secureLock(data) // Best effort locking
 	sb := &SecureBytes{
-		data: make([]byte, size),
+		data: data,
 	}
 	runtime.SetFinalizer(sb, func(s *SecureBytes) {
 		s.Release()
@@ -26,17 +28,20 @@ func (s *SecureBytes) Release() {
 		return
 	}
 	s.Zero()
+	_ = secureUnlock(s.data)
 	s.data = nil
 }
 
 // NewSecureBytesFromSlice creates a SecureBytes from existing data
 func NewSecureBytesFromSlice(data []byte) *SecureBytes {
+	newData := make([]byte, len(data))
+	copy(newData, data)
+	_ = secureLock(newData)
 	sb := &SecureBytes{
-		data: make([]byte, len(data)),
+		data: newData,
 	}
-	copy(sb.data, data)
 	runtime.SetFinalizer(sb, func(s *SecureBytes) {
-		s.Zero()
+		s.Release()
 	})
 	return sb
 }

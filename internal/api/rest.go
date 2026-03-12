@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/security"
 )
 
 // RESTServer exposes backend capabilities to external clients (headless mode)
@@ -31,6 +33,7 @@ type RESTServer struct {
 	bus      *eventbus.Bus
 	log      *logger.Logger
 	attest   *attestation.AttestationService
+	certManager *security.CertificateManager
 	agents   map[string]*AgentInfo // registered agent fleet
 	limiter  *rate.Limiter
 	upgrader websocket.Upgrader
@@ -59,7 +62,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, bus *eventbus.Bus, log *logger.Logger) *RESTServer {
+func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger) *RESTServer {
 	s := &RESTServer{
 		port:     port,
 		siem:     siem,
@@ -68,6 +71,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		bus:      bus,
 		log:      log,
 		attest:   attest,
+		certManager: certManager,
 		agents:   make(map[string]*AgentInfo),
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
 		maxWS:    100,                               // Max 100 concurrent websocket listeners
@@ -146,13 +150,27 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 // Start spawns the HTTP listener in the background
 func (s *RESTServer) Start() {
 	s.log.Info("[REST] Starting headless API server on port %d", s.port)
-	go func() {
-		// Attempt TLS if certificates are provisioned in the user data dir
-		certPath := "cert.pem" // Hardcoded stub for phase 2 setup
-		keyPath := "key.pem"
+	
+	if s.certManager != nil {
+		// Initial load
+		if err := s.certManager.Load(); err != nil {
+			s.log.Warn("[REST] Initial TLS certificate load failed: %v", err)
+		}
+		
+		s.server.TLSConfig = &tls.Config{
+			GetCertificate: s.certManager.GetCertificate,
+			MinVersion:     tls.VersionTLS12,
+		}
+	}
 
-		// SECURITY: Remove silent HTTP fallback. Fail hard if TLS is requested but unavailable.
-		err := s.server.ListenAndServeTLS(certPath, keyPath)
+	go func() {
+		// If certManager is missing, fail hard.
+		if s.certManager == nil {
+			s.log.Error("[REST] TLS Certificate Manager NOT configured. Headless API is NOT running.")
+			return
+		}
+
+		err := s.server.ListenAndServeTLS("", "") // cert/key provided by GetCertificate
 		if err != nil && err != http.ErrServerClosed {
 			s.log.Error("[REST] TLS server failed: %v. Headless API is NOT running.", err)
 		}

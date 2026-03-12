@@ -129,7 +129,7 @@ func (s *IngestService) GetMetrics() map[string]interface{} {
 }
 
 // QueueEvent submits an event directly into the ingestion pipeline
-func (s *IngestService) QueueEvent(evt ingest.ParsedEvent) error {
+func (s *IngestService) QueueEvent(evt *ingest.SovereignEvent) error {
 	if s.pipeline == nil {
 		return fmt.Errorf("pipeline not initialized")
 	}

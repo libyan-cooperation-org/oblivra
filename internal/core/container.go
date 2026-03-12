@@ -31,6 +31,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/services"
 	"github.com/kingknull/oblivrashell/internal/simulation"
 	"github.com/kingknull/oblivrashell/internal/storage"
+	"github.com/kingknull/oblivrashell/internal/team"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	uebapkg "github.com/kingknull/oblivrashell/internal/ueba"
@@ -207,6 +208,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 	c.SIEM.SourceManager = logsources.NewSourceManager(c.Log)
 	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
 	c.SIEM.AgentService = services.NewAgentService(nil, c.Log)
+	c.SIEM.TailingService = services.NewTailingService(c.Infra.Bus, c.Log)
 
 	return nil
 }
@@ -262,6 +264,7 @@ func (c *Container) initProduct() error {
 	complianceEval, _ := compliance.NewEvaluator()
 	c.Product.ComplianceService = services.NewComplianceService(complianceGen, complianceEval, c.Infra.Bus, c.Log, c.Infra.Vault, c.Security.IdentityService, nil)
 	c.Product.TailingService = services.NewTailingService(c.Infra.Bus, c.Log)
+	c.Product.TeamService = services.NewTeamService(team.NewTeamVault("Org Vault"), c.Infra.Bus, c.Log)
 
 	return nil
 }
@@ -279,6 +282,10 @@ func (c *Container) initPlatform() error {
 	c.Platform.SyntheticService = services.NewSyntheticService(nil, c.Log)
 	c.Platform.BroadcastService = services.NewBroadcastService(nil, c.Log)
 	c.Platform.ResourceMonitor = services.NewResourceMonitor(c.Log, 1024) // 1GB limit before pressure signaling
+	c.Platform.ObservabilityService = services.NewObservabilityService(c.Infra.Bus, c.Infra.MetricsCollector, c.Infra.HotStore, c.Log)
+	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
+	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
+	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
 
 	return nil
 }
@@ -324,6 +331,7 @@ func (c *Container) registerServices() {
 	c.Registry.Register(c.Product.RecordingService)
 	c.Registry.Register(c.Product.ComplianceService)
 	c.Registry.Register(c.Product.TailingService)
+	c.Registry.Register(c.Product.TeamService)
 	
 	// Platform
 	c.Registry.Register(c.Platform.HealthService)

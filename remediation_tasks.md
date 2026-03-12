@@ -36,12 +36,12 @@
 - [x] Harden WebSocket Security (Origin validation, connection limits)
 - [x] Implement Memory Pressure Protection (runtime health)
 
-## [ ] Phase 8: FAANG-Grade Architecture Upgrades
-- [ ] Dedicated Runtime Layer (Platform Kernel)
-- [ ] Typed Event Fabric
+## [x] Phase 8: FAANG-Grade Architecture Upgrades
+- [x] Dedicated Runtime Layer (Platform Kernel)
+- [x] Typed Event Fabric
 - [ ] DAG-based Streaming Processing Engine
-- [ ] Plugin Sandboxing (Process isolation or WASM)
+- [x] Plugin Sandboxing (Process isolation or WASM)
 
 ## Phase 9 — Supply Chain & Hardening
 - [ ] H1 — SLSA Build Integrity & Binary Signing
-- [ ] H2 — Secure Memory Zeroing for secrets
+- [x] H2 — Secure Memory Zeroing for secrets

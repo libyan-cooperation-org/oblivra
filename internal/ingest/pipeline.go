@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
@@ -14,6 +15,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -26,7 +28,7 @@ var (
 
 // Pipeline manages the buffering, crash-protection, and routing of incoming log streams.
 type Pipeline struct {
-	buffer    chan ParsedEvent
+	buffer    chan *SovereignEvent
 	wal       *storage.WAL
 	analytics *analytics.AnalyticsEngine
 	siem      database.SIEMStore
@@ -37,24 +39,24 @@ type Pipeline struct {
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 	metrics   Metrics
-	mu        sync.RWMutex
 	once      sync.Once
+	wasm      *wasm.PluginManager
 }
 
 // Metrics tracks the real-time throughput of the pipeline
 type Metrics struct {
-	EventsPerSecond int64
-	TotalProcessed  int64
+	EventsPerSecond atomic.Int64
+	TotalProcessed  atomic.Int64
 	BufferUsage     int
 	BufferCapacity  int
-	DroppedEvents   int64
+	DroppedEvents   atomic.Int64
 }
 
 // NewPipeline creates a new high-throughput event pipeline.
 func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine, siem database.SIEMStore, bus *eventbus.Bus, log *logger.Logger, temporal *temporal.IntegrityService) *Pipeline {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pipeline{
-		buffer:    make(chan ParsedEvent, bufferSize),
+		buffer:    make(chan *SovereignEvent, bufferSize),
 		wal:       wal,
 		analytics: ae,
 		siem:      siem,
@@ -66,6 +68,15 @@ func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine
 	}
 
 	p.metrics.BufferCapacity = bufferSize
+
+	// Initialize WASM engine
+	wasmPM, err := wasm.NewPluginManager(ctx)
+	if err != nil {
+		log.Error("[INGEST] Failed to initialize WASM engine: %v", err)
+	} else {
+		p.wasm = wasmPM
+	}
+
 	return p
 }
 
@@ -77,7 +88,7 @@ func (p *Pipeline) Start() {
 	p.log.Info("[INGEST] Starting high-throughput pipeline (Buffer: %d)", p.metrics.BufferCapacity)
 
 	// synchronous replay before accepting new events
-	if err := p.Replay(); err != nil {
+	if err := p.Replay(p.ctx); err != nil {
 		p.log.Error("[INGEST] WAL Replay failed: %v", err)
 	}
 
@@ -110,6 +121,12 @@ func (p *Pipeline) Shutdown() {
 				p.log.Error("[INGEST] Failed to close WAL: %v", err)
 			}
 		}
+
+		if p.wasm != nil {
+			if err := p.wasm.Close(context.Background()); err != nil {
+				p.log.Error("[INGEST] Failed to close WASM engine: %v", err)
+			}
+		}
 		p.log.Info("[INGEST] Pipeline shutdown complete")
 	})
 }
@@ -120,28 +137,36 @@ func (p *Pipeline) Stop() {
 	p.Shutdown()
 }
 
-// QueueEvent pushes a ParsedEvent into the pipeline. Applies backpressure if full.
-func (p *Pipeline) QueueEvent(evt ParsedEvent) error {
+// QueueEvent pushes a SovereignEvent into the pipeline. Applies backpressure if full.
+func (p *Pipeline) QueueEvent(evt *SovereignEvent) error {
 	select {
 	case p.buffer <- evt:
 		return nil
 	default:
 		// Buffer is full. Signal backpressure to the caller.
-		p.mu.Lock()
-		p.metrics.DroppedEvents++
-		p.mu.Unlock()
+		p.metrics.DroppedEvents.Add(1)
 		return ErrBufferFull
 	}
 }
 
-// GetMetrics returns a snapshot of current ingestion throughput
-func (p *Pipeline) GetMetrics() Metrics {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+// MetricsSnapshot is for frontend binding
+type MetricsSnapshot struct {
+	EventsPerSecond int64 `json:"events_per_second"`
+	TotalProcessed  int64 `json:"total_processed"`
+	BufferUsage     int   `json:"buffer_usage"`
+	BufferCapacity  int   `json:"buffer_capacity"`
+	DroppedEvents   int64 `json:"dropped_events"`
+}
 
-	m := p.metrics
-	m.BufferUsage = len(p.buffer)
-	return m
+// GetMetrics returns a snapshot of current ingestion throughput
+func (p *Pipeline) GetMetrics() MetricsSnapshot {
+	return MetricsSnapshot{
+		EventsPerSecond: p.metrics.EventsPerSecond.Load(),
+		TotalProcessed:  p.metrics.TotalProcessed.Load(),
+		BufferUsage:     len(p.buffer),
+		BufferCapacity:  p.metrics.BufferCapacity,
+		DroppedEvents:   p.metrics.DroppedEvents.Load(),
+	}
 }
 
 // worker reads from the channel, writes to the WAL, and routes to storage tiers.
@@ -181,10 +206,7 @@ func (p *Pipeline) worker() {
 			
 			span.End()
 
-			p.mu.Lock()
-			p.metrics.TotalProcessed++
-			total := p.metrics.TotalProcessed
-			p.mu.Unlock()
+			total := p.metrics.TotalProcessed.Add(1)
 
 			// Periodic WAL Checkpoint every 5,000 events to prevent indefinite log growth
 			if total > 0 && total%5000 == 0 {
@@ -199,7 +221,7 @@ func (p *Pipeline) worker() {
 	}
 }
 
-func (p *Pipeline) processEvent(ctx context.Context, evt ParsedEvent) {
+func (p *Pipeline) processEvent(ctx context.Context, evt *SovereignEvent) {
 	_, span := tracer.Start(ctx, "pipeline.WALWrite")
 	// 1. Durability: Write to WAL (Assuming raw string matches what parser used)
 	if p.wal != nil {
@@ -211,12 +233,30 @@ func (p *Pipeline) processEvent(ctx context.Context, evt ParsedEvent) {
 	if p.temporal != nil {
 		p.temporal.ValidateTimestamp(evt.Host, parseTime(evt.Timestamp))
 	}
+
+	// 2. Sandboxing: Execute WASM plugins if available
+	if p.wasm != nil {
+		dropped := false
+		wasmCtx := wasm.WithEvent(ctx, evt.RawLine, &dropped)
+		
+		if err := p.wasm.ExecuteAll(wasmCtx); err != nil {
+			p.log.Error("[INGEST] WASM plugin execution error: %v", err)
+		}
+		
+		if dropped {
+			p.metrics.DroppedEvents.Add(1)
+			span.AddEvent("event_dropped_by_wasm")
+			span.SetAttributes(attribute.Bool("dropped", true))
+			span.End()
+			return
+		}
+	}
 	span.End()
 
 	p.indexEvent(ctx, evt)
 }
 
-func (p *Pipeline) indexEvent(ctx context.Context, evt ParsedEvent) {
+func (p *Pipeline) indexEvent(ctx context.Context, evt *SovereignEvent) {
 	ctx, span := tracer.Start(ctx, "pipeline.indexEvent")
 	defer span.End()
 
@@ -228,7 +268,7 @@ func (p *Pipeline) indexEvent(ctx context.Context, evt ParsedEvent) {
 				HostID:    evt.Host,
 				Timestamp: evt.Timestamp,
 				EventType: evt.EventType,
-				SourceIP:  evt.SourceIP,
+				SourceIP:  evt.SourceIp,
 				User:      evt.User,
 				RawLog:    evt.RawLine,
 			}
@@ -247,7 +287,7 @@ func (p *Pipeline) indexEvent(ctx context.Context, evt ParsedEvent) {
 		// Standard terminal / system log -> AnalyticsEngine (SQLite + Bleve Dual-Write)
 		if p.analytics != nil {
 			// Ingest handles the batching automatically
-			sessionID := evt.SessionID
+			sessionID := evt.SessionId
 			if sessionID == "" {
 				sessionID = "syslog"
 			}
@@ -257,15 +297,20 @@ func (p *Pipeline) indexEvent(ctx context.Context, evt ParsedEvent) {
 }
 
 // Replay reads trapped events from the WAL and indexes them.
-func (p *Pipeline) Replay() error {
+func (p *Pipeline) Replay(ctx context.Context) error {
 	if p.wal == nil {
 		return nil
 	}
 
 	err := p.wal.Replay(func(payload []byte) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		raw := string(payload)
 		evt := AutoParse(raw)
-		p.indexEvent(context.Background(), evt)
+		p.indexEvent(ctx, evt)
 		return nil
 	})
 
@@ -295,11 +340,9 @@ func (p *Pipeline) metricCollector() {
 		case <-p.ctx.Done():
 			return
 		case <-ticker.C:
-			p.mu.Lock()
-			current := p.metrics.TotalProcessed
-			p.metrics.EventsPerSecond = current - lastProcessed
+			current := p.metrics.TotalProcessed.Load()
+			p.metrics.EventsPerSecond.Store(current - lastProcessed)
 			lastProcessed = current
-			p.mu.Unlock()
 		}
 	}
 }
@@ -310,7 +353,7 @@ func (p *Pipeline) Bus() *eventbus.Bus {
 }
 
 // isSecurityAnomaly contains very basic heuristics to route failed logins and sudo actions to the SIEM tier.
-func isSecurityAnomaly(evt ParsedEvent) bool {
+func isSecurityAnomaly(evt *SovereignEvent) bool {
 	// Let all advanced parsed types flow into the SIEM directly
 	if strings.HasPrefix(evt.EventType, "windows_") ||
 		strings.HasPrefix(evt.EventType, "linux_") ||

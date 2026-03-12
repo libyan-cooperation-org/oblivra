@@ -11,6 +11,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/security"
 )
 
 // APIService manages the standalone REST API server lifecycle.
@@ -49,7 +50,10 @@ func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	var am *auth.APIKeyMiddleware
 	am = auth.NewAPIKeyMiddleware(validKeys, log)
 
-	server := api.NewRESTServer(port, siem, pipeline, attest, am, bus, log)
+	// PRR Fix: Dynamic TLS loading
+	cm := security.NewCertificateManager("cert.pem", "key.pem", log)
+
+	server := api.NewRESTServer(port, siem, pipeline, attest, am, bus, cm, log)
 
 	return &APIService{
 		server: server,

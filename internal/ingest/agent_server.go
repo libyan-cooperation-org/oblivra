@@ -288,15 +288,15 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			version = "v1"
 		}
 
-		ingestEv := ParsedEvent{
+		ingestEv := &SovereignEvent{
 			Timestamp: ev.Timestamp,
 			Host:      ev.Host,
-			SourceIP:  r.RemoteAddr,
+			SourceIp:  r.RemoteAddr,
 			EventType: ev.Type,
 			User:      user,
-			SessionID: "agent-" + ev.Source,
+			SessionId: "agent-" + ev.Source,
 			RawLine:   string(rawBytes),
-			Version:   version,
+			Version:   1, // SovereignEvent uses int32 version
 			Ctx:       ctx,
 		}
 

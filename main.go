@@ -127,6 +127,7 @@ func main() {
 			application.SyntheticService,
 			application.IdentityService,
 			application.ObservabilityService,
+			application.DataLifecycleService,
 			application.TransferManager,
 			application.NetworkIsolatorService,
 			application.LedgerService,

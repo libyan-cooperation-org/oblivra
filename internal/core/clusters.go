@@ -120,6 +120,7 @@ type ProductCluster struct {
 	ShareManager      *sharing.ShareManager
 	NotesManager      *notes.NotesManager
 	WorkspaceManager  *workspace.WorkspaceManager
+	TeamService       *services.TeamService
 	SnippetRepo       database.SnippetStore
 }
 

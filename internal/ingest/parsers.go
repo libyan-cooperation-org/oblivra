@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -13,30 +12,17 @@ import (
 
 var advancedRegistry = parsers.NewRegistry()
 
-// ParsedEvent represents a normalized log event ready for storage and indexing.
-type ParsedEvent struct {
-	Timestamp string
-	Host      string
-	SourceIP  string
-	EventType string
-	User      string
-	SessionID string
-	RawLine   string
-	Version   string
-	Ctx       context.Context // Tracing context
-}
-
 // ParseMethod defines the signature for a log parsing strategy.
-type ParseMethod func(raw string) (ParsedEvent, error)
+type ParseMethod func(raw string) (*SovereignEvent, error)
 
 // ParseSyslog splits a standard RFC-3164 or RFC-5424 header and extracts the payload.
-func ParseSyslog(raw string) (ParsedEvent, error) {
+func ParseSyslog(raw string) (*SovereignEvent, error) {
 	// A highly simplified syslog parser for Phase 1.
 	// In reality, syslog RFC parsing is complex, but often looks like:
 	// <165>1 2003-10-11T22:14:15.003Z mymachine.example.com su - ID47 - 'su root' failed for lonvick...
 	// OR: <34>Oct 11 22:14:15 mymachine su: 'su root' failed...
 
-	evt := ParsedEvent{
+	evt := &SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 		Host:      "unknown",
@@ -67,7 +53,7 @@ func ParseSyslog(raw string) (ParsedEvent, error) {
 		ipPart := raw[idx+5:]
 		spaceIdx := strings.Index(ipPart, " ")
 		if spaceIdx != -1 {
-			evt.SourceIP = ipPart[:spaceIdx]
+			evt.SourceIp = ipPart[:spaceIdx]
 		}
 	}
 
@@ -75,8 +61,8 @@ func ParseSyslog(raw string) (ParsedEvent, error) {
 }
 
 // ParseJSON handles beautifully structured logs like Zeek or Suricata.
-func ParseJSON(raw string) (ParsedEvent, error) {
-	evt := ParsedEvent{
+func ParseJSON(raw string) (*SovereignEvent, error) {
+	evt := &SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 	}
@@ -97,9 +83,9 @@ func ParseJSON(raw string) (ParsedEvent, error) {
 	}
 
 	if srcIP, ok := data["src_ip"].(string); ok {
-		evt.SourceIP = srcIP
+		evt.SourceIp = srcIP
 	} else if srcIP, ok := data["source_ip"].(string); ok {
-		evt.SourceIP = srcIP
+		evt.SourceIp = srcIP
 	}
 
 	if evtType, ok := data["event_type"].(string); ok {
@@ -126,9 +112,9 @@ func ParseJSON(raw string) (ParsedEvent, error) {
 }
 
 // ParseCEF handles Common Event Format (ArcSight / Palo Alto)
-func ParseCEF(raw string) (ParsedEvent, error) {
+func ParseCEF(raw string) (*SovereignEvent, error) {
 	// CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension
-	evt := ParsedEvent{
+	evt := &SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 		EventType: "cef",
@@ -152,7 +138,7 @@ func ParseCEF(raw string) (ParsedEvent, error) {
 			if len(p) == 2 {
 				switch p[0] {
 				case "src":
-					evt.SourceIP = p[1]
+					evt.SourceIp = p[1]
 				case "duser", "suser":
 					evt.User = p[1]
 				case "shost", "dhost":
@@ -168,9 +154,9 @@ func ParseCEF(raw string) (ParsedEvent, error) {
 }
 
 // ParseLEEF handles Log Event Extended Format (IBM QRadar)
-func ParseLEEF(raw string) (ParsedEvent, error) {
+func ParseLEEF(raw string) (*SovereignEvent, error) {
 	// LEEF:Version|Vendor|Product|Version|EventID|Extension (Tab separated usually)
-	evt := ParsedEvent{
+	evt := &SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   raw,
 		EventType: "leef",
@@ -194,7 +180,7 @@ func ParseLEEF(raw string) (ParsedEvent, error) {
 			if len(p) == 2 {
 				switch p[0] {
 				case "src", "srcIP", "SourceIP":
-					evt.SourceIP = p[1]
+					evt.SourceIp = p[1]
 				case "usrName", "username", "identSrc":
 					evt.User = p[1]
 				case "identHostName", "host":
@@ -210,7 +196,7 @@ func ParseLEEF(raw string) (ParsedEvent, error) {
 }
 
 // AutoParse attempts multiple techniques until one succeeds, prioritizing structured.
-func AutoParse(raw string) ParsedEvent {
+func AutoParse(raw string) *SovereignEvent {
 	rawTrimmed := strings.TrimSpace(raw)
 
 	if strings.HasPrefix(rawTrimmed, "{") {
@@ -235,11 +221,11 @@ func AutoParse(raw string) ParsedEvent {
 	hEvt := &database.HostEvent{}
 	info := parsers.Info{RawLine: rawTrimmed}
 	if advancedRegistry.Process(info, hEvt) {
-		return ParsedEvent{
+		return &SovereignEvent{
 			Timestamp: time.Now().Format(time.RFC3339),
 			RawLine:   rawTrimmed,
 			EventType: hEvt.EventType,
-			SourceIP:  hEvt.SourceIP,
+			SourceIp:  hEvt.SourceIP,
 			User:      hEvt.User,
 		}
 	}

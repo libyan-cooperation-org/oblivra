@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package ingest;
+
+option go_package = "github.com/kingknull/oblivrashell/internal/ingest";
+
+message SovereignEvent {
+    string id = 1;
+    string timestamp = 2; // RFC3339
+    string host = 3;
+    string event_type = 4; // e.g., linux_syslog, windows_event, network_flow
+    string source_ip = 5;
+    string user = 6;
+    string session_id = 7;
+    string raw_line = 8;
+    int32 version = 9;
+
+    // Flexible metadata for custom fields without schema lock-in
+    map<string, string> metadata = 10;
+
+    // Integrity hash (Agent-side signature)
+    string signature = 11;
+}
+
+message IngestRequest {
+    repeated SovereignEvent events = 1;
+}
+
+message IngestResponse {
+    bool success = 1;
+    string message = 2;
+    int32 processed_count = 3;
+}

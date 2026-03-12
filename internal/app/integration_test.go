@@ -73,11 +73,11 @@ func TestFullFlow(t *testing.T) {
 
 	// 3. Test Detection Layer (SIEM Ingestion)
 	t.Run("SIEM_Ingestion_and_Search", func(t *testing.T) {
-		evt := ingest.ParsedEvent{
+		evt := &ingest.SovereignEvent{
 			Host:      "test-host-1",
 			Timestamp: time.Now().Format(time.RFC3339),
 			EventType: "failed_login",
-			SourceIP:  "10.0.0.1",
+			SourceIp:  "10.0.0.1",
 			User:      "admin",
 			RawLine:   "Failed password for admin from 10.0.0.1 port 22 ssh2 (INTEGRATION_TEST)",
 		}
@@ -134,11 +134,11 @@ func TestFullFlow(t *testing.T) {
 		ips := []string{"192.168.1.101", "192.168.1.102", "192.168.1.103", "192.168.1.104", "192.168.1.105"}
 		for _, ip := range ips {
 			for i := 0; i < 10; i++ {
-				evt := ingest.ParsedEvent{
+				evt := &ingest.SovereignEvent{
 					Host:      "test-host-alert",
 					Timestamp: time.Now().Format(time.RFC3339),
 					EventType: "failed_login",
-					SourceIP:  ip,
+					SourceIp:  ip,
 					User:      "user" + strconv.Itoa(i),
 					RawLine:   "Brute force attempt from " + ip,
 				}
@@ -149,11 +149,11 @@ func TestFullFlow(t *testing.T) {
 
 		// Add root attempts
 		for i := 0; i < 10; i++ {
-			evt := ingest.ParsedEvent{
+			evt := &ingest.SovereignEvent{
 				Host:      "test-host-alert",
 				Timestamp: time.Now().Format(time.RFC3339),
 				EventType: "failed_login",
-				SourceIP:  "192.168.1.106",
+				SourceIp:  "192.168.1.106",
 				User:      "root",
 				RawLine:   "Root target attempt",
 			}
