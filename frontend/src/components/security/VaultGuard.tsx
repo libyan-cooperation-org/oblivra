@@ -1,5 +1,6 @@
 import { Component, createSignal, onMount, JSX, Show } from 'solid-js';
 import { IsSetup, IsUnlocked } from '../../../wailsjs/go/app/VaultService';
+import { useApp } from '../../core/store';
 import { VaultSetup } from './VaultSetup';
 import { VaultUnlock } from './VaultUnlock';
 import '../../styles/vault-gate.css';
@@ -9,29 +10,32 @@ interface VaultGuardProps {
 }
 
 export const VaultGuard: Component<VaultGuardProps> = (props) => {
-    const [setup, setSetup] = createSignal<boolean | null>(null);
-    const [unlocked, setUnlocked] = createSignal(false);
+    const [state, actions] = useApp();
+    const [setup, setSetup] = createSignal<boolean>(true);
 
     const checkState = async () => {
-        const isSetup = await IsSetup();
-        const isUnlocked = await IsUnlocked();
-        setSetup(isSetup);
-        setUnlocked(isUnlocked);
+        try {
+            const [isSetup, isUnlocked] = await Promise.all([IsSetup(), IsUnlocked()]);
+            setSetup(isSetup);
+            actions.setVaultUnlocked(isUnlocked);
+        } catch (_) {}
     };
 
-    onMount(() => {
-        checkState();
-    });
+    onMount(() => { checkState(); });
 
     return (
-        <Show when={setup() !== null} fallback={<div class="loading-screen"><div class="spinner" /></div>}>
-            <Show when={unlocked()} fallback={
-                <Show when={setup()} fallback={<VaultSetup onComplete={checkState} />}>
+        <Show
+            when={state.vaultUnlocked}
+            fallback={
+                <Show
+                    when={setup()}
+                    fallback={<VaultSetup onComplete={checkState} />}
+                >
                     <VaultUnlock onUnlock={checkState} />
                 </Show>
-            }>
-                {props.children}
-            </Show>
+            }
+        >
+            {props.children}
         </Show>
     );
 };

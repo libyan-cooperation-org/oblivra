@@ -7,7 +7,7 @@
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-03-11** (CREDIBILITY RESET - Technical Integrity Hardening)
+> **Last audited: 2026-03-12** (SOVEREIGN TACTICAL VALIDATION - Frontend & SIEM Integrity)
 
 ### Development Rules ⚠️
 
@@ -201,7 +201,7 @@
 - [x] Author 50+ YAML detection rules covering MITRE ATT&CK (52 rules across all 12 tactics, 45+ techniques)
 - [x] Build MITRE ATT&CK technique mapper (`internal/detection/mitre.go` — 45 techniques, 12 tactics)
 - [x] Implement **correlation engine** (`internal/detection/correlation.go` — 7 builtin cross-source rules, LRU state, dedup, wired into SIEMService)
-- [v] Build **MITRE ATT&CK heatmap** (`MitreHeatmap.tsx`)
+- [x] Build **MITRE ATT&CK heatmap** (`MitreHeatmap.tsx`)
 - [s] Recruit 10 design partners (Current: 0 recruited, pilot agreement pending)
 - [v] Validate: <5% false positives, 30+ ATT&CK techniques
 
@@ -241,8 +241,8 @@
 - [x] GDPR compliance pack
 - [x] Additional compliance packs (HIPAA + SOC2 Type II)
 - [x] PDF/HTML reporting engine (enhance `internal/compliance/report.go`)
-- [v] Forensics service Wails integration (`internal/app/forensics_service.go`)
-- [v] Compliance evaluator engine (`internal/compliance/evaluator.go`)
+- [x] Forensics service Wails integration (`internal/app/forensics_service.go`)
+- [x] Compliance evaluator engine (`internal/compliance/evaluator.go`)
 - [s] Validate: external audit pass (Current: Self-audited only)
 
 
@@ -413,22 +413,6 @@
 - [v] Identity Threat Detection & Response (EMA behavior tracking) [v]
 - [v] Threat hunting interface (`ThreatHunter.tsx`)
 
-## Phase 11: NDR [x]
-- [v] NetFlow/IPFIX collector
-- [v] DNS log analysis engine
-- [v] TLS metadata extraction (JA3)
-- [v] NDR Network Map (`NetworkMap.tsx`)
-- [x] LateralMovementEngine (`internal/ndr/lateral_movement.go` — multi-hop RFC-1918 correlation, MITRE T1021/T1210, risk scoring)
-
-## Phase 12: Enterprise [/]
-- [v] Multi-tenancy with data partitioning
-- [v] HA clustering (Raft consensus)
-- [v] OIDC/SAML/RBAC Identity Integration
-- [v] Data lifecycle management
-- [v] Executive dashboards (`ExecutiveDashboard.tsx`)
-- [v] Credential Vault UI
-- [x] Resource usage dashboard (`SelfMonitor.tsx`)
-- [x] Validate: real-time scoring in ingestion pipeline
 
 ---
 

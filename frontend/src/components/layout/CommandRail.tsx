@@ -3,10 +3,20 @@ import { useApp, AppState } from '@core/store';
 import { useNavigate } from '@solidjs/router';
 import { usePanelManager, cascadePos } from './PanelManager';
 
+// ── Lazy panel loader (proper component so signals have a reactive owner) ──────
+const LazyPanel: Component<{ importFn: () => Promise<any> }> = (props) => {
+    const [Comp, setComp] = createSignal<any>(null);
+    props.importFn()
+        .then(m => setComp(() => m.default ?? Object.values(m)[0]))
+        .catch(err => console.error('[CommandRail] lazy import failed:', err));
+    return <Show when={Comp()}>{(C) => <C />}</Show>;
+};
+
 type NavTab = AppState['activeNavTab'] | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay' | 'soc'
     | 'agents' | 'ueba' | 'threat-hunter' | 'ndr' | 'purple-team' | 'graph'
     | 'war-mode' | 'forensics' | 'identity' | 'response' | 'ransomware' | 'credentials'
-    | 'executive' | 'simulation' | 'data-destruction' | 'risk' | 'governance' | 'features';
+    | 'executive' | 'simulation' | 'data-destruction' | 'risk' | 'governance' | 'features'
+    | 'recordings' | 'snippets' | 'notes' | 'sync' | 'tunnels' | 'ai-assistant' | 'mitre-heatmap';
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const Icons = {
@@ -44,13 +54,15 @@ const Icons = {
     Identity:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2M15 12h2"/><path d="M7 16h10"/></svg>,
     Response:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
     Executive:  () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>,
+    AI:         () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 12L2.69 7.11"/><path d="M12 12l4.89 8.69"/></svg>,
+    Mitre:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>,
 };
 
 // ── Route map ─────────────────────────────────────────────────────────────────
 const routeMap: Record<string, string> = {
     dashboard:  '/dashboard',
     siem:       '/siem',
-    alerts:     '/siem',
+    alerts:     '/alerts',
     topology:   '/topology',
     health:     '/monitoring',
     terminal:   '/terminal',
@@ -58,7 +70,6 @@ const routeMap: Record<string, string> = {
     agents:     '/agents',
     ops:        '/ops',
     soc:        '/soc',
-    tunnels:    '/terminal',
     response:   '/response',
     ueba:           '/ueba',
     'threat-hunter':'/threat-hunter',
@@ -82,6 +93,13 @@ const routeMap: Record<string, string> = {
     plugins:    '/plugins',
     executive:  '/executive',
     settings:   '/workspace',
+    recordings: '/recordings',
+    snippets:   '/snippets',
+    notes:      '/notes',
+    sync:       '/sync',
+    tunnels:    '/tunnels',
+    'ai-assistant': '/ai-assistant',
+    'mitre-heatmap': '/mitre-heatmap',
 };
 
 type PrimaryItem = { id: NavTab; icon: () => any; label: string; badge?: () => number; urgent?: boolean };
@@ -196,7 +214,8 @@ export const CommandRail: Component = () => {
         // SYSTEM
         executive:       () => import('../../pages/ExecutiveDashboard'),
         plugins:         () => import('../plugins/PluginPanel'),
-        settings:        () => import('../workspace/WorkspacePanel'),
+        settings:        () => import('../settings/SettingsManager'),
+        workspaces:      () => import('../workspace/WorkspacePanel'),
         // AUDIT
         temporal:        () => import('../../pages/TemporalIntegrity'),
         lineage:         () => import('../../pages/LineageExplorer'),
@@ -215,16 +234,11 @@ export const CommandRail: Component = () => {
             title: label,
             defaultPos: cascadePos({ x: 100, y: 80 }),
             defaultSize: { w: 1100, h: 700 },
+            // Wrap in a proper component so createSignal has a reactive owner
             content: importFn
-                ? () => {
-                    const [C, setC] = createSignal<any>(null);
-                    importFn()
-                        .then(m => setC(() => m.default ?? Object.values(m)[0]))
-                        .catch(() => {});
-                    return <Show when={C()}>{(X) => <X />}</Show>;
-                }
+                ? () => <LazyPanel importFn={importFn} />
                 : () => (
-                    <div style={"padding:20px;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:1px"}>
+                    <div style="padding:20px;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:1px">
                         {label}
                     </div>
                 ),
@@ -239,16 +253,22 @@ export const CommandRail: Component = () => {
         { id: 'alerts',    icon: Icons.Alerts,    label: 'Alerts',
           badge: () => state.notifications.filter((n: any) => n.type === 'error').length,
           urgent: true },
+        { id: 'recordings',icon: Icons.Recordings,label: 'Recs' },
         { id: 'topology',  icon: Icons.Topology,  label: 'Net' },
+        { id: 'mitre-heatmap', icon: Icons.Mitre, label: 'Mitre' },
         { id: 'health',    icon: Icons.Health,    label: 'Health' },
     ];
 
     const operate: PrimaryItem[] = [
         { id: 'terminal',  icon: Icons.Terminal,  label: 'Shell' },
+        { id: 'tunnels',   icon: Icons.Tunnels,   label: 'Tunnels' },
         { id: 'hosts',     icon: Icons.Hosts,     label: 'Hosts' },
         { id: 'agents',    icon: Icons.Agents,    label: 'Agents' },
         { id: 'ops',       icon: Icons.Ops,       label: 'Ops' },
         { id: 'soc',       icon: Icons.SOC,       label: 'SOC' },
+        { id: 'snippets',  icon: Icons.Snippets,  label: 'Snips' },
+        { id: 'notes',     icon: Icons.Notes,     label: 'Notes' },
+        { id: 'ai-assistant', icon: Icons.AI,     label: 'AI Shell' },
         { id: 'response',  icon: Icons.Response,  label: 'SOAR' },
     ];
 
@@ -272,6 +292,7 @@ export const CommandRail: Component = () => {
     const system: PrimaryItem[] = [
         { id: 'executive', icon: Icons.Executive, label: 'Exec' },
         { id: 'plugins',   icon: Icons.Plugins,   label: 'Plugins' },
+        { id: 'sync',      icon: Icons.Sync,      label: 'Sync' },
         { id: 'settings',  icon: Icons.Settings,  label: 'Config' },
     ];
 

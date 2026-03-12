@@ -274,8 +274,8 @@ func (s *RuntimeTrustService) trackDrift() {
 	}
 }
 
-// CalculateDriftMetrics returns the current trend, predicting failure if dropping.
-func (s *RuntimeTrustService) CalculateDriftMetrics() TrustDriftMetrics {
+// GetTrustDriftMetrics returns the current trend, predicting failure if dropping.
+func (s *RuntimeTrustService) GetTrustDriftMetrics() TrustDriftMetrics {
 	s.historyMu.RLock()
 	defer s.historyMu.RUnlock()
 	return s.calculateDriftMetricsLocked()

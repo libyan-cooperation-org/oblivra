@@ -1,100 +1,114 @@
-import { Component, For, createSignal, createResource, onMount } from 'solid-js';
+import { Component, For, Show, createSignal, createResource, onMount } from 'solid-js';
 import { SearchHostEvents } from '../../../../wailsjs/go/app/SIEMService';
 
 export const LogSearchPanel: Component = () => {
-    const [query, setQuery] = createSignal("*");
+    const [query, setQuery] = createSignal('*');
     const [logs, { refetch }] = createResource(query, async (q) => {
         try {
-            // Wails binding for SearchHostEvents(query, limit)
-            const data = await SearchHostEvents(q || "*", 100);
-            return data.map((log: any) => ({
+            const data = await SearchHostEvents(q || '*', 100);
+            return (data || []).map((log: any) => ({
                 time: log.Timestamp ? new Date(log.Timestamp).toLocaleTimeString() : 'N/A',
                 src: log.Source || log.RemoteAddr || 'Local',
                 dst: log.Destination || 'Internal',
                 proto: log.Protocol || 'TCP',
-                msg: log.Message || log.Content || 'No message content'
+                msg: log.Message || log.Content || '—',
             }));
         } catch (e) {
-            console.error("SIEM Search Failed:", e);
+            console.error('SIEM Search Failed:', e);
             return [];
         }
     });
 
-    onMount(() => {
-        refetch();
+    onMount(() => refetch());
+
+    const cell: (extra?: Record<string, string>) => Record<string, string> = (extra = {}) => ({
+        padding: '5px 8px',
+        'border-right': '1px solid var(--border-primary)',
+        'white-space': 'nowrap',
+        ...extra,
     });
 
     return (
-        <div class="h-full flex flex-col bg-black text-gray-300 font-mono text-[11px]">
-            {/* Query Bar */}
-            <div class="p-2 bg-gray-900 border-b border-gray-800 flex gap-2">
-                <div class="relative flex-1">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-green-800 text-[10px] font-bold">SQL{'>'}</span>
+        <div style={{ display: 'flex', 'flex-direction': 'column', height: '100%', background: 'var(--surface-0)', 'font-family': 'var(--font-mono)', 'font-size': '11px' }}>
+            {/* Query bar */}
+            <div style={{ padding: '6px 8px', background: 'var(--surface-1)', 'border-bottom': '1px solid var(--border-primary)', display: 'flex', gap: '6px', 'flex-shrink': 0 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                    <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--status-online)', 'font-size': '9px', 'font-weight': 800 }}>SQL›</span>
                     <input
                         value={query()}
                         onInput={(e) => setQuery(e.currentTarget.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && refetch()}
-                        class="w-full bg-black border border-gray-700 pl-10 pr-3 py-1 outline-none text-green-500 focus:border-green-800 transition-colors"
-                        placeholder="SELECT * FROM siem.events..."
+                        onKeyDown={(e) => e.key === 'Enter' && refetch()}
+                        placeholder="SELECT * FROM siem.events WHERE severity > 50…"
+                        style={{
+                            width: '100%', background: 'var(--surface-0)', border: '1px solid var(--border-primary)',
+                            'border-radius': '3px', padding: '5px 8px 5px 40px', color: 'var(--status-online)',
+                            'font-family': 'var(--font-mono)', 'font-size': '11px', outline: 'none',
+                            'box-sizing': 'border-box',
+                        }}
                     />
                 </div>
                 <button
                     onClick={() => refetch()}
-                    class="px-4 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all active:scale-95 disabled:opacity-50"
                     disabled={logs.loading}
+                    style={{
+                        background: logs.loading ? 'var(--surface-2)' : 'var(--accent-primary)',
+                        border: 'none', 'border-radius': '3px', padding: '5px 14px', cursor: 'pointer',
+                        color: '#000', 'font-family': 'var(--font-mono)', 'font-size': '10px', 'font-weight': 800,
+                        'text-transform': 'uppercase', 'flex-shrink': 0,
+                    }}
                 >
-                    {logs.loading ? '...' : 'EXECUTE'}
+                    {logs.loading ? '…' : 'EXEC'}
                 </button>
             </div>
 
-            <div class="flex-1 overflow-auto bg-[#050505] relative">
-                {logs.loading && (
-                    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm z-10 flex items-center justify-center">
-                        <span class="text-blue-500 animate-pulse font-bold tracking-[0.2em] text-[10px]">INDEX_SCAN_IN_PROGRESS</span>
+            {/* Table */}
+            <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+                <Show when={logs.loading}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', 'align-items': 'center', 'justify-content': 'center', 'z-index': 10, 'backdrop-filter': 'blur(2px)' }}>
+                        <span style={{ color: 'var(--accent-primary)', 'font-weight': 800, 'letter-spacing': '3px', 'font-size': '10px' }}>INDEX SCAN…</span>
                     </div>
-                )}
+                </Show>
 
-                <table class="w-full text-left border-collapse">
-                    <thead class="sticky top-0 bg-gray-900 text-gray-500 text-[10px] uppercase border-b border-gray-800 z-20">
-                        <tr>
-                            <th class="p-2 font-bold whitespace-nowrap border-r border-gray-800 w-24">TIMESTAMP</th>
-                            <th class="p-2 font-bold whitespace-nowrap border-r border-gray-800 w-32">SOURCE</th>
-                            <th class="p-2 font-bold whitespace-nowrap border-r border-gray-800 w-32">DESTINATION</th>
-                            <th class="p-2 font-bold whitespace-nowrap border-r border-gray-800 w-16">PROTO</th>
-                            <th class="p-2 font-bold">MESSAGE</th>
+                <table style={{ width: '100%', 'border-collapse': 'collapse', 'font-size': '10px' }}>
+                    <thead>
+                        <tr style={{ background: 'var(--surface-1)', position: 'sticky', top: 0, 'z-index': 5, 'border-bottom': '1px solid var(--border-primary)' }}>
+                            <th style={{ ...cell(), color: 'var(--text-muted)', 'font-weight': 800, 'text-transform': 'uppercase', 'font-size': '9px', 'letter-spacing': '0.5px', width: '72px' }}>TIME</th>
+                            <th style={{ ...cell(), color: 'var(--text-muted)', 'font-weight': 800, 'text-transform': 'uppercase', 'font-size': '9px', width: '110px' }}>SOURCE</th>
+                            <th style={{ ...cell(), color: 'var(--text-muted)', 'font-weight': 800, 'text-transform': 'uppercase', 'font-size': '9px', width: '110px' }}>DEST</th>
+                            <th style={{ ...cell(), color: 'var(--text-muted)', 'font-weight': 800, 'text-transform': 'uppercase', 'font-size': '9px', width: '50px' }}>PROTO</th>
+                            <th style={{ ...cell({ 'border-right': 'none' }), color: 'var(--text-muted)', 'font-weight': 800, 'text-transform': 'uppercase', 'font-size': '9px' }}>MESSAGE</th>
                         </tr>
                     </thead>
                     <tbody>
                         <For each={logs() || []}>
                             {(log) => (
-                                <tr class="border-b border-gray-900 hover:bg-blue-900/5 transition-colors group">
-                                    <td class="p-2 text-gray-600 whitespace-nowrap border-r border-gray-900">{log.time}</td>
-                                    <td class="p-2 text-blue-400 font-bold whitespace-nowrap border-r border-gray-900">{log.src}</td>
-                                    <td class="p-2 text-green-400 font-bold whitespace-nowrap border-r border-gray-900">{log.dst}</td>
-                                    <td class="p-2 text-orange-400/70 whitespace-nowrap border-r border-gray-900 text-[10px]">{log.proto}</td>
-                                    <td class="p-2 group-hover:text-white transition-colors truncate max-w-0" title={log.msg}>{log.msg}</td>
+                                <tr style={{ 'border-bottom': '1px solid var(--border-primary)' }}>
+                                    <td style={{ ...cell(), color: 'var(--text-muted)' }}>{log.time}</td>
+                                    <td style={{ ...cell(), color: 'var(--accent-primary)', 'font-weight': 700 }}>{log.src}</td>
+                                    <td style={{ ...cell(), color: 'var(--status-online)', 'font-weight': 700 }}>{log.dst}</td>
+                                    <td style={{ ...cell(), color: 'var(--alert-medium)', opacity: '0.8' }}>{log.proto}</td>
+                                    <td style={{ ...cell({ 'border-right': 'none', overflow: 'hidden', 'text-overflow': 'ellipsis', 'max-width': 0, color: 'var(--text-secondary)' })} title={log.msg}>{log.msg}</td>
                                 </tr>
                             )}
                         </For>
                     </tbody>
                 </table>
 
-                {(!logs() || logs()?.length === 0) && !logs.loading && (
-                    <div class="h-32 flex items-center justify-center opacity-20 italic text-[10px]">
-                        NO EVENTS MATCHING CRITERIA
+                <Show when={!logs.loading && (!logs() || logs()!.length === 0)}>
+                    <div style={{ padding: '40px', 'text-align': 'center', opacity: '0.25', 'font-style': 'italic', 'font-size': '10px', 'text-transform': 'uppercase' }}>
+                        No events matching criteria
                     </div>
-                )}
+                </Show>
             </div>
 
-            <div class="p-1 px-3 bg-gray-900 border-t border-gray-800 flex items-center justify-between text-[9px] text-gray-500 uppercase">
-                <div class="flex gap-4">
-                    <span>HITS: <span class="text-gray-300">{logs()?.length || 0}</span></span>
-                    <span>LATENCY: <span class="text-gray-300">42ms</span></span>
-                    <span>SHARDS: <span class="text-gray-300">01/01</span></span>
+            {/* Footer */}
+            <div style={{ padding: '4px 12px', background: 'var(--surface-1)', 'border-top': '1px solid var(--border-primary)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'flex-shrink': 0 }}>
+                <div style={{ display: 'flex', gap: '16px', 'font-size': '9px', color: 'var(--text-muted)', 'text-transform': 'uppercase' }}>
+                    <span>HITS: <span style={{ color: 'var(--text-secondary)' }}>{logs()?.length ?? 0}</span></span>
+                    <span>SHARDS: <span style={{ color: 'var(--text-secondary)' }}>01/01</span></span>
                 </div>
-                <div class="flex gap-3">
-                    <span class="text-blue-500 hover:text-white cursor-pointer transition-colors" onClick={() => refetch()}>REFRESH</span>
-                    <span class="text-blue-500 hover:text-white cursor-pointer transition-colors">EXPORT</span>
+                <div style={{ display: 'flex', gap: '12px', 'font-size': '9px' }}>
+                    <button onClick={() => refetch()} style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', 'font-family': 'var(--font-mono)', 'font-weight': 800, 'text-transform': 'uppercase' }}>↻ REFRESH</button>
                 </div>
             </div>
         </div>

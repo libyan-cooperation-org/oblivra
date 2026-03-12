@@ -16,4 +16,5 @@ type Provider interface {
 	IsTPMBound() bool
 	GetPassword(id string) ([]byte, error)
 	GetPrivateKey(id string) ([]byte, string, error)
+	NuclearDestruction() error
 }

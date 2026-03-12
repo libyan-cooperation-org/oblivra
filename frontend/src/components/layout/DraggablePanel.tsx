@@ -194,9 +194,10 @@ export const DraggablePanel: Component<DraggablePanelProps> = (props) => {
             detail: { id: props.id, w: size().w, h: size().h },
         }));
     };
+    // Only dispatch after mount — skip the initial reactive run on first render
     createEffect(() => {
         size(); // track signal
-        dispatchResizeEvent();
+        if (mounted()) dispatchResizeEvent();
     });
 
     // ── Maximise / restore ────────────────────────────────────────────────────

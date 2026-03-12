@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount, For, Show } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
 
 export const QuickSwitcher: Component = () => {
@@ -45,7 +45,7 @@ export const QuickSwitcher: Component = () => {
             }
         };
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
     });
 
     return (

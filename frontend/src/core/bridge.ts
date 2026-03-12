@@ -6,14 +6,14 @@ const eventListeners: Map<string, EventCallback[]> = new Map();
 
 export async function initBridge(): Promise<void> {
     if (typeof window === 'undefined') throw new Error('Window not available');
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         let attempts = 0;
         const check = () => {
             if ((window as any)['runtime']) {
                 resolve();
             } else if (attempts > 40) {
                 console.warn("Wails runtime not found. Are you running outside of Wails?");
-                resolve();
+                reject(new Error("Wails runtime missing. App must be run via 'wails dev' or native executable."));
             } else {
                 attempts++;
                 setTimeout(check, 50);

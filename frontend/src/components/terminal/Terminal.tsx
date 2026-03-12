@@ -82,7 +82,8 @@ export const TerminalView: Component<TerminalProps> = (props) => {
         });
 
         // Listen for output from backend (base64 encoded)
-        EventsOn(`terminal - output - ${props.sessionId}`, (data: string) => {
+        // Backend emits: terminal-output-{sessionId} (hyphens, no spaces)
+        EventsOn(`terminal-output-${props.sessionId}`, (data: string) => {
             if (terminal && typeof data === 'string') {
                 try {
                     const binaryString = atob(data);
@@ -140,7 +141,7 @@ export const TerminalView: Component<TerminalProps> = (props) => {
 
     onCleanup(() => {
         if (props.sessionId) {
-            EventsOff(`terminal - output - ${props.sessionId}`);
+            EventsOff(`terminal-output-${props.sessionId}`);
             EventsOff(`session.output.${props.sessionId}`);
         }
         resizeObserver?.disconnect();

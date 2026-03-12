@@ -1,97 +1,99 @@
-import { Component, For, createResource, onMount } from 'solid-js';
-import { GetAggregatedStatus } from '../../../../wailsjs/go/app/RuntimeTrustService';
-import { GetTrustDriftMetrics } from '../../../../wailsjs/go/app/App';
+import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
+import { GetAggregatedStatus, GetTrustDriftMetrics } from '../../../../wailsjs/go/app/RuntimeTrustService';
+
+const statusColor = (s: string) => {
+    if (s === 'TRUSTED')   return 'var(--status-online)';
+    if (s === 'WARNING')   return 'var(--alert-medium)';
+    if (s === 'UNTRUSTED') return 'var(--alert-critical)';
+    return 'var(--text-muted)';
+};
+
+const indexColor = (n: number) => n > 90 ? 'var(--status-online)' : n > 70 ? 'var(--alert-medium)' : 'var(--alert-critical)';
 
 export const HardwareTrustPanel: Component = () => {
     const [trustData, { refetch }] = createResource(async () => {
         try {
-            const status = await GetAggregatedStatus();
-            const metrics = await GetTrustDriftMetrics();
-            return { status, index: metrics.current_score, metrics };
+            const [status, metrics] = await Promise.all([
+                GetAggregatedStatus(),
+                GetTrustDriftMetrics(),
+            ]);
+            return { status: status || [], index: metrics?.current_score ?? 0, metrics };
         } catch (e) {
-            console.error("Failed to fetch trust status:", e);
+            console.error('Failed to fetch trust status:', e);
             return { status: [], index: 0, metrics: null };
         }
     });
 
     onMount(() => {
         const interval = setInterval(refetch, 30000);
-        return () => clearInterval(interval);
+        onCleanup(() => clearInterval(interval));
     });
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'TRUSTED': return 'text-green-500';
-            case 'WARNING': return 'text-yellow-500';
-            case 'UNTRUSTED': return 'text-red-500';
-            default: return 'text-gray-500';
-        }
-    };
-
-    const getIndexColor = (index: number) => {
-        if (index > 90) return 'text-green-500';
-        if (index > 70) return 'text-yellow-500';
-        return 'text-red-500';
-    };
+    const idx = () => trustData()?.index ?? 0;
+    const metrics = () => trustData()?.metrics;
 
     return (
-        <div class="h-full flex flex-col bg-surface-0 font-mono text-[11px] overflow-hidden">
-            <div class="p-3 border-b border-border-primary flex justify-between items-center bg-surface-1 px-4">
-                <span class="text-text-muted font-bold tracking-widest uppercase">Platform Integrity</span>
-                <div class="flex items-center gap-4">
-                    {trustData()?.metrics && (
-                        <div class={`flex flex-col items-end ${trustData()!.metrics.is_bleeding ? 'animate-pulse text-red-500' : 'text-text-muted opacity-80'}`}>
-                            <span class="text-[8px] tracking-widest uppercase font-bold">Trend: {trustData()!.metrics.velocity_per_hour > 0 ? '+' : ''}{trustData()!.metrics.velocity_per_hour.toFixed(2)}/hr</span>
-                            {trustData()!.metrics.is_bleeding && (
-                                <span class="text-[9px] font-black uppercase tracking-tighter text-red-400">ETTF: {trustData()!.metrics.estimated_failure_time}</span>
-                            )}
-                        </div>
-                    )}
-                    <div class="flex items-center gap-2">
-                        <span class="text-[9px] text-text-muted opacity-60 uppercase">Trust Index:</span>
-                        <span class={`font-black text-sm ${getIndexColor(trustData()?.index || 0)}`}>
-                            {trustData()?.index ? trustData()!.index.toFixed(1) : '0.0'}%
+        <div style={{ display: 'flex', 'flex-direction': 'column', height: '100%', background: 'var(--surface-0)', 'font-family': 'var(--font-mono)', 'font-size': '11px' }}>
+            {/* Header */}
+            <div style={{ padding: '8px 12px', 'border-bottom': '1px solid var(--border-primary)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', background: 'var(--surface-1)', 'flex-shrink': 0 }}>
+                <span style={{ color: 'var(--text-muted)', 'font-weight': 800, 'letter-spacing': '2px', 'text-transform': 'uppercase', 'font-size': '10px' }}>Platform Integrity</span>
+                <div style={{ display: 'flex', 'align-items': 'center', gap: '12px' }}>
+                    <Show when={metrics()?.is_bleeding}>
+                        <span style={{ 'font-size': '9px', color: 'var(--alert-critical)', 'font-weight': 800, 'text-transform': 'uppercase' }}>
+                            ETTF: {metrics()!.estimated_failure_time}
                         </span>
+                    </Show>
+                    <div style={{ 'font-size': '9px', color: 'var(--text-muted)' }}>
+                        INDEX: <span style={{ 'font-weight': 800, 'font-size': '13px', color: indexColor(idx()) }}>{idx().toFixed(1)}%</span>
                     </div>
                 </div>
             </div>
 
-            <div class="flex-1 overflow-auto p-3 space-y-3">
-                {/* Visual Index Bar */}
-                <div class="bg-surface-1 h-2 w-full overflow-hidden border border-border-primary">
-                    <div
-                        class={`h-full transition-all duration-1000 ${trustData()?.index && trustData()!.index > 80 ? 'bg-green-600' : 'bg-yellow-600'}`}
-                        style={{ width: `${trustData()?.index || 0}%` }}
-                    ></div>
+            {/* Index bar */}
+            <div style={{ padding: '8px 12px', 'flex-shrink': 0 }}>
+                <div style={{ height: '4px', background: 'var(--surface-2)', 'border-radius': '2px', overflow: 'hidden', border: '1px solid var(--border-primary)' }}>
+                    <div style={{ height: '100%', width: `${idx()}%`, background: indexColor(idx()), transition: 'width 0.8s ease, background 0.4s' }} />
                 </div>
-
-                <div class="grid gap-2">
-                    <For each={trustData()?.status || []}>
-                        {(item) => (
-                            <div class="p-2 bg-surface-1 border border-border-primary flex flex-col gap-1 group hover:border-accent-primary transition-colors">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-300 font-bold uppercase tracking-tighter">{item.component}</span>
-                                    <span class={`text-[9px] font-black ${getStatusColor(item.status)}`}>{item.status}</span>
-                                </div>
-                                <div class="text-[9px] text-gray-500 italic leading-tight uppercase opacity-70 group-hover:opacity-100 transition-opacity">
-                                    {item.detail}
-                                </div>
-                                <div class="text-[8px] text-gray-700 font-mono mt-1">
-                                    Last Checked: {new Date(item.last_check).toLocaleTimeString()}
-                                </div>
-                            </div>
-                        )}
-                    </For>
-                </div>
+                <Show when={metrics()}>
+                    <div style={{ 'margin-top': '4px', 'font-size': '9px', color: 'var(--text-muted)', 'text-align': 'right' }}>
+                        Drift: {metrics()!.velocity_per_hour > 0 ? '+' : ''}{metrics()!.velocity_per_hour?.toFixed(2)}/hr
+                    </div>
+                </Show>
             </div>
 
-            <div class="p-2 border-t border-border-primary bg-surface-1 flex justify-between items-center px-4">
-                <span class="text-[9px] text-text-muted">ATTESTATION: <span class="text-accent-primary">HARDWARE-BOUND</span></span>
+            {/* Component list */}
+            <div style={{ flex: 1, 'overflow-y': 'auto', padding: '0 8px 8px 8px', display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
+                <For each={trustData()?.status || []}>
+                    {(item: any) => (
+                        <div style={{ padding: '8px 10px', background: 'var(--surface-1)', border: '1px solid var(--border-primary)', 'border-radius': '3px', display: 'flex', 'flex-direction': 'column', gap: '3px' }}>
+                            <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center' }}>
+                                <span style={{ color: 'var(--text-secondary)', 'font-weight': 800, 'text-transform': 'uppercase', 'letter-spacing': '0.5px' }}>{item.component}</span>
+                                <span style={{ 'font-size': '9px', 'font-weight': 800, color: statusColor(item.status), 'text-transform': 'uppercase' }}>{item.status}</span>
+                            </div>
+                            <div style={{ 'font-size': '9px', color: 'var(--text-muted)', 'font-style': 'italic', 'text-transform': 'uppercase', opacity: '0.7' }}>{item.detail}</div>
+                            <div style={{ 'font-size': '8px', color: 'var(--text-muted)', opacity: '0.5', 'margin-top': '2px' }}>
+                                Last checked: {new Date(item.last_check).toLocaleTimeString()}
+                            </div>
+                        </div>
+                    )}
+                </For>
+                <Show when={!trustData.loading && (!trustData()?.status || trustData()!.status.length === 0)}>
+                    <div style={{ 'padding-top': '40px', 'text-align': 'center', opacity: '0.25', 'font-size': '10px', 'text-transform': 'uppercase' }}>
+                        No attestation data
+                    </div>
+                </Show>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '6px 12px', 'border-top': '1px solid var(--border-primary)', background: 'var(--surface-1)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'flex-shrink': 0 }}>
+                <span style={{ 'font-size': '9px', color: 'var(--text-muted)', 'text-transform': 'uppercase' }}>
+                    ATTESTATION: <span style={{ color: 'var(--accent-primary)' }}>HARDWARE-BOUND</span>
+                </span>
                 <button
                     onClick={refetch}
-                    class="text-[9px] text-accent-primary font-bold hover:text-white transition-colors uppercase"
+                    style={{ 'font-size': '9px', color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', 'font-weight': 800, 'font-family': 'var(--font-mono)', 'text-transform': 'uppercase' }}
                 >
-                    Re-Verify
+                    ↻ RE-VERIFY
                 </button>
             </div>
         </div>

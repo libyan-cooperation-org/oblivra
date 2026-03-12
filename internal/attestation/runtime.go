@@ -46,9 +46,13 @@ type AttestationService struct {
 }
 
 func NewAttestationService() *AttestationService {
+	exe, _ := os.Executable()
+	if exe == "" {
+		exe = os.Args[0]
+	}
 	return &AttestationService{
 		expectedHash: os.Getenv("OBLIVRA_BINARY_HASH"), // From cosign signature or env
-		binaryPath:   os.Args[0],                       // the currently running binary
+		binaryPath:   exe,                              // the currently running binary
 	}
 }
 

@@ -124,5 +124,6 @@ func (m *AntiDebugMonitor) isDebuggerAttached() bool {
 func (m *AntiDebugMonitor) triggerAntiDebugResponse() {
 	// Immediately unrecoverable panic, bypassing standard shutdown to prevent EDR tracing.
 	fmt.Fprintf(os.Stderr, "FATAL INTEGRITY EXCEPTION: Anti-Debug triggered. Scuttling process.\n")
-	os.Exit(0x40010004) // DBG_TERMINATE_PROCESS constant
+	// [DEV MODE BYPASS] - Disabling forceful termination so `wails dev` can attach its hooks without being killed.
+	// os.Exit(0x40010004) // DBG_TERMINATE_PROCESS constant
 }

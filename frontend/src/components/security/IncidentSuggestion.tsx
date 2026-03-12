@@ -1,5 +1,5 @@
 import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime';
+import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { ExecuteSnippet } from '../../../wailsjs/go/app/SnippetService';
 
 interface Suggestion {

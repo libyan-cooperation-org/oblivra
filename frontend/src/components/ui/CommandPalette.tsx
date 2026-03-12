@@ -484,20 +484,6 @@ export const CommandPalette: Component<CommandPaletteProps> = (props) => {
         }
     };
 
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-        // Ctrl+P for host quick switch
-        if ((e.ctrlKey || e.metaKey) && e.key === 'p' && !e.shiftKey) {
-            e.preventDefault();
-            // Props managed externally now
-            return;
-        }
-
-        // Ctrl+Shift+P for commands
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
-            e.preventDefault();
-            return;
-        }
-    };
 
     const handlePaletteKeyDown = (e: KeyboardEvent) => {
         switch (e.key) {
@@ -529,11 +515,11 @@ export const CommandPalette: Component<CommandPaletteProps> = (props) => {
     };
 
     onMount(() => {
-        document.addEventListener('keydown', handleGlobalKeyDown);
+        // document.addEventListener('keydown', handleGlobalKeyDown);
     });
 
     onCleanup(() => {
-        document.removeEventListener('keydown', handleGlobalKeyDown);
+        // document.removeEventListener('keydown', handleGlobalKeyDown);
     });
 
     // Auto-focus input when palette opens

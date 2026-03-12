@@ -1,4 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
+import { GetChain, VerifyChain, ExportChain } from '../../wailsjs/go/app/LedgerService';
 
 interface LedgerBlock {
     index: number;
@@ -50,14 +51,11 @@ export const EvidenceLedger: Component = () => {
     const [loading, setLoading]           = createSignal(true);
     const [loadErr, setLoadErr]           = createSignal('');
 
-    const svc = () => (window as any).go?.app?.LedgerService;
-
     const loadChain = async () => {
         setLoading(true);
         setLoadErr('');
         try {
-            if (!svc()) { setLoadErr('LedgerService not available'); return; }
-            const data = await svc().GetChain();
+            const data = await GetChain();
             setBlocks(data || []);
         } catch (err: any) {
             setLoadErr(err?.message ?? String(err));
@@ -72,7 +70,7 @@ export const EvidenceLedger: Component = () => {
         setStatus('VERIFYING');
         setErrorMsg('');
         try {
-            const res = await svc()?.VerifyChain();
+            const res = await VerifyChain();
             setStatus(res === 'VALID' ? 'VALID' : 'INVALID');
             if (res !== 'VALID') setErrorMsg(res);
         } catch (err: any) {
@@ -83,7 +81,7 @@ export const EvidenceLedger: Component = () => {
 
     const exportLedger = async () => {
         try {
-            const jsonStr = await svc()?.ExportChain();
+            const jsonStr = await ExportChain();
             const blob = new Blob([jsonStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = Object.assign(document.createElement('a'), {

@@ -161,6 +161,7 @@ type Container struct {
 	AgentService     *AgentService
 	SyntheticService *SyntheticService
 	TailingService   *TailingService
+	AnalyticsService *AnalyticsService
 
 	// Engines
 	SyntheticManager *monitoring.SyntheticManager
@@ -246,6 +247,7 @@ func (c *Container) Init(ctx context.Context) error {
 	c.SIEMForwarder = security.NewSIEMForwarder(security.SIEMConfig{Enabled: false}, c.Log)
 
 	c.AnalyticsEngine = analytics.NewAnalyticsEngine(c.Log)
+	c.AnalyticsService = NewAnalyticsService(c.AnalyticsEngine)
 	c.Notifier = notifications.NewNotificationService(c.Log)
 	c.AlertEngine = analytics.NewAlertEngine(c.Notifier, c.AnalyticsEngine)
 	c.SourceManager = logsources.NewSourceManager(c.Log)

@@ -40,19 +40,22 @@ type App struct {
 	HostService       *HostService
 	SSHService        *SSHService
 	VaultService      *VaultService
-	SessionService    *SessionService
-	SettingsService   *SettingsService
-	SnippetService    *SnippetService
-	BroadcastService  *BroadcastService
-	MultiExecService  *MultiExecService
-	PluginService     *PluginService
-	SecurityService   *SecurityService
-	ComplianceService *ComplianceService
-	TeamService       *TeamService
-	SIEMService       *SIEMService
-	LocalService      *LocalService
-	AIService         *AIService
-	TelemetryService  *TelemetryService
+	SessionService         *SessionService
+	SettingsService        *SettingsService
+	SnippetService         *SnippetService
+	BroadcastService       *BroadcastService
+	MultiExecService       *MultiExecService
+	PluginService          *PluginService
+	SecurityService        *SecurityService
+	ComplianceService      *ComplianceService
+	TeamService            *TeamService
+	SIEMService            *SIEMService
+	LocalService           *LocalService
+	AIService              *AIService
+	TelemetryService       *TelemetryService
+	IdentityService        *IdentityService
+	TransferManager        *TransferManager
+	NetworkIsolatorService *NetworkIsolatorService
 
 	// Newly wired
 	AlertingService       *AlertingService
@@ -93,6 +96,7 @@ type App struct {
 	DeterministicResponse *DeterministicResponseService
 	SyntheticService      *SyntheticService
 	TailingService        *TailingService
+	AnalyticsService      *AnalyticsService
 }
 
 // New creates a new App instance with placeholder service structs.
@@ -153,6 +157,10 @@ func New() *App {
 	a.LocalService = a.container.LocalService
 	a.AIService = a.container.AIService
 	a.TelemetryService = a.container.TelemetryService
+	a.IdentityService = a.container.IdentityService
+	a.TransferManager = a.container.TransferManager
+	a.NetworkIsolatorService = a.container.NetworkIsolatorService
+
 	a.AlertingService = a.container.AlertingService
 	a.HealthService = a.container.HealthService
 	a.MetricsService = a.container.MetricsService
@@ -191,6 +199,7 @@ func New() *App {
 	a.DeterministicResponse = a.container.DeterministicResponse
 	a.SyntheticService = a.container.SyntheticService
 	a.TailingService = a.container.TailingService
+	a.AnalyticsService = a.container.AnalyticsService
 
 	return a
 }
@@ -308,7 +317,7 @@ func (a *App) GetTrustDriftMetrics() TrustDriftMetrics {
 	if a.TrustService == nil {
 		return TrustDriftMetrics{EstimatedFailureTime: "N/A"}
 	}
-	return a.container.TrustService.CalculateDriftMetrics()
+	return a.container.TrustService.GetTrustDriftMetrics()
 }
 
 // GetPlatformInfo returns platform information

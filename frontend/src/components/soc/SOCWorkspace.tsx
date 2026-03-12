@@ -101,6 +101,8 @@ export const SOCWorkspace: Component = () => {
     const [presetName,   setPresetName]   = createSignal('');
     const [showPresets,  setShowPresets]  = createSignal(false);
     const [minimisedPanels, setMinimisedPanels] = createSignal(loadMinimised());
+    const [presetList,   setPresetList]   = createSignal<string[]>(listPresets());
+    const refreshPresets = () => setPresetList(listPresets());
 
     const [disasterMode, { refetch: refetchMode }] = createResource(GetMode);
 
@@ -280,7 +282,7 @@ export const SOCWorkspace: Component = () => {
                     <div style={{ display: 'flex', 'align-items': 'center', gap: '6px' }}>
                         {/* Layout presets */}
                         <div style={{ position: 'relative' }}>
-                            <button onClick={() => setShowPresets(v => !v)} style={headerBtn()}>Presets</button>
+                            <button onClick={() => { refreshPresets(); setShowPresets(v => !v); }} style={headerBtn()}>Presets</button>
                             <Show when={showPresets()}>
                                 <div style={{
                                     position: 'absolute', top: '100%', right: 0, 'margin-top': '4px',
@@ -299,11 +301,11 @@ export const SOCWorkspace: Component = () => {
                                             style={{ flex: 1, background: 'var(--surface-3)', border: '1px solid var(--border-primary)', 'border-radius': '3px', padding: '4px 6px', color: 'var(--text-primary)', 'font-family': 'var(--font-mono)', 'font-size': '10px', outline: 'none' }}
                                         />
                                         <button
-                                            onClick={() => { if (presetName() && layout) { savePreset(presetName(), layout); setPresetName(''); } }}
+                                            onClick={() => { if (presetName() && layout) { savePreset(presetName(), layout); setPresetName(''); refreshPresets(); } }}
                                             style={{ background: 'var(--accent-primary)', border: 'none', 'border-radius': '3px', padding: '4px 8px', cursor: 'pointer', color: '#000', 'font-family': 'var(--font-mono)', 'font-size': '10px', 'font-weight': 800 }}
                                         >Save</button>
                                     </div>
-                                    <For each={listPresets()}>
+                                    <For each={presetList()}>
                                         {(name) => (
                                             <button
                                                 onClick={() => { const c = loadPreset(name); if (c && layout) { layout.loadLayout(c); setShowPresets(false); } }}
@@ -311,7 +313,7 @@ export const SOCWorkspace: Component = () => {
                                             >▶ {name}</button>
                                         )}
                                     </For>
-                                    <Show when={listPresets().length === 0}>
+                                    <Show when={presetList().length === 0}>
                                         <div style={{ 'font-size': '10px', color: 'var(--text-muted)', 'font-family': 'var(--font-mono)' }}>No presets saved</div>
                                     </Show>
                                 </div>

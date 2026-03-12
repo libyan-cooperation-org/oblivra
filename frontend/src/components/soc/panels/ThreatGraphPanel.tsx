@@ -1,78 +1,94 @@
-import { Component, For, createResource, onMount } from 'solid-js';
+import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
 import { GetSubGraph } from '../../../../wailsjs/go/app/GraphService';
 
+const nodeColor = (type: string) => {
+    if (type === 'PROCESS') return 'var(--accent-secondary)';
+    if (type === 'USER')    return 'var(--accent-primary)';
+    return 'var(--alert-critical)';
+};
+
 export const ThreatGraphPanel: Component = () => {
-    // ... (rest of the component)
-    // We'll fetch a subgraph starting from a root entity (e.g., the last alerted entity)
     const [graphData, { refetch }] = createResource(async () => {
         try {
-            // Fetching a level-2 subgraph of "root" as a placeholder
-            // In production, this would be tied to the current investigation context
-            return await GetSubGraph("root", 2);
+            return await GetSubGraph('root', 2);
         } catch (e) {
-            console.error("Failed to fetch graph data:", e);
+            console.error('Failed to fetch graph data:', e);
             return { Nodes: [], Edges: [] };
         }
     });
 
     onMount(() => {
         const interval = setInterval(refetch, 20000);
-        return () => clearInterval(interval);
+        onCleanup(() => clearInterval(interval));
     });
 
+    const nodes = () => graphData()?.Nodes ?? [];
+    const edges = () => graphData()?.Edges ?? [];
+
     return (
-        <div class="h-full flex flex-col bg-surface-0 font-mono text-[11px] overflow-hidden">
-            <div class="p-3 border-b border-border-primary flex justify-between items-center bg-surface-1">
-                <span class="text-text-muted font-bold tracking-widest uppercase">Multi-Hop Threat Graph</span>
-                <span class="text-accent-primary font-bold text-[9px]">G-QUANT ENGINE</span>
+        <div style={{ display: 'flex', 'flex-direction': 'column', height: '100%', background: 'var(--surface-0)', 'font-family': 'var(--font-mono)', 'font-size': '11px' }}>
+            {/* Header */}
+            <div style={{ padding: '8px 12px', 'border-bottom': '1px solid var(--border-primary)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', background: 'var(--surface-1)', 'flex-shrink': 0 }}>
+                <span style={{ color: 'var(--text-muted)', 'font-weight': 800, 'letter-spacing': '2px', 'text-transform': 'uppercase', 'font-size': '10px' }}>Multi-Hop Threat Graph</span>
+                <span style={{ 'font-size': '9px', color: 'var(--accent-primary)', 'font-weight': 800 }}>G-QUANT ENGINE</span>
             </div>
 
-            <div class="flex-1 overflow-auto p-4 relative bg-[#050505] bg-[radial-gradient(#111_1px,transparent_1px)] [background-size:20px_20px]">
-                {/* Simplified Graph Representation (List of edges/paths) */}
-                <div class="space-y-4">
-                    <For each={graphData()?.Nodes || []}>
-                        {(node: any) => (
-                            <div class="flex flex-col gap-2">
-                                <div class="flex items-center gap-2">
-                                    <div class={`w-2 h-2 rounded-full ${node.Type === 'PROCESS' ? 'bg-purple-500' :
-                                        node.Type === 'USER' ? 'bg-blue-500' : 'bg-red-500'} shadow-[0_0_5px_currentColor]`}></div>
-                                    <span class="text-white font-bold uppercase">{node.Type}: {node.ID}</span>
-                                </div>
-                                <div class="pl-4 border-l border-gray-800 space-y-2">
-                                    <For each={graphData()?.Edges.filter((e: any) => e.Source === node.ID) || []}>
-                                        {(edge: any) => (
-                                            <div class="flex items-center gap-3 text-[10px]">
-                                                <span class="text-gray-600">--[{edge.Type}]--&gt;</span>
-                                                <span class="text-gray-400 font-bold">{edge.Target}</span>
-                                            </div>
-                                        )}
-                                    </For>
-                                </div>
-                            </div>
-                        )}
-                    </For>
+            {/* Graph body */}
+            <div style={{
+                flex: 1, 'overflow-y': 'auto', padding: '12px',
+                background: 'var(--surface-0)',
+                'background-image': 'radial-gradient(rgba(255,255,255,0.018) 1px, transparent 1px)',
+                'background-size': '20px 20px',
+                position: 'relative',
+            }}>
+                <Show when={nodes().length > 0} fallback={
+                    <div style={{ height: '100%', display: 'flex', 'flex-direction': 'column', 'align-items': 'center', 'justify-content': 'center', opacity: '0.22', gap: '10px', 'padding-top': '40px' }}>
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                            <circle cx="12" cy="12" r="3" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="19" r="2" />
+                            <line x1="12" y1="12" x2="19" y2="5" /><line x1="12" y1="12" x2="5" y2="19" />
+                        </svg>
+                        <span style={{ 'font-size': '10px', 'text-transform': 'uppercase', 'letter-spacing': '1px' }}>No active attack paths</span>
+                    </div>
+                }>
+                    <div style={{ display: 'flex', 'flex-direction': 'column', gap: '14px' }}>
+                        <For each={nodes()}>
+                            {(node: any) => (
+                                <div style={{ display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
+                                    {/* Node */}
+                                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                                        <div style={{ width: '8px', height: '8px', 'border-radius': '50%', background: nodeColor(node.Type), 'box-shadow': `0 0 6px ${nodeColor(node.Type)}`, 'flex-shrink': 0 }} />
+                                        <span style={{ color: 'var(--text-primary)', 'font-weight': 800, 'text-transform': 'uppercase', 'font-size': '11px' }}>
+                                            {node.Type}: {node.ID}
+                                        </span>
+                                    </div>
 
-                    {(!graphData()?.Nodes || graphData()?.Nodes.length === 0) && (
-                        <div class="h-full flex flex-col items-center justify-center opacity-20 py-20">
-                            <svg class="w-12 h-12 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-                                <circle cx="12" cy="12" r="3" />
-                                <circle cx="19" cy="5" r="2" />
-                                <circle cx="5" cy="19" r="2" />
-                                <line x1="12" y1="12" x2="19" y2="5" />
-                                <line x1="12" y1="12" x2="5" y2="19" />
-                            </svg>
-                            <span class="text-[10px] uppercase font-bold tracking-tighter">No Active Attack Paths Correlated</span>
-                        </div>
-                    )}
-                </div>
+                                    {/* Outbound edges */}
+                                    <div style={{ 'padding-left': '16px', 'border-left': '1px solid var(--border-primary)', display: 'flex', 'flex-direction': 'column', gap: '4px' }}>
+                                        <For each={edges().filter((e: any) => e.Source === node.ID)}>
+                                            {(edge: any) => (
+                                                <div style={{ display: 'flex', 'align-items': 'center', gap: '8px', 'font-size': '10px' }}>
+                                                    <span style={{ color: 'var(--text-muted)', opacity: '0.6' }}>──[{edge.Type}]──›</span>
+                                                    <span style={{ color: 'var(--text-secondary)', 'font-weight': 700 }}>{edge.Target}</span>
+                                                </div>
+                                            )}
+                                        </For>
+                                    </div>
+                                </div>
+                            )}
+                        </For>
+                    </div>
+                </Show>
             </div>
 
-            <div class="p-2 border-t border-border-primary bg-surface-1 flex justify-between items-center px-4">
-                <div class="flex gap-4">
-                    <span class="text-[9px] text-text-muted">ENTITIES: <span class="text-accent-primary">{graphData()?.Nodes?.length || 0}</span></span>
-                    <span class="text-[9px] text-text-muted">EDGES: <span class="text-accent-primary">{graphData()?.Edges?.length || 0}</span></span>
+            {/* Footer */}
+            <div style={{ padding: '6px 12px', 'border-top': '1px solid var(--border-primary)', background: 'var(--surface-1)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'flex-shrink': 0 }}>
+                <div style={{ display: 'flex', gap: '16px', 'font-size': '9px', color: 'var(--text-muted)', 'text-transform': 'uppercase' }}>
+                    <span>ENTITIES: <span style={{ color: 'var(--accent-primary)' }}>{nodes().length}</span></span>
+                    <span>EDGES: <span style={{ color: 'var(--accent-primary)' }}>{edges().length}</span></span>
                 </div>
-                <button class="text-[9px] text-accent-primary font-bold hover:text-white transition-colors uppercase">Expand Full Graph</button>
+                <button style={{ 'font-size': '9px', color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', 'font-weight': 800, 'font-family': 'var(--font-mono)', 'text-transform': 'uppercase' }}>
+                    EXPAND FULL GRAPH →
+                </button>
             </div>
         </div>
     );

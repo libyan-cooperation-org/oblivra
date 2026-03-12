@@ -27,8 +27,8 @@ type ConnectionResult struct {
 	Message string `json:"message"`
 }
 
-// SavedSearch stores a reusable query per source
-type SavedSearch struct {
+// LogSourceSavedSearch stores a reusable query per source
+type LogSourceSavedSearch struct {
 	ID       string `json:"id"`
 	SourceID string `json:"source_id"`
 	Name     string `json:"name"`
@@ -68,7 +68,7 @@ type LogSourceService struct {
 
 	// Saved searches
 	savedMu       *sync.RWMutex
-	savedSearches []SavedSearch
+	savedSearches []LogSourceSavedSearch
 
 	// Rate limiting
 	rateMu    *sync.Mutex
@@ -91,7 +91,7 @@ func NewLogSourceService(manager *logsources.SourceManager, ae analytics.Engine,
 		healthStatus:  make(map[string]SourceHealth),
 		healthDone:    make(chan struct{}),
 		savedMu:       &sync.RWMutex{},
-		savedSearches: make([]SavedSearch, 0),
+		savedSearches: make([]LogSourceSavedSearch, 0),
 		rateMu:        &sync.Mutex{},
 		lastQuery:     make(map[string]time.Time),
 		streamMu:      &sync.Mutex{},
@@ -208,7 +208,7 @@ func (s *LogSourceService) RemoveSource(id string) {
 	})
 	// Remove associated saved searches
 	s.savedMu.Lock()
-	filtered := make([]SavedSearch, 0)
+	filtered := make([]LogSourceSavedSearch, 0)
 	for _, ss := range s.savedSearches {
 		if ss.SourceID != id {
 			filtered = append(filtered, ss)
@@ -360,8 +360,8 @@ func (s *LogSourceService) SearchAllSources(query, timeRange string, limit, offs
 
 // ─── Saved Searches ───
 
-func (s *LogSourceService) SaveSearch(sourceID, name, query string) SavedSearch {
-	ss := SavedSearch{
+func (s *LogSourceService) SaveSearch(sourceID, name, query string) LogSourceSavedSearch {
+	ss := LogSourceSavedSearch{
 		ID:       fmt.Sprintf("ss-%d", time.Now().UnixNano()),
 		SourceID: sourceID,
 		Name:     name,
@@ -375,10 +375,10 @@ func (s *LogSourceService) SaveSearch(sourceID, name, query string) SavedSearch 
 	return ss
 }
 
-func (s *LogSourceService) GetSavedSearches() []SavedSearch {
+func (s *LogSourceService) GetSavedSearches() []LogSourceSavedSearch {
 	s.savedMu.RLock()
 	defer s.savedMu.RUnlock()
-	cp := make([]SavedSearch, len(s.savedSearches))
+	cp := make([]LogSourceSavedSearch, len(s.savedSearches))
 	copy(cp, s.savedSearches)
 	return cp
 }

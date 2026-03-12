@@ -1,4 +1,4 @@
-import { Component, For, createResource, onMount } from 'solid-js';
+import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
 import { GetAlertHistory } from '../../../../wailsjs/go/app/AlertingService';
 import { ConnectToSession } from '../../../../wailsjs/go/app/SSHService';
 import { useToast } from '../../../core/toast';
@@ -8,100 +8,121 @@ export const AlertInvestigationPanel: Component = () => {
     const [alerts, { refetch }] = createResource(async () => {
         try {
             const data = await GetAlertHistory();
-            return data.map((item: any) => ({
+            return (data || []).map((item: any) => ({
                 id: item.ID || Math.random(),
                 title: item.Title || item.Name || 'Unknown Alert',
                 host: item.Hostname || item.Host || 'N/A',
                 user: item.User || 'N/A',
                 risk: item.RiskScore || item.Severity || 50,
-                time: item.Timestamp ? new Date(item.Timestamp).toLocaleTimeString() : 'N/A'
+                time: item.Timestamp ? new Date(item.Timestamp).toLocaleTimeString() : 'N/A',
             }));
         } catch (e) {
-            console.error("Failed to fetch alerts:", e);
+            console.error('Failed to fetch alerts:', e);
             return [];
         }
     });
 
     onMount(() => {
-        const interval = setInterval(refetch, 10000); // Poll every 10s
-        return () => clearInterval(interval);
+        const interval = setInterval(refetch, 10000);
+        onCleanup(() => clearInterval(interval));
     });
 
+    const riskColor = (r: number) =>
+        r > 80 ? 'var(--alert-critical)' : r > 50 ? 'var(--alert-medium)' : 'var(--alert-low)';
+
     return (
-        <div class="h-full flex flex-col bg-gray-950 font-mono text-[11px]">
-            <div class="p-3 border-b border-gray-800 flex justify-between items-center bg-gray-900/30">
-                <div class="flex items-center gap-2">
-                    <span class="text-gray-400 font-bold tracking-widest uppercase text-[10px]">Active Ingress Alerts</span>
-                    <span class="text-[9px] px-1 bg-red-950 text-red-500 border border-red-900 font-bold">LIVE-STREAM</span>
+        <div style={{ display: 'flex', 'flex-direction': 'column', height: '100%', background: 'var(--surface-0)', 'font-family': 'var(--font-mono)', 'font-size': '11px' }}>
+            {/* Header */}
+            <div style={{ padding: '8px 12px', 'border-bottom': '1px solid var(--border-primary)', display: 'flex', 'align-items': 'center', 'justify-content': 'space-between', background: 'var(--surface-1)', 'flex-shrink': 0 }}>
+                <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                    <span style={{ color: 'var(--text-muted)', 'font-weight': 800, 'letter-spacing': '2px', 'text-transform': 'uppercase', 'font-size': '10px' }}>Active Ingress Alerts</span>
+                    <span style={{ 'font-size': '8px', padding: '1px 5px', background: 'rgba(240,64,64,0.12)', color: 'var(--alert-critical)', border: '1px solid rgba(240,64,64,0.3)', 'font-weight': 800 }}>LIVE</span>
                 </div>
-                {alerts.loading && <span class="text-[9px] text-blue-500 animate-pulse">REFRESHING...</span>}
+                <Show when={alerts.loading}>
+                    <span style={{ 'font-size': '9px', color: 'var(--accent-primary)' }}>REFRESHING…</span>
+                </Show>
             </div>
 
-            <div class="flex-1 overflow-auto p-2 space-y-2">
+            {/* List */}
+            <div style={{ flex: 1, 'overflow-y': 'auto', padding: '8px', display: 'flex', 'flex-direction': 'column', gap: '6px' }}>
                 <For each={alerts() || []}>
                     {(item) => (
-                        <div class="group p-3 border border-gray-800 hover:border-red-900 hover:bg-red-950/10 transition-all cursor-pointer relative overflow-hidden">
-                            <div class="flex justify-between mb-1">
-                                <span class="text-red-500 font-bold text-[10px] uppercase truncate max-w-[180px]">{item.title}</span>
-                                <span class="text-gray-600 text-[9px]">{item.time}</span>
-                            </div>
-                            <div class="flex gap-4 text-gray-500 text-[9px]">
-                                <span>HOST: <span class="text-gray-300">{item.host}</span></span>
-                                <span>USER: <span class="text-gray-300">{item.user}</span></span>
+                        <div style={{
+                            padding: '10px 12px',
+                            border: '1px solid var(--border-primary)',
+                            background: 'var(--surface-1)',
+                            'border-radius': '3px',
+                            position: 'relative',
+                            overflow: 'hidden',
+                        }}>
+                            {/* Left risk accent */}
+                            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: riskColor(item.risk) }} />
+
+                            <div style={{ display: 'flex', 'justify-content': 'space-between', 'margin-bottom': '4px', 'padding-left': '8px' }}>
+                                <span style={{ color: riskColor(item.risk), 'font-weight': 800, 'font-size': '10px', 'text-transform': 'uppercase', overflow: 'hidden', 'white-space': 'nowrap', 'text-overflow': 'ellipsis', 'max-width': '70%' }}>{item.title}</span>
+                                <span style={{ color: 'var(--text-muted)', 'font-size': '9px' }}>{item.time}</span>
                             </div>
 
-                            <div class="mt-2 flex items-center gap-2">
-                                <div class="flex-1 h-1 bg-gray-900 rounded-full overflow-hidden">
-                                    <div
-                                        class={`h-full ${item.risk > 80 ? 'bg-red-600' : item.risk > 50 ? 'bg-orange-500' : 'bg-yellow-500'}`}
-                                        style={{ width: `${item.risk}%` }}
-                                    ></div>
+                            <div style={{ display: 'flex', gap: '16px', color: 'var(--text-muted)', 'font-size': '9px', 'padding-left': '8px', 'margin-bottom': '8px' }}>
+                                <span>HOST: <span style={{ color: 'var(--text-secondary)' }}>{item.host}</span></span>
+                                <span>USER: <span style={{ color: 'var(--text-secondary)' }}>{item.user}</span></span>
+                            </div>
+
+                            {/* Risk bar */}
+                            <div style={{ display: 'flex', 'align-items': 'center', gap: '8px', 'padding-left': '8px' }}>
+                                <div style={{ flex: 1, height: '3px', background: 'var(--surface-3)', 'border-radius': '2px', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${item.risk}%`, background: riskColor(item.risk), transition: 'width 0.4s' }} />
                                 </div>
-                                <span class={`font-bold text-[10px] ${item.risk > 80 ? 'text-red-400' : 'text-gray-400'}`}>{item.risk}</span>
+                                <span style={{ 'font-weight': 800, 'font-size': '10px', color: riskColor(item.risk), 'min-width': '24px', 'text-align': 'right' }}>{item.risk}</span>
                             </div>
 
-                            <div class="mt-3 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Pivot button */}
+                            <div style={{ display: 'flex', 'justify-content': 'flex-end', 'margin-top': '8px', 'padding-left': '8px' }}>
                                 <button
-                                    class="text-[8px] bg-red-900/40 border border-red-900/50 px-2 py-0.5 text-red-400 font-bold hover:bg-red-600 hover:text-white transition-all uppercase tracking-tighter"
+                                    style={{
+                                        'font-size': '8px', background: 'rgba(240,64,64,0.1)',
+                                        border: '1px solid rgba(240,64,64,0.35)', padding: '2px 8px',
+                                        color: 'var(--alert-critical)', 'font-family': 'var(--font-mono)',
+                                        'font-weight': 800, cursor: 'pointer', 'text-transform': 'uppercase',
+                                        'letter-spacing': '0.5px', 'border-radius': '2px',
+                                        transition: 'all 0.1s',
+                                    }}
+                                    onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--alert-critical)'; (e.currentTarget as HTMLElement).style.color = '#000'; }}
+                                    onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,64,64,0.1)'; (e.currentTarget as HTMLElement).style.color = 'var(--alert-critical)'; }}
                                     onClick={async (e) => {
                                         e.stopPropagation();
                                         try {
-                                            // Trigger tactical pivot in the backend
-                                            await ConnectToSession(item.host, "soc-session");
-                                            addToast({
-                                                type: 'info',
-                                                title: 'Tactical Pivot',
-                                                message: `Establishing SSH connection to ${item.host}...`
-                                            });
+                                            await ConnectToSession(item.host, 'soc-session');
+                                            addToast({ type: 'info', title: 'Tactical Pivot', message: `Establishing SSH to ${item.host}…` });
                                         } catch (err) {
-                                            addToast({
-                                                type: 'error',
-                                                title: 'Pivot Failed',
-                                                message: `Could not connect to ${item.host}: ${err}`
-                                            });
+                                            addToast({ type: 'error', title: 'Pivot Failed', message: `Could not connect to ${item.host}: ${err}` });
                                         }
                                     }}
                                 >
-                                    PIVOT TO TERMINAL
+                                    ⇒ PIVOT TO TERMINAL
                                 </button>
                             </div>
-
-                            <div class="absolute inset-0 bg-gradient-to-r from-red-600/0 via-red-600/0 to-red-600/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                         </div>
                     )}
                 </For>
 
-                {!alerts.loading && (!alerts() || alerts()?.length === 0) && (
-                    <div class="h-full flex items-center justify-center flex-col opacity-30 gap-2">
-                        <div class="w-8 h-8 border border-dashed border-gray-500 rounded-full"></div>
-                        <span class="text-[10px]">NO ACTIVE ALERTS DETECTED</span>
+                <Show when={!alerts.loading && (!alerts() || alerts()!.length === 0)}>
+                    <div style={{ flex: 1, display: 'flex', 'align-items': 'center', 'justify-content': 'center', 'flex-direction': 'column', gap: '8px', opacity: '0.3', 'padding-top': '40px' }}>
+                        <div style={{ width: '28px', height: '28px', border: '1px dashed var(--border-secondary)', 'border-radius': '50%' }} />
+                        <span style={{ 'font-size': '10px', 'text-transform': 'uppercase', 'letter-spacing': '1px' }}>No active alerts</span>
                     </div>
-                )}
+                </Show>
             </div>
 
-            <div class="p-2 border-t border-gray-800 bg-gray-900/50 flex justify-between text-[10px] text-gray-600">
-                <span>TOTAL: {alerts()?.length || 0} ITEMS</span>
-                <span class="text-blue-500 hover:text-white transition-colors cursor-pointer uppercase font-bold text-[9px]" onClick={refetch}>Manual Refresh</span>
+            {/* Footer */}
+            <div style={{ padding: '6px 12px', 'border-top': '1px solid var(--border-primary)', background: 'var(--surface-1)', display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', 'flex-shrink': 0 }}>
+                <span style={{ 'font-size': '9px', color: 'var(--text-muted)', 'text-transform': 'uppercase' }}>TOTAL: {alerts()?.length ?? 0}</span>
+                <button
+                    onClick={refetch}
+                    style={{ 'font-size': '9px', color: 'var(--accent-primary)', 'font-weight': 800, background: 'none', border: 'none', cursor: 'pointer', 'text-transform': 'uppercase', 'font-family': 'var(--font-mono)' }}
+                >
+                    ↻ REFRESH
+                </button>
             </div>
         </div>
     );

@@ -35,6 +35,7 @@ func main() {
 
 	application := app.New()
 
+	log.Println("[DEBUG] About to call wails.Run")
 	err := wails.Run(&options.App{
 		Title:     "OblivraShell",
 		Width:     1280,
@@ -54,7 +55,7 @@ func main() {
 		OnDomReady: application.DomReady,
 
 		Bind: []interface{}{
-			application,
+			// application, // REMOVED: Redundant with individual service bindings and causes type resolution bloat
 			application.HostService,
 			application.SSHService,
 			application.VaultService,
@@ -97,6 +98,7 @@ func main() {
 			application.RiskService,
 			application.TrustService,
 			application.CredentialIntel,
+			application.AnalyticsService,
 			application.DisasterService,
 			application.TemporalService,
 			application.LineageService,
@@ -104,7 +106,11 @@ func main() {
 			application.CounterfactualService,
 			application.TailingService,
 			application.SyntheticService,
-			// NOTE: LedgerService, MemorySecurity, and DeterministicResponse are intentionally
+			application.IdentityService,
+			application.TransferManager,
+			application.NetworkIsolatorService,
+			application.LedgerService,
+			// NOTE: MemorySecurity and DeterministicResponse are intentionally
 			// not exposed to the Wails frontend (no UI binding needed), but they ARE
 			// initialized and registered in the ServiceRegistry for internal lifecycle management.
 		},
@@ -130,6 +136,7 @@ func main() {
 			OpenInspectorOnStartup: false,
 		},
 	})
+	log.Println("[DEBUG] wails.Run completed")
 
 	if err != nil {
 		log.Fatal("Error:", err.Error())

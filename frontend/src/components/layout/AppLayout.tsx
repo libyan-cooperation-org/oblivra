@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, onMount } from 'solid-js';
+import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
 import { useApp } from '@core/store';
 import { TitleBar } from './TitleBar';
 import { StatusBar } from './StatusBar';
@@ -8,7 +8,6 @@ import { CommandPalette } from '../ui/CommandPalette';
 import { AddHostModal } from '../sidebar/AddHostModal';
 import { CommandRail } from './CommandRail';
 import { DrawerPanel } from './DrawerPanel';
-import { ToastContainer } from '../ui/Toast';
 import { ModalSystem } from '../ui/ModalSystem';
 import { useHotkeys } from '../../hooks/useHotkeys';
 import { TransferPanel } from '../terminal/TransferPanel';
@@ -23,7 +22,7 @@ import '../../styles/suggestion.css';
 import { AlertToastContainer } from '../notifications/AlertSystem';
 
 import { JSX } from 'solid-js/jsx-runtime';
-import { PanelManagerProvider } from './PanelManager';
+
 import { usePanelShortcuts } from '../../hooks/usePanelShortcuts';
 export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
     const [state, actions] = useApp();
@@ -64,11 +63,10 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
             }
         };
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
     });
 
     return (
-        <PanelManagerProvider>
         <div class={`app-layout ${state.focusMode ? 'focus-mode' : ''}`}>
             <QuickSwitcher />
 
@@ -81,10 +79,8 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
                     <CommandRail />
                 </Show>
 
-                <Show when={!state.focusMode && state.sidebarOpen && !(['ops', 'siem', 'dashboard', 'health', 'metrics', 'topology', 'compliance', 'soc', 'temporal', 'lineage', 'decisions', 'ledger', 'replay'] as string[]).includes(state.activeNavTab)}>
-                    <aside class="drawer-panel">
-                        <DrawerPanel onAddHost={() => setShowAddHost(true)} />
-                    </aside>
+                <Show when={!state.focusMode && state.sidebarOpen && (['hosts', 'snippets', 'tunnels', 'terminal', 'recordings', 'notes', 'team', 'sync', 'plugins', 'health', 'metrics', 'updater', 'workspace', 'security', 'vault'] as string[]).includes(state.activeNavTab)}>
+                    <DrawerPanel onAddHost={() => setShowAddHost(true)} />
                 </Show>
 
                 <main class="main-content">
@@ -113,11 +109,9 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
 
             <TransferPanel />
             <TransferDrawer open={showTransferDrawer()} onClose={() => setShowTransferDrawer(false)} />
-            <ToastContainer />
             <ModalSystem />
             <IncidentSuggestion />
             <AlertToastContainer />
         </div>
-        </PanelManagerProvider>
     );
 };

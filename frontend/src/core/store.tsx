@@ -28,7 +28,7 @@ export interface AppState {
     theme: string;
     sidebarOpen: boolean;
     loading: boolean;
-    activeNavTab: 'dashboard' | 'hosts' | 'snippets' | 'tunnels' | 'security' | 'terminal' | 'recordings' | 'notes' | 'compliance' | 'ops' | 'team' | 'sync' | 'plugins' | 'health' | 'metrics' | 'updater' | 'workspace' | 'alerts' | 'siem' | 'settings' | 'topology' | 'vault' | 'soc' | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay';
+    activeNavTab: 'dashboard' | 'hosts' | 'snippets' | 'tunnels' | 'security' | 'terminal' | 'recordings' | 'notes' | 'compliance' | 'ops' | 'team' | 'sync' | 'plugins' | 'health' | 'metrics' | 'updater' | 'workspace' | 'alerts' | 'siem' | 'settings' | 'topology' | 'vault' | 'soc' | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay' | 'ai-assistant' | 'mitre-heatmap';
     workspace: 'Personal' | 'Work' | 'Team';
     pluginPanels: PluginPanel[];
     pluginStatusIcons: PluginStatusIcon[];
@@ -92,12 +92,8 @@ export const AppProvider: ParentComponent = (props) => {
     };
 
     onMount(async () => {
-        // Initial state check
-        const unlocked = await IsUnlocked();
-        setState('vaultUnlocked', unlocked);
-        if (unlocked) await refreshHosts();
-
-        // Listen for backend events
+        // Register ALL event listeners FIRST — before any async calls — so we
+        // never miss events that fire during startup race conditions.
         subscribe('vault:unlocked', () => {
             setState('vaultUnlocked', true);
             refreshHosts();
@@ -110,6 +106,26 @@ export const AppProvider: ParentComponent = (props) => {
         subscribe('host:list_updated', () => {
             refreshHosts();
         });
+
+        // Initial state check — now safe because all listeners are already registered
+        const unlocked = await IsUnlocked();
+        setState('vaultUnlocked', unlocked);
+        if (unlocked) {
+            await refreshHosts();
+        } else {
+            // Poll every 300ms for up to 15s to catch auto-unlock (startup race)
+            let polls = 0;
+            const poll = setInterval(async () => {
+                polls++;
+                if (polls > 50) { clearInterval(poll); return; }
+                const isNowUnlocked = await IsUnlocked();
+                if (isNowUnlocked) {
+                    clearInterval(poll);
+                    setState('vaultUnlocked', true);
+                    await refreshHosts();
+                }
+            }, 300);
+        }
 
         subscribe('session:started', (data: { id: string, hostId: string, label: string }) => {
             // Backend started a session (e.g. from terminal or click)
@@ -249,14 +265,12 @@ export const AppProvider: ParentComponent = (props) => {
         },
 
         updateTransfer: (transfer) => {
-            setState('transfers', (t) => t.id === transfer.id, (prev) => {
-                if (!prev) {
-                    // @ts-ignore
-                    setState('transfers', (curr) => [...curr, transfer as Transfer]);
-                    return prev;
-                }
-                return { ...prev, ...transfer };
-            });
+            const exists = state.transfers.find(t => t.id === transfer.id);
+            if (!exists) {
+                setState('transfers', (curr) => [...curr, transfer as Transfer]);
+            } else {
+                setState('transfers', (t) => t.id === transfer.id, (prev) => ({ ...prev, ...transfer }));
+            }
         }
     };
 

@@ -8,6 +8,7 @@ import { Dashboard } from './components/dashboard/Dashboard';
 import { ComplianceCenter } from './components/compliance/ComplianceCenter';
 import { FleetDashboard } from './components/fleet/FleetDashboard';
 import { SIEMPanel } from './components/siem/SIEMPanel';
+import { AlertDashboard } from './components/siem/AlertDashboard';
 import { TeamDashboard } from './components/team/TeamDashboard';
 import { OpsCenter } from './pages/OpsCenter';
 import { GlobalTopology } from './pages/GlobalTopology';
@@ -43,6 +44,13 @@ import { LineageExplorer } from './pages/LineageExplorer';
 import { DecisionInspector } from './pages/DecisionInspector';
 import { OfflineUpdate } from './pages/OfflineUpdate';
 import { SplunkDashboard } from './pages/SplunkDashboard';
+import { AIAssistantPage } from './pages/AIAssistantPage';
+import { TunnelsPage } from './pages/TunnelsPage';
+import { RecordingsPage } from './pages/RecordingsPage';
+import { SnippetsPage } from './pages/SnippetsPage';
+import { NotesPage } from './pages/NotesPage';
+import { SyncPage } from './pages/SyncPage';
+import { MitreHeatmap } from './components/siem/MitreHeatmap';
 import './styles/incident.css';
 
 const root = document.getElementById('root');
@@ -55,12 +63,14 @@ render(() => (
         <Route path="/compliance" component={ComplianceCenter} />
         <Route path="/hosts/*" component={FleetDashboard} />
         <Route path="/siem/*" component={SIEMPanel} />
+        <Route path="/alerts" component={AlertDashboard} />
         <Route path="/team" component={TeamDashboard} />
         <Route path="/ops/*" component={OpsCenter} />
         <Route path="/topology" component={GlobalTopology} />
         <Route path="/plugins" component={PluginManager} />
         <Route path="/risk" component={ConfigRisk} />
         <Route path="/workspace" component={SettingsManager} />
+        <Route path="/workspaces" component={SOCWorkspace} />
         <Route path="/terminal" component={TerminalLayout} />
         <Route path="/forensics" component={EvidenceLocker} />
         <Route path="/governance" component={GovernanceDashboard} />
@@ -90,5 +100,12 @@ render(() => (
         <Route path="/decisions" component={DecisionInspector} />
         <Route path="/offline-update" component={OfflineUpdate} />
         <Route path="/analytics" component={SplunkDashboard} />
+        <Route path="/ai-assistant" component={AIAssistantPage} />
+        <Route path="/tunnels" component={TunnelsPage} />
+        <Route path="/recordings" component={RecordingsPage} />
+        <Route path="/snippets" component={SnippetsPage} />
+        <Route path="/notes" component={NotesPage} />
+        <Route path="/sync" component={SyncPage} />
+        <Route path="/mitre-heatmap" component={MitreHeatmap} />
     </HashRouter>
 ), root);

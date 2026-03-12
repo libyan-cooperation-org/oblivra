@@ -26,6 +26,13 @@ type AIService struct {
 	bus    *eventbus.Bus
 	log    *logger.Logger
 	client *http.Client
+	history []Message
+}
+
+type Message struct {
+	Role      string `json:"role"`
+	Content   string `json:"content"`
+	Timestamp string `json:"timestamp"`
 }
 
 func (s *AIService) Name() string { return "AIService" }
@@ -42,7 +49,26 @@ func NewAIService(v vault.Provider, bus *eventbus.Bus, log *logger.Logger) *AISe
 
 func (s *AIService) Startup(ctx context.Context) {
 	s.ctx = ctx
+	s.history = []Message{
+		{Role: "system", Content: "You are the Sovereign Terminal AI assistant. Help the user with command generation, security analysis, and automation.", Timestamp: time.Now().Format(time.RFC3339)},
+	}
 	s.log.Info("AI service started")
+}
+
+func (s *AIService) GetChatHistory() ([]Message, error) {
+	return s.history, nil
+}
+
+func (s *AIService) SendMessage(content string) (string, error) {
+	s.history = append(s.history, Message{Role: "user", Content: content, Timestamp: time.Now().Format(time.RFC3339)})
+	
+	resp, err := s.GenerateCommand(content) // Using GenerateCommand as a proxy for simple Q&A for now
+	if err != nil {
+		return "", err
+	}
+	
+	s.history = append(s.history, Message{Role: "assistant", Content: resp.Text, Timestamp: time.Now().Format(time.RFC3339)})
+	return resp.Text, nil
 }
 
 // ExplainError asks the AI to explain a terminal error

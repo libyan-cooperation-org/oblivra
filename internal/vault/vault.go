@@ -364,13 +364,26 @@ func (v *Vault) Decrypt(data []byte) ([]byte, error) {
 
 // AccessMasterKey provides temporary access to the master key for database initialization.
 // The key must not be stored or used outside the callback.
+// We copy the key bytes under RLock, then release the lock before calling fn so that
+// slow I/O inside fn (e.g. db.Open) does not block concurrent Unlock calls.
 func (v *Vault) AccessMasterKey(fn func(key []byte) error) error {
 	v.mu.RLock()
-	defer v.mu.RUnlock()
 	if !v.unlocked || v.masterKey == nil {
+		v.mu.RUnlock()
 		return ErrLocked
 	}
-	return fn(v.masterKey.Bytes())
+	// Copy the key bytes so we can release the lock before the (potentially slow) callback
+	keyBytes := v.masterKey.Bytes()
+	keyCopy := make([]byte, len(keyBytes))
+	copy(keyCopy, keyBytes)
+	v.mu.RUnlock()
+
+	err := fn(keyCopy)
+	// Zero the copy when done
+	for i := range keyCopy {
+		keyCopy[i] = 0
+	}
+	return err
 }
 
 func (v *Vault) GetPassword(id string) ([]byte, error) {

@@ -74,14 +74,18 @@ func (s *VaultService) IsUnlocked() bool {
 	if s == nil || s.vault == nil {
 		return false
 	}
-	return s.vault.IsUnlocked()
+	result := s.vault.IsUnlocked()
+	s.log.Info("IsUnlocked() called -> %v", result)
+	return result
 }
 func (s *VaultService) UnlockWithKeychain() error { return s.TryAutoUnlock() }
 func (s *VaultService) IsSetup() bool {
 	if s == nil || s.vault == nil {
 		return false
 	}
-	return s.vault.IsSetup()
+	result := s.vault.IsSetup()
+	s.log.Info("IsSetup() called -> %v", result)
+	return result
 }
 
 // GetPassword retrieves a password by ID and decrypts it into a volatile, mutable byte slice.
@@ -135,7 +139,14 @@ func (s *VaultService) GetYubiKeySerial() string { return s.vault.GetYubiKeySeri
 func (s *VaultService) IsTPMBound() bool         { return s.vault.IsTPMBound() }
 func (s *VaultService) Unlock(password string, hardwareKey []byte, rememberMe bool) error {
 	s.log.Info("Unlocking vault (hardware: %v, remember: %v)", hardwareKey != nil, rememberMe)
+	// If the vault is already unlocked (e.g. auto-unlock ran first), skip re-deriving
+	// the key and go straight to postUnlock which will emit the event and return fast.
+	if s.vault.IsUnlocked() {
+		s.log.Info("Vault already unlocked, skipping re-unlock")
+		return s.postUnlock()
+	}
 	if err := s.vault.Unlock(password, hardwareKey, rememberMe); err != nil {
+		s.log.Error("vault.Unlock returned error: %v", err)
 		return err
 	}
 	return s.postUnlock()
@@ -168,11 +179,18 @@ func (s *VaultService) UnlockWithHardware(password string, hardwareKey []byte, r
 }
 
 func (s *VaultService) postUnlock() error {
-	s.postMu.Lock()
+	// Non-blocking: if postUnlock is already running (e.g. from auto-unlock),
+	// return immediately. The in-progress call will emit vault:unlocked when done.
+	if !s.postMu.TryLock() {
+		s.log.Info("postUnlock already in progress, skipping duplicate call")
+		return nil
+	}
 	defer s.postMu.Unlock()
 
 	// If database is already open, avoid redundant initialization
 	if s.db != nil && !s.db.IsLocked() {
+		// Still emit the event so the frontend can transition if it missed the first one
+		EmitEvent(s.ctx, "vault:unlocked", nil)
 		return nil
 	}
 
@@ -253,6 +271,17 @@ func (s *VaultService) SetupVault(password string) error {
 // SetupVaultWithYubiKey sets up the vault with a YubiKey serial.
 func (s *VaultService) SetupVaultWithYubiKey(password string, serial string) error {
 	return s.Setup(password, serial)
+}
+
+// ResetVault wipes the vault file so the user can set up a fresh vault.
+// ALL ENCRYPTED DATA IS PERMANENTLY LOST. This is an emergency escape hatch.
+func (s *VaultService) ResetVault() error {
+	s.log.Warn("ResetVault called — permanently destroying vault")
+	return s.vault.NuclearDestruction()
+}
+
+func (s *VaultService) NuclearDestruction() error {
+	return s.vault.NuclearDestruction()
 }
 
 // SetupVaultWithTPM sets up the vault with TPM 2.0 PCR binding.

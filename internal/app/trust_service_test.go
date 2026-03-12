@@ -110,7 +110,7 @@ func TestRuntimeTrustService_DriftPrediction(t *testing.T) {
 		Timestamp: time.Now(),
 	})
 	
-	metrics := s.CalculateDriftMetrics()
+	metrics := s.GetTrustDriftMetrics()
 	
 	if metrics.VelocityPerHour != -20.0 {
 		t.Errorf("Expected velocity -20.0/hr, got %f", metrics.VelocityPerHour)

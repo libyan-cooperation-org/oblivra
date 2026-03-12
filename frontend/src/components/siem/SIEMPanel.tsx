@@ -1,9 +1,13 @@
 import { Component, createSignal, Show, For } from 'solid-js';
 import { useApp } from '@core/store';
 import { ThreatMap } from './ThreatMap';
-import { ThreatIntelPanel } from './ThreatIntelPanel';
 import { useNavigate, useLocation } from '@solidjs/router';
 import { EmptyState } from '../ui/EmptyState';
+import { ThreatIntelPanel } from './ThreatIntelPanel';
+import { AlertDashboard } from './AlertDashboard';
+import { CompliancePanel } from '../compliance/CompliancePanel';
+import { MitreHeatmap } from './MitreHeatmap';
+import { LiveTailPanel } from '../ops/LiveTailPanel';
 import '../../styles/siem.css';
 
 export const SIEMPanel: Component = () => {
@@ -57,6 +61,12 @@ export const SIEMPanel: Component = () => {
                 </button>
             </div>
 
+            <Show when={activeTab() === 'logs'}>
+                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                    <LiveTailPanel />
+                </div>
+            </Show>
+
             <Show when={activeTab() === 'intel'}>
                 <div style="display: flex; flex-direction: column; gap: 24px; flex: 1; min-height: 0;">
                     <ThreatIntelPanel />
@@ -92,6 +102,24 @@ export const SIEMPanel: Component = () => {
                             />
                         </Show>
                     </div>
+                </div>
+            </Show>
+
+            <Show when={activeTab() === 'compliance'}>
+                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                    <CompliancePanel />
+                </div>
+            </Show>
+
+            <Show when={activeTab() === 'alerts'}>
+                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                    <AlertDashboard />
+                </div>
+            </Show>
+
+            <Show when={activeTab() === 'mitre'}>
+                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                    <MitreHeatmap />
                 </div>
             </Show>
         </div>

@@ -5,10 +5,9 @@ import { AppProvider } from '@core/store';
 import { VaultGuard } from '@components/security/VaultGuard';
 import { LoadingScreen } from '@components/ui/LoadingScreen';
 import { ErrorScreen } from '@components/ui/ErrorScreen';
-
-
 import { ToastContainer } from '@components/layout/ToastContainer';
 import { useToast } from '@core/toast';
+import { PanelManagerProvider } from '@components/layout/PanelManager';
 
 const App: Component<{ children?: any }> = (props) => {
     const [ready, setReady] = createSignal(false);
@@ -18,7 +17,6 @@ const App: Component<{ children?: any }> = (props) => {
     onMount(async () => {
         try {
             await initBridge();
-            // Theme engine removed
 
             // Hook Global Toasts into Wails Events
             if ((window as any).runtime) {
@@ -30,8 +28,6 @@ const App: Component<{ children?: any }> = (props) => {
                 });
             }
 
-            // Simulate extra initialization work for a better UX feeling
-            await new Promise(r => setTimeout(r, 800));
             setReady(true);
         } catch (err) {
             setError(`${err}`);
@@ -54,11 +50,13 @@ const App: Component<{ children?: any }> = (props) => {
         >
             <AppProvider>
                 <VaultGuard>
-                    <div class="app-entry-animation">
-                        <AppLayout>{props.children}</AppLayout>
+                    <PanelManagerProvider>
+                        <div class="app-entry-animation">
+                            <AppLayout>{props.children}</AppLayout>
 
-                        <ToastContainer />
-                    </div>
+                            <ToastContainer />
+                        </div>
+                    </PanelManagerProvider>
                 </VaultGuard>
             </AppProvider>
         </Show>
