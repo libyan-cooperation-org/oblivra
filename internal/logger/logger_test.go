@@ -39,8 +39,8 @@ func TestLoggerJSON(t *testing.T) {
 	if entry["message"] != "Test message with param" {
 		t.Errorf("Expected message 'Test message with param', got '%v'", entry["message"])
 	}
-	if entry["level"] != "INFO" {
-		t.Errorf("Expected level 'INFO', got '%v'", entry["level"])
+	if entry["level"] != "info" {
+		t.Errorf("Expected level 'info', got '%v'", entry["level"])
 	}
 	if entry["timestamp"] == "" {
 		t.Error("Expected timestamp to be present")

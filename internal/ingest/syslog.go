@@ -83,6 +83,11 @@ func (s *SyslogServer) Stop() {
 }
 
 func (s *SyslogServer) serveUDP() {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("[PANIC] Recovered in Syslog serveUDP: %v", r)
+		}
+	}()
 	defer s.wg.Done()
 
 	// Max typical UDP syslog packet is 1024 to 8192 bytes
@@ -111,11 +116,18 @@ func (s *SyslogServer) serveUDP() {
 			evt.Host = addr.IP.String()
 		}
 
-		s.pipeline.QueueEvent(evt)
+		if err := s.pipeline.QueueEvent(evt); err != nil {
+			s.log.Warn("[INGEST] Dropped syslog UDP event from %s: %v", evt.Host, err)
+		}
 	}
 }
 
 func (s *SyslogServer) serveTCP() {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("[PANIC] Recovered in Syslog serveTCP: %v", r)
+		}
+	}()
 	defer s.wg.Done()
 
 	for {
@@ -134,6 +146,11 @@ func (s *SyslogServer) serveTCP() {
 }
 
 func (s *SyslogServer) handleTCPConnection(conn net.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("[PANIC] Recovered in Syslog handleTCPConnection: %v", r)
+		}
+	}()
 	defer s.wg.Done()
 	defer conn.Close()
 
@@ -151,7 +168,9 @@ func (s *SyslogServer) handleTCPConnection(conn net.Conn) {
 			evt.Host = remoteHost
 		}
 
-		s.pipeline.QueueEvent(evt)
+		if err := s.pipeline.QueueEvent(evt); err != nil {
+			s.log.Warn("[INGEST] Dropped syslog TCP event from %s: %v", evt.Host, err)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {

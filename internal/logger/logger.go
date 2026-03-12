@@ -1,16 +1,14 @@
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
-	"time"
+
+	"github.com/rs/zerolog"
 )
 
 type Level int
@@ -40,6 +38,24 @@ func (l Level) String() string {
 	}
 }
 
+// toZerologLevel converts custom Level to zerolog.Level
+func (l Level) toZerologLevel() zerolog.Level {
+	switch l {
+	case DebugLevel:
+		return zerolog.DebugLevel
+	case InfoLevel:
+		return zerolog.InfoLevel
+	case WarnLevel:
+		return zerolog.WarnLevel
+	case ErrorLevel:
+		return zerolog.ErrorLevel
+	case FatalLevel:
+		return zerolog.FatalLevel
+	default:
+		return zerolog.InfoLevel
+	}
+}
+
 type Config struct {
 	Level      Level
 	OutputPath string
@@ -50,14 +66,30 @@ type Config struct {
 }
 
 type Logger struct {
-	mu       sync.Mutex
 	level    Level
 	file     *os.File
-	logger   *log.Logger
+	logger   zerolog.Logger
 	sanitize bool
 	patterns []*regexp.Regexp
 	json     bool
 	prefix   string
+}
+
+// sanitizeWriter wraps an io.Writer and sanitizes any writes
+type sanitizeWriter struct {
+	target   io.Writer
+	patterns []*regexp.Regexp
+}
+
+func (s *sanitizeWriter) Write(p []byte) (n int, err error) {
+	msg := string(p)
+	for _, pattern := range s.patterns {
+		msg = pattern.ReplaceAllString(msg, "[REDACTED]")
+	}
+	// Write the sanitized string to the underlying writer
+	_, err = s.target.Write([]byte(msg))
+	// Always return the original length to satisfy io.Writer interface, even if we reduced its length
+	return len(p), err
 }
 
 func New(cfg Config) (*Logger, error) {
@@ -70,11 +102,29 @@ func New(cfg Config) (*Logger, error) {
 		return nil, fmt.Errorf("open log file: %w", err)
 	}
 
-	multi := io.MultiWriter(os.Stdout, file)
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
+
+	var writers []io.Writer
+
+	if !cfg.JSON {
+		// Console writer for human readability formatting
+		writers = append(writers, zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: "2006-01-02 15:04:05.000",
+		})
+	} else {
+		// JSON directly to stdout
+		writers = append(writers, os.Stdout)
+	}
+
+	// Always write JSON to file
+	writers = append(writers, file)
+	
+	multi := io.MultiWriter(writers...)
+	
 	l := &Logger{
 		level:    cfg.Level,
 		file:     file,
-		logger:   log.New(multi, "", 0),
 		sanitize: cfg.Sanitize,
 		json:     cfg.JSON,
 	}
@@ -86,62 +136,62 @@ func New(cfg Config) (*Logger, error) {
 			regexp.MustCompile(`-----BEGIN[\s\S]*?-----END[^\n]*`),
 			regexp.MustCompile(`(?i)AKIA[0-9A-Z]{16}`),
 		}
+		
+		// Wrap the multiwriter with the sanitizer
+		multi = &sanitizeWriter{
+			target:   multi,
+			patterns: l.patterns,
+		}
 	}
+
+	l.logger = zerolog.New(multi).Level(cfg.Level.toZerologLevel()).With().Timestamp().Logger()
 
 	return l, nil
 }
 
 // NewStdoutLogger creates a logger that only writes to stdout.
 func NewStdoutLogger() *Logger {
+	writers := []io.Writer{
+		zerolog.ConsoleWriter{
+			Out:        os.Stdout,
+			TimeFormat: "2006-01-02 15:04:05.000",
+		},
+	}
+	multi := io.MultiWriter(writers...)
+
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(password|passwd|pwd)\s*[=:]\s*\S+`),
+		regexp.MustCompile(`(?i)(secret|token|key|api_key)\s*[=:]\s*\S+`),
+		regexp.MustCompile(`-----BEGIN[\s\S]*?-----END[^\n]*`),
+		regexp.MustCompile(`(?i)AKIA[0-9A-Z]{16}`),
+	}
+	
+	sanitized := &sanitizeWriter{
+		target:   multi,
+		patterns: patterns,
+	}
+
 	return &Logger{
 		level:    InfoLevel,
-		logger:   log.New(os.Stdout, "", 0),
+		logger:   zerolog.New(sanitized).Level(zerolog.InfoLevel).With().Timestamp().Logger(),
 		sanitize: true,
+		patterns: patterns,
 	}
 }
 
-func (l *Logger) log(level Level, format string, args ...interface{}) {
-	if level < l.level {
-		return
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	msg := fmt.Sprintf(format, args...)
-	if l.sanitize {
-		msg = l.sanitizeMessage(msg)
-	}
-
-	now := time.Now()
-	if l.json {
-		entry := map[string]interface{}{
-			"timestamp": now.Format(time.RFC3339Nano),
-			"level":     level.String(),
-			"message":   msg,
-		}
-		if l.prefix != "" {
-			entry["prefix"] = l.prefix
-		}
-		data, _ := json.Marshal(entry)
-		l.logger.Printf("%s", string(data))
+func (l *Logger) log(level zerolog.Level, format string, args ...interface{}) {
+	if len(args) == 0 {
+		l.logger.WithLevel(level).Msg(format)
 	} else {
-		timestamp := now.Format("2006-01-02 15:04:05.000")
-		l.logger.Printf("[%s] [%s] %s", timestamp, level.String(), msg)
+		l.logger.WithLevel(level).Msgf(format, args...)
 	}
 }
 
-func (l *Logger) sanitizeMessage(msg string) string {
-	for _, pattern := range l.patterns {
-		msg = pattern.ReplaceAllString(msg, "[REDACTED]")
-	}
-	return msg
-}
-
-func (l *Logger) Debug(format string, args ...interface{}) { l.log(DebugLevel, format, args...) }
-func (l *Logger) Info(format string, args ...interface{})  { l.log(InfoLevel, format, args...) }
-func (l *Logger) Warn(format string, args ...interface{})  { l.log(WarnLevel, format, args...) }
-func (l *Logger) Error(format string, args ...interface{}) { l.log(ErrorLevel, format, args...) }
-func (l *Logger) Fatal(format string, args ...interface{}) { l.log(FatalLevel, format, args...) }
+func (l *Logger) Debug(format string, args ...interface{}) { l.log(zerolog.DebugLevel, format, args...) }
+func (l *Logger) Info(format string, args ...interface{})  { l.log(zerolog.InfoLevel, format, args...) }
+func (l *Logger) Warn(format string, args ...interface{})  { l.log(zerolog.WarnLevel, format, args...) }
+func (l *Logger) Error(format string, args ...interface{}) { l.log(zerolog.ErrorLevel, format, args...) }
+func (l *Logger) Fatal(format string, args ...interface{}) { l.log(zerolog.FatalLevel, format, args...) }
 
 func (l *Logger) Close() error {
 	if l.file != nil {
@@ -160,10 +210,7 @@ func (l *Logger) WithPrefix(prefix string) *Logger {
 		json:     l.json,
 		prefix:   prefix,
 	}
-	if l.json {
-		newLog.logger = l.logger
-	} else {
-		newLog.logger = log.New(l.logger.Writer(), fmt.Sprintf("[%s] ", prefix), 0)
-	}
+	
+	newLog.logger = l.logger.With().Str("prefix", prefix).Logger()
 	return newLog
 }

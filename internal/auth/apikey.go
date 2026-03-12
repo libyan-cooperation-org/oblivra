@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"crypto/subtle"
 	"net/http"
 	"strings"
@@ -9,34 +8,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-// Role represents an RBAC permission group
-type Role string
 
-const (
-	RoleAdmin    Role = "admin"
-	RoleAnalyst  Role = "analyst"
-	RoleReadOnly Role = "readonly"
-	RoleAgent    Role = "agent"
-)
-
-// Clearance represents a Mandatory Access Control level
-type Clearance int
-
-const (
-	ClearanceUnclassified Clearance = iota
-	ClearanceConfidential
-	ClearanceSecret
-	ClearanceTopSecret
-)
-
-// UserAccount is a stub for future multi-user RBAC and MAC integration
-type UserAccount struct {
-	ID        string
-	Username  string
-	Role      Role
-	Clearance Clearance
-	AgentID   string // Binding for agent-to-host verification
-}
 
 // APIKeyMiddleware validates incoming HTTP requests against a list of authorized keys.
 type APIKeyMiddleware struct {
@@ -95,9 +67,8 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 		// and UserFromContext() work correctly throughout handler chain.
 		identityUser := apiKeyToIdentityUser(user)
 
-		// Inject under BOTH the typed key (new) and the legacy string key (backward compat)
-		ctx := context.WithValue(r.Context(), ContextKeyUser, user)
-		ctx = ContextWithUser(ctx, identityUser)
+		// Inject the IdentityUser under the unified UserContextKey
+		ctx := ContextWithUser(r.Context(), identityUser)
 
 		// Authorized, proceed to handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -158,12 +129,3 @@ func apiKeyToIdentityUser(u *UserAccount) *IdentityUser {
 	}
 }
 
-// GetRole is a helper that extracts the authorized role from the request context.
-// Uses the typed ContextKeyUser key — never plain string keys — to avoid collisions.
-func GetRole(ctx context.Context) Role {
-	user, ok := ctx.Value(ContextKeyUser).(*UserAccount)
-	if !ok || user == nil {
-		return RoleReadOnly
-	}
-	return user.Role
-}

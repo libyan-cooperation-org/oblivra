@@ -39,8 +39,8 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Authenticate and Authorize
-	user, _ := r.Context().Value("user").(*auth.UserAccount)
-	if user == nil || (user.Role != auth.RoleAgent && user.Role != auth.RoleAdmin) {
+	identityUser := auth.UserFromContext(r.Context())
+	if identityUser == nil || (identityUser.RoleName != string(auth.RoleAgent) && identityUser.RoleName != string(auth.RoleAdmin)) {
 		http.Error(w, "Forbidden: Only agents or admins can ingest", http.StatusForbidden)
 		return
 	}
@@ -59,8 +59,9 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	// 2. Host Ownership Verification
 	// If the user is an agent, it can ONLY ingest for its designated host (or AgentID)
 	providedHost := events[0].Host
-	if user.Role == auth.RoleAgent && user.AgentID != "" && user.AgentID != providedHost {
-		s.log.Warn("[Agent Security] SPOOFING ATTEMPT: %s tried to ingest for %s", user.ID, providedHost)
+	// We check against the AgentID field if present. In the current stub mapping, ID is used.
+	if identityUser.RoleName == string(auth.RoleAgent) && identityUser.ID != "" && identityUser.ID != providedHost {
+		s.log.Warn("[Agent Security] SPOOFING ATTEMPT: %s tried to ingest for %s", identityUser.Email, providedHost)
 		http.Error(w, "Forbidden: Host mismatch", http.StatusForbidden)
 		return
 	}

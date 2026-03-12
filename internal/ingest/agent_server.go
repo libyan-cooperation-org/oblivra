@@ -8,23 +8,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/kingknull/oblivrashell/internal/agent"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"golang.org/x/time/rate"
 )
 
 // AgentServer listens for incoming telemetry from deployed Oblivra agents
 // It handles mTLS, payload decompression (zlib), and JSON decoding into the ingest pipeline
 type AgentServer struct {
-	pipeline *Pipeline
-	port     int
-	server   *http.Server
-	log      *logger.Logger
-	mu       sync.RWMutex
+	pipeline  *Pipeline
+	port      int
+	server    *http.Server
+	log       *logger.Logger
+	mu        sync.RWMutex
+	validator *validator.Validate
+	limiters  sync.Map
 
 	// TLS Config paths
 	certFile string
@@ -60,6 +67,7 @@ func NewAgentServer(pipeline *Pipeline, port int, certFile, keyFile, caFile stri
 		pipeline:     pipeline,
 		port:         port,
 		log:          log.WithPrefix("agent_server"),
+		validator:    validator.New(),
 		certFile:     certFile,
 		keyFile:      keyFile,
 		caFile:       caFile,
@@ -149,9 +157,32 @@ func (s *AgentServer) SetFleetConfig(cfg FleetConfig) {
 		cfg.Interval, cfg.EnableFIM, cfg.EnableSyslog, cfg.EnableMetrics)
 }
 
+func (s *AgentServer) getVisitor(ip string) *rate.Limiter {
+	limiter, exists := s.limiters.Load(ip)
+	if !exists {
+		// Allow 50 requests/sec with a burst size of 100
+		newLimiter := rate.NewLimiter(rate.Limit(50), 100)
+		s.limiters.Store(ip, newLimiter)
+		return newLimiter
+	}
+	return limiter.(*rate.Limiter)
+}
+
 func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 1. Rate Limiting
+	ip := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		ip = host
+	}
+	limiter := s.getVisitor(ip)
+	if !limiter.Allow() {
+		s.log.Warn("Rate limit exceeded for agent IP: %s", ip)
+		http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 		return
 	}
 
@@ -162,6 +193,13 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	var reader io.Reader = r.Body
 	defer r.Body.Close()
+
+	// Extract OpenTelemetry TraceContext if present
+	propagator := otel.GetTextMapPropagator()
+	if propagator == nil {
+		propagator = propagation.TraceContext{}
+	}
+	ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
 	// Handle zstd/zlib compression
 	encoding := r.Header.Get("Content-Encoding")
@@ -231,12 +269,23 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	// Route events to the pipeline
 	ingested := 0
 	for _, ev := range events {
+		// Schema Validation
+		if err := s.validator.Struct(ev); err != nil {
+			s.log.Warn("Dropping event from %s due to malformed schema: %v", r.RemoteAddr, err)
+			continue // Drop invalid event, but continue processing others in batch
+		}
+
 		// Convert agent.Event to ingest.ParsedEvent mapping structure
 		rawBytes, _ := json.Marshal(ev.Data)
 
 		user := ""
 		if u, ok := ev.Data["user"].(string); ok {
 			user = u
+		}
+
+		version := ev.Version
+		if version == "" {
+			version = "v1"
 		}
 
 		ingestEv := ParsedEvent{
@@ -247,9 +296,14 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			User:      user,
 			SessionID: "agent-" + ev.Source,
 			RawLine:   string(rawBytes),
+			Version:   version,
+			Ctx:       ctx,
 		}
 
-		s.pipeline.QueueEvent(ingestEv)
+		if err := s.pipeline.QueueEvent(ingestEv); err != nil {
+			s.log.Warn("Pipeline backpressure: dropping event from %s: %v", r.RemoteAddr, err)
+			continue
+		}
 		ingested++
 	}
 

@@ -1,7 +1,9 @@
 package vault
 
 import (
+	"context"
 	crand "crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -29,6 +31,7 @@ type Config struct {
 type metadata struct {
 	Salt           []byte `json:"salt"`
 	Canary         []byte `json:"canary"`
+	CanaryHash     []byte `json:"canary_hash,omitempty"` // SHA256 of the plain canary
 	YubiKeySerial  string `json:"yubikey_serial,omitempty"`
 	TpmPcr         int    `json:"tpm_pcr,omitempty"`
 	TpmFingerprint []byte `json:"tpm_fingerprint,omitempty"`
@@ -50,6 +53,13 @@ func New(cfg Config, log *logger.Logger) (*Vault, error) {
 		keychain: GetKeychainStore(),
 	}, nil
 }
+
+func (v *Vault) Name() string            { return "vault" }
+func (v *Vault) Dependencies() []string { return nil }
+
+func (v *Vault) Start(ctx context.Context) error { return nil }
+
+func (v *Vault) Stop(ctx context.Context) error { return nil }
 
 func (v *Vault) IsSetup() bool {
 	v.mu.RLock()
@@ -80,17 +90,28 @@ func (v *Vault) SetupWithTPM(password string, yubiKeySerial string, pcr int) err
 
 	v.log.Info("Vault.SetupWithTPM: deriving key")
 	key := DeriveKey(password, salt)
-	v.log.Info("Vault.SetupWithTPM: encrypting canary")
-	canary, err := Encrypt(key, []byte("oblivra"))
+
+	v.log.Info("Vault.SetupWithTPM: generating random canary")
+	canaryPlain := make([]byte, 32)
+	if _, err := crand.Read(canaryPlain); err != nil {
+		return fmt.Errorf("generate canary: %w", err)
+	}
+
+	canary, err := Encrypt(key, canaryPlain)
 	if err != nil {
 		return err
 	}
 
+	// Hash the plain canary for constant-time verification during Unlock
+	hasher := sha256.New()
+	hasher.Write(canaryPlain)
+	canaryHash := hasher.Sum(nil)
+
 	meta := metadata{
-		Salt:          salt,
-		Canary:        canary,
-		YubiKeySerial: yubiKeySerial,
-		TpmPcr:        pcr,
+		Salt:       salt,
+		Canary:     canary,
+		CanaryHash: canaryHash,
+		TpmPcr:     pcr,
 	}
 
 	// If TPM is requested, bind the vault to the current PCR state
@@ -156,9 +177,24 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 	}
 
 	decrypted, err := Decrypt(key, meta.Canary)
-	expectedCanary := []byte("oblivra")
-	if err != nil || subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
+	if err != nil {
 		return ErrWrongPassword
+	}
+
+	// Verify decrypted canary
+	if len(meta.CanaryHash) > 0 {
+		hasher := sha256.New()
+		hasher.Write(decrypted)
+		actualHash := hasher.Sum(nil)
+		if subtle.ConstantTimeCompare(actualHash, meta.CanaryHash) != 1 {
+			return ErrWrongPassword
+		}
+	} else {
+		// Fallback for legacy static canary
+		expectedCanary := []byte("oblivra")
+		if subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
+			return ErrWrongPassword
+		}
 	}
 
 	v.masterKey = NewSecureBytesFromSlice(key)
@@ -221,9 +257,24 @@ func (v *Vault) UnlockWithKeychain() error {
 	}
 
 	decrypted, err := Decrypt(key, meta.Canary)
-	expectedCanary := []byte("oblivra")
-	if err != nil || subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
+	if err != nil {
 		return ErrWrongPassword
+	}
+
+	// Verify decrypted canary
+	if len(meta.CanaryHash) > 0 {
+		hasher := sha256.New()
+		hasher.Write(decrypted)
+		actualHash := hasher.Sum(nil)
+		if subtle.ConstantTimeCompare(actualHash, meta.CanaryHash) != 1 {
+			return ErrWrongPassword
+		}
+	} else {
+		// Fallback for legacy static canary
+		expectedCanary := []byte("oblivra")
+		if subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
+			return ErrWrongPassword
+		}
 	}
 
 	v.masterKey = NewSecureBytesFromSlice(key)
@@ -275,15 +326,27 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 	}
 	newKey := DeriveKey(newPassword, newSalt)
 
-	// 3. Re-encrypt canary
-	newCanary, err := Encrypt(newKey, []byte("oblivra"))
+	// 3. Re-derive new random canary
+	v.log.Info("Vault.RotateMasterKey: generating new random canary")
+	canaryPlain := make([]byte, 32)
+	if _, err := crand.Read(canaryPlain); err != nil {
+		return fmt.Errorf("generate canary: %w", err)
+	}
+
+	newCanary, err := Encrypt(newKey, canaryPlain)
 	if err != nil {
 		return err
 	}
 
+	// Hash the new plain canary
+	hasher := sha256.New()
+	hasher.Write(canaryPlain)
+	canaryHash := hasher.Sum(nil)
+
 	// 4. Update metadata and save
 	meta.Salt = newSalt
 	meta.Canary = newCanary
+	meta.CanaryHash = canaryHash
 	newData, err := json.Marshal(meta)
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"runtime"
 	"strings"
 	"sync"
@@ -13,6 +14,14 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+)
+
+var (
+	tracer        = otel.Tracer("oblivrashell/ingest")
+	ErrBufferFull = errors.New("pipeline buffer full")
 )
 
 // Pipeline manages the buffering, crash-protection, and routing of incoming log streams.
@@ -29,6 +38,7 @@ type Pipeline struct {
 	wg        sync.WaitGroup
 	metrics   Metrics
 	mu        sync.RWMutex
+	once      sync.Once
 }
 
 // Metrics tracks the real-time throughput of the pipeline
@@ -61,6 +71,9 @@ func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine
 
 // Start begins processing the buffered queue in the background.
 func (p *Pipeline) Start() {
+	_, span := tracer.Start(p.ctx, "pipeline.Start")
+	defer span.End()
+
 	p.log.Info("[INGEST] Starting high-throughput pipeline (Buffer: %d)", p.metrics.BufferCapacity)
 
 	// synchronous replay before accepting new events
@@ -76,49 +89,48 @@ func (p *Pipeline) Start() {
 
 	p.log.Info("[INGEST] Spawning %d parallel parsing workers...", numWorkers)
 
-	p.wg.Add(numWorkers + 1) // +1 for the metric collector
+	p.wg.Add(1) // for the metric collector
+	go p.metricCollector()
+
 	for i := 0; i < numWorkers; i++ {
 		go p.worker()
 	}
-
-	go p.metricCollector()
 }
 
 // Shutdown stops the pipeline and waits for all workers to drain the buffer.
 func (p *Pipeline) Shutdown() {
-	p.log.Info("[INGEST] Shutting down pipeline, draining %d buffered events...", len(p.buffer))
-	p.cancel()
-	close(p.buffer)
-	p.wg.Wait()
+	p.once.Do(func() {
+		p.log.Info("[INGEST] Shutting down pipeline, draining %d buffered events...", len(p.buffer))
+		p.cancel()
+		close(p.buffer)
+		p.wg.Wait()
 
-	if p.wal != nil {
-		if err := p.wal.Close(); err != nil {
-			p.log.Error("[INGEST] Failed to close WAL: %v", err)
+		if p.wal != nil {
+			if err := p.wal.Close(); err != nil {
+				p.log.Error("[INGEST] Failed to close WAL: %v", err)
+			}
 		}
-	}
-	p.log.Info("[INGEST] Pipeline shutdown complete")
+		p.log.Info("[INGEST] Pipeline shutdown complete")
+	})
 }
 
 // Stop flushes remaining events and shuts down the pipeline.
+// Deprecated: Use Shutdown() instead.
 func (p *Pipeline) Stop() {
-	p.log.Info("[INGEST] Stopping pipeline...")
-	p.cancel()
-	p.wg.Wait()
-	if p.wal != nil {
-		p.wal.Close()
-	}
+	p.Shutdown()
 }
 
 // QueueEvent pushes a ParsedEvent into the pipeline. Applies backpressure if full.
-func (p *Pipeline) QueueEvent(evt ParsedEvent) {
+func (p *Pipeline) QueueEvent(evt ParsedEvent) error {
 	select {
 	case p.buffer <- evt:
-		// Success
+		return nil
 	default:
-		// Buffer is full. Drop event to prevent blocking the listener (syslog usually expects drops on overload).
+		// Buffer is full. Signal backpressure to the caller.
 		p.mu.Lock()
 		p.metrics.DroppedEvents++
 		p.mu.Unlock()
+		return ErrBufferFull
 	}
 }
 
@@ -134,11 +146,17 @@ func (p *Pipeline) GetMetrics() Metrics {
 
 // worker reads from the channel, writes to the WAL, and routes to storage tiers.
 func (p *Pipeline) worker() {
+	p.wg.Add(1)
 	defer p.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			p.log.Error("[INGEST] Worker panicked: %v. Restarting worker...", r)
-			go p.worker() // Restart the worker
+			select {
+			case <-p.ctx.Done():
+				// Don't restart if shutting down
+			default:
+				go p.worker() // Restart the worker
+			}
 		}
 	}()
 
@@ -149,7 +167,19 @@ func (p *Pipeline) worker() {
 				// Channel closed and drained
 				return
 			}
-			p.processEvent(evt)
+			
+			ctx := evt.Ctx
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			ctx, span := tracer.Start(ctx, "pipeline.processEvent", trace.WithAttributes(
+				attribute.String("event.type", evt.EventType),
+				attribute.String("event.host", evt.Host),
+			))
+
+			p.processEvent(ctx, evt)
+			
+			span.End()
 
 			p.mu.Lock()
 			p.metrics.TotalProcessed++
@@ -169,7 +199,8 @@ func (p *Pipeline) worker() {
 	}
 }
 
-func (p *Pipeline) processEvent(evt ParsedEvent) {
+func (p *Pipeline) processEvent(ctx context.Context, evt ParsedEvent) {
+	_, span := tracer.Start(ctx, "pipeline.WALWrite")
 	// 1. Durability: Write to WAL (Assuming raw string matches what parser used)
 	if p.wal != nil {
 		if err := p.wal.Append([]byte(evt.RawLine)); err != nil {
@@ -180,11 +211,15 @@ func (p *Pipeline) processEvent(evt ParsedEvent) {
 	if p.temporal != nil {
 		p.temporal.ValidateTimestamp(evt.Host, parseTime(evt.Timestamp))
 	}
+	span.End()
 
-	p.indexEvent(evt)
+	p.indexEvent(ctx, evt)
 }
 
-func (p *Pipeline) indexEvent(evt ParsedEvent) {
+func (p *Pipeline) indexEvent(ctx context.Context, evt ParsedEvent) {
+	ctx, span := tracer.Start(ctx, "pipeline.indexEvent")
+	defer span.End()
+
 	// 2. Routing: Is this a security anomaly or just a standard log?
 	if isSecurityAnomaly(evt) {
 		// Route to fast Badger HotStore
@@ -198,10 +233,10 @@ func (p *Pipeline) indexEvent(evt ParsedEvent) {
 				RawLog:    evt.RawLine,
 			}
 			// Inject context with timeout for SIEM insertion
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel() // Ensure the context is cancelled to release resources
 
-			if err := p.siem.InsertHostEvent(ctx, hostEvent); err != nil {
+			if err := p.siem.InsertHostEvent(insertCtx, hostEvent); err != nil {
 				p.log.Error("[INGEST] Failed to index SIEM event: %v", err)
 			} else if p.bus != nil {
 				// Broadcast the event to the alerting engine for real-time YAML rule matching
@@ -230,7 +265,7 @@ func (p *Pipeline) Replay() error {
 	err := p.wal.Replay(func(payload []byte) error {
 		raw := string(payload)
 		evt := AutoParse(raw)
-		p.indexEvent(evt)
+		p.indexEvent(context.Background(), evt)
 		return nil
 	})
 
@@ -244,6 +279,11 @@ func (p *Pipeline) Replay() error {
 
 // metricCollector updates the EPS (Events Per Second) speedometer
 func (p *Pipeline) metricCollector() {
+	defer func() {
+		if r := recover(); r != nil {
+			p.log.Error("[INGEST] Panic in metricCollector: %v", r)
+		}
+	}()
 	defer p.wg.Done()
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()

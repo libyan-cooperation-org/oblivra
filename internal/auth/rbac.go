@@ -8,18 +8,42 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
+// Role represents an RBAC permission group
+type Role string
+
+const (
+	RoleAdmin    Role = "admin"
+	RoleAnalyst  Role = "analyst"
+	RoleReadOnly Role = "readonly"
+	RoleAgent    Role = "agent"
+)
+
+// Clearance represents a Mandatory Access Control level
+type Clearance int
+
+const (
+	ClearanceUnclassified Clearance = iota
+	ClearanceConfidential
+	ClearanceSecret
+	ClearanceTopSecret
+)
+
+// UserAccount is a stub for future multi-user RBAC and MAC integration
+type UserAccount struct {
+	ID        string
+	Username  string
+	Role      Role
+	Clearance Clearance
+	AgentID   string // Binding for agent-to-host verification
+}
+
 // contextKey is used to avoid collisions in context values.
-// Always use typed keys — never plain strings — to prevent accidental collisions.
 type contextKey string
 
 const (
-	// contextKeyUserAccount is the single authoritative key for the full IdentityUser.
-	contextKeyUserAccount contextKey = "identity_user"
+	// UserContextKey is the single authoritative key for the authenticated user and their metadata.
+	UserContextKey contextKey = "oblivra_auth_user"
 )
-
-// ContextKeyUser is exported so apikey.go can write the UserAccount under a
-// consistent typed key that avoids the string-key collision.
-const ContextKeyUser contextKey = "api_user_account"
 
 // IdentityUser represents the authenticated user in context
 type IdentityUser struct {
@@ -81,13 +105,22 @@ func (e *RBACEngine) Enforce(user *IdentityUser, required string) error {
 
 // ContextWithUser stores the identity user in a context
 func ContextWithUser(ctx context.Context, user *IdentityUser) context.Context {
-	return context.WithValue(ctx, contextKeyUserAccount, user)
+	return context.WithValue(ctx, UserContextKey, user)
 }
 
 // UserFromContext extracts the identity user from context
 func UserFromContext(ctx context.Context) *IdentityUser {
-	user, _ := ctx.Value(contextKeyUserAccount).(*IdentityUser)
+	user, _ := ctx.Value(UserContextKey).(*IdentityUser)
 	return user
+}
+
+// GetRole is a high-level helper that extracts the role from the identity user in context.
+func GetRole(ctx context.Context) Role {
+	user := UserFromContext(ctx)
+	if user == nil {
+		return RoleReadOnly
+	}
+	return Role(user.RoleName)
 }
 
 // --- Permission Constants ---

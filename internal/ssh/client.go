@@ -351,9 +351,17 @@ func (c *Client) Resize(cols, rows int) error {
 	return c.session.WindowChange(rows, cols)
 }
 
-// Close terminates the SSH connection
+// Close terminates the SSH connection gracefully
 func (c *Client) Close() error {
 	c.cancel()
+	
+	// Graceful Wait: Wait up to 5 seconds for active commands/shells to flush and close
+	if c.done != nil {
+		select {
+		case <-c.done:
+		case <-time.After(5 * time.Second):
+		}
+	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()

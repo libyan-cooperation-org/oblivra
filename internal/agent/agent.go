@@ -58,11 +58,12 @@ type Collector interface {
 
 // Event represents a collected data point sent to the server.
 type Event struct {
-	Timestamp string                 `json:"timestamp"`
-	Source    string                 `json:"source"`
-	Type      string                 `json:"type"`
-	Host      string                 `json:"host"`
-	Data      map[string]interface{} `json:"data"`
+	Timestamp string                 `json:"timestamp" validate:"required,datetime=2006-01-02T15:04:05Z07:00"` // RFC3339
+	Source    string                 `json:"source" validate:"required"`
+	Type      string                 `json:"type" validate:"required"`
+	Host      string                 `json:"host" validate:"required"`
+	Version   string                 `json:"version"` // Event Schema Version (e.g. v1, v2)
+	Data      map[string]interface{} `json:"data" validate:"required"`
 }
 
 // New creates a new agent.
@@ -130,6 +131,11 @@ func (a *Agent) Start(ctx context.Context) error {
 		c := c
 		a.wg.Add(1)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					a.log.Error("Panic in collector %s: %v", c.Name(), r)
+				}
+			}()
 			defer a.wg.Done()
 			a.log.Info("Collector %s started", c.Name())
 			if err := c.Start(ctx, eventCh); err != nil {
@@ -141,6 +147,11 @@ func (a *Agent) Start(ctx context.Context) error {
 	// Start event processor (WAL → Transport)
 	a.wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				a.log.Error("Panic in event processor: %v", r)
+			}
+		}()
 		defer a.wg.Done()
 		a.processEvents(ctx, eventCh)
 	}()
@@ -148,6 +159,11 @@ func (a *Agent) Start(ctx context.Context) error {
 	// Start transport flush loop
 	a.wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				a.log.Error("Panic in transport flush loop: %v", r)
+			}
+		}()
 		defer a.wg.Done()
 		a.transport.FlushLoop(ctx, a.wal, a.ApplyConfig)
 	}()

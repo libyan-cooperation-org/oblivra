@@ -128,9 +128,11 @@ func (s *Server) Stop() error {
 		return nil
 	}
 
-	s.log.Info("Stopping REST API...")
+	s.log.Info("Stopping REST API (Waiting up to 10s for connections to drain)...")
 	s.cancel()
-	err := s.srv.Shutdown(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := s.srv.Shutdown(ctx)
 	s.srv = nil
 	return err
 }

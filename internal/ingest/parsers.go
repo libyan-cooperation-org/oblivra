@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -21,6 +22,8 @@ type ParsedEvent struct {
 	User      string
 	SessionID string
 	RawLine   string
+	Version   string
+	Ctx       context.Context // Tracing context
 }
 
 // ParseMethod defines the signature for a log parsing strategy.

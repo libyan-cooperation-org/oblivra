@@ -11,7 +11,6 @@ import {
 import { useApp } from '../../core/store';
 import { GenerateCommand } from '../../../wailsjs/go/app/AIService';
 import { List as ListSnippets } from '../../../wailsjs/go/app/SnippetService';
-import { ImportGPayStaging } from '../../../wailsjs/go/app/HostService';
 import { JSX } from 'solid-js';
 import '../../styles/palette.css';
 
@@ -163,24 +162,6 @@ export const CommandPalette: Component<CommandPaletteProps> = (props) => {
                 category: 'connection',
                 keywords: ['discover', 'scan', 'find', 'terraform', 'ansible'],
                 action: () => props.onNavigate('discover'),
-            },
-            {
-                id: 'import-gpay',
-                label: 'Import GPay Staging Hosts',
-                description: 'Inject the 13 GPay staging servers into the database',
-                icon: '🚀',
-                category: 'connection',
-                keywords: ['gpay', 'staging', 'import'],
-                action: async () => {
-                    props.onClose();
-                    try {
-                        const count = await ImportGPayStaging();
-                        actions.notify(`Successfully imported ${count} GPay hosts`, 'success');
-                        actions.refreshHosts();
-                    } catch (err: any) {
-                        actions.notify(`Import failed: ${err.message || err}`, 'error');
-                    }
-                },
             },
 
             // Navigation

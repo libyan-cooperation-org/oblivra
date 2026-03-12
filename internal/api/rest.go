@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -33,6 +34,10 @@ type RESTServer struct {
 	agents   map[string]*AgentInfo // registered agent fleet
 	limiter  *rate.Limiter
 	upgrader websocket.Upgrader
+
+	// Connection tracking
+	activeWS int64
+	maxWS    int64
 }
 
 // AgentInfo tracks a registered agent.
@@ -65,6 +70,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		attest:   attest,
 		agents:   make(map[string]*AgentInfo),
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
+		maxWS:    100,                               // Max 100 concurrent websocket listeners
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -412,11 +418,21 @@ func (s *RESTServer) handleAttestation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
+	// 1. Connection Limit Check
+	if atomic.LoadInt64(&s.activeWS) >= s.maxWS {
+		s.log.Warn("[REST] WebSocket connection limit reached (%d)", s.maxWS)
+		http.Error(w, "Too many concurrent connections", http.StatusServiceUnavailable)
+		return
+	}
+
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.log.Error("[REST] WebSocket upgrade failed: %v", err)
 		return
 	}
+	
+	atomic.AddInt64(&s.activeWS, 1)
+	defer atomic.AddInt64(&s.activeWS, -1)
 	defer conn.Close()
 
 	if s.bus == nil {
@@ -446,12 +462,37 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 		s.log.Info("[REST] Client disconnected from event stream: %s (unsubscribed)", clientAddr)
 	}()
 
-	for event := range subCh {
-		data, err := json.Marshal(event)
-		if err != nil {
-			continue
+	// Read loop to detect client disconnect
+	go func() {
+		defer close(ctxDone)
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
 		}
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+	}()
+
+	// Set ping handler
+	conn.SetPingHandler(func(appData string) error {
+		return conn.WriteMessage(websocket.PongMessage, []byte(appData))
+	})
+
+	for {
+		select {
+		case event, ok := <-subCh:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(event)
+			if err != nil {
+				continue
+			}
+			// Set write deadline for the event
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				return
+			}
+		case <-ctxDone:
 			return
 		}
 	}
