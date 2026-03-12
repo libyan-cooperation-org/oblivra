@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { SearchLogs } from '../../../wailsjs/go/app/App';
+import { SearchLogs } from '../../../wailsjs/go/app/AnalyticsService';
 import { SearchHostEvents, GetHostEvents, AnalyzeEvent, AggregateHostEvents, CreateSavedSearch, GetSavedSearches } from '../../../wailsjs/go/app/SIEMService';
 import { SaveRunbook } from '../../../wailsjs/go/app/NotesService';
 import { showModal } from '../ui/ModalSystem';

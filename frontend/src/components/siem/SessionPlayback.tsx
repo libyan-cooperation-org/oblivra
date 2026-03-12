@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show, createEffect } from 'solid-js';
-import * as App from '../../../wailsjs/go/app/App';
+import * as AnalyticsService from '../../../wailsjs/go/app/AnalyticsService';
 
 interface PlaybackProps {
     sessionId: string;
@@ -16,7 +16,7 @@ export const SessionPlayback: Component<PlaybackProps> = (props) => {
 
     onMount(async () => {
         try {
-            const f = await (App as any).GetRecordingFrames(props.sessionId);
+            const f = await (AnalyticsService as any).GetRecordingFrames(props.sessionId);
             setFrames(f || []);
         } catch (e) {
             console.error('Failed to load playback frames:', e);
