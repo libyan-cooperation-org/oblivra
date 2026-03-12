@@ -4,6 +4,7 @@ import (
 	"embed"
 	"flag"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/kingknull/oblivrashell/internal/attestation"
@@ -45,6 +46,24 @@ func main() {
 
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+			Middleware: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// SECURITY: Strict Content Security Policy
+					// 1. default-src 'self': Only allow assets from our own domain/wails protocol
+					// 2. script-src 'self' 'unsafe-eval': Wails/React/Solid-JS requirements
+					// 3. connect-src 'self' wails://* ws://localhost:* http://localhost:*: Allow API and WebSocket connections
+					// 4. style-src 'self' 'unsafe-inline' https://fonts.googleapis.com
+					// 5. font-src 'self' data: https://fonts.gstatic.com
+					csp := "default-src 'self'; " +
+						"script-src 'self' 'unsafe-eval' 'unsafe-inline' wails://*; " +
+						"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+						"font-src 'self' data: https://fonts.gstatic.com; " +
+						"img-src 'self' data: wails://*; " +
+						"connect-src 'self' wails://* ws://localhost:* http://localhost:*;"
+					w.Header().Set("Content-Security-Policy", csp)
+					next.ServeHTTP(w, r)
+				})
+			},
 		},
 
 		BackgroundColour: &options.RGBA{R: 13, G: 17, B: 23, A: 1},

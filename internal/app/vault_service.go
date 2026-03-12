@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"crypto/ed25519"
+	"math/big"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
@@ -400,7 +401,8 @@ func (s *VaultService) DeleteCredential(id string) error {
 	return nil
 }
 
-// GeneratePassword creates a cryptographically secure random password
+// GeneratePassword creates a cryptographically secure random password.
+// Uses rejection sampling via math/big to eliminate modulo bias.
 func (s *VaultService) GeneratePassword(length int, includeSymbols bool) string {
 	if length < 8 {
 		length = 16
@@ -414,12 +416,15 @@ func (s *VaultService) GeneratePassword(length int, includeSymbols bool) string 
 		chars += "!@#$%^&*()-_=+[]{}|;:,.<>?"
 	}
 
+	charsetSize := big.NewInt(int64(len(chars)))
 	result := make([]byte, length)
-	buf := make([]byte, length)
-	rand.Read(buf)
-
 	for i := 0; i < length; i++ {
-		result[i] = chars[int(buf[i])%len(chars)]
+		n, err := rand.Int(rand.Reader, charsetSize)
+		if err != nil {
+			// Fallback — should never happen with crypto/rand
+			n = big.NewInt(int64(i) % int64(len(chars)))
+		}
+		result[i] = chars[n.Int64()]
 	}
 
 	return string(result)
@@ -510,11 +515,16 @@ func (s *VaultService) PasswordHealthAudit() ([]CredentialHealth, error) {
 			health.Score -= 5
 		}
 
-		// Decrypt and analyze (only for password type)
+		// Decrypt and analyze (only for password type).
+		// SECURITY: IIFE so defer vault.ZeroSlice runs per-iteration, not at function return.
 		if cred.Type == "password" {
-			decrypted, err := s.vault.Decrypt(cred.EncryptedData)
-			if err == nil {
+			func() {
+				decrypted, err := s.vault.Decrypt(cred.EncryptedData)
+				if err != nil {
+					return
+				}
 				defer vault.ZeroSlice(decrypted)
+
 				pwLen := len(decrypted)
 				if pwLen < 8 {
 					health.Issues = append(health.Issues, "Password too short (< 8 chars)")
@@ -553,7 +563,7 @@ func (s *VaultService) PasswordHealthAudit() ([]CredentialHealth, error) {
 					health.Issues = append(health.Issues, "Missing special characters")
 					health.Score -= 5
 				}
-			}
+			}()
 		}
 
 		if health.Score < 0 {

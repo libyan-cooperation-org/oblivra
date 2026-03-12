@@ -117,7 +117,12 @@ export const AppProvider: ParentComponent = (props) => {
             let polls = 0;
             const poll = setInterval(async () => {
                 polls++;
-                if (polls > 50) { clearInterval(poll); return; }
+                // SECURITY: Stop polling after limit or if vault was manually locked in between
+                if (polls > 50 || !state.sidebarOpen) { 
+                    clearInterval(poll); 
+                    return; 
+                }
+                
                 const isNowUnlocked = await IsUnlocked();
                 if (isNowUnlocked) {
                     clearInterval(poll);
@@ -125,6 +130,9 @@ export const AppProvider: ParentComponent = (props) => {
                     await refreshHosts();
                 }
             }, 300);
+
+            // Ensure poll is cleared if we lock manually during the polling window
+            subscribe('vault:locked', () => clearInterval(poll));
         }
 
         subscribe('session:started', (data: { id: string, hostId: string, label: string }) => {

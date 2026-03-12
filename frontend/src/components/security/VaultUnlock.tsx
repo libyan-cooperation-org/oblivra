@@ -34,6 +34,7 @@ export const VaultUnlock: Component<VaultUnlockProps> = (props) => {
             const msg = err instanceof Error ? err.message : String(err);
             setError(msg || 'Incorrect passphrase or vault error');
         } finally {
+            setPassphrase(''); // SECURITY: Zero out sensitive data from memory
             setLoading(false);
         }
     };

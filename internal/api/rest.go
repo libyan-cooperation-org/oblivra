@@ -66,7 +66,31 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		agents:   make(map[string]*AgentInfo),
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true }, // Allow all origins for the API stream for now
+			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
+			// Do NOT allow all origins — any web page could connect and receive live event data.
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					// Non-browser clients (CLI agents) omit Origin header; allow them.
+					return true
+				}
+				// Allow same-host requests (Wails desktop shell and localhost agents)
+				host := r.Host
+				allowed := []string{
+					"http://" + host,
+					"https://" + host,
+					"http://localhost",
+					"https://localhost",
+					"wails://wails",
+				}
+				for _, a := range allowed {
+					if origin == a || len(origin) > len(a) && origin[:len(a)+1] == a+":" {
+						return true
+					}
+				}
+				log.Warn("[WS] Rejected connection from disallowed origin: %s", origin)
+				return false
+			},
 		},
 	}
 
@@ -121,13 +145,10 @@ func (s *RESTServer) Start() {
 		certPath := "cert.pem" // Hardcoded stub for phase 2 setup
 		keyPath := "key.pem"
 
-		// If no TLS provisioned, fallback to HTTP (or fail based on strictness)
+		// SECURITY: Remove silent HTTP fallback. Fail hard if TLS is requested but unavailable.
 		err := s.server.ListenAndServeTLS(certPath, keyPath)
-		if err != nil {
-			s.log.Warn("[REST] TLS not configured, falling back to HTTP: %v", err)
-			if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				s.log.Error("[REST] Server failed: %v", err)
-			}
+		if err != nil && err != http.ErrServerClosed {
+			s.log.Error("[REST] TLS server failed: %v. Headless API is NOT running.", err)
 		}
 	}()
 }
@@ -276,10 +297,15 @@ func (s *RESTServer) handleSIEMSearch(w http.ResponseWriter, r *http.Request) {
 			if req.Query != "" {
 				query = req.Query
 			}
+			const maxSearchLimit = 1000
 			if l, ok := req.Filters["limit"].(float64); ok {
 				limit = int(l)
 			} else if l, ok := req.Filters["limit"].(int); ok {
 				limit = l
+			}
+			// Cap to prevent OOM from malicious large-limit requests
+			if limit > maxSearchLimit {
+				limit = maxSearchLimit
 			}
 		} else {
 			http.Error(w, "Invalid request body or body too large", http.StatusBadRequest)
@@ -363,6 +389,13 @@ func (s *RESTServer) handleIngestStatus(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *RESTServer) handleAttestation(w http.ResponseWriter, r *http.Request) {
+	// 1. RBAC Check: Require Admin
+	role := auth.GetRole(r.Context())
+	if role != auth.RoleAdmin {
+		http.Error(w, "Forbidden: Admin only", http.StatusForbidden)
+		return
+	}
+
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -395,24 +428,31 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("[REST] Client connected to event stream: %s", clientAddr)
 
 	subCh := make(chan eventbus.Event, 100)
+	ctxDone := make(chan struct{})
 
-	s.bus.Subscribe(eventbus.AllEvents, func(e eventbus.Event) {
+	// Unsubscribe when the client disconnects to prevent goroutine/memory leaks.
+	subID := s.bus.SubscribeWithID(eventbus.AllEvents, func(e eventbus.Event) {
 		select {
 		case subCh <- e:
+		case <-ctxDone:
+			return
 		default:
 			// drop if client is too slow
 		}
 	})
+	defer func() {
+		close(ctxDone)
+		s.bus.Unsubscribe(subID)
+		s.log.Info("[REST] Client disconnected from event stream: %s (unsubscribed)", clientAddr)
+	}()
 
-	for {
-		event := <-subCh
+	for event := range subCh {
 		data, err := json.Marshal(event)
 		if err != nil {
 			continue
 		}
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			s.log.Info("[REST] Client disconnected from event stream: %s", clientAddr)
-			break
+			return
 		}
 	}
 }
@@ -423,22 +463,7 @@ func (s *RESTServer) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RESTServer) handleDocs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	html := `<!DOCTYPE html>
-<html>
-<head>
-  <title>Oblivra API Documentation</title>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
-  <style>
-    body { margin: 0; padding: 0; }
-  </style>
-</head>
-<body>
-  <redoc spec-url='/api/v1/openapi.yaml'></redoc>
-  <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
-</body>
-</html>`
-	w.Write([]byte(html))
+	// SECURITY: Disabled to prevent leakage via external CDN links in production-like builds.
+	// Documentation should be served from a separate, secure portal or localized assets.
+	http.Error(w, "Documentation endpoint disabled for security", http.StatusForbidden)
 }

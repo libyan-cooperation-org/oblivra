@@ -28,3 +28,9 @@ func (p *WindowsPlatform) LogDir() string {
 }
 
 func (p *WindowsPlatform) KeychainAvailable() bool { return true }
+
+func (p *WindowsPlatform) TotalMemoryMB() uint64 {
+	// Baseline for Windows hosts — 4GB is a safe assumption for modern OS.
+	// Future: use windows.GlobalMemoryStatusEx to detect actual physical RAM.
+	return 4096
+}

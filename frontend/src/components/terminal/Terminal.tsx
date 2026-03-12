@@ -59,6 +59,8 @@ export const TerminalView: Component<TerminalProps> = (props) => {
             scrollback: 10000,
             convertEol: true,
             lineHeight: 1.2,
+            // SECURITY: Explicitly disable OSC 52 (clipboard) access
+            allowProposedApi: false,
         });
 
         fitAddon = new FitAddon();

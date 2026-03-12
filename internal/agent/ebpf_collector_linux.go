@@ -533,7 +533,7 @@ func (c *EBPFLinuxCollector) toAgentEvent(k *kernelEvent) Event {
 	}
 
 	return Event{
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Format(time.RFC3339),
 		Source:    source,
 		Type:      evType,
 		Host:      c.hostname,
@@ -594,7 +594,7 @@ func (c *EBPFLinuxCollector) procFallbackLoop(ctx context.Context, ch chan<- Eve
 				cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%s/cmdline", pid))
 
 				ch <- Event{
-					Timestamp: time.Now(),
+					Timestamp: time.Now().Format(time.RFC3339),
 					Source:    "ebpf_proc_fallback",
 					Type:      "process_exec",
 					Host:      c.hostname,
@@ -611,7 +611,7 @@ func (c *EBPFLinuxCollector) procFallbackLoop(ctx context.Context, ch chan<- Eve
 
 			// Periodically emit a summary heartbeat
 			ch <- Event{
-				Timestamp: time.Now(),
+				Timestamp: time.Now().Format(time.RFC3339),
 				Source:    "ebpf",
 				Type:      "kernel_telemetry",
 				Host:      c.hostname,

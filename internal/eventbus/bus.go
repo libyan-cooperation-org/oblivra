@@ -62,9 +62,13 @@ type Event struct {
 type Handler func(event Event)
 
 type subscription struct {
+	id      uint64 // unique subscription ID for targeted unsubscription
 	ch      chan Event
 	handler Handler
+	cancel  chan struct{} // closed to stop the worker goroutine
 }
+
+var nextSubID uint64 // monotonic counter for subscription IDs
 
 type Bus struct {
 	mu          sync.RWMutex
@@ -88,23 +92,18 @@ func NewBus(log *logger.Logger) *Bus {
 	}
 }
 
-func (b *Bus) Subscribe(eventType EventType, handler Handler) {
-	if handler == nil {
-		b.log.Error("Bus.Subscribe called with nil handler for topic: %s", eventType)
-		return
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Create bounded buffer for this specific handler
-	sub := &subscription{
-		ch:      make(chan Event, 2000), // Buffer up to 2000 events per subscriber
+// newSubscription creates a subscription struct with a unique ID.
+func (b *Bus) newSubscription(handler Handler) *subscription {
+	return &subscription{
+		id:      atomic.AddUint64(&nextSubID, 1),
+		ch:      make(chan Event, 2000),
 		handler: handler,
+		cancel:  make(chan struct{}),
 	}
+}
 
-	b.handlers[eventType] = append(b.handlers[eventType], sub) // Changed from subscribers
-
-	// Start the robust worker for this subscription
+// startWorker launches the event-dispatch goroutine for a subscription.
+func (b *Bus) startWorker(sub *subscription, eventType EventType) {
 	go func(s *subscription) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -118,11 +117,60 @@ func (b *Bus) Subscribe(eventType EventType, handler Handler) {
 					return
 				}
 				s.handler(event)
+			case <-s.cancel:
+				return
 			case <-b.closing:
 				return
 			}
 		}
 	}(sub)
+}
+
+func (b *Bus) Subscribe(eventType EventType, handler Handler) {
+	if handler == nil {
+		b.log.Error("Bus.Subscribe called with nil handler for topic: %s", eventType)
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	sub := b.newSubscription(handler)
+	b.handlers[eventType] = append(b.handlers[eventType], sub)
+	b.startWorker(sub, eventType)
+}
+
+// SubscribeWithID registers a handler and returns a subscription ID that can be
+// passed to Unsubscribe to clean up the subscription and its worker goroutine.
+func (b *Bus) SubscribeWithID(eventType EventType, handler Handler) uint64 {
+	if handler == nil {
+		b.log.Error("Bus.SubscribeWithID called with nil handler for topic: %s", eventType)
+		return 0
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	sub := b.newSubscription(handler)
+	b.handlers[eventType] = append(b.handlers[eventType], sub)
+	b.startWorker(sub, eventType)
+	return sub.id
+}
+
+// Unsubscribe removes the subscription with the given ID and stops its worker goroutine.
+func (b *Bus) Unsubscribe(subID uint64) {
+	if subID == 0 {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for eventType, subs := range b.handlers {
+		for i, sub := range subs {
+			if sub.id == subID {
+				// Stop the worker
+				close(sub.cancel)
+				// Remove from slice
+				b.handlers[eventType] = append(subs[:i], subs[i+1:]...)
+				return
+			}
+		}
+	}
 }
 
 // Publish broadcasts an event to all subscribers of its exact topic.

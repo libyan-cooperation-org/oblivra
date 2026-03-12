@@ -43,3 +43,9 @@ func (p *LinuxPlatform) KeychainAvailable() bool {
 	_, err := os.Stat("/usr/bin/secret-tool")
 	return err == nil
 }
+
+func (p *LinuxPlatform) TotalMemoryMB() uint64 {
+	// Baseline for Linux hosts — 2GB safe minimum for modern distros.
+	// Future: read from /proc/meminfo.
+	return 2048
+}

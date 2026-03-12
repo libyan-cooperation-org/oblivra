@@ -1,6 +1,7 @@
 package vault
 
 import (
+	crand "crypto/rand"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -311,15 +312,20 @@ func (v *Vault) NuclearDestruction() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	// 1. Shred the vault file
+	// 1. Shred the vault file with cryptographically random data, then zeros.
+	// Note: on SSDs with wear levelling this cannot guarantee physical erasure,
+	// but it prevents trivial file-recovery of the ciphertext.
 	vaultPath := filepath.Join(v.config.StorePath, "vault.json")
 	if info, err := os.Stat(vaultPath); err == nil {
-		// Securely overwrite with random data then zeros before deleting
 		size := info.Size()
-		junk := make([]byte, size)
-		os.WriteFile(vaultPath, junk, 0600) // junk (randomish if initialized)
-		ZeroSlice(junk)
-		os.WriteFile(vaultPath, junk, 0600) // true zeros
+		randomPass := make([]byte, size)
+		// Fill with real random bytes for the first pass
+		if _, err := crand.Read(randomPass); err == nil {
+			os.WriteFile(vaultPath, randomPass, 0600)
+		}
+		// Second pass: zeros
+		ZeroSlice(randomPass)
+		os.WriteFile(vaultPath, randomPass, 0600)
 		os.Remove(vaultPath)
 	}
 

@@ -79,7 +79,7 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
                     <CommandRail />
                 </Show>
 
-                <Show when={!state.focusMode && state.sidebarOpen && (['hosts', 'snippets', 'tunnels', 'terminal', 'recordings', 'notes', 'team', 'sync', 'plugins', 'health', 'metrics', 'updater', 'workspace', 'security', 'vault'] as string[]).includes(state.activeNavTab)}>
+                <Show when={!state.focusMode && state.sidebarOpen && (['hosts', 'snippets', 'tunnels', 'terminal', 'recordings', 'notes', 'team', 'sync', 'plugins', 'health', 'metrics', 'updater', 'workspace', 'security', 'vault', 'ai-assistant', 'mitre-heatmap', 'soc', 'response'] as string[]).includes(state.activeNavTab)}>
                     <DrawerPanel onAddHost={() => setShowAddHost(true)} />
                 </Show>
 

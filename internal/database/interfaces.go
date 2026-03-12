@@ -49,6 +49,9 @@ type HostStore interface {
 	RecordConnection(ctx context.Context, id string) error
 	GetAllTags(ctx context.Context) ([]string, error)
 	Count(ctx context.Context) (int, error)
+	// GetEncryptedPassword returns the raw stored password blob for SSH connect-time decryption.
+	// Must never be used to populate the Host DTO sent to the frontend.
+	GetEncryptedPassword(ctx context.Context, id string) (string, error)
 }
 
 // SessionStore defines the interface for session management and tracking.

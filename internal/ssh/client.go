@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"github.com/pkg/sftp"
 )
 
 // ClientState represents the connection state
@@ -556,4 +557,17 @@ func (c *Client) DialTCP(addr string) (net.Conn, error) {
 	}
 
 	return conn.Dial("tcp", addr)
+}
+
+// SftpClient returns an SFTP client using the existing SSH connection
+func (c *Client) SftpClient() (*sftp.Client, error) {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+
+	if conn == nil {
+		return nil, fmt.Errorf("not connected")
+	}
+
+	return sftp.NewClient(conn)
 }

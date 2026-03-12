@@ -128,15 +128,20 @@ func (r *HostRepository) GetAll(ctx context.Context) ([]Host, error) {
 // GetFavorites returns favorite hosts
 func (r *HostRepository) GetFavorites(ctx context.Context) ([]Host, error) {
 
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
 	tenantID := TenantFromContext(ctx)
 
-	rows, err := r.db.DB().Query(`
+	rows, err := conn.Query(`
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
 			last_connected_at, connection_count, created_at, updated_at
 		FROM hosts WHERE is_favorite = 1 AND tenant_id = ?
-		ORDER BY label ASC`, tenantID)
+		ORDER BY label ASC`, tenantID) // conn via Conn() to respect vault-lock guard
 	if err != nil {
 		return nil, fmt.Errorf("query favorites: %w", err)
 	}
@@ -157,10 +162,15 @@ func (r *HostRepository) GetFavorites(ctx context.Context) ([]Host, error) {
 // Search finds hosts matching a query
 func (r *HostRepository) Search(ctx context.Context, query string) ([]Host, error) {
 
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
 	tenantID := TenantFromContext(ctx)
 	searchTerm := "%" + strings.ToLower(query) + "%"
 
-	rows, err := r.db.DB().Query(`
+	rows, err := conn.Query(`
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
@@ -190,16 +200,21 @@ func (r *HostRepository) Search(ctx context.Context, query string) ([]Host, erro
 // GetByTag returns hosts with a specific tag
 func (r *HostRepository) GetByTag(ctx context.Context, tag string) ([]Host, error) {
 
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
 	tenantID := TenantFromContext(ctx)
 	searchTag := fmt.Sprintf("%%%q%%", tag)
 
-	rows, err := r.db.DB().Query(`
+	rows, err := conn.Query(`
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
 			last_connected_at, connection_count, created_at, updated_at
 		FROM hosts WHERE tags LIKE ? AND tenant_id = ?
-		ORDER BY label ASC`, searchTag, tenantID)
+		ORDER BY label ASC`, searchTag, tenantID) // conn via Conn() to respect vault-lock guard
 	if err != nil {
 		return nil, fmt.Errorf("query by tag: %w", err)
 	}
@@ -282,10 +297,15 @@ func (r *HostRepository) Delete(ctx context.Context, id string) error {
 // ToggleFavorite toggles the favorite status
 func (r *HostRepository) ToggleFavorite(ctx context.Context, id string) (bool, error) {
 
+	conn, err := r.db.Conn()
+	if err != nil {
+		return false, err
+	}
+
 	tenantID := TenantFromContext(ctx)
 
 	var current bool
-	err := r.db.DB().QueryRow("SELECT is_favorite FROM hosts WHERE id = ? AND tenant_id = ?", id, tenantID).Scan(&current)
+	err = conn.QueryRow("SELECT is_favorite FROM hosts WHERE id = ? AND tenant_id = ?", id, tenantID).Scan(&current)
 	if err != nil {
 		return false, fmt.Errorf("get favorite status: %w", err)
 	}
@@ -321,9 +341,14 @@ func (r *HostRepository) RecordConnection(ctx context.Context, id string) error 
 // GetAllTags returns all unique tags
 func (r *HostRepository) GetAllTags(ctx context.Context) ([]string, error) {
 
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
 	tenantID := TenantFromContext(ctx)
 
-	rows, err := r.db.DB().Query("SELECT tags FROM hosts WHERE tags != '[]' AND tenant_id = ?", tenantID)
+	rows, err := conn.Query("SELECT tags FROM hosts WHERE tags != '[]' AND tenant_id = ?", tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -352,25 +377,54 @@ func (r *HostRepository) GetAllTags(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
+// GetEncryptedPassword retrieves the raw stored password blob for a host.
+// Used only at SSH connection time to decrypt in-place — never returned to frontend.
+func (r *HostRepository) GetEncryptedPassword(ctx context.Context, id string) (string, error) {
+	conn, err := r.db.Conn()
+	if err != nil {
+		return "", err
+	}
+
+	tenantID := TenantFromContext(ctx)
+	var pw string
+	err = conn.QueryRow(
+		"SELECT COALESCE(password, '') FROM hosts WHERE id = ? AND tenant_id = ?",
+		id, tenantID,
+	).Scan(&pw)
+	if err != nil {
+		return "", fmt.Errorf("get encrypted password: %w", err)
+	}
+	return pw, nil
+}
+
 // Count returns total host count
 func (r *HostRepository) Count(ctx context.Context) (int, error) {
+
+	conn, err := r.db.Conn()
+	if err != nil {
+		return 0, err
+	}
 
 	tenantID := TenantFromContext(ctx)
 
 	var count int
-	err := r.db.DB().QueryRow("SELECT COUNT(*) FROM hosts WHERE tenant_id = ?", tenantID).Scan(&count)
+	err = conn.QueryRow("SELECT COUNT(*) FROM hosts WHERE tenant_id = ?", tenantID).Scan(&count)
 	return count, err
 }
 
 // scanHost scans a single row
+// SECURITY: password column is scanned but immediately cleared before returning.
+// Plaintext passwords must NEVER be sent to the frontend via the Host DTO.
+// Decryption happens only inside prepareSSHConfig at connection time.
 func (r *HostRepository) scanHost(row *sql.Row) (*Host, error) {
 	var host Host
 	var tagsJSON string
 	var lastConnected sql.NullTime
+	var rawPassword string // scanned only to verify column exists; never exposed
 
 	err := row.Scan(
 		&host.ID, &host.TenantID, &host.Label, &host.Hostname, &host.Port,
-		&host.Username, &host.Password, &host.AuthMethod, &host.CredentialID,
+		&host.Username, &rawPassword, &host.AuthMethod, &host.CredentialID,
 		&host.JumpHostID, &tagsJSON, &host.Category, &host.Color, &host.Notes,
 		&host.IsFavorite, &lastConnected, &host.ConnectionCount,
 		&host.CreatedAt, &host.UpdatedAt,
@@ -382,6 +436,11 @@ func (r *HostRepository) scanHost(row *sql.Row) (*Host, error) {
 		return nil, fmt.Errorf("scan host: %w", err)
 	}
 
+	// Indicate whether a password is stored without exposing its value.
+	// The frontend uses this boolean to show/hide the password auth option.
+	host.HasPassword = rawPassword != ""
+	host.Password = "" // never send plaintext or ciphertext to frontend
+
 	if lastConnected.Valid {
 		t := lastConnected.Time.Format(time.RFC3339)
 		host.LastConnectedAt = &t
@@ -392,29 +451,20 @@ func (r *HostRepository) scanHost(row *sql.Row) (*Host, error) {
 		host.Tags = []string{}
 	}
 
-	// Security: Decrypt password if it looks like an encrypted blob and vault is unlocked
-	if r.vault != nil && r.vault.IsUnlocked() && host.Password != "" {
-		decoded, err := base64.StdEncoding.DecodeString(host.Password)
-		if err == nil {
-			decrypted, err := r.vault.Decrypt(decoded)
-			if err == nil {
-				host.Password = string(decrypted)
-			}
-		}
-	}
-
 	return &host, nil
 }
 
-// scanHostRows scans from multiple rows
+// scanHostRows scans from multiple rows.
+// SECURITY: same contract as scanHost — password is never returned in the DTO.
 func (r *HostRepository) scanHostRows(rows *sql.Rows) (*Host, error) {
 	var host Host
 	var tagsJSON string
 	var lastConnected sql.NullTime
+	var rawPassword string
 
 	err := rows.Scan(
 		&host.ID, &host.TenantID, &host.Label, &host.Hostname, &host.Port,
-		&host.Username, &host.Password, &host.AuthMethod, &host.CredentialID,
+		&host.Username, &rawPassword, &host.AuthMethod, &host.CredentialID,
 		&host.JumpHostID, &tagsJSON, &host.Category, &host.Color, &host.Notes,
 		&host.IsFavorite, &lastConnected, &host.ConnectionCount,
 		&host.CreatedAt, &host.UpdatedAt,
@@ -423,6 +473,9 @@ func (r *HostRepository) scanHostRows(rows *sql.Rows) (*Host, error) {
 		return nil, fmt.Errorf("scan host: %w", err)
 	}
 
+	host.HasPassword = rawPassword != ""
+	host.Password = ""
+
 	if lastConnected.Valid {
 		t := lastConnected.Time.Format(time.RFC3339)
 		host.LastConnectedAt = &t
@@ -431,17 +484,6 @@ func (r *HostRepository) scanHostRows(rows *sql.Rows) (*Host, error) {
 	json.Unmarshal([]byte(tagsJSON), &host.Tags)
 	if host.Tags == nil {
 		host.Tags = []string{}
-	}
-
-	// Security: Decrypt password if it looks like an encrypted blob and vault is unlocked
-	if r.vault != nil && r.vault.IsUnlocked() && host.Password != "" {
-		decoded, err := base64.StdEncoding.DecodeString(host.Password)
-		if err == nil {
-			decrypted, err := r.vault.Decrypt(decoded)
-			if err == nil {
-				host.Password = string(decrypted)
-			}
-		}
 	}
 
 	return &host, nil

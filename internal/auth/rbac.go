@@ -8,12 +8,18 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-// contextKey is used to avoid collisions in context values
+// contextKey is used to avoid collisions in context values.
+// Always use typed keys — never plain strings — to prevent accidental collisions.
 type contextKey string
 
 const (
+	// contextKeyUserAccount is the single authoritative key for the full IdentityUser.
 	contextKeyUserAccount contextKey = "identity_user"
 )
+
+// ContextKeyUser is exported so apikey.go can write the UserAccount under a
+// consistent typed key that avoids the string-key collision.
+const ContextKeyUser contextKey = "api_user_account"
 
 // IdentityUser represents the authenticated user in context
 type IdentityUser struct {

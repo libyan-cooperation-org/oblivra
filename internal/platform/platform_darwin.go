@@ -31,3 +31,9 @@ func (p *DarwinPlatform) LogDir() string {
 }
 
 func (p *DarwinPlatform) KeychainAvailable() bool { return true }
+
+func (p *DarwinPlatform) TotalMemoryMB() uint64 {
+	// Baseline for macOS hosts — 4GB safe baseline.
+	// Future: use sysctl.
+	return 4096
+}

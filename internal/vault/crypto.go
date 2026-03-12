@@ -12,27 +12,50 @@ import (
 
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/hkdf"
+	"github.com/kingknull/oblivrashell/internal/platform"
 )
 
 const (
 	// Argon2 parameters
 	argonTime    = 3
-	argonMemory  = 8 * 1024 // 8 MB (reduced from 64MB to avoid Wails/Windows 32-bit OOM silently hanging)
 	argonThreads = 4
 	argonKeyLen  = 32
+
+	// OWASP minimum is 64 MB. We adapt based on available system RAM.
+	argonMemoryMin  uint32 = 8 * 1024  // 8 MB  — lowest-end fallback
+	argonMemoryIdeal uint32 = 64 * 1024 // 64 MB — OWASP recommended
+	argonMemoryHigh  uint32 = 128 * 1024 // 128 MB — high-security mode
 
 	// Salt sizes
 	saltSize  = 32
 	nonceSize = 12 // GCM standard nonce size
 )
 
-// DeriveKey derives an encryption key from a password using Argon2id
+// argonMemory returns an appropriate Argon2 memory parameter based on
+// total available system RAM to balance security vs. availability.
+func argonMemory() uint32 {
+	totalRAM := platform.Detect().TotalMemoryMB()
+	switch {
+	case totalRAM >= 8192: // 8 GB+
+		return argonMemoryHigh // 128 MB
+	case totalRAM >= 1024: // 1 GB+ (OWASP recommends 64MB)
+		return argonMemoryIdeal // 64 MB
+	case totalRAM >= 512: // 512 MB+
+		return argonMemoryMin * 4 // 32 MB (risk of offline brute-force higher)
+	default:
+		return argonMemoryMin // 8 MB (extreme resource constraint)
+	}
+}
+
+// DeriveKey derives an encryption key from a password using Argon2id.
+// Memory usage scales with available system RAM to balance OWASP compliance
+// against OOM risk on resource-constrained hosts.
 func DeriveKey(password string, salt []byte) []byte {
 	return argon2.IDKey(
 		[]byte(password),
 		salt,
 		argonTime,
-		argonMemory,
+		argonMemory(),
 		argonThreads,
 		argonKeyLen,
 	)

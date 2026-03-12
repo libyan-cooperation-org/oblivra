@@ -285,38 +285,62 @@ func (s *HostService) ImportSSHConfig() (int, error) {
 	return count, nil
 }
 
-// ImportGPayStaging injects the provided 13 staging hosts from screenshot into the database.
+// ImportGPayStaging imports the GPay staging topology with empty passwords.
+// Passwords must be set manually through the vault credential manager after import.
+// SECURITY: Credentials are never hardcoded in source; they are added through the UI.
 func (s *HostService) ImportGPayStaging() (int, error) {
 	if s.vault == nil || !s.vault.IsUnlocked() {
-		return 0, fmt.Errorf("vault is locked, cannot import passwords securely")
+		return 0, fmt.Errorf("vault is locked, cannot import hosts securely")
 	}
 
-	hosts := []database.Host{
-		{Label: "loadbalancer", Hostname: "192.168.20.1", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "LB_VLAN"}},
-		{Label: "webserver-1", Hostname: "192.168.30.1", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "webserver-2", Hostname: "192.168.30.2", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "webserver-3", Hostname: "192.168.30.3", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "web-notifications-1 (GNC1)", Hostname: "192.168.30.10", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "web-notifications-2 (GNC2)", Hostname: "192.168.30.11", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "web-notifications-3 (GNC3)", Hostname: "192.168.30.12", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "internal-loadbalancer", Hostname: "192.168.30.9", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "services", Hostname: "192.168.30.8", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "WEB_VLAN"}},
-		{Label: "database-1", Hostname: "192.168.40.1", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "DB_VLAN"}},
-		{Label: "database-2", Hostname: "192.168.40.2", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "DB_VLAN"}},
-		{Label: "database-3", Hostname: "192.168.40.3", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "DB_VLAN"}},
-		{Label: "postgresql-db", Hostname: "192.168.40.4", Username: "sanad", Password: "S@nad2026!", Port: 22, AuthMethod: "password", Category: "GPay Staging", Tags: []string{"gpay", "staging", "DB_VLAN"}},
+	type stagingHost struct {
+		label    string
+		ip       string
+		tags     []string
+	}
+
+	staging := []stagingHost{
+		{"loadbalancer", "192.168.20.1", []string{"gpay", "staging", "LB_VLAN"}},
+		{"webserver-1", "192.168.30.1", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"webserver-2", "192.168.30.2", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"webserver-3", "192.168.30.3", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"web-notifications-1 (GNC1)", "192.168.30.10", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"web-notifications-2 (GNC2)", "192.168.30.11", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"web-notifications-3 (GNC3)", "192.168.30.12", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"internal-loadbalancer", "192.168.30.9", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"services", "192.168.30.8", []string{"gpay", "staging", "WEB_VLAN"}},
+		{"database-1", "192.168.40.1", []string{"gpay", "staging", "DB_VLAN"}},
+		{"database-2", "192.168.40.2", []string{"gpay", "staging", "DB_VLAN"}},
+		{"database-3", "192.168.40.3", []string{"gpay", "staging", "DB_VLAN"}},
+		{"postgresql-db", "192.168.40.4", []string{"gpay", "staging", "DB_VLAN"}},
 	}
 
 	count := 0
-	for _, h := range hosts {
-		h.ID = uuid.New().String()
-		if _, err := s.Create(h); err == nil {
+	var firstHost database.Host
+	for i, sh := range staging {
+		h := database.Host{
+			ID:         uuid.New().String(),
+			Label:      sh.label,
+			Hostname:   sh.ip,
+			Username:   "sanad",
+			Port:       22,
+			AuthMethod: "password",
+			Category:   "GPay Staging",
+			Tags:       sh.tags,
+			// Password intentionally empty — set credentials via vault manager after import
+		}
+		if created, err := s.Create(h); err == nil {
 			count++
+			if i == 0 {
+				firstHost = *created
+			}
 		}
 	}
 
-	s.bus.Publish(eventbus.EventHostUpdated, hosts[0]) // trigger UI refresh
+	if count > 0 {
+		s.bus.Publish(eventbus.EventHostUpdated, firstHost)
+	}
 
-	s.log.Info("Successfully imported %d GPay Staging hosts", count)
+	s.log.Info("Imported %d GPay Staging hosts (credentials NOT set — add via vault manager)", count)
 	return count, nil
 }

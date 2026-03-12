@@ -91,8 +91,13 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Inject UserAccount into Context
-		ctx := context.WithValue(r.Context(), "user", user)
+		// Build an IdentityUser from the UserAccount so that RBACEngine.Enforce()
+		// and UserFromContext() work correctly throughout handler chain.
+		identityUser := apiKeyToIdentityUser(user)
+
+		// Inject under BOTH the typed key (new) and the legacy string key (backward compat)
+		ctx := context.WithValue(r.Context(), ContextKeyUser, user)
+		ctx = ContextWithUser(ctx, identityUser)
 
 		// Authorized, proceed to handler
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -100,18 +105,63 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 }
 
 func (m *APIKeyMiddleware) isValid(provided string) (*UserAccount, bool) {
-	// Use constant-time comparison to prevent timing attacks
+	// Scan ALL keys unconditionally to prevent timing side-channel that would
+	// reveal the index of a matching key if we returned early on first match.
+	var found *UserAccount
 	for validKey, userAccount := range m.validKeys {
 		if subtle.ConstantTimeCompare([]byte(validKey), []byte(provided)) == 1 {
-			return &userAccount, true
+			// Copy so the loop variable address is safe to take
+			acc := userAccount
+			found = &acc
+			// Do NOT break — continue scanning all keys
 		}
 	}
-	return nil, false
+	return found, found != nil
 }
 
-// GetRole is a helper that extracts the authorized role from the request context
+// apiKeyToIdentityUser converts a UserAccount (API-key auth) to the IdentityUser
+// type used by RBACEngine and UserFromContext throughout the handler chain.
+func apiKeyToIdentityUser(u *UserAccount) *IdentityUser {
+	if u == nil {
+		return nil
+	}
+	// Map role to permissions.
+	perms := []string{}
+	switch u.Role {
+	case RoleAdmin:
+		perms = []string{"*"} // wildcard — full access
+	case RoleAnalyst:
+		perms = []string{
+			PermHostsRead, PermSessionsRead,
+			PermSIEMRead, PermSIEMWrite,
+			PermIncidentsRead, PermIncidentsWrite,
+			PermEvidenceRead, PermEvidenceWrite,
+			PermSnippetsRead,
+			PermComplianceRead,
+		}
+	case RoleReadOnly:
+		perms = []string{
+			PermHostsRead, PermSessionsRead,
+			PermSIEMRead, PermIncidentsRead, PermEvidenceRead,
+			PermSnippetsRead, PermComplianceRead,
+		}
+	case RoleAgent:
+		perms = []string{PermSIEMWrite} // agents may only ingest events
+	}
+	return &IdentityUser{
+		ID:          u.ID,
+		Email:       u.Username,
+		Name:        u.Username,
+		RoleID:      string(u.Role),
+		RoleName:    string(u.Role),
+		Permissions: perms,
+	}
+}
+
+// GetRole is a helper that extracts the authorized role from the request context.
+// Uses the typed ContextKeyUser key — never plain string keys — to avoid collisions.
 func GetRole(ctx context.Context) Role {
-	user, ok := ctx.Value("user").(*UserAccount)
+	user, ok := ctx.Value(ContextKeyUser).(*UserAccount)
 	if !ok || user == nil {
 		return RoleReadOnly
 	}

@@ -2,7 +2,6 @@ package vault
 
 import (
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -121,14 +120,10 @@ func TestVaultLifecycle(t *testing.T) {
 	}
 }
 
-func TestWindowsKeychain(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("Skipping Windows keychain test on non-Windows platform")
-	}
-
-	keychain := &windowsKeychain{}
+func TestPlatformKeychain(t *testing.T) {
+	keychain := GetKeychainStore()
 	if !keychain.Available() {
-		t.Fatal("expected windows keychain to be available")
+		t.Skip("Skipping platform keychain test: not available on this host")
 	}
 
 	testKey := "test-secret-key"

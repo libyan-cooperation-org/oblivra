@@ -132,3 +132,7 @@ func (k *windowsKeychain) Delete(key string) error {
 	}
 	return nil
 }
+
+func platformKeychain() KeychainStore {
+	return &windowsKeychain{}
+}

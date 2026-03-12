@@ -32,6 +32,7 @@ type LuaSandbox struct {
 	bus       *eventbus.Bus
 	active    bool
 	startedAt time.Time
+	cancelCtx context.CancelFunc // cancels the Lua execution context on Stop()
 }
 
 // NewLuaSandbox creates a new plugin sandbox
@@ -131,13 +132,10 @@ func (s *LuaSandbox) loadRestrictedLibs() {
 }
 
 func (s *LuaSandbox) applyLimits() {
-	// Instruction counting via SetHook appears to be missing in this version of gopher-lua.
-	// We will rely on SetContext for execution time limits and graceful termination.
+	// Store cancel so Stop() can release the context goroutine immediately
+	// rather than waiting for the timeout to expire.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.manifest.TimeoutSec)*time.Second)
-	// Note: In an ideal world we'd store cancel in the Sandbox struct to call on Stop,
-	// but gopher-lua doesn't let us update context after it's set.
-	// We'll trust the timeout for now but acknowledge the lint.
-	_ = cancel
+	s.cancelCtx = cancel
 	s.state.SetContext(ctx)
 }
 
@@ -190,7 +188,7 @@ func (s *LuaSandbox) registerUIAPI(root *lua.LTable) {
 	s.state.SetField(root, "ui", uiTable)
 }
 
-// Stop terminates the plugin
+// Stop terminates the plugin and releases all resources including the context goroutine.
 func (s *LuaSandbox) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,6 +198,13 @@ func (s *LuaSandbox) Stop() error {
 	}
 
 	s.log.Info("Stopping sandbox for %s", s.manifest.Name)
+
+	// Cancel the execution context to release the timeout goroutine
+	if s.cancelCtx != nil {
+		s.cancelCtx()
+		s.cancelCtx = nil
+	}
+
 	if s.state != nil {
 		s.state.Close()
 		s.state = nil

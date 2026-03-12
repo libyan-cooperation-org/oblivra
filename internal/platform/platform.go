@@ -12,6 +12,7 @@ type Platform interface {
 	DataDir() string
 	LogDir() string
 	KeychainAvailable() bool
+	TotalMemoryMB() uint64
 }
 
 const appName = "sovereign-terminal"

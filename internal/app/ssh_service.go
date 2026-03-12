@@ -96,6 +96,26 @@ func (s *SSHService) SetSnippetService(svc *SnippetService) {
 	// Logic: This could be used for autonomous follow-ups
 }
 
+// fetchAndDecryptHostPassword fetches the encrypted password blob from the DB
+// and decrypts it using the vault. Returns the plaintext bytes for use only
+// during SSH connection setup. The caller is responsible for zeroing the slice.
+func (s *SSHService) fetchAndDecryptHostPassword(hostID string) ([]byte, error) {
+	encRaw, err := s.hosts.GetEncryptedPassword(context.Background(), hostID)
+	if err != nil || encRaw == "" {
+		return nil, err
+	}
+	blob, err := base64.StdEncoding.DecodeString(encRaw)
+	if err != nil {
+		// Not base64 — legacy plaintext row; use as-is (migration edge case)
+		return []byte(encRaw), nil
+	}
+	decrypted, err := s.vault.Decrypt(blob)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt host password: %w", err)
+	}
+	return decrypted, nil
+}
+
 // SetTransferManager allows breaking circular dependencies during initialization
 func (s *SSHService) SetTransferManager(tm TransferProvider) {
 	s.transferManager = tm
@@ -263,7 +283,14 @@ func (s *SSHService) prepareSSHConfig(host *database.Host) *ssh.ConnectionConfig
 		cfg.Port = host.Port
 	}
 	cfg.Username = host.Username
-	cfg.Password = []byte(host.Password)
+
+	// SECURITY: Password is NOT on the host DTO (it's stripped before frontend serialisation).
+	// Fetch and decrypt the raw stored value directly from the DB here, only at connect time.
+	if host.HasPassword && s.vault != nil && s.vault.IsUnlocked() {
+		if encRaw, err := s.fetchAndDecryptHostPassword(host.ID); err == nil {
+			cfg.Password = encRaw
+		}
+	}
 
 	// Logic: If a managed credential is linked, override defaults
 	if host.CredentialID != "" && s.vault.IsUnlocked() {
@@ -324,7 +351,13 @@ func (s *SSHService) resolveJumpHosts(cfg *ssh.ConnectionConfig, jumpHostID stri
 		Host:     jumpHost.Hostname,
 		Port:     jumpHost.Port,
 		Username: jumpHost.Username,
-		Password: []byte(jumpHost.Password),
+	}
+
+	// SECURITY: fetch and decrypt jump host password at connect time
+	if jumpHost.HasPassword && s.vault != nil && s.vault.IsUnlocked() {
+		if pw, err := s.fetchAndDecryptHostPassword(jumpHost.ID); err == nil {
+			jumpCfg.Password = pw
+		}
 	}
 
 	if jumpCfg.Port == 0 {
@@ -694,15 +727,35 @@ func (s *SSHService) DeployKey(hostID string, password string) error {
 	}
 	defer client.Close()
 
-	// 3. Deploy key
-	cmd := fmt.Sprintf("mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '%s' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys", string(pubKey))
-	_, err = client.ExecuteCommand(cmd)
+	// 3. Deploy key via SFTP to avoid any shell injection risk with the public key bytes
+	// First ensure .ssh directory exists
+	_, _ = client.ExecuteCommand("mkdir -p ~/.ssh && chmod 700 ~/.ssh")
+
+	sftpClient, err := client.SftpClient()
 	if err != nil {
-		return fmt.Errorf("deploy key command: %w", err)
+		// Fallback: use a hardened command without any user-controlled data in shell context
+		pubKeyB64 := base64.StdEncoding.EncodeToString(pubKey)
+		cmd := fmt.Sprintf("echo '%s' | base64 -d >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys", pubKeyB64)
+		_, err = client.ExecuteCommand(cmd)
+		if err != nil {
+			return fmt.Errorf("deploy key command: %w", err)
+		}
+	} else {
+		defer sftpClient.Close()
+		// Open or create authorized_keys with append flag
+		f, err := sftpClient.OpenFile(".ssh/authorized_keys", os.O_WRONLY|os.O_APPEND|os.O_CREATE)
+		if err != nil {
+			return fmt.Errorf("open authorized_keys via sftp: %w", err)
+		}
+		defer f.Close()
+		entry := append(pubKey, '\n')
+		if _, err := f.Write(entry); err != nil {
+			return fmt.Errorf("write authorized_keys via sftp: %w", err)
+		}
+		_, _ = client.ExecuteCommand("chmod 600 ~/.ssh/authorized_keys")
 	}
 
 	host.AuthMethod = "key"
-	host.Password = "" // Clear password since we now use key
 	return s.hosts.Update(s.ctx, host)
 }
 

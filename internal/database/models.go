@@ -14,7 +14,10 @@ type Host struct {
 	JumpHostID      string     `json:"jump_host_id,omitempty"`
 	Tags            []string   `json:"tags"`
 	Category        string     `json:"category"`
-	Password        string     `json:"password"`
+	// Password is intentionally omitted from JSON serialization.
+	// It is never sent to the frontend; use HasPassword to check if one is stored.
+	Password        string     `json:"-"`
+	HasPassword     bool       `json:"has_password"`
 	Color           string     `json:"color"`
 	Notes           string     `json:"notes"`
 	IsFavorite      bool       `json:"is_favorite"`

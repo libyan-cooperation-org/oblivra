@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -152,6 +153,7 @@ func (s *MultiExecService) Execute(command string, hostIDs []string, timeoutSeco
 
 	s.mu.Lock()
 	s.jobs[jobID] = job
+	s.pruneJobs() // cap memory usage to maxJobHistory entries
 	s.mu.Unlock()
 
 	s.log.Info("Starting multi-exec job %s: command=%q hosts=%d", jobID, command, len(hostIDs))
@@ -279,9 +281,15 @@ func (s *MultiExecService) executeOnHost(
 			privateKey, passphraseStr, _ = s.vault.GetPrivateKey(host.CredentialID)
 			passphrase = []byte(passphraseStr)
 		}
-	} else if host.Password != "" {
-		// Direct password from host record
-		password = []byte(host.Password)
+	} else if host.HasPassword {
+		// HasPassword flag is set but no linked credential — credential lookup failed.
+		// Fail safe: do NOT fall back to a plaintext field (host.Password is always empty in the DTO).
+		job.mu.Lock()
+		job.Results[index].Status = "error"
+		job.Results[index].Error = "credential required but vault is locked or credential not found"
+		job.Results[index].Duration = time.Since(start).String()
+		job.mu.Unlock()
+		return
 	}
 
 	cfg := s.prepareSSHConfig(host, password, privateKey, passphrase, timeout)
@@ -334,6 +342,30 @@ func (s *MultiExecService) executeOnHost(
 		"status": job.Results[index].Status,
 		"output": job.Results[index].Output,
 	})
+}
+
+// maxJobHistory is the maximum number of completed jobs to retain in memory.
+const maxJobHistory = 100
+
+// pruneJobs removes the oldest completed jobs when the cap is exceeded.
+// Must be called with s.mu held for writing.
+func (s *MultiExecService) pruneJobs() {
+	if len(s.jobs) <= maxJobHistory {
+		return
+	}
+	// Collect all jobs sorted by start time ascending; drop the oldest.
+	type entry struct {
+		id  string
+		ts  string
+	}
+	entries := make([]entry, 0, len(s.jobs))
+	for id, j := range s.jobs {
+		entries = append(entries, entry{id, j.StartedAt})
+	}
+	sort.Slice(entries, func(i, k int) bool { return entries[i].ts < entries[k].ts })
+	for i := 0; i < len(entries)-maxJobHistory; i++ {
+		delete(s.jobs, entries[i].id)
+	}
 }
 
 // GetJob returns a job by ID

@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package memory
 
 import (
@@ -48,8 +51,7 @@ func NewSecureBuffer(size int) *SecureBuffer {
 	}
 
 	// 3. Construct a Go slice backed by the raw pointer
-	// This uses a helper to satisfy go vet for non-Go memory
-	slice := unsafe.Slice((*byte)(asPointer(addr)), size)
+	slice := unsafe.Slice((*byte)(unsafe.Pointer(addr)), size)
 
 	sb := &SecureBuffer{
 		addr:  addr,
@@ -68,12 +70,6 @@ func NewSecureBuffer(size int) *SecureBuffer {
 	return sb
 }
 
-// asPointer is a helper to satisfy go vet when dealing with OS-allocated memory.
-// go vet's unsafeptr check is designed to catch misuse of Go-managed pointers
-// being stored in uintptrs. For OS-level VirtualAlloc, this is a legitimate cast.
-func asPointer(u uintptr) unsafe.Pointer {
-	return unsafe.Pointer(u)
-}
 
 // FromString creates a SecureBuffer from a string, copying the bytes.
 func FromString(s string) *SecureBuffer {
