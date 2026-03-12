@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
+	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
@@ -129,7 +130,7 @@ func (s *IngestService) GetMetrics() map[string]interface{} {
 }
 
 // QueueEvent submits an event directly into the ingestion pipeline
-func (s *IngestService) QueueEvent(evt *ingest.SovereignEvent) error {
+func (s *IngestService) QueueEvent(evt *events.SovereignEvent) error {
 	if s.pipeline == nil {
 		return fmt.Errorf("pipeline not initialized")
 	}

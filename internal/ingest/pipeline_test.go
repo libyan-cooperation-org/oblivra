@@ -7,6 +7,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
+	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 )
@@ -29,7 +30,7 @@ func TestPipeline_TemporalIntegrity(t *testing.T) {
 	defer p.Shutdown()
 
 	// 1. Valid event
-	p.QueueEvent(&SovereignEvent{
+	p.QueueEvent(&events.SovereignEvent{
 		Host:      "test-host",
 		Timestamp: time.Now().Format(time.RFC3339),
 		RawLine:   "Valid log entry",
@@ -37,7 +38,7 @@ func TestPipeline_TemporalIntegrity(t *testing.T) {
 
 	// 2. Futuristic event (should trigger violation)
 	futureTime := time.Now().Add(10 * time.Minute)
-	p.QueueEvent(&SovereignEvent{
+	p.QueueEvent(&events.SovereignEvent{
 		Host:      "test-host-skewed",
 		Timestamp: futureTime.Format(time.RFC3339),
 		RawLine:   "Futuristic log entry",

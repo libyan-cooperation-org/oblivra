@@ -16,6 +16,8 @@ import (
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/engine/wasm"
+	"github.com/kingknull/oblivrashell/internal/engine/dag"
+	"github.com/kingknull/oblivrashell/internal/events"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -28,7 +30,7 @@ var (
 
 // Pipeline manages the buffering, crash-protection, and routing of incoming log streams.
 type Pipeline struct {
-	buffer    chan *SovereignEvent
+	buffer    chan *events.SovereignEvent
 	wal       *storage.WAL
 	analytics *analytics.AnalyticsEngine
 	siem      database.SIEMStore
@@ -41,6 +43,7 @@ type Pipeline struct {
 	metrics   Metrics
 	once      sync.Once
 	wasm      *wasm.PluginManager
+	dag       *dag.Engine
 }
 
 // Metrics tracks the real-time throughput of the pipeline
@@ -56,7 +59,7 @@ type Metrics struct {
 func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine, siem database.SIEMStore, bus *eventbus.Bus, log *logger.Logger, temporal *temporal.IntegrityService) *Pipeline {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pipeline{
-		buffer:    make(chan *SovereignEvent, bufferSize),
+		buffer:    make(chan *events.SovereignEvent, bufferSize),
 		wal:       wal,
 		analytics: ae,
 		siem:      siem,
@@ -77,7 +80,35 @@ func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine
 		p.wasm = wasmPM
 	}
 
+	// Initialize Production DAG
+	p.dag = p.buildProductionDAG()
+
 	return p
+}
+
+func (p *Pipeline) buildProductionDAG() *dag.Engine {
+	// Root: WASM Filter
+	wasmNode := &dag.Node{Processor: dag.NewWASMFilterNode(p.wasm, p.log)}
+
+	// Branching Node: Fan out to SIEM and Analytics
+	fanoutNode := &dag.Node{Processor: dag.NewMultiDestinationNode("Ingest_Fanout")}
+	wasmNode.Children = append(wasmNode.Children, fanoutNode)
+
+	// SIEM Branch: if isSecurityAnomaly
+	siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
+	siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}
+	siemCond.Children = append(siemCond.Children, siemDest)
+
+	// Analytics Branch: if NOT isSecurityAnomaly
+	analyticsCond := &dag.Node{Processor: dag.NewConditionNode("Is_Not_Security_Anomaly", func(evt *dag.Event) bool {
+		return !isSecurityAnomaly(evt)
+	})}
+	analyticsDest := &dag.Node{Processor: dag.NewAnalyticsNode(p.analytics)}
+	analyticsCond.Children = append(analyticsCond.Children, analyticsDest)
+
+	fanoutNode.Children = append(fanoutNode.Children, siemCond, analyticsCond)
+
+	return dag.NewEngine(wasmNode)
 }
 
 // Start begins processing the buffered queue in the background.
@@ -138,7 +169,7 @@ func (p *Pipeline) Stop() {
 }
 
 // QueueEvent pushes a SovereignEvent into the pipeline. Applies backpressure if full.
-func (p *Pipeline) QueueEvent(evt *SovereignEvent) error {
+func (p *Pipeline) QueueEvent(evt *events.SovereignEvent) error {
 	select {
 	case p.buffer <- evt:
 		return nil
@@ -221,7 +252,7 @@ func (p *Pipeline) worker() {
 	}
 }
 
-func (p *Pipeline) processEvent(ctx context.Context, evt *SovereignEvent) {
+func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent) {
 	_, span := tracer.Start(ctx, "pipeline.WALWrite")
 	// 1. Durability: Write to WAL (Assuming raw string matches what parser used)
 	if p.wal != nil {
@@ -234,64 +265,18 @@ func (p *Pipeline) processEvent(ctx context.Context, evt *SovereignEvent) {
 		p.temporal.ValidateTimestamp(evt.Host, parseTime(evt.Timestamp))
 	}
 
-	// 2. Sandboxing: Execute WASM plugins if available
-	if p.wasm != nil {
-		dropped := false
-		wasmCtx := wasm.WithEvent(ctx, evt.RawLine, &dropped)
-		
-		if err := p.wasm.ExecuteAll(wasmCtx); err != nil {
-			p.log.Error("[INGEST] WASM plugin execution error: %v", err)
-		}
-		
-		if dropped {
-			p.metrics.DroppedEvents.Add(1)
-			span.AddEvent("event_dropped_by_wasm")
-			span.SetAttributes(attribute.Bool("dropped", true))
-			span.End()
-			return
-		}
-	}
 	span.End()
 
 	p.indexEvent(ctx, evt)
 }
 
-func (p *Pipeline) indexEvent(ctx context.Context, evt *SovereignEvent) {
-	ctx, span := tracer.Start(ctx, "pipeline.indexEvent")
+func (p *Pipeline) indexEvent(ctx context.Context, evt *events.SovereignEvent) {
+	ctx, span := tracer.Start(ctx, "pipeline.dagExecution")
 	defer span.End()
 
-	// 2. Routing: Is this a security anomaly or just a standard log?
-	if isSecurityAnomaly(evt) {
-		// Route to fast Badger HotStore
-		if p.siem != nil {
-			hostEvent := &database.HostEvent{
-				HostID:    evt.Host,
-				Timestamp: evt.Timestamp,
-				EventType: evt.EventType,
-				SourceIP:  evt.SourceIp,
-				User:      evt.User,
-				RawLog:    evt.RawLine,
-			}
-			// Inject context with timeout for SIEM insertion
-			insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel() // Ensure the context is cancelled to release resources
-
-			if err := p.siem.InsertHostEvent(insertCtx, hostEvent); err != nil {
-				p.log.Error("[INGEST] Failed to index SIEM event: %v", err)
-			} else if p.bus != nil {
-				// Broadcast the event to the alerting engine for real-time YAML rule matching
-				p.bus.Publish("siem.event_indexed", *hostEvent)
-			}
-		}
-	} else {
-		// Standard terminal / system log -> AnalyticsEngine (SQLite + Bleve Dual-Write)
-		if p.analytics != nil {
-			// Ingest handles the batching automatically
-			sessionID := evt.SessionId
-			if sessionID == "" {
-				sessionID = "syslog"
-			}
-			p.analytics.Ingest(sessionID, evt.Host, evt.RawLine)
+	if p.dag != nil {
+		if err := p.dag.Execute(ctx, evt); err != nil {
+			p.log.Error("[INGEST] DAG execution failure: %v", err)
 		}
 	}
 }
@@ -353,7 +338,7 @@ func (p *Pipeline) Bus() *eventbus.Bus {
 }
 
 // isSecurityAnomaly contains very basic heuristics to route failed logins and sudo actions to the SIEM tier.
-func isSecurityAnomaly(evt *SovereignEvent) bool {
+func isSecurityAnomaly(evt *events.SovereignEvent) bool {
 	// Let all advanced parsed types flow into the SIEM directly
 	if strings.HasPrefix(evt.EventType, "windows_") ||
 		strings.HasPrefix(evt.EventType, "linux_") ||

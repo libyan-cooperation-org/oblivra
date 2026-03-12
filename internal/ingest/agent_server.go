@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/kingknull/oblivrashell/internal/agent"
+	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -222,20 +223,20 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var events []agent.Event
-	if err := json.Unmarshal(bodyBytes, &events); err != nil {
+	var incomingEvents []agent.Event
+	if err := json.Unmarshal(bodyBytes, &incomingEvents); err != nil {
 		s.log.Error("Failed to decode json: %v", err)
 		http.Error(w, "Decode error", http.StatusBadRequest)
 		return
 	}
 
-	if len(events) == 0 {
+	if len(incomingEvents) == 0 {
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
 	// Update agent tracking based on the first event's host
-	host := events[0].Host
+	host := incomingEvents[0].Host
 	if host != "" {
 		s.mu.Lock()
 		_, isNew := s.activeAgents[host]
@@ -268,7 +269,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	// Route events to the pipeline
 	ingested := 0
-	for _, ev := range events {
+	for _, ev := range incomingEvents {
 		// Schema Validation
 		if err := s.validator.Struct(ev); err != nil {
 			s.log.Warn("Dropping event from %s due to malformed schema: %v", r.RemoteAddr, err)
@@ -288,7 +289,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 			version = "v1"
 		}
 
-		ingestEv := &SovereignEvent{
+		ingestEv := &events.SovereignEvent{
 			Timestamp: ev.Timestamp,
 			Host:      ev.Host,
 			SourceIp:  r.RemoteAddr,
