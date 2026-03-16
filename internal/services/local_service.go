@@ -101,7 +101,14 @@ func (s *LocalService) StartLocalSession() (string, error) {
 	// Per-session cancel context for read goroutines
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sess := &localSession{cmd: cmd, stdin: ps.stdin, pty: ps, cancel: cancel}
+	// Use the cmd from the ptySession — on Windows ConPTY mode this is a
+	// bare wrapper cmd, not the original exec.Command we built above.
+	actualCmd := ps.cmd
+	if actualCmd == nil {
+		actualCmd = cmd
+	}
+
+	sess := &localSession{cmd: actualCmd, stdin: ps.stdin, pty: ps, cancel: cancel}
 
 	s.mu.Lock()
 	s.sessions[id] = sess
@@ -124,9 +131,13 @@ func (s *LocalService) StartLocalSession() (string, error) {
 	// Pump stdout → frontend (single reader on unix PTY, merged on windows)
 	go s.pump(ctx, id, ps.stdout)
 	// Wait for exit → cleanup
-	go s.waitExit(id, cmd)
+	go s.waitExit(id, actualCmd)
 
-	s.log.Info("Session %s ready (pid=%d, pty=%v)", id, cmd.Process.Pid, ps.resize != nil)
+	pid := 0
+	if actualCmd.Process != nil {
+		pid = actualCmd.Process.Pid
+	}
+	s.log.Info("Session %s ready (pid=%d, pty=%v)", id, pid, ps.resize != nil)
 	return id, nil
 }
 

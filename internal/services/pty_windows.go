@@ -7,246 +7,244 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
-// Windows ConPTY constants
+// Windows kernel32 ConPTY procedures
 var (
-	modKernel32                   = windows.NewLazySystemDLL("kernel32.dll")
-	procCreatePseudoConsole        = modKernel32.NewProc("CreatePseudoConsole")
-	procResizePseudoConsole        = modKernel32.NewProc("ResizePseudoConsole")
-	procClosePseudoConsole         = modKernel32.NewProc("ClosePseudoConsole")
-	procInitializeProcThreadAttribList = modKernel32.NewProc("InitializeProcThreadAttributeList")
-	procUpdateProcThreadAttrib     = modKernel32.NewProc("UpdateProcThreadAttribute")
-	procDeleteProcThreadAttribList = modKernel32.NewProc("DeleteProcThreadAttributeList")
+	kernel32                           = windows.NewLazySystemDLL("kernel32.dll")
+	procCreatePseudoConsole            = kernel32.NewProc("CreatePseudoConsole")
+	procResizePseudoConsole            = kernel32.NewProc("ResizePseudoConsole")
+	procClosePseudoConsole             = kernel32.NewProc("ClosePseudoConsole")
+	procInitializeProcThreadAttribList = kernel32.NewProc("InitializeProcThreadAttributeList")
+	procUpdateProcThreadAttrib         = kernel32.NewProc("UpdateProcThreadAttribute")
+	procDeleteProcThreadAttribList     = kernel32.NewProc("DeleteProcThreadAttributeList")
 )
 
 const (
-	PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE uintptr = 0x00020016
+	// PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE attribute number
+	_PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE uintptr = 0x00020016
 )
 
-type coord struct {
-	X, Y int16
+// coord is the Windows COORD struct (2 × int16)
+type coord struct{ X, Y int16 }
+
+// siEx is a STARTUPINFOEXW — STARTUPINFOW followed by lpAttributeList pointer.
+// The total size must be passed in StartupInfo.Cb.
+type siEx struct {
+	windows.StartupInfo
+	lpAttributeList uintptr
 }
 
-type conPTY struct {
-	handle windows.Handle
-	inRead  *os.File
-	inWrite *os.File
-	outRead *os.File
-	outWrite *os.File
+// startPTY is the top-level entry called by LocalService.
+// It uses ConPTY on Windows 10 1809+ and falls back to pipe mode.
+func startPTY(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
+	if err := procCreatePseudoConsole.Find(); err != nil {
+		// ConPTY not available – old Windows build
+		return startPTYPipeMode(cmd)
+	}
+	return startPTYConPTY(cols, rows)
 }
 
-func createConPTY(cols, rows int) (*conPTY, error) {
-	// Create pipes: pty reads from inRead, we write to inWrite
-	//               pty writes to outWrite, we read from outRead
-	inRead, inWrite, err := os.Pipe()
+func startPTYConPTY(cols, rows int) (*ptySession, error) {
+	// ── Create pipe pair for PTY input (keystrokes: us → shell) ────────
+	ptyInR, ptyInW, err := os.Pipe()
 	if err != nil {
-		return nil, fmt.Errorf("create input pipe: %w", err)
+		return nil, fmt.Errorf("conpty: input pipe: %w", err)
 	}
-	outRead, outWrite, err := os.Pipe()
+	// ── Create pipe pair for PTY output (shell output: shell → us) ─────
+	ptyOutR, ptyOutW, err := os.Pipe()
 	if err != nil {
-		inRead.Close()
-		inWrite.Close()
-		return nil, fmt.Errorf("create output pipe: %w", err)
+		ptyInR.Close()
+		ptyInW.Close()
+		return nil, fmt.Errorf("conpty: output pipe: %w", err)
 	}
 
-	size := coord{X: int16(cols), Y: int16(rows)}
-
+	// ── CreatePseudoConsole ────────────────────────────────────────────
+	// ConPTY reads from ptyInR, writes to ptyOutW.
+	// After CreatePseudoConsole succeeds, these fd's are owned by the PTY.
+	sz := coord{X: int16(cols), Y: int16(rows)}
 	var hPC windows.Handle
-	ret, _, err := procCreatePseudoConsole.Call(
-		uintptr(unsafe.Pointer(&size)),
-		uintptr(inRead.Fd()),
-		uintptr(outWrite.Fd()),
+
+	hr, _, _ := procCreatePseudoConsole.Call(
+		uintptr(unsafe.Pointer(&sz)),
+		uintptr(ptyInR.Fd()),
+		uintptr(ptyOutW.Fd()),
 		0,
 		uintptr(unsafe.Pointer(&hPC)),
 	)
-	if ret != 0 {
-		inRead.Close()
-		inWrite.Close()
-		outRead.Close()
-		outWrite.Close()
-		return nil, fmt.Errorf("CreatePseudoConsole failed: 0x%x: %w", ret, err)
+	// We hand off ptyInR and ptyOutW to the PTY — close our copies
+	ptyInR.Close()
+	ptyOutW.Close()
+
+	if hr != 0 { // HRESULT S_OK = 0
+		ptyInW.Close()
+		ptyOutR.Close()
+		return nil, fmt.Errorf("conpty: CreatePseudoConsole HRESULT=0x%08x", hr)
 	}
 
-	// The PTY now owns these ends; close our copies so the PTY is sole owner
-	inRead.Close()
-	outWrite.Close()
-
-	return &conPTY{
-		handle:   hPC,
-		inWrite:  inWrite,
-		outRead:  outRead,
-	}, nil
-}
-
-func (p *conPTY) resize(cols, rows int) error {
-	size := coord{X: int16(cols), Y: int16(rows)}
-	ret, _, err := procResizePseudoConsole.Call(
-		uintptr(p.handle),
-		uintptr(unsafe.Pointer(&size)),
-	)
-	if ret != 0 {
-		return fmt.Errorf("ResizePseudoConsole: 0x%x: %w", ret, err)
-	}
-	return nil
-}
-
-func (p *conPTY) close() {
-	procClosePseudoConsole.Call(uintptr(p.handle))
-	p.inWrite.Close()
-	p.outRead.Close()
-}
-
-// startPTY on Windows uses ConPTY (Windows Pseudo Console) for full
-// ANSI/VT100 terminal emulation. Falls back to pipe mode if ConPTY
-// is unavailable (Windows builds before 1809).
-func startPTY(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
-	pty, err := createConPTY(cols, rows)
+	// ── Build PROC_THREAD_ATTRIBUTE_LIST ────────────────────────────────
+	attrBuf, err := buildAttrList(hPC)
 	if err != nil {
-		// ConPTY not available — fall back to pipe mode
-		return startPTYPipeMode(cmd, cols, rows)
+		procClosePseudoConsole.Call(uintptr(hPC))
+		ptyInW.Close()
+		ptyOutR.Close()
+		return nil, err
 	}
 
-	// Build STARTUPINFOEX with PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
-	si, attrList, err := buildStartupInfoEx(pty.handle)
+	// ── Build STARTUPINFOEX ─────────────────────────────────────────────
+	si := siEx{}
+	si.Cb = uint32(unsafe.Sizeof(si))
+	si.lpAttributeList = uintptr(unsafe.Pointer(&attrBuf[0]))
+
+	// ── CreateProcess ───────────────────────────────────────────────────
+	cmdLine, err := windows.UTF16PtrFromString("powershell.exe -NoLogo -NoProfile -NoExit")
 	if err != nil {
-		pty.close()
-		return nil, fmt.Errorf("build startup info: %w", err)
+		procDeleteProcThreadAttribList.Call(uintptr(unsafe.Pointer(&attrBuf[0])))
+		procClosePseudoConsole.Call(uintptr(hPC))
+		ptyInW.Close()
+		ptyOutR.Close()
+		return nil, fmt.Errorf("conpty: UTF16: %w", err)
 	}
 
-	// Launch PowerShell attached to the ConPTY
-	shell := "powershell.exe"
-	argv := windows.StringToUTF16Ptr(shell + " -NoLogo -NoProfile -NoExit")
-
-	procInfo := new(windows.ProcessInformation)
+	var pi windows.ProcessInformation
 	err = windows.CreateProcess(
 		nil,
-		argv,
+		cmdLine,
 		nil,
 		nil,
 		false,
+		// EXTENDED_STARTUPINFO_PRESENT tells CreateProcess to treat lpStartupInfo
+		// as STARTUPINFOEX rather than STARTUPINFO.
 		windows.EXTENDED_STARTUPINFO_PRESENT|windows.CREATE_UNICODE_ENVIRONMENT,
 		nil,
 		nil,
-		&si.StartupInfo,
-		procInfo,
+		// We pass a pointer to StartupInfo (the first field of siEx).
+		// Because EXTENDED_STARTUPINFO_PRESENT is set, Windows reads the full siEx.
+		(*windows.StartupInfo)(unsafe.Pointer(&si)),
+		&pi,
 	)
-	// Free attribute list
-	procDeleteProcThreadAttribList.Call(uintptr(unsafe.Pointer(attrList)))
+
+	// Attribute list is no longer needed after CreateProcess
+	procDeleteProcThreadAttribList.Call(uintptr(unsafe.Pointer(&attrBuf[0])))
 
 	if err != nil {
-		pty.close()
-		return nil, fmt.Errorf("CreateProcess: %w", err)
+		procClosePseudoConsole.Call(uintptr(hPC))
+		ptyInW.Close()
+		ptyOutR.Close()
+		return nil, fmt.Errorf("conpty: CreateProcess: %w", err)
 	}
 
-	// Wrap process handle in exec.Cmd so waitExit works
-	process, err := os.FindProcess(int(procInfo.ProcessId))
+	// Close thread handle — we only need the process handle
+	windows.CloseHandle(pi.Thread)
+
+	// Wrap in os.Process so Process.Wait() works
+	proc, err := os.FindProcess(int(pi.ProcessId))
 	if err != nil {
-		pty.close()
-		return nil, fmt.Errorf("find process: %w", err)
+		procClosePseudoConsole.Call(uintptr(hPC))
+		ptyInW.Close()
+		ptyOutR.Close()
+		windows.CloseHandle(pi.Process)
+		return nil, fmt.Errorf("conpty: FindProcess: %w", err)
 	}
-	cmd.Process = process
 
-	// Use a wrapper so cmd.Wait() works correctly
-	go func() {
-		process.Wait()
-	}()
+	bareCmd := exec.Command("powershell.exe")
+	bareCmd.Process = proc
 
-	// We need cmd.Wait() to not panic — attach a no-op wait
-	cmd.Process = process
+	// Keep attrBuf alive until after CreateProcess (already called above).
+	runtime.KeepAlive(attrBuf)
 
 	return &ptySession{
-		cmd:    cmd,
-		stdin:  pty.inWrite,
-		stdout: pty.outRead,
-		resize: func(c, r int) error { return pty.resize(c, r) },
+		cmd:    bareCmd,
+		stdin:  ptyInW,
+		stdout: ptyOutR,
+		resize: func(c, r int) error {
+			newSz := coord{X: int16(c), Y: int16(r)}
+			ret, _, _ := procResizePseudoConsole.Call(
+				uintptr(hPC),
+				uintptr(unsafe.Pointer(&newSz)),
+			)
+			if ret != 0 {
+				return fmt.Errorf("conpty: ResizePseudoConsole 0x%08x", ret)
+			}
+			return nil
+		},
 		closer: func() error {
-			pty.close()
-			if procInfo.Process != 0 {
-				windows.CloseHandle(procInfo.Process)
-			}
-			if procInfo.Thread != 0 {
-				windows.CloseHandle(procInfo.Thread)
-			}
+			procClosePseudoConsole.Call(uintptr(hPC))
+			ptyInW.Close()
+			ptyOutR.Close()
+			windows.CloseHandle(pi.Process)
 			return nil
 		},
 	}, nil
 }
 
-// startupInfoEx wraps STARTUPINFOEX with the attribute list pointer
-type startupInfoEx struct {
-	windows.StartupInfo
-	lpAttributeList uintptr
-}
+// buildAttrList allocates and initialises a PROC_THREAD_ATTRIBUTE_LIST
+// with the PSEUDOCONSOLE attribute set to hPC.
+// Caller must invoke procDeleteProcThreadAttribList on &buf[0] when done.
+func buildAttrList(hPC windows.Handle) ([]byte, error) {
+	// Pass nil to get the required buffer size
+	var size uintptr
+	procInitializeProcThreadAttribList.Call(0, 1, 0, uintptr(unsafe.Pointer(&size)))
+	if size == 0 {
+		return nil, fmt.Errorf("conpty: InitializeProcThreadAttributeList returned 0 size")
+	}
 
-func buildStartupInfoEx(hPC windows.Handle) (*startupInfoEx, unsafe.Pointer, error) {
-	// First call: get required size
-	var attrListSize uintptr
-	procInitializeProcThreadAttribList.Call(0, 1, 0, uintptr(unsafe.Pointer(&attrListSize)))
-
-	attrList := make([]byte, attrListSize)
+	buf := make([]byte, size)
 	ret, _, err := procInitializeProcThreadAttribList.Call(
-		uintptr(unsafe.Pointer(&attrList[0])),
+		uintptr(unsafe.Pointer(&buf[0])),
 		1,
 		0,
-		uintptr(unsafe.Pointer(&attrListSize)),
+		uintptr(unsafe.Pointer(&size)),
 	)
 	if ret == 0 {
-		return nil, nil, fmt.Errorf("InitializeProcThreadAttributeList: %w", err)
+		return nil, fmt.Errorf("conpty: InitializeProcThreadAttributeList: %w", err)
 	}
 
+	// UpdateProcThreadAttribute expects a pointer to the handle value.
+	hPCVal := hPC // local copy so we can take its address safely
 	ret, _, err = procUpdateProcThreadAttrib.Call(
-		uintptr(unsafe.Pointer(&attrList[0])),
+		uintptr(unsafe.Pointer(&buf[0])),
 		0,
-		PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-		uintptr(hPC),
-		unsafe.Sizeof(hPC),
+		_PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+		uintptr(unsafe.Pointer(&hPCVal)),
+		unsafe.Sizeof(hPCVal),
 		0,
 		0,
 	)
 	if ret == 0 {
-		procDeleteProcThreadAttribList.Call(uintptr(unsafe.Pointer(&attrList[0])))
-		return nil, nil, fmt.Errorf("UpdateProcThreadAttribute: %w", err)
+		procDeleteProcThreadAttribList.Call(uintptr(unsafe.Pointer(&buf[0])))
+		return nil, fmt.Errorf("conpty: UpdateProcThreadAttribute: %w", err)
 	}
 
-	si := &startupInfoEx{}
-	si.StartupInfo.Cb = uint32(unsafe.Sizeof(*si))
-	si.lpAttributeList = uintptr(unsafe.Pointer(&attrList[0]))
-
-	return si, unsafe.Pointer(&attrList[0]), nil
+	return buf, nil
 }
 
-// startPTYPipeMode is the legacy pipe-based fallback for old Windows builds.
-func startPTYPipeMode(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
-	cmd.SysProcAttr = nil // clear any prior attrs
-
+// startPTYPipeMode is the legacy fallback for Windows without ConPTY.
+func startPTYPipeMode(cmd *exec.Cmd) (*ptySession, error) {
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, fmt.Errorf("stdin pipe: %w", err)
+		return nil, fmt.Errorf("pipe: stdin: %w", err)
 	}
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("stdout pipe: %w", err)
+		return nil, fmt.Errorf("pipe: stdout: %w", err)
 	}
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		return nil, fmt.Errorf("stderr pipe: %w", err)
+		return nil, fmt.Errorf("pipe: stderr: %w", err)
 	}
-
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start shell: %w", err)
+		return nil, fmt.Errorf("pipe: start: %w", err)
 	}
-
 	return &ptySession{
 		cmd:    cmd,
 		stdin:  stdinPipe,
 		stdout: io.MultiReader(stdoutPipe, stderrPipe),
 		resize: nil,
-		closer: func() error {
-			return stdinPipe.Close()
-		},
+		closer: func() error { return stdinPipe.Close() },
 	}, nil
 }

@@ -33,8 +33,11 @@ type Server struct {
 
 // Config holds the server config
 type Config struct {
-	Port  int
-	Token string
+	Port       int
+	Token      string
+	// StrictTLS causes the server to refuse starting without valid TLS certs.
+	// Set to false only during development/testing.
+	StrictTLS  bool
 }
 
 func NewServer(cfg Config, db database.DatabaseStore, v vault.Provider, log *logger.Logger) *Server {
@@ -75,46 +78,67 @@ func (s *Server) Start(ctx context.Context) error {
 		Handler: handler,
 	}
 
-	// SSL Support
+	// ── TLS Configuration ─────────────────────────────────────────────────
 	home, _ := os.UserHomeDir()
 	certPath := filepath.Join(home, ".oblivrashell", "cert.pem")
 	keyPath := filepath.Join(home, ".oblivrashell", "key.pem")
 
-	if _, err := os.Stat(certPath); err == nil {
-		s.log.Info("Starting REST API (TLS) on https://%s", addr)
-		go func() {
-			for {
-				select {
-				case <-s.ctx.Done():
-					return
-				default:
-					if err := s.srv.ListenAndServeTLS(certPath, keyPath); err != nil && err != http.ErrServerClosed {
-						s.log.Error("API Server (TLS) failed: %v. Retrying in 5s...", err)
-						time.Sleep(5 * time.Second)
-					} else {
-						return
-					}
-				}
-			}
-		}()
-	} else {
-		s.log.Info("Starting REST API (Plain) on http://%s", addr)
-		go func() {
-			for {
-				select {
-				case <-s.ctx.Done():
-					return
-				default:
-					if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-						s.log.Error("API Server failed: %v. Retrying in 5s...", err)
-						time.Sleep(5 * time.Second)
-					} else {
-						return
-					}
-				}
-			}
-		}()
+	_, certErr := os.Stat(certPath)
+	_, keyErr := os.Stat(keyPath)
+	hasCerts := certErr == nil && keyErr == nil
+
+	if !hasCerts {
+		if s.cfg.StrictTLS {
+			// In strict mode the server MUST have TLS — refuse to start plaintext.
+			// This prevents a misconfigured production deployment from silently
+			// exposing sensitive API endpoints over an unencrypted channel.
+			s.log.Error("FATAL: StrictTLS is enabled but no TLS certificates found at %s — refusing to start insecure API. Generate certs or disable StrictTLS for development.", certPath)
+			s.cancel()
+			return fmt.Errorf("strict TLS required but certificates not found at %s", certPath)
+		}
+		s.log.Warn("⚠️  TLS certificates not found at %s — API running in PLAINTEXT mode (development only). Set StrictTLS=true for production.", certPath)
 	}
+
+	if hasCerts {
+		// Validate the certificate pair is loadable before committing to TLS
+		if _, err := tls.LoadX509KeyPair(certPath, keyPath); err != nil {
+			if s.cfg.StrictTLS {
+				s.cancel()
+				return fmt.Errorf("strict TLS: certificate validation failed: %w", err)
+			}
+			s.log.Warn("⚠️  TLS cert/key pair invalid (%v) — falling back to plaintext.", err)
+			hasCerts = false
+		}
+	}
+
+	serveFunc := func() error {
+		if hasCerts {
+			return s.srv.ListenAndServeTLS(certPath, keyPath)
+		}
+		return s.srv.ListenAndServe()
+	}
+
+	if hasCerts {
+		s.log.Info("Starting REST API (TLS) on https://%s", addr)
+	} else {
+		s.log.Info("Starting REST API (plaintext) on http://%s", addr)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				if err := serveFunc(); err != nil && err != http.ErrServerClosed {
+					s.log.Error("API Server error: %v. Retrying in 5s...", err)
+					time.Sleep(5 * time.Second)
+				} else {
+					return
+				}
+			}
+		}
+	}()
 
 	return nil
 }
@@ -194,9 +218,10 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read all hosts from DB directly
-	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts`
-	rows, err := s.db.DB().Query(query)
+	// Use tenant-scoped context for all DB operations
+	ctx := database.WithTenantID(r.Context(), database.DefaultTenantID)
+	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE tenant_id = ?`
+	rows, err := s.db.DB().QueryContext(ctx, query, database.DefaultTenantID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -241,8 +266,9 @@ func (s *Server) handleHostAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE id = ?`
-	row := s.db.DB().QueryRow(query, id)
+	ctx := database.WithTenantID(r.Context(), database.DefaultTenantID)
+	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE id = ? AND tenant_id = ?`
+	row := s.db.DB().QueryRowContext(ctx, query, id, database.DefaultTenantID)
 
 	var h database.Host
 	err := row.Scan(&h.ID, &h.Label, &h.Hostname, &h.Port, &h.Username, &h.AuthMethod)
@@ -290,8 +316,9 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE id = ?`
-	row := s.db.DB().QueryRow(query, req.HostID)
+	execCtx := database.WithTenantID(r.Context(), database.DefaultTenantID)
+	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE id = ? AND tenant_id = ?`
+	row := s.db.DB().QueryRowContext(execCtx, query, req.HostID, database.DefaultTenantID)
 
 	var h database.Host
 	err := row.Scan(&h.ID, &h.Label, &h.Hostname, &h.Port, &h.Username, &h.AuthMethod)
