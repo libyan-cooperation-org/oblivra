@@ -1,0 +1,205 @@
+/* ═══════════════════════════════════════════════════════════════
+   OBLIVRA — Splunk-Style Navigation Override
+   Converts the 64px icon-only CommandRail into a 200px
+   text-based left navigation matching Splunk Enterprise UX.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Rail container: widen from 64px to 200px ── */
+.cr-rail {
+  width: 200px !important;
+  min-width: 200px !important;
+  background: var(--surface-1) !important;
+  border-right: 1px solid var(--border-primary) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+.cr-rail::-webkit-scrollbar { width: 3px !important; }
+.cr-rail::-webkit-scrollbar-thumb { background: var(--border-secondary) !important; }
+
+/* ── Logo block — Splunk orange brand strip ── */
+.cr-logo {
+  height: 40px !important;
+  width: 100% !important;
+  background: var(--accent-cta) !important;
+  border-bottom: none !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 14px !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+.cr-logo::after {
+  content: 'OBLIVRA';
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.cr-logo svg { display: none !important; }
+
+/* ── Section dividers — Splunk category headers ── */
+.cr-divider,
+.cr-divider-label {
+  display: flex !important;
+  width: 100% !important;
+  padding: 10px 14px 3px !important;
+  font-family: var(--font-ui) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  border: none !important;
+  height: auto !important;
+  min-height: unset !important;
+}
+
+/* ── Nav buttons: expand to full-width text items ── */
+.cr-nav-btn {
+  width: 100% !important;
+  padding: 8px 14px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 9px !important;
+  border-radius: 0 !important;
+  border-left: 3px solid transparent !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  cursor: pointer !important;
+  transition: all var(--transition-fast) !important;
+  text-align: left !important;
+}
+.cr-nav-btn:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-primary) !important;
+  border-left-color: transparent !important;
+}
+.cr-nav-btn--active {
+  background: rgba(0,153,224,0.1) !important;
+  color: var(--accent-primary) !important;
+  border-left-color: var(--accent-primary) !important;
+  font-weight: 600 !important;
+}
+/* Remove the active left-bar pseudo element (we use border-left now) */
+.cr-nav-btn--active::before { display: none !important; }
+
+/* ── Icons: shrink and left-align ── */
+.cr-nav-icon {
+  width: 15px !important;
+  height: 15px !important;
+  flex-shrink: 0 !important;
+  opacity: 0.75 !important;
+}
+.cr-nav-btn--active .cr-nav-icon {
+  opacity: 1 !important;
+  filter: none !important;  /* remove neon glow */
+}
+
+/* ── Labels: full-size readable text ── */
+.cr-nav-label {
+  font-size: 12px !important;
+  font-weight: inherit !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: unset !important;
+  flex: 1 !important;
+}
+
+/* ── Badge: right-align in nav ── */
+.cr-nav-badge {
+  margin-left: auto !important;
+  position: static !important;
+  top: unset !important;
+  right: unset !important;
+  font-size: 9px !important;
+  padding: 1px 5px !important;
+  border-radius: var(--radius-full) !important;
+  background: var(--alert-critical) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+.cr-nav-badge--urgent { background: var(--alert-critical) !important; }
+
+/* ── Audit flyout button: same style as nav items ── */
+.cr-audit-btn {
+  width: 100% !important;
+  padding: 8px 14px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 9px !important;
+  border-radius: 0 !important;
+  border-left: 3px solid transparent !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  text-align: left !important;
+}
+.cr-audit-btn:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-primary) !important;
+}
+.cr-audit-btn--active {
+  background: rgba(0,153,224,0.1) !important;
+  color: var(--accent-primary) !important;
+  border-left-color: var(--accent-primary) !important;
+}
+.cr-audit-icon {
+  width: 15px !important; height: 15px !important;
+  opacity: 0.75 !important; flex-shrink: 0 !important;
+}
+.cr-audit-label {
+  font-size: 12px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+/* ── Flyout: re-anchor for wider nav ── */
+.cr-flyout {
+  left: 202px !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-secondary) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+.cr-flyout-header {
+  font-family: var(--font-ui) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: var(--text-muted) !important;
+  padding: 8px 12px 6px !important;
+  letter-spacing: 0.7px !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid var(--border-primary) !important;
+}
+.cr-flyout-item {
+  color: var(--text-secondary) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  border-radius: var(--radius-sm) !important;
+}
+.cr-flyout-item:hover { background: var(--surface-3) !important; color: var(--text-primary) !important; }
+.cr-flyout-item--active { background: rgba(0,153,224,0.1) !important; color: var(--accent-primary) !important; font-weight: 600 !important; }
+
+/* ── Also fix AppLayout drawer offset for new nav width ── */
+.app-body > .cr-rail + * { /* drawer panel after nav */ }

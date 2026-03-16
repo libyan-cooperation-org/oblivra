@@ -72,12 +72,13 @@ func (s *AlertingService) Start(ctx context.Context) error {
 	// Load community Sigma rules from the user's sigma/ directory alongside builtin rules.
 	// This is done non-fatally — a missing sigma/ dir is fine, errors are logged only.
 	if s.evaluator != nil {
-		sigmaDir := "sigma" // resolved relative to the data dir at runtime
-		if err := s.evaluator.GetRuleEngine().LoadSigmaDirectory(sigmaDir); err != nil {
+		// Evaluator embeds *RuleEngine directly — methods are promoted, no getter needed.
+		sigmaDir := "sigma" // resolved relative to the binary's working directory
+		if err := s.evaluator.LoadSigmaDirectory(sigmaDir); err != nil {
 			s.log.Warn("[SIGMA] Failed to load sigma directory: %v", err)
 		} else {
 			s.log.Info("[SIGMA] Community Sigma rules loaded from %s (%d total rules active)",
-				sigmaDir, len(s.evaluator.GetRuleEngine().GetRules()))
+				sigmaDir, len(s.evaluator.GetRules()))
 		}
 	}
 

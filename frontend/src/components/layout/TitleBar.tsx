@@ -33,8 +33,8 @@ export const TitleBar: Component = () => {
                     display: flex;
                     align-items: center;
                     height: var(--header-height);
-                    background: var(--surface-1);
-                    border-bottom: 1px solid var(--border-primary);
+                    background: #0d0e10;
+                    border-bottom: 1px solid #000;
                     padding: 0 12px 0 0;
                     -webkit-app-region: drag;
                     user-select: none;
@@ -70,20 +70,19 @@ export const TitleBar: Component = () => {
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                    padding: 0 16px 0 4px;
-                    border-right: 1px solid var(--border-primary);
+                    padding: 0 16px;
+                    background: var(--accent-cta);
                     height: 100%;
                     flex-shrink: 0;
                 }
 
                 .tb-brand-name {
-                    font-family: var(--font-mono);
-                    font-size: 11px;
-                    font-weight: 700;
-                    color: var(--text-secondary);
-                    letter-spacing: 2px;
+                    font-family: var(--font-ui);
+                    font-size: 13px;
+                    font-weight: 800;
+                    color: #fff;
+                    letter-spacing: 0.5px;
                     text-transform: uppercase;
-                    opacity: 0.7;
                 }
 
                 .tb-center {
@@ -98,20 +97,19 @@ export const TitleBar: Component = () => {
                 .tb-ssh-bar {
                     display: flex;
                     align-items: center;
-                    background: var(--surface-2);
+                    background: #2b2d31;
                     border: 1px solid var(--border-primary);
-                    border-radius: var(--radius-md);
-                    padding: 0 10px;
-                    height: 30px;
+                    border-radius: var(--radius-sm);
+                    padding: 0 8px;
+                    height: 26px;
                     gap: 8px;
-                    width: 280px;
+                    width: 300px;
                     transition: all var(--transition-fast);
                     cursor: text;
                 }
                 .tb-ssh-bar:focus-within {
                     border-color: var(--accent-primary);
-                    background: var(--surface-3);
-                    box-shadow: 0 0 0 2px rgba(87,139,255,0.15);
+                    box-shadow: 0 0 0 2px rgba(0,153,224,0.2);
                 }
 
                 .tb-ssh-icon {
@@ -170,10 +168,10 @@ export const TitleBar: Component = () => {
                 }
 
                 .tb-avatar {
-                    width: 28px;
-                    height: 28px;
-                    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-                    border-radius: var(--radius-sm);
+                    width: 26px;
+                    height: 26px;
+                    background: var(--accent-primary);
+                    border-radius: var(--radius-xs);
                     display: flex;
                     align-items: center;
                     justify-content: center;

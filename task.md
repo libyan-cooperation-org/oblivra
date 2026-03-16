@@ -591,11 +591,24 @@
 
 ---
 
-## Phase 18: Backlog
+## Phase 18: Loose Ends Closed ✅
+
+- [x] **AI Assistant** — fully wired (page, route `/ai-assistant`, Wails binding, `AIService` started). Rebuilt UI: live Ollama status badge (green/red), offline banner with exact setup commands (`ollama serve` / `ollama pull llama3`), three mode buttons (Chat / Explain Error / Generate Command), auto-expanding textarea, proper error bubbles with distinct styling. `services.AIResponse` and `services.Message` added to `models.ts` so TypeScript compiles cleanly.
+- [x] **MitreHeatmap** — fully wired (component, route `/mitre-heatmap`, `GetDetectionRules` + `GetAlertHistory` on `AlertingService`). Fixed compile error: Sigma loader was calling `s.evaluator.GetRuleEngine().LoadSigmaDirectory()` — `Evaluator` embeds `*RuleEngine` directly so methods are promoted; corrected to `s.evaluator.LoadSigmaDirectory()` and `s.evaluator.GetRules()`.
+- [x] **OTel → Grafana Tempo pipeline** — `docker-compose.yml` extended with Prometheus, Grafana Tempo, and Grafana. `InitTracing()` wired into `ObservabilityService.Start()` (non-fatal path); `otelShutdown()` called in `Stop()` to flush spans before exit. `RegisterDetectionMetrics()` called at startup to pre-register all detection counters.
+- [x] **`ops/` config directory** — all support files created:
+  - `ops/prometheus.yml` — scrapes `sovereign-server:8080/metrics`, `sovereign-server:6060/debug/metrics`, Prometheus itself, Grafana
+  - `ops/tempo.yml` — OTLP gRPC (4317) + HTTP (4318), 14-day retention, metrics-generator → Prometheus remote write
+  - `ops/grafana/provisioning/datasources/datasources.yml` — auto-provisions Prometheus + Tempo datasources with exemplar correlation
+  - `ops/grafana/provisioning/dashboards/dashboard.yml` — dashboard provider config
+  - `ops/grafana/provisioning/dashboards/oblivra.json` — pre-built dashboard: 6 stat panels (goroutines, heap, active sessions, vault failures, rules loaded, Sigma rules), detection rate timeseries by severity, detection mix donut, SSH success/fail bar chart, SSH p95 latency, Tempo traces panel
+
+---
+
+## Phase 19: Backlog
 
 - [ ] Wails RPC bridge per-method rate limiting (debounce on sensitive methods like `NuclearDestruction`, `Unlock`)
 - [ ] DAG-based streaming processing engine (Phase 8 carry-over)
-- [ ] OTLP exporter wired to Grafana Tempo / Jaeger in `docker-compose.yml`
 - [ ] Sigma hot-reload: `fsnotify` watcher on `sigma/` directory (no restart required)
 - [ ] Sigma `count by` aggregate functions (requires stateful transpiler extension)
 - [ ] Cloud log connectors: AWS CloudTrail direct pull, Sysmon, Zeek, Suricata, Okta, Azure Monitor
@@ -603,8 +616,6 @@
 - [ ] FIPS 140-3 / ISO 27001 / SOC 2 certification program documentation
 - [ ] Per-agent metering and billing hooks
 - [ ] mTLS between all internal service boundaries
-- [ ] AI Assistant route + CommandRail entry + backend wiring
-- [ ] MitreHeatmap page fully wired into router with live data
 - [ ] Feature flag framework (tier-based capability gating)
 - [ ] Offline hardware-bound license activation
 - [ ] Certified Analyst / Engineer / Forensic Investigator program content
