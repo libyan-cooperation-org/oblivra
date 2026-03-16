@@ -27,7 +27,7 @@ export const VaultUnlock: Component<VaultUnlockProps> = (props) => {
         setLoading(true);
         setError(null);
         try {
-            await Unlock(passphrase(), [], remember());
+            await UnlockWithPassword(passphrase(), remember());
             props.onUnlock();
         } catch (err: unknown) {
             // Show the actual backend error message so the user knows what failed

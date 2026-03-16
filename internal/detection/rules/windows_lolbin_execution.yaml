@@ -1,0 +1,36 @@
+id: "windows_lolbin_execution"
+name: "Living-off-the-Land Binary (LOLBin) Execution"
+description: >
+  Detects execution of commonly abused Windows binaries (certutil, mshta, regsvr32,
+  rundll32, wscript, cscript, msiexec) that are frequently used by attackers to
+  proxy code execution and evade defenses.
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0005"
+  - "TA0002"
+mitre_techniques:
+  - "T1218"
+  - "T1218.001"
+  - "T1218.005"
+  - "T1218.010"
+  - "T1218.011"
+conditions:
+  EventType: "windows_process_create"
+  CommandLine|contains|any:
+    - "certutil.exe -urlcache"
+    - "certutil.exe -decode"
+    - "mshta.exe http"
+    - "mshta.exe vbscript"
+    - "regsvr32.exe /s /u /i:http"
+    - "rundll32.exe javascript"
+    - "wscript.exe .js"
+    - "cscript.exe .vbs"
+    - "msiexec.exe /q /i http"
+logsource:
+  product: windows
+  service: sysmon
+  category: process_creation

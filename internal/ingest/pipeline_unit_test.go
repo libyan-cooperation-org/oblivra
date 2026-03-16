@@ -1,0 +1,161 @@
+package ingest_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/kingknull/oblivrashell/internal/ingest"
+	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/events"
+	"github.com/kingknull/oblivrashell/internal/eventbus"
+)
+
+func newTestPipeline(t *testing.T) *ingest.Pipeline {
+	t.Helper()
+	log := logger.NewStdoutLogger()
+	bus := eventbus.NewBus(log)
+	t.Cleanup(func() { bus.Close() })
+	return ingest.NewPipeline(10000, nil, nil, nil, bus, log, nil)
+}
+
+// ── basic queue and process ───────────────────────────────────────────────────
+
+func TestPipeline_QueueAndProcess(t *testing.T) {
+	p := newTestPipeline(t)
+	p.Start()
+	defer p.Stop()
+
+	e := &events.SovereignEvent{
+		ID:        "test-001",
+		EventType: "syslog",
+		HostID:    "host-1",
+		RawLog:    "test log line",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := p.QueueEvent(e); err != nil {
+		t.Fatalf("QueueEvent: %v", err)
+	}
+
+	// Wait for pipeline to process
+	time.Sleep(200 * time.Millisecond)
+
+	m := p.GetMetrics()
+	if m.TotalProcessed.Load() == 0 {
+		t.Error("expected TotalProcessed > 0 after queuing one event")
+	}
+}
+
+func TestPipeline_DropsBeyondBuffer(t *testing.T) {
+	log := logger.NewStdoutLogger()
+	bus := eventbus.NewBus(log)
+	defer bus.Close()
+
+	// Tiny buffer of 5 — do NOT start workers so events accumulate
+	p := ingest.NewPipeline(5, nil, nil, nil, bus, log, nil)
+
+	// Queue 10 events into a 5-slot buffer — first 5 succeed, rest return ErrBufferFull
+	dropped := 0
+	for i := 0; i < 10; i++ {
+		err := p.QueueEvent(&events.SovereignEvent{ID: fmt.Sprintf("e-%d", i), EventType: "test"})
+		if err == ingest.ErrBufferFull {
+			dropped++
+		}
+	}
+	if dropped == 0 {
+		t.Error("expected at least one ErrBufferFull with tiny buffer, got none")
+	}
+}
+
+// ── metrics ───────────────────────────────────────────────────────────────────
+
+func TestPipeline_MetricsReflectThroughput(t *testing.T) {
+	p := newTestPipeline(t)
+	p.Start()
+	defer p.Stop()
+
+	const count = 50
+	for i := 0; i < count; i++ {
+		p.QueueEvent(&events.SovereignEvent{ //nolint:errcheck
+			ID:        fmt.Sprintf("evt-%d", i),
+			EventType: "syslog",
+			RawLog:    fmt.Sprintf("log line %d", i),
+		})
+	}
+
+	// Allow time to process
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if p.GetMetrics().TotalProcessed.Load() >= count {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	processed := p.GetMetrics().TotalProcessed.Load()
+	if processed < count {
+		t.Errorf("expected TotalProcessed ≥ %d, got %d", count, processed)
+	}
+}
+
+// ── benchmark ─────────────────────────────────────────────────────────────────
+
+func BenchmarkPipeline_Throughput(b *testing.B) {
+	log := logger.NewStdoutLogger()
+	bus := eventbus.NewBus(log)
+	defer bus.Close()
+	p := ingest.NewPipeline(100000, nil, nil, nil, bus, log, nil)
+	p.Start()
+	defer p.Stop()
+
+	e := &events.SovereignEvent{
+		ID:        "bench-1",
+		EventType: "syslog",
+		RawLog:    "<34>1 2026-01-01T00:00:00Z bench-host sshd - - Failed password for root from 1.2.3.4",
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		p.QueueEvent(e) //nolint:errcheck
+	}
+}
+
+func BenchmarkPipeline_AutoParse(b *testing.B) {
+	lines := []string{
+		`<34>1 2026-01-01T00:00:00Z myhost sshd - - Failed password for user root from 1.2.3.4 port 51234 ssh2`,
+		`{"event":{"type":"process_create"},"process":{"command_line":"powershell.exe -enc SQBFAFgA"}}`,
+		`2026-01-01T00:00:00.000Z [ERROR] Exception in thread main: NullPointerException`,
+		`<189>Jan  1 00:00:00 router: %SEC-6-IPACCESSLOGP: list 101 denied tcp`,
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ingest.AutoParse(lines[i%len(lines)])
+	}
+}
+
+// ── context cancellation ──────────────────────────────────────────────────────
+
+func TestPipeline_StopsCleanly(t *testing.T) {
+	p := newTestPipeline(t)
+	p.Start()
+
+	// Queue a few events then stop
+	for i := 0; i < 10; i++ {
+		p.QueueEvent(&events.SovereignEvent{ID: fmt.Sprintf("e-%d", i), EventType: "syslog"}) //nolint:errcheck
+	}
+
+	done := make(chan struct{})
+	go func() {
+		p.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// ok
+	case <-time.After(5 * time.Second):
+		t.Error("pipeline.Stop() timed out — possible goroutine leak")
+	}
+}

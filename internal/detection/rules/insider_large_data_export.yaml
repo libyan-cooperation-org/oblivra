@@ -1,0 +1,23 @@
+id: "insider_large_data_export"
+name: "Insider Threat: Large Data Export"
+description: >
+  Detects unusually large outbound data transfers that may indicate data theft
+  by an insider. Triggered when a single session transfers more than 500MB
+  outbound to a non-corporate destination.
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 3600
+dedup_window_sec: 7200
+mitre_tactics:
+  - "TA0010"
+mitre_techniques:
+  - "T1048"
+  - "T1052"
+conditions:
+  EventType: "network_data_transfer"
+  BytesSent|gte: "524288000"
+  Direction: "outbound"
+logsource:
+  product: zeek
+  service: conn

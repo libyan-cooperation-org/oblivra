@@ -1,0 +1,24 @@
+id: "linux_ld_preload_hijack"
+name: "LD_PRELOAD Shared Library Hijacking"
+description: >
+  Detects modification of /etc/ld.so.preload or use of the LD_PRELOAD environment
+  variable to inject a malicious shared library into every process. Used for
+  credential harvesting and rootkit concealment.
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0005"
+  - "TA0003"
+mitre_techniques:
+  - "T1574.006"
+conditions:
+  EventType: "file_write"
+  FilePath|contains|any:
+    - "/etc/ld.so.preload"
+    - "/etc/ld.so.conf"
+logsource:
+  product: linux
+  service: auditd

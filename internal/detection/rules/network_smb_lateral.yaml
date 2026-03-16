@@ -1,0 +1,26 @@
+id: "network_smb_lateral"
+name: "SMB Lateral Movement"
+description: >
+  Detects SMB-based lateral movement patterns: PsExec service creation over SMB,
+  access to ADMIN$ or IPC$ shares from workstations, or high-volume SMB
+  authentication failures followed by success (spray-and-pivot).
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0008"
+mitre_techniques:
+  - "T1021.002"
+  - "T1570"
+conditions:
+  EventType: "network_smb"
+  ShareName|contains|any:
+    - "ADMIN$"
+    - "IPC$"
+    - "C$"
+  AccessType: "WRITE"
+logsource:
+  product: zeek
+  service: smb

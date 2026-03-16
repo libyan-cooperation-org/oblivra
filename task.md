@@ -605,11 +605,48 @@
 
 ---
 
-## Phase 19: Backlog
+## Phase 19: Completed ✅
+
+- [x] **README.md** — fully rewritten: accurate stack (Wails v2, SolidJS, BadgerDB, Bleve, Sigma), architecture diagram, build instructions, data locations, cosign verification commands
+- [x] **CHANGELOG.md v1.1.0** — complete entry covering all phases 11–19
+- [x] **Diagnostics Modal** — `DiagnosticsModal.tsx`: live ingest EPS + buffer bar, goroutines, heap, GC, event bus drops, query P99, health grade. Wired to status bar `● A` badge click.
+- [x] **Sigma hot-reload** — `fsnotify v1.8.0` watcher on `sigma/` with 500ms debounce, `ReloadSigmaRules()` Wails method, `sigma:rules_reloaded` event emitted
+- [x] **Unlock bug — all three root causes fixed**:
+  - `HasKeychainEntry()` added to vault interface + implementation — auto-unlock goroutine now skips if no keychain entry
+  - `VaultUnlock.tsx` calls `UnlockWithPassword()` instead of `Unlock(passphrase, [], remember)` — no longer routes through hardware key path
+  - 50-iteration `IsUnlocked` polling loop replaced with single check + event subscription
+
+---
+
+## Phase 20: Completed ✅
+
+- [x] **Detection content** — 30 new high-value detection rules (82 total):
+  - Windows: LOLBin, PowerShell encoded, shadow copy deletion, LSASS dump, WMI lateral, registry run key, Defender tamper, pass-the-hash, DCSync, golden ticket, scheduled task lateral, remote service install
+  - Linux: rootkit indicator, LD_PRELOAD hijack, Docker escape, unsigned kernel module, SSH key added
+  - Cloud: AWS root console login, IAM privilege escalation, S3 mass exfil, Azure impossible travel
+  - Network: DNS tunneling, SMB lateral movement, periodic C2 beaconing
+  - Supply chain: build system compromise, npm suspicious postinstall
+  - Insider threat: large data export, off-hours privileged access
+  - OT/ICS: Modbus anomaly
+- [x] **Test suite expansion**:
+  - `detection_engine_test.go` — 18 tests: each builtin rule, deduplication, threshold aggregation, CIDR matching, Sigma transpiler, rule loading
+  - `vault_service_test.go` — 12 tests: setup/unlock, wrong password, empty slice normalization, CRUD, locked access guard, health audit, password generator uniqueness, HasKeychainEntry
+  - `ingest/pipeline_unit_test.go` — queue/process, buffer drop, metrics, stop cleanly, benchmark throughput, benchmark AutoParse
+  - `tests/smoke_test.go` — expanded with alerting, Sigma, diagnostics, observability, IngestService metrics subtests
+  - `AlertingService.GetEvaluator()` accessor added for test introspection
+- [x] **Operator documentation** (5 guides):
+  - `docs/operator/quickstart.md` — prerequisites, build, first launch, data locations, adding hosts, ingestion, detection verification, notifications, observability stack, keyboard shortcuts
+  - `docs/operator/detection-authoring.md` — rule format, threshold/sequence types, condition fields, EventType reference, MITRE mapping, examples
+  - `docs/operator/sigma-rules.md` — what Sigma is, installation, supported constructs, severity mapping, hot-reload, filtering, troubleshooting
+  - `docs/operator/alerting-config.md` — SMTP/Gmail/O365, Telegram bot setup, Twilio SMS+WhatsApp, Slack/Discord/Teams webhooks, regex triggers, alert history, suppression
+  - `docs/operator/api-reference.md` — ingest, search, hosts, alerts, compliance, health, metrics, pprof, error codes, rate limiting, syslog config
+
+---
+
+## Phase 21: Backlog
 
 - [ ] Wails RPC bridge per-method rate limiting (debounce on sensitive methods like `NuclearDestruction`, `Unlock`)
 - [ ] DAG-based streaming processing engine (Phase 8 carry-over)
-- [ ] Sigma hot-reload: `fsnotify` watcher on `sigma/` directory (no restart required)
 - [ ] Sigma `count by` aggregate functions (requires stateful transpiler extension)
 - [ ] Cloud log connectors: AWS CloudTrail direct pull, Sysmon, Zeek, Suricata, Okta, Azure Monitor
 - [ ] ClickHouse storage backend option for petabyte-scale SIEM workloads
@@ -618,4 +655,3 @@
 - [ ] mTLS between all internal service boundaries
 - [ ] Feature flag framework (tier-based capability gating)
 - [ ] Offline hardware-bound license activation
-- [ ] Certified Analyst / Engineer / Forensic Investigator program content

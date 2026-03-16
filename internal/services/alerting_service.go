@@ -559,3 +559,9 @@ func (s *AlertingService) UpdateIncidentStatus(id string, status string, reason 
 func (s *AlertingService) GetOsqueryTemplates() []osquery.QueryTemplate {
 	return osquery.GetDefaultQueries()
 }
+
+// GetEvaluator returns the underlying detection evaluator.
+// Used by integration tests to directly exercise sigma loading.
+func (s *AlertingService) GetEvaluator() *detection.Evaluator {
+	return s.evaluator
+}

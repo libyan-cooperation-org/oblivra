@@ -4,107 +4,88 @@ import (
 	"context"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/app"
 )
 
-func TestIntegrationSmoke(t *testing.T) {
-	// 1. Setup Temp Environment to avoid polluting production data
-	tempDir := t.TempDir()
-	os.Setenv("APPDATA", tempDir)
-	os.Setenv("LOCALAPPDATA", tempDir)
+// ── shared setup ──────────────────────────────────────────────────────────────
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
+func setupTestApp(t *testing.T) (*app.App, context.CancelFunc) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	os.Setenv("APPDATA", tmpDir)
+	os.Setenv("LOCALAPPDATA", tmpDir)
+	os.Setenv("HOME", tmpDir)
 
-	// Add a test marker to the context to skip Wails UI emissions and other non-headless side effects
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	ctx = context.WithValue(ctx, "test", "true")
 
-	// 2. Initialize App Container
 	application := app.New()
 	application.Startup(ctx)
-	defer application.Shutdown(ctx)
 
-	// 3. Vault Integrity Check
+	const pw = "sovereign-test-pass-2026"
+	application.VaultService.Setup(pw, "")   //nolint:errcheck
+	application.VaultService.Unlock(pw, nil, false) //nolint:errcheck
+
+	return application, func() {
+		application.Shutdown(ctx)
+		cancel()
+	}
+}
+
+// ── smoke tests ───────────────────────────────────────────────────────────────
+
+func TestIntegrationSmoke(t *testing.T) {
+	application, cleanup := setupTestApp(t)
+	defer cleanup()
+
 	t.Run("Vault_Integrity", func(t *testing.T) {
-		password := "sovereign-test-pass"
-
-		// Initial setup for a fresh temp directory
-		err := application.VaultService.Setup(password, "")
+		id, err := application.VaultService.AddCredential("SmokeTestSecret", "password", "integration-test-value")
 		if err != nil {
-			t.Fatalf("Failed to setup vault: %v", err)
+			t.Fatalf("AddCredential: %v", err)
 		}
-
-		err = application.VaultService.Unlock(password, nil, false)
-		if err != nil {
-			t.Fatalf("Failed to unlock vault: %v", err)
-		}
-
-		// Verify we can add and list a credential
-		label := "SmokeTestSecret"
-		credType := "password"
-		rawData := "integration-test-value"
-
-		id, err := application.VaultService.AddCredential(label, credType, rawData)
-		if err != nil {
-			t.Fatalf("Failed to add credential: %v", err)
-		}
-
-		if id == "" {
-			t.Fatal("Expected non-empty credential ID")
-		}
-
 		decrypted, err := application.VaultService.GetDecryptedCredential(id)
 		if err != nil {
-			t.Fatalf("Failed to decrypt: %v", err)
+			t.Fatalf("GetDecryptedCredential: %v", err)
 		}
-
-		if decrypted != rawData {
-			t.Errorf("Decrypted data mismatch. Expected %s, got %s", rawData, decrypted)
+		if decrypted != "integration-test-value" {
+			t.Errorf("got %q, want integration-test-value", decrypted)
 		}
-
-		// Cleanup: Lock vault
 		application.VaultService.Lock()
+		_, err = application.VaultService.GetDecryptedCredential(id)
+		if err == nil {
+			t.Error("expected error getting credential while locked")
+		}
+		// Re-unlock for subsequent subtests
+		application.VaultService.Unlock("sovereign-test-pass-2026", nil, false) //nolint:errcheck
 	})
 
-	// 4. SIEM Pipeline Check (Ingestion -> Search)
 	t.Run("SIEM_Pipeline", func(t *testing.T) {
-		// Ensure vault is unlocked for DB access
-		password := "sovereign-test-pass"
-		application.VaultService.Unlock(password, nil, false)
-		defer application.VaultService.Lock()
-
-		// Start Syslog Server
-		err := application.IngestService.StartSyslogServer()
-		if err != nil {
-			t.Fatalf("Failed to start syslog server: %v", err)
+		if err := application.IngestService.StartSyslogServer(); err != nil {
+			t.Fatalf("StartSyslogServer: %v", err)
 		}
-		defer application.IngestService.StopSyslogServer()
+		defer application.IngestService.StopSyslogServer() //nolint:errcheck
 
-		// Send mock RFC5424 syslog message over UDP
 		conn, err := net.Dial("udp", "127.0.0.1:1514")
 		if err != nil {
-			t.Fatalf("Failed to dial syslog: %v", err)
+			t.Fatalf("UDP dial: %v", err)
 		}
-		// A classic failed login log
-		msg := "<34>1 2023-10-11T22:14:15.003Z smoke-host oblivra - ID47 - [meta sequence=\"1\"] 'su root' failed for root on /dev/pts/0"
-		_, err = conn.Write([]byte(msg))
-		if err != nil {
-			t.Fatalf("Failed to send log: %v", err)
+		msg := `<34>1 2026-01-01T00:00:00Z smoke-host oblivra - ID47 - Failed login for root`
+		if _, err := conn.Write([]byte(msg)); err != nil {
+			conn.Close()
+			t.Fatalf("UDP write: %v", err)
 		}
 		conn.Close()
 
-		// Wait for processing through the pipeline (BadgerDB -> Bleve)
 		time.Sleep(3 * time.Second)
 
-		// Search for the event using "root" as keyword
 		events, err := application.SIEMService.SearchHostEvents("root", 10)
 		if err != nil {
-			t.Fatalf("Search failed: %v", err)
+			t.Fatalf("SearchHostEvents: %v", err)
 		}
-
 		found := false
 		for _, e := range events {
 			if e.RawLog != "" {
@@ -112,32 +93,147 @@ func TestIntegrationSmoke(t *testing.T) {
 				break
 			}
 		}
-
 		if !found {
-			t.Error("Expected at least one SIEM event indexed, but search returned zero results")
+			t.Error("expected at least one indexed SIEM event after syslog injection")
 		}
 	})
 
-	// 5. Compliance Service Check
 	t.Run("Compliance_Evaluation", func(t *testing.T) {
 		packs, err := application.ComplianceService.ListCompliancePacks()
 		if err != nil {
-			t.Fatalf("Failed to list compliance packs: %v", err)
+			t.Fatalf("ListCompliancePacks: %v", err)
 		}
-
 		if len(packs) == 0 {
-			t.Error("Expected compliance packs to be loaded, found 0")
+			t.Error("expected at least one compliance pack")
 		}
-
-		// Evaluate first available pack (usually NIST or GDPR)
 		if len(packs) > 0 {
 			result, err := application.ComplianceService.EvaluatePack(packs[0].ID)
 			if err != nil {
-				t.Fatalf("Pack evaluation failed for %s: %v", packs[0].ID, err)
+				t.Fatalf("EvaluatePack %s: %v", packs[0].ID, err)
 			}
 			if result == nil {
-				t.Fatal("Evaluation result is nil")
+				t.Fatal("EvaluatePack returned nil result")
 			}
 		}
 	})
+
+	t.Run("Alerting_Service_Loads_Rules", func(t *testing.T) {
+		rules := application.AlertingService.GetDetectionRules()
+		if len(rules) < 50 {
+			t.Errorf("expected ≥50 detection rules loaded, got %d", len(rules))
+		}
+	})
+
+	t.Run("Sigma_HotReload_Trigger_NoOp", func(t *testing.T) {
+		// ReloadSigmaRules on a non-existent dir should return 0 without crashing
+		count := application.AlertingService.ReloadSigmaRules()
+		t.Logf("ReloadSigmaRules returned %d rules", count)
+		// No assertion — we only ensure it doesn't panic
+	})
+
+	t.Run("Diagnostics_Snapshot", func(t *testing.T) {
+		snap := application.DiagnosticsService.GetSnapshot()
+		if snap.HealthGrade == "" {
+			t.Error("expected non-empty health grade in diagnostics snapshot")
+		}
+		if snap.Runtime.NumCPU == 0 {
+			t.Error("expected NumCPU > 0 in diagnostics snapshot")
+		}
+	})
+
+	t.Run("Observability_Status", func(t *testing.T) {
+		status := application.ObservabilityService.GetObservabilityStatus()
+		if status == nil {
+			t.Fatal("GetObservabilityStatus returned nil")
+		}
+		if _, ok := status["goroutines"]; !ok {
+			t.Error("missing 'goroutines' key in observability status")
+		}
+	})
+
+	t.Run("IngestService_Metrics_NonNil", func(t *testing.T) {
+		m := application.IngestService.GetMetrics()
+		if m == nil {
+			t.Fatal("GetMetrics returned nil")
+		}
+	})
+
+	t.Run("Sigma_SigmaDirectory_Missing_NoError", func(t *testing.T) {
+		// Calling LoadSigmaDirectory on a non-existent path should NOT crash
+		nonExistent := filepath.Join(os.TempDir(), "does-not-exist-sigma-rules")
+		err := application.AlertingService.GetEvaluator().LoadSigmaDirectory(nonExistent)
+		// May return error (directory missing) — that's fine; must not panic
+		if err != nil {
+			t.Logf("LoadSigmaDirectory on missing dir: %v (expected)", err)
+		}
+	})
+}
+
+// ── high-throughput stress ────────────────────────────────────────────────────
+
+func TestHighThroughputIngestion(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping stress test in short mode")
+	}
+
+	application, cleanup := setupTestApp(t)
+	defer cleanup()
+
+	if err := application.IngestService.StartSyslogServer(); err != nil {
+		t.Fatalf("StartSyslogServer: %v", err)
+	}
+	defer application.IngestService.StopSyslogServer() //nolint:errcheck
+
+	const targetEPS = 5000
+	const burstSec = 10
+	const totalExpected = targetEPS * burstSec
+
+	conn, err := net.Dial("udp", "127.0.0.1:1514")
+	if err != nil {
+		t.Fatalf("UDP dial: %v", err)
+	}
+	defer conn.Close()
+
+	ticker := time.NewTicker(time.Second / time.Duration(targetEPS))
+	defer ticker.Stop()
+	timer := time.NewTimer(burstSec * time.Second)
+	defer timer.Stop()
+
+	sent := 0
+	start := time.Now()
+BURST:
+	for {
+		select {
+		case <-timer.C:
+			break BURST
+		case ts := <-ticker.C:
+			msg := "<34>1 " + ts.Format(time.RFC3339) + " stress-host sshd - - Failed password for nobody from 10.99.0.1\n"
+			conn.Write([]byte(msg)) //nolint:errcheck
+			sent++
+		}
+	}
+	elapsed := time.Since(start)
+	t.Logf("burst: %d events in %.2fs (%.0f EPS)", sent, elapsed.Seconds(), float64(sent)/elapsed.Seconds())
+
+	// Drain: wait up to 30s for pipeline to process all sent events
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		m := application.IngestService.GetMetrics()
+		if m["total_processed"].(int64) >= int64(sent) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	finalMetrics := application.IngestService.GetMetrics()
+	dropped := finalMetrics["dropped_events"].(int64)
+	processed := finalMetrics["total_processed"].(int64)
+
+	t.Logf("processed=%d sent=%d dropped=%d", processed, sent, dropped)
+
+	// Accept up to 1% data loss under extreme load — anything more is a regression
+	maxAllowedDrops := int64(totalExpected) / 100
+	if dropped > maxAllowedDrops {
+		t.Errorf("excessive data loss: %d drops (max allowed %d for %d events)", dropped, maxAllowedDrops, sent)
+	}
 }

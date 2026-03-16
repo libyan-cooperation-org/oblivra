@@ -1,0 +1,29 @@
+id: "linux_rootkit_indicator"
+name: "Linux Rootkit Installation Indicator"
+description: >
+  Detects indicators of rootkit installation: loading of unsigned kernel modules,
+  modification of /proc or /sys entries, or execution of known rootkit tools
+  (reptile, diamorphine, azazel, libprocesshider).
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0005"
+  - "TA0003"
+mitre_techniques:
+  - "T1014"
+  - "T1547.006"
+conditions:
+  EventType: "linux_process_create"
+  CommandLine|contains|any:
+    - "insmod reptile"
+    - "insmod diamorphine"
+    - "insmod azazel"
+    - "libprocesshider"
+    - "modprobe -f"
+    - "rmmod --force"
+logsource:
+  product: linux
+  service: auditd

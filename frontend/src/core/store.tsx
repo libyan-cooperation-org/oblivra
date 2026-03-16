@@ -107,33 +107,17 @@ export const AppProvider: ParentComponent = (props) => {
             refreshHosts();
         });
 
-        // Initial state check — now safe because all listeners are already registered
+        // Initial state check — now safe because all listeners are already registered.
+        // The vault:unlocked event subscription above handles the async unlock case;
+        // we only need a single check here to catch vaults already unlocked before mount
+        // (e.g. when navigating between pages after initial unlock).
         const unlocked = await IsUnlocked();
         setState('vaultUnlocked', unlocked);
         if (unlocked) {
             await refreshHosts();
-        } else {
-            // Poll every 300ms for up to 15s to catch auto-unlock (startup race)
-            let polls = 0;
-            const poll = setInterval(async () => {
-                polls++;
-                // SECURITY: Stop polling after limit or if vault was manually locked in between
-                if (polls > 50 || !state.sidebarOpen) { 
-                    clearInterval(poll); 
-                    return; 
-                }
-                
-                const isNowUnlocked = await IsUnlocked();
-                if (isNowUnlocked) {
-                    clearInterval(poll);
-                    setState('vaultUnlocked', true);
-                    await refreshHosts();
-                }
-            }, 300);
-
-            // Ensure poll is cleared if we lock manually during the polling window
-            subscribe('vault:locked', () => clearInterval(poll));
         }
+        // No polling needed — backend emits vault:unlocked via EventsEmit when unlock
+        // succeeds, which the subscribe('vault:unlocked') handler above will catch.
 
         subscribe('session:started', (data: { id: string, hostId: string, label: string }) => {
             // Backend started a session (e.g. from terminal or click)
