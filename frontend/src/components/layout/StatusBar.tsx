@@ -4,6 +4,7 @@ import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { usePanelManager } from './PanelManager';
 import { DiagnosticsModal } from '../monitoring/DiagnosticsModal';
+import { ContextBadge } from './ContextBadge';
 
 export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) => {
     const [state] = useApp();
@@ -77,6 +78,8 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
         ">
             {/* Left cluster */}
             <div style="display: flex; align-items: center; gap: 10px;">
+                <ContextBadge />
+                {sep()}
                 <span style={`
                     display: inline-block;
                     width: 5px;

@@ -203,3 +203,19 @@
 
 /* ── Also fix AppLayout drawer offset for new nav width ── */
 .app-body > .cr-rail + * { /* drawer panel after nav */ }
+
+/* ── Context-locked items in 200px nav ── */
+.cr-nav-btn--locked {
+    opacity: 0.22 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+.cr-nav-lock {
+    position: absolute !important;
+    right: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 9px !important;
+    color: var(--text-muted) !important;
+    opacity: 0.6 !important;
+}

@@ -1,11 +1,11 @@
-# Oblivra Sovereign Terminal
+# OBLIVRA — Sovereign Security Platform
 
 [![Build](https://img.shields.io/badge/Build-Passing-brightgreen)](https://github.com/kingknull/oblivrashell/actions)
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![SBOM](https://img.shields.io/badge/SBOM-SPDX%20%2B%20CycloneDX-orange)](https://github.com/kingknull/oblivrashell/releases)
 
-**Oblivra Sovereign Terminal** is an enterprise-grade, air-gap-ready security operations platform built for analysts who need full-spectrum visibility — without sending telemetry to a cloud vendor.
+**OBLIVRA** is an enterprise-grade, air-gap-ready security operations platform built for analysts who need full-spectrum visibility — without sending telemetry to a cloud vendor.
 
 It combines a native SSH/terminal client, an embedded SIEM pipeline, Sigma detection engine, UEBA behavioural analytics, a cryptographic credential vault, and a full incident response suite into a single signed desktop binary for Windows, macOS, and Linux.
 

@@ -17,8 +17,11 @@
 > No service is "done" until it has a corresponding SolidJS component, an API endpoint, or a route in `index.tsx`.
 
 > [!CAUTION]
-> **ARCHITECTURAL FREEZE after Phase 10.** No new feature additions — only hardening, verification, and performance optimization.
-> Adding features past this point decreases platform reliability. Switch to: soak tests, architecture enforcement, and formal verification.
+> **ARCHITECTURAL GRADUATION POLICY after Phase 10.** 
+> - **Phases 0-10**: Core platform (Feature-complete v1). No further additions to core pipeline.
+> - **Phases 11-15**: Extension modules (Independently hardened before next begins).
+> - **Phases 16+**: Market expansion (Requires v1 soak test pass as prerequisite).
+> Every phase beyond 10 requires documented justification and independent hardening gates.
 
 
 
@@ -94,6 +97,20 @@
 - [x] Resolve remaining compile errors across all services
 - [x] Verify all 16+ services start/stop cleanly via `ServiceRegistry`
 - [x] Full integration smoke test (SSH, SIEM, Vault, Alerting, Compliance)
+
+---
+
+## Phase 0.5: Architectural Hardening (Desktop vs. Browser)
+- [ ] **Dual-Context Substrate**
+    - [ ] Formalize `APP_CONTEXT` detection (Wails vs. Browser)
+    - [ ] Implement Route Filtering logic for Desktop-only (`/workspace`) and Browser-only (`/fleet`, `/identity`, etc.) routes
+    - [ ] Define Service Container registration modes (Lightweight/Local vs. Clustered/Enterprise)
+- [ ] **Hybrid Mode Foundation**
+    - [ ] Desktop App capability to connect to remote OBLIVRA Server (Backend API Proxy)
+    - [ ] Standardize local-to-remote "pivot" UI patterns (click IP in terminal → server entity page)
+- [ ] **Data Scope Separation**
+    - [ ] Desktop: Direct PTY, OS Keychain, Local SFTP, Personal SQL/BadgerDB scope
+    - [ ] Browser: Web-mediated SSH, Server Vault, Clustered index scope, Team collaboration
 
 ---
 
@@ -430,7 +447,7 @@
 - [ ] **Generic REST API Polling**
     - [ ] Declarative collector for SaaS sources without webhook support
 
-## Phase 8: Autonomous Response (SOAR) [x]
+## Phase 8: Autonomous Response (SOAR)
 - [v] Case management (CRUD, assignment, timeline)
 - [v] Playbook Engine: Selective response & Approval gating (Validated [v])
 - [v] Rollback Integrity: State-aware recovery (Validated [v])
@@ -446,7 +463,7 @@
     - [ ] Playbook execution success/failure rates
     - [ ] Bottleneck identification (which step takes longest?)
 
-## Phase 9: Ransomware Defense [x]
+## Phase 9: Ransomware Defense
 - [x] Entropy-based behavioral detection (`internal/detection/ransomware_engine.go` — multi-signal: entropy, ext rename, ransom note, shadow copy, canary)
 - [x] Canary file deployment (`canary_deployment_service.go` — auto-deploys on `agent.registered`, monitors FIM hits)
 - [v] Honeypot infrastructure
@@ -461,11 +478,37 @@
     - [ ] Decryptor availability checking (NoMoreRansom integration)
     - [ ] Payment risk scoring (OFAC sanctions list checking)
 
-## Phase 10: UEBA / ML [v]
+## Phase 10: UEBA / ML
 - [v] Per-user/entity behavioral baselines (Persistence in BadgerDB) [v]
 - [v] Isolation Forest anomaly detection (Deterministic seeding) [v]
 - [v] Identity Threat Detection & Response (EMA behavior tracking) [v]
 - [v] Threat hunting interface (`ThreatHunter.tsx`)
+
+#### 10.5 — Peer Group Behavioral Analysis
+- [ ] **Peer Group Construction**
+    - [ ] Auto-cluster users by: role, department, job title, access patterns
+    - [ ] Dynamic peer groups: recalculate as users change roles/behavior
+    - [ ] Minimum group size: peer group must have N+ members for statistical validity
+- [ ] **Group Baseline Modeling**
+    - [ ] Aggregate behavioral statistics per peer group (access times, resources, volumes)
+    - [ ] Deviation scoring: entity distance from group centroid; Seasonal adjustment
+- [ ] **Peer-Based Anomaly Detection**
+    - [ ] "First for peer group" alerts; Volume/Access outliers vs. peer distribution
+    - [ ] Composite: individual anomaly × peer anomaly = high-confidence detection
+- [ ] **Peer Group UI** (`PeerAnalytics.tsx`)
+    - [ ] Peer group explorer; Entity vs. Peer distribution overlay
+
+#### 10.6 — Multi-Stage Attack Fusion Engine
+- [ ] **Kill Chain Correlation**
+    - [ ] Map every alert to ATT&CK tactic stage (recon → initial access → ... → exfil)
+    - [ ] Track progression through kill chain stages over sliding window
+    - [ ] Alert when entity spans 3+ tactic stages (Topology-driven correlation)
+- [ ] **Campaign Clustering**
+    - [ ] Group alerts sharing entities (IPs, users, hosts) within time window
+    - [ ] Score cluster by: entity overlap × tactic coverage × time compression
+- [ ] **Probabilistic Scoring**
+    - [ ] Bayesian network: P(real_attack | N_alerts_on_same_entity)
+    - [ ] Fusion Dashboard: Kill chain progression view; Campaign cluster graph
 
 
 ---
@@ -820,6 +863,13 @@
     - [ ] Tuning recommendations ("rule X fires frequently but never leads to incidents")
 
 #### 20.4 — Sovereign Common Information Model (SCIM)
+> [!IMPORTANT]
+> **SCIM Migration Strategy**: To mitigate technical debt, OBLIVRA employs an **Aliasing Layer** strategy. 
+> 1. All existing parsers remain unchanged.
+> 2. OQL resolves legacy field names to SCIM fields via a translation map.
+> 3. New parsers output SCIM natively. 
+> 4. Legacy parsers are migrated over time; existing rules remain functional throughout.
+
 - [ ] **Schema Definition**
     - [ ] Adopt OCSF (Open Cybersecurity Schema Framework) as base
     - [ ] Core object types: Event, Identity, Device, Network, Process, File, Registry, Email
@@ -974,6 +1024,120 @@
     - [ ] Analyst-only internal comments; Evidence attachments; Parent/child linking
 - [ ] **Ticket Queue Dashboard** (`InvestigationQueue.tsx`)
     - [ ] Kanban/List views; Bulk operations; My Tickets vs. Team views
+
+#### 20.13 — Competitive Migration Engine
+- [ ] **Splunk Migration**
+    - [ ] SPL → OQL transpiler hardening; Saved search/Alert import (XML)
+    - [ ] Lookup/Dashboard import; Migration Dashboard (`MigrationWizard.tsx`)
+- [ ] **Elastic/OpenSearch Migration**
+    - [ ] KQL → OQL; Kibana dashboard import; Elastic detection rule import
+- [ ] **Generic Migration**
+    - [ ] Sigma rule bulk import; CSV/JSON historical data loader
+
+#### 20.14 — Query-Time Field Masking
+- [ ] **Masking Policies**
+    - [ ] Define RBAC-based rules (Redact, Hash, Tokenize, Partial)
+    - [ ] Auto-classify PII/PCI fields at index time via regex
+- [ ] **Enforcement & Audit**
+    - [ ] Query engine applies masks; Export/API respect policies
+    - [ ] Approval workflow for emergency unmasking; Full audit trail of unmask events
+
+#### 20.15 — Compliance-as-Code
+- [ ] **Policy-as-Code Engine**
+    - [ ] Policy repository (OPA/Rego); Continuous evaluation vs. live state
+    - [ ] Automated Evidence Collection queries (freshness monitoring)
+- [ ] **Remediation Tracking**
+    - [ ] Finding lifecycle; SLG/SLA tracking; Re-run evidence to verify fix
+
+#### 20.16 — Data Plane Encryption
+- [ ] **Encryption at Rest**
+    - [ ] Encrypted event store (BadgerDB/Parquet) and Bleve index
+    - [ ] Key hierarchy (Master → DEK) with envelope encryption
+- [ ] **Customer-Managed Keys (CMK / BYOK)**
+    - [ ] Support for AWS KMS, Azure KV, GCP KMS, HashiCorp Vault
+    - [ ] Revocation workflow (Instant permanent data inaccessibility)
+
+#### 20.17 — Incident Communication Hub (War Room)
+- [ ] **War Room**
+    - [ ] Per-incident communication channel (internal chat/timeline)
+    - [ ] Participant management: invite SOC, IT, Legal, Management per incident
+    - [ ] Role assignment: Incident Commander, Communications Lead, Technical Lead
+    - [ ] Status board: current incident phase (Detection → Containment → Eradication → Recovery)
+    - [ ] Action item tracker: assigned tasks with owner and deadline
+    - [ ] Evidence pinning: key findings from investigation surfaced in war room
+    - [ ] Bridge call integration: Zoom/Teams meeting link associated with incident
+- [ ] **Stakeholder Communication**
+    - [ ] Pre-built notification templates per audience:
+          - Executive: "What happened, impact, ETA for resolution"
+          - Legal: "Data types affected, regulatory notification requirements"
+          - PR: "Customer-facing messaging, media response"
+          - IT: "Technical containment actions required"
+    - [ ] Status page integration: push incident status to internal status page
+    - [ ] Scheduled updates: auto-prompt for status update every N minutes during active incident
+    - [ ] Communication log: record of all stakeholder communications (auditable)
+- [ ] **Post-Incident Review**
+    - [ ] Auto-generated incident timeline from case + war room + alert data
+    - [ ] Structured post-mortem template (what happened, root cause, impact, lessons, action items)
+    - [ ] Action item tracking from post-mortem (linked to remediation workflow)
+    - [ ] Metrics: time-to-detect, time-to-contain, time-to-communicate, time-to-resolve
+    - [ ] Archive: searchable history of all past incidents with post-mortems
+- [ ] **Communication Dashboard** (`IncidentComms.tsx`)
+    - [ ] Active incidents with war room status
+    - [ ] Communication timeline per incident
+    - [ ] Outstanding action items across all incidents
+
+#### 20.18 — Entity Investigation Pages (360° Entity View)
+- [ ] **Unified Entity View** (`EntityView.tsx`)
+    - [ ] Entity types: User, Host, IP Address, Domain, Hash, Email Address, Service Account
+    - [ ] Automatic entity type detection from query context or click-through
+- [ ] **User Entity Page**
+    - [ ] Identity: name, email, department, manager, role, accounts, devices
+    - [ ] Behavioral profile: UEBA baseline, peer group, anomaly score trend
+    - [ ] Risk: current risk score, contributing factors, risk timeline
+    - [ ] Activity: recent authentication events, resource access, command execution
+    - [ ] Alerts: all alerts involving this user (with severity, status, disposition)
+    - [ ] Cases: open investigations involving this user
+    - [ ] Threat intel: any IOC matches associated with this user's activity
+    - [ ] Access review: what does this user have access to? (asset/role mapping)
+- [ ] **Host Entity Page**
+    - [ ] Asset info: hostname, IPs, OS, agent status, criticality, owner
+    - [ ] Process activity: running processes, recent execution (from agent/eBPF)
+    - [ ] Network: connections (inbound/outbound), flow volumes, protocol distribution
+    - [ ] File activity: recent file changes (FIM), new files, deleted files
+    - [ ] Vulnerabilities: known CVEs on this host (from vuln management integration)
+    - [ ] Alerts: all alerts involving this host
+    - [ ] Software inventory: installed applications/packages (from agent)
+- [ ] **IP/Domain Entity Page**
+    - [ ] Reputation: threat intel matches (current and historical)
+    - [ ] GeoIP: location, ASN, ISP
+    - [ ] DNS: associated domains, PTR record, resolution history
+    - [ ] Connections: which internal hosts communicated with this IP
+    - [ ] Alert history: all alerts involving this IP
+    - [ ] Whois: registration details (for domains)
+- [ ] **Navigation**
+    - [ ] Click any entity in any dashboard/alert/query result → opens entity page
+    - [ ] Entity pivot: from user entity page, click host → opens host entity page
+    - [ ] Entity linking: "this user logged into these hosts from this IP"
+    - [ ] Bookmark: save frequently investigated entities for quick access
+    - [ ] Entity timeline: chronological view of all events across all data sources
+
+#### 20.19 — Analyst Workspace
+- [ ] **Personal Dashboard**
+    - [ ] Customizable home page per analyst (not global default)
+    - [ ] Pinnable widgets: my open cases, my recent queries, my bookmarked entities
+    - [ ] Custom quick-search shortcuts (analyst's frequently used queries)
+    - [ ] Recent activity feed: "last 5 things I was investigating"
+- [ ] **Saved Context**
+    - [ ] Query library: analyst's personal saved queries (separate from global)
+    - [ ] Entity watchlist: "notify me if anything happens with these 5 IPs"
+    - [ ] Investigation templates: analyst's own investigation playbooks
+    - [ ] Clipboard: temporary scratchpad for IOCs, notes, links during investigation
+- [ ] **Preferences**
+    - [ ] Default time range for searches (last 24h, 7d, 30d — per analyst)
+    - [ ] Default sort order for alert queue
+    - [ ] Notification preferences: which alerts, which channel, which hours
+    - [ ] Keyboard shortcut customization
+    - [ ] Dark/light mode per analyst (already have theme engine — wire per-user)
 
 ### Phase 21: Tier 1 Platform Capabilities
 
@@ -1224,6 +1388,27 @@
     - [ ] Declarative source definitions; Checkpoint management (resume); Deduplication
     - [ ] Rate limit awareness; Integrated health monitoring per source
 
+### Phase 23.6: Multi-Region Architecture
+- [ ] **Geo-Distributed Ingestion**
+    - [ ] Regional ingestion endpoints: agents connect to nearest region
+    - [ ] Regional data sovereignty: events stay in origin region unless policy permits replication
+    - [ ] Cross-region replication: configurable per data classification (auth logs replicate globally, PII stays in-region)
+    - [ ] Conflict resolution: last-writer-wins for config, append-only for events
+- [ ] **Global Query**
+    - [ ] OQL query fans out to all regions, results merge with latency annotation
+    - [ ] Region-aware query routing: "search only EU data" for GDPR compliance
+    - [ ] Cross-region correlation: detection rules can span regional boundaries
+    - [ ] Query latency budget: configurable max wait time per region
+- [ ] **Regional Failover**
+    - [ ] Region failure detection: automated health monitoring across regions
+    - [ ] Agent re-routing: agents fail over to secondary region automatically
+    - [ ] Data catch-up: when failed region recovers, backfill missed events
+    - [ ] Split-brain prevention: quorum-based decisions across regions
+- [ ] **Global Control Plane**
+    - [ ] Single management UI regardless of deployment topology
+    - [ ] Configuration synchronization: rules/policies propagate to all regions
+    - [ ] Regional status dashboard: per-region health, ingestion rates, alert counts
+
 ### Phase 24: Advanced Frontiers (Specialized Programs)
 
 #### 24.1 — Insider Threat Detection
@@ -1373,12 +1558,85 @@
 - [ ] **Security & Crypto Agility**
     - [ ] Weak key detection; Self-signed cert detection; Rogue CA detection
     - [ ] PQC readiness assessment; Algorithm inventory & migration planning
-- [ ] **CLM Dashboard** (`CertificateManager.tsx`)
+- [ ] CLM Dashboard (`CertificateManager.tsx`)
     - [ ] Expiry timeline heat calendar; Certificate health score
+
+### Phase 26: Market Expansion
+
+#### 26.1 — Endpoint Prevention Agent (EPP/EDR Convergence)
+- [ ] **Kernel-Level Interception**
+    - [ ] Process execution control: block/allow based on policy before exec completes
+    - [ ] File write prevention: block writes matching ransomware/malware patterns
+    - [ ] Network connection blocking: prevent outbound connections to known C2
+    - [ ] Implementation: eBPF LSM hooks (Linux), WinMinifilter driver (Windows)
+- [ ] **Prevention Policies**
+    - [ ] Policy modes: Detect-only → Prevent+Alert → Lockdown
+    - [ ] Exclusion management; Emergency host-level policy push (<60s)
+- [ ] **Real-Time Response (RTR) Shell**
+    - [ ] Remote interactive shell on managed endpoints (forensic access)
+    - [ ] Pre-built response scripts: kill, quarantine, artifact collection
+    - [ ] Memory dump collection on demand; Full RTR audit trail
+- [ ] **Automated Remediation**
+    - [ ] Process kill on detection; File quarantine (encrypted vault on endpoint)
+    - [ ] Ransomware rollback: Volume Shadow Copy-based restoration (Windows)
+    - [ ] Network micro-isolation: host-level firewall rule injection
+- [ ] **Prevention Dashboard** (`EndpointProtection.tsx`)
+    - [ ] Blocked events timeline; Prevention vs. detection ratio; False prevention rate
+
+#### 26.2 — SaaS Security Posture Management (SSPM)
+- [ ] **SaaS Configuration Audit**
+    - [ ] Connectors: Salesforce, Slack, GitHub, Zoom, Google Workspace, M365
+    - [ ] Audit: sharing rules, profile permissions, API access, session settings
+- [ ] **Continuous Monitoring**
+    - [ ] Alert on configuration drift; Change tracking (Who, what, when)
+    - [ ] CIS Benchmark mapping for supported SaaS platforms
+- [ ] **SaaS Dashboard** (`SaaSPosture.tsx`)
+    - [ ] Multi-SaaS posture score; Configuration drift timeline
+
+#### 26.3 — Automated Exposure Validation
+- [ ] **Safe Exploitation Engine**
+    - [ ] Automated proof-of-exploit for known CVEs (non-destructive)
+    - [ ] Credential validation: test if discovered/default credentials work
+    - [ ] Network path validation: reachability vs. theoretical vulnerability
+- [ ] **Continuous Validation**
+    - [ ] Scheduled exposure scans; Re-validate after patch deployment
+    - [ ] Immediate validation for new high-profile CVEs
+- [ ] **Exposure Report**
+    - [ ] Exploitable vs. Theoretical vulnerability distinction; Proof of exploitation evidence
 
 ---
 
 ## Infrastructure: Missing Cross-Cutting Capabilities
+
+### Graph Storage Infrastructure
+- [ ] **Embedded Graph Engine**
+    - [ ] Adjacency list storage; Ad-hoc relationship mapping
+    - [ ] Edge types: process→file, user→host, host→host, alert→entity
+    - [ ] Graph query language (shortest path, N-hop neighbors)
+- [ ] **Graph Ingestion & Lifecycle**
+    - [ ] Automated edge creation from agent/enrichment/detections
+    - [ ] TTL-based pruning; Importance-based storage budget management
+
+### Scheduled Task Framework
+- [ ] **Job Scheduler Engine**
+    - [ ] Cron & Interval-based scheduling with persistence
+    - [ ] Concurrency control; Priority levels; Retry with exponential backoff
+- [ ] **Job Management**
+    - [ ] Job history tracking; Execution dashboard (`SchedulerManager.tsx`)
+
+### Notification Routing Engine
+- [ ] **Unified Routing Engine**
+    - [ ] Condition-based routing (severity, source, time) to multiple channels
+    - [ ] Channel support: Email, Slack, Teams, PagerDuty, Twilio, Webhook
+    - [ ] Throttling & Digest modes for low-priority events
+- [ ] **Templates & Delivery**
+    - [ ] Channel-specific templates; Delivery status tracking; Audit logs
+
+### Capacity Planning Framework
+- [ ] **Sizing Calculator** (`docs/sizing.md` + tool)
+    - [ ] EPS/Retention mapping to cores/RAM/disk (Small/Medium/Large/XL)
+    - [ ] Runtime Capacity Monitoring: Alert at 80/90/95% thresholds
+    - [ ] Migration Sizing: Splunk/Elastic conversion logic
 
 ### Chaos Engineering for Security
 - [ ] **Security Chaos Testing Framework**
@@ -1435,30 +1693,203 @@
 
 ---
 
+## Final Audit: Operational, Commercial & Core Substrate
+
+### Section 1: Product Experience & Accessibility (Cross-Cutting)
+- [ ] **1.1 — First-Run Experience / Onboarding Wizard**
+    - [ ] **Setup Wizard** (`SetupWizard.tsx` — shown on first login only)
+        - [ ] Step 1: Admin account creation (username, password, MFA enrollment)
+        - [ ] Step 2: Network configuration (listening ports, TLS cert selection)
+        - [ ] Step 3: Log source setup (guided: "What do you want to monitor?")
+        - [ ] Step 4: Alert channel setup (Slack, email, webhook — test button)
+        - [ ] Step 5: Enable detection packs (recommended for selected log sources)
+        - [ ] Step 6: First-search tutorial (interactive: type a query, see results)
+        - [ ] Completion: health check summary — "You have N sources, N rules, N channels"
+    - [ ] **Getting Started Dashboard** (replaces empty default dashboard)
+        - [ ] Progress checklist: ☑ created admin ☑ added 1 log source ☐ first alert fired
+        - [ ] Quick links: add log source, create rule, invite analyst, view documentation
+        - [ ] "Did you know?" cards: feature discovery for capabilities user hasn't explored
+        - [ ] Auto-dismiss after 7 days or when all checklist items complete
+    - [ ] **Platform Health Assessment** (periodic, not just first-run)
+        - [ ] Weekly self-assessment: "You have 20 sources but only 3 have detection rules"
+        - [ ] MITRE ATT&CK coverage gap summary: "You're blind to 8 tactics"
+        - [ ] Alert channel test: verify all configured channels still deliver
+        - [ ] Stale configuration detection: rules/dashboards that haven't been touched in 90 days
+        - [ ] Recommendations engine: "Deploy agent on these 12 unmonitored servers"
+        - [ ] Assessment score: platform utilization percentage
+
+- [ ] **1.2 — End-User Documentation Suite**
+    - [ ] **User Documentation** (published, versioned, searchable)
+        - [ ] Administrator Guide (Installation, User Mgmt, Log Sources, Rules, Maintenance)
+        - [ ] Analyst Guide (OQL Reference, Dashboards, Investigation, Hunting, Case Mgmt)
+        - [ ] API Reference (OpenAPI 3.0, Auth, Endpoints, SDKs)
+        - [ ] Integration Guide (Per-connector setup, Agent deployment, Syslog config)
+        - [ ] Release Notes (New features, Breaking changes, Migration guides)
+    - [ ] **Documentation Infrastructure**
+        - [ ] Static site generator (Docusaurus, Hugo, MkDocs)
+        - [ ] Versioned documentation (matches product version)
+        - [ ] Full-text search across all docs
+        - [ ] In-product contextual help links ("?" icon → relevant doc page)
+        - [ ] API playground (interactive API explorer in docs)
+
+- [ ] **1.3 — OpenAPI Specification & API Hygiene**
+    - [ ] **OpenAPI 3.0 Specification**
+        - [ ] Auto-generated from Go code annotations (swaggo/swag or oapi-codegen)
+        - [ ] Published at `/api/v1/openapi.json` and rendered at `/api/docs`
+        - [ ] Covers all endpoints: search, alerts, agents, ingestion, admin, identity
+        - [ ] Generated client SDKs (at least Go + Python) from spec
+    - [ ] **API Versioning**
+        - [ ] URL-based versioning: `/api/v1/`, `/api/v2/`
+        - [ ] Deprecation policy and RFC 8594 headers (`Sunset`, `Deprecation`)
+        - [ ] Breaking change detection in CI
+    - [ ] **API Rate Limiting**
+        - [ ] Per-API-key rate limits (requests/minute, requests/hour)
+        - [ ] Rate limit headers and 429 response with `Retry-After`
+        - [ ] Configurable rate limit tiers (free, standard, enterprise)
+    - [ ] **API Observability**
+        - [ ] Per-endpoint latency metrics (P50, P95, P99)
+        - [ ] Per-client request volume tracking and error rate monitoring
+        - [ ] Slow query detection (API calls exceeding SLA threshold)
+
+- [ ] **1.4 — Platform Self-Protection (OBLIVRA Protecting Itself)**
+    - [ ] **Authentication Hardening**
+        - [ ] Brute force protection (lockout, CAPTCHA)
+        - [ ] Session management: timeouts, concurrent limits, invalidation
+        - [ ] Session binding: tie session to IP/User-Agent
+        - [ ] Authentication event logging and anomaly detection
+    - [ ] **Configuration Integrity**
+        - [ ] Detection rule hash verification at load/evaluation
+        - [ ] Configuration change audit trail and drift detection
+        - [ ] Binary integrity self-hash check on startup
+        - [ ] Immutable audit of admin actions (separate, append-only log)
+    - [ ] **Anti-Tampering**
+        - [ ] Alert on ingestion disruption or unauthorized rule modification
+        - [ ] Watchdog: external monitor for OBLIVRA health
+    - [ ] **Telemetry Privacy Controls**
+        - [ ] Clear documentation and single-toggle opt-out
+        - [ ] Privacy-safe telemetry (no PII, operational metrics only)
+
+- [ ] **1.5 — Upgrade & Version Migration Path**
+    - [ ] **Database Migration Framework**
+        - [ ] Schema versioning with forward/rollback capabilities
+        - [ ] Automatic migration with pre-migration backup
+        - [ ] Progress indicator for migrations on TB-scale data
+    - [ ] **Zero-Downtime Upgrade (Cluster Mode)**
+        - [ ] Rolling upgrade support and version compatibility matrix
+        - [ ] Backward compatibility window for agents
+    - [ ] **Configuration Migration**
+        - [ ] Automated format migration for rules, dashboards, and connectors
+    - [ ] **Upgrade Dashboard**
+        - [ ] Current version display, available update notification, and progress bar
+
+- [ ] **1.6 — Accessibility Compliance (WCAG 2.1 AA)**
+    - [ ] **WCAG 2.1 AA Audit**
+        - [ ] All color-coding has shape/pattern/text alternative (severity: icon + color)
+        - [ ] All charts have data table alternative (screen reader access)
+        - [ ] Full keyboard navigation across all interactive elements
+        - [ ] Focus management for modals and dynamic content
+        - [ ] ARIA labels and live regions for screen reader support
+        - [ ] Minimum contrast ratio 4.5:1 (text) / 3:1 (UI elements)
+        - [ ] Automated testing: axe-core integration in CI
+    - [ ] **Colorblind-Safe Design Tokens**
+        - [ ] Distinct severity palettes for protanopia, deuteranopia, tritanopia
+        - [ ] Heatmaps: sequential luminance scale instead of red-green
+        - [ ] Traffic lights: shape + label reinforcement
+    - [ ] **VPAT (Voluntary Product Accessibility Template)**
+        - [ ] Generate/maintain VPAT 2.4 (International Edition) for federal/enterprise sales
+
+- [ ] **1.7 — Mobile On-Call Experience**
+    - [ ] **Responsive Alert View**
+        - [ ] Mobile-optimized alert detail (single column, large tap targets)
+        - [ ] One-tap actions: acknowledge, escalate, dismiss, snooze
+        - [ ] Contextual view: last 5 events for affected entity
+    - [ ] **PWA Support**
+        - [ ] Service worker for offline alert cache and web push notifications
+        - [ ] "Add to Home Screen" support with manifest/icons
+    - [ ] **Explicitly Out of Scope**: Full query editor/investigation on mobile
+
+### Section 2: Enterprise Deployment Reality (Cross-Cutting)
+- [ ] **2.1 — Infrastructure-as-Code Deployment**
+    - [ ] **Terraform Provider**: Manage users, roles, rules, connectors, policies as code
+    - [ ] **Ansible Collection**: Roles for server/agent deployment and CRUD modules
+    - [ ] **Configuration-as-Code Export/Import**: `oblivra export-config` / `import-config` (idempotent, Git-friendly)
+
+- [ ] **2.3 — Platform Configuration Backup (Platform State)**
+    - [ ] **Configuration Snapshot**: Automated daily backup of platform state (users, rules, dashboards, etc.)
+    - [ ] **Configuration Restore**: Full and selective restore capabilities with conflict resolution
+    - [ ] **Configuration Versioning**: Version history for ALL config changes with diff viewer and rollback
+
+- [ ] **2.4 — Temporal Event Handling (Late-Arriving Events)**
+    - [ ] **Event Time vs. Ingestion Time**
+        - [ ] Dual-timestamp tracking: `event_time` (occurrence) vs. `ingest_time` (receipt)
+        - [ ] Standardized OQL behavior: Default to `event_time` for queries/dashboards
+        - [ ] Late-arrival metrics and alerting per log source
+    - [ ] **Detection Engine Temporal Handling**
+        - [ ] Configurable late-arrival window for rule re-evaluation
+        - [ ] Sequence/Threshold rules: bucket by `event_time` with out-of-order tolerance
+        - [ ] Backfill mode: suppress alerting/flag stale events during agent catch-up
+        - [ ] Watermark tracking to detect gaps in log streams
+
+### Section 4: Commercial & Go-to-Market Gaps (Cross-Cutting)
+- [ ] **4.1 — POC / Trial Automation**
+    - [ ] **Self-Service Trial**: One-click deployment with pre-loaded sample data and rules
+    - [ ] **POC Data Generator**: Synthetic log generator with attack scenario injection
+    - [ ] **Competitive Comparison Mode**: Side-by-side query/performance comparison (SPL vs. OQL)
+
+- [ ] **4.2 — Support Infrastructure**
+    - [ ] **Diagnostic Bundle Generator**: `oblivra support-bundle` (sanitized logs, config, metrics)
+    - [ ] **In-Product Support Channel**: "Report Issue" button and integrated knowledge base search
+    - [ ] **Customer Health Monitoring**: Opt-in proactive telemetry for support teams
+
+- [ ] **4.3 — Legal Readiness**
+    - [ ] **Contract Templates**: EULA, Article 28 DPA, HIPAA BAA, SCCs
+    - [ ] **Security Addendum**: Encryption standards and incident notification timeline
+    - [ ] **Privacy Documentation**: Product privacy policy, cookie policy, subprocessor list
+    - [ ] **Data Lifecycle**: Retention disclosure and secure deletion procedures
+
+- [ ] **4.4 — Browser & Platform Compatibility Matrix**
+    - [ ] **Browser Matrix**: Chrome 120+, Firefox 115+ (ESR), Safari 17+, Edge 120+
+    - [ ] **Server Support**: Ubuntu 22.04+, RHEL 9+, Debian 12+, macOS 13+, ARM64
+    - [ ] **Agent Support**: Linux (kernel 4.18+ / 3.10+ fallback), Windows 2016+, macOS 13+
+    - [ ] **Testing**: Automated cross-browser/platform validation in CI
+
+### Section 5: Documentation & Strategy (Cross-Cutting)
+- [ ] **5.1 — Phase Dependency DAG**
+    - [ ] **Implementation Dependency Map** (`docs/phase_dependencies.md`): Mermaid/Visual DAG
+    - [ ] **Critical Path Identification**: Min-viable phase ordering for first production customer
+    - [ ] **Conflict Detection**: Resolve requirement contradictions (e.g., RBA vs. Asset Intel)
+
+---
+
 ## Summary: Priority Ranking
 
-### Final Consolidated Gap Table
+### Six-Pass Consolidated Gap Table
 
 | Capability | Category | Impact | Strategic Priority |
 | :--- | :--- | :--- | :--- |
+| **Setup Wizard (1.1)** | UX | Turns downloads into evaluators (OOBE) | **CRITICAL** |
+| **Analyst Guide (1.2)** | Docs | Answers "where are your docs?" for evaluations | **CRITICAL** |
+| **OpenAPI Spec (1.3)** | API | Unblocks every integration conversation | **CRITICAL** |
+| **Accessibility (1.6)** | Compliance | Mandatory for Federal/Enterprise procurement | **CRITICAL** |
+| **Mobile On-Call (1.7)** | UX | Required for 24/7 SOC operations | **HIGH** |
+| **Temporal Handling (2.4)** | Detection | Ensures accuracy for late-arriving cloud/syslog | **CRITICAL** |
+| **Config Backup/Restore (2.3)** | Ops | Prevents catastrophic platform-state loss | **CRITICAL** |
+| **Entity Investigation (20.18)** | UX | The primary page analysts will live on | **CRITICAL** |
 | **Lookup Tables (20.4.5)** | Search | #1 most-requested Splunk feature | **CRITICAL** |
 | **Escalation Chains (2.1.5)** | Alerting | Essential for SOC workflow (PagerDuty-parity) | **CRITICAL** |
 | **Agentless Ingest (7.5)** | Ingestion | Required for legacy & restricted envs | **CRITICAL** |
-| **ITDR (25.1)** | Detection | Dedicated engine for AD/Identity plane attacks | **CRITICAL** |
-| **GenAI / LLM Security (25.2)** | Detection | First-mover advantage in 2026 market | **HIGH** |
-| **Detection-as-Code (20.6)** | Process | Deal-breaker for engineering teams | **HIGH** |
-| **Integration Hub (20.7)** | Ecosystem | Essential for Day 1 evaluations | **CRITICAL** |
-| **Native Ticketing (20.12)** | Workflow | Built-in incident lifecycle management | **HIGH** |
-| **Secrets Sprawl (24.8)** | Discovery | Finds leaked keys outside the vault | **HIGH** |
-| **External ASM (25.3)** | Discovery | Internet-facing exposure management | High |
-| **Digital Risk (25.4)** | Intel | Dark web/brand impersonation monitoring | High |
-| **OT/ICS Security (25.5)** | Detection | Critical infrastructure sales driver | High |
-| **Data Flow Mapping (24.6)** | Privacy | GDPR Article 30 compliance requirement | High |
-| **Degraded Mode (Cross-cut)** | Architecture | Production resilience & availability | High |
-| **i18n / Localization (Cross-cut)** | Platform | Non-English market entry requirement | Medium |
-| **Vendor Risk (24.7)** | GRC | Supply chain risk management | Medium |
-| **Cert Lifecycle (25.6)** | Operations | Outage prevention (expiry monitoring) | Medium |
-| **Regulator Audit (6.6)** | Compliance | Compliance deal-breaker format | High |
+| **Legal Readiness (4.3)** | Commercial | Prevents 8-week sales stalls in legal review | **CRITICAL** |
+| **Compatibility Matrix (4.4)** | Commercial | Mandatory for government/healthcare RFPs | **CRITICAL** |
+| **Dependency DAG (5.1)** | Strategy | Prevents building features with missing inputs | **CRITICAL** |
+| **Endpoint Prevention (26.1)** | Protection | Kernel-level blocking vs. pure detection | **CRITICAL** |
+| **Migration Engine (20.13)** | Adoption | Reduces switching cost from Splunk/Elastic | **CRITICAL** |
+| **ITDR (25.1)** | Detection | Identity plane attack defense | **CRITICAL** |
+| **Sizing Calculator (Cross)** | Pre-Sales | Prevents over/under-provisioning blame | **CRITICAL** |
+| **POC Data Generator (4.1)** | Commercial | Lets prospects self-evaluate | **CRITICAL** |
+| **Support Bundle (4.2)** | Commercial | Required for first support ticket | **CRITICAL** |
+| **Graph Engine (Cross)** | Infra | Prerequisite for ITDR/Fusion/Provenance | **CRITICAL** |
+| **Job Scheduler (Cross)** | Infra | Prerequisite for Reports/Hunts/Scans | **CRITICAL** |
+| **Notification Router (Cross)** | Infra | Prerequisite for Escalation/Delivery | **CRITICAL** |
 
 ---
 
@@ -1467,19 +1898,17 @@
 | Capability | Splunk Parity | NSA Grade | MIT Research | Effort | Recommendation |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **SovereignQL (20.1)** | ✅ CRITICAL | ✅ | — | 3-4 months | **NOW (Tier 0)** |
-| **Lookup Tables (20.4.5)** | ✅ CRITICAL | ✅ | — | 1 month | **NOW (Tier 0)** |
-| **Escalation Chains (2.1.5)** | ✅ | — | — | 1 month | **NOW (Tier 0)** |
-| **Agentless Ingest (7.5)** | ✅ CRITICAL | ✅ | — | 2 months | **NOW (Tier 0)** |
+| **Graph Infrastructure (3.1)** | ✅ | ✅ | — | 1 month | **NOW (Tier 0)** |
+| **Endpoint Prevention (26.1)** | ✅ CRITICAL | ✅ | — | 6 months | **NOW (Tier 1)** |
+| **Migration Toolkit (20.13)** | ✅ CRITICAL | — | — | 3 months | **NOW (Tier 1)** |
+| **Attack Fusion (10.6)** | Emerging | ✅ | ✅ | 2 months | **NOW (Tier 1)** |
 | **ITDR (25.1)** | ✅ | ✅ CRITICAL | — | 3 months | **NOW (Tier 1)** |
-| **AI/LLM Security (25.2)** | Emerging | — | ✅ | 2 months | **NOW (Tier 1)** |
-| **Integration Hub (20.7)** | ✅ CRITICAL | — | — | 3 months | **NOW (Tier 0)** |
-| **SOC Metrics (20.8)** | ✅ | ✅ | — | 1.5 months | **NOW (Tier 1)** |
-| **Autonomous Hunting (22.4)** | Emerging | ✅ | ✅ | 3 months | Differentiator |
+| **AI/LLM Security (25.2)** | Emerging | — | ✅ | 2 months | Differentiator |
 
 ---
 
 ### The Final Verdict: The Sovereign Mission
 
-The path to sovereign security infrastructure is now mapped. Achieving parity with Splunk and NSA-grade systems requires aggressive execution on the **Tier 0** foundational items (SovereignQL, Lookups, Agentless Ingest, Integration Hub). 
+The path to dominance is now 1,500 lines of hardened strategy. OBLIVRA must not only achieve **Strategic Parity** with Splunk and NSA-grade systems but must outpace them in the **Advanced Frontiers**. 
 
-However, OBLIVRA's unique destiny lies in the **Advanced Frontiers**. By shipping **Autonomous Detection Validation**, **AI/LLM Security**, and **ITDR** ahead of the incumbents, OBLIVRA ceases to be a SIEM and becomes a force-multiplier for sovereign defense. This is the 1,500-line roadmap to dominance.
+By shipping **Endpoint Prevention**, **Multi-Stage Fusion**, and **Autonomous Validation** on top of a zero-trust, sovereign foundation, OBLIVRA shifts the market from defensive detection to proactive protection. This is the blueprint for a system that doesn't just watch the war—it wins it.

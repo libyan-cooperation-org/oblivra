@@ -51,7 +51,9 @@ import { SnippetsPage } from './pages/SnippetsPage';
 import { NotesPage } from './pages/NotesPage';
 import { SyncPage } from './pages/SyncPage';
 import { MitreHeatmap } from './components/siem/MitreHeatmap';
+import { EntityInvestigationPage } from './pages/EntityInvestigationPage';
 import './styles/incident.css';
+import { RouteGuard } from './core/RouteGuard';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found');
@@ -71,11 +73,11 @@ render(() => (
         <Route path="/risk" component={ConfigRisk} />
         <Route path="/workspace" component={SettingsManager} />
         <Route path="/workspaces" component={SOCWorkspace} />
-        <Route path="/terminal" component={TerminalLayout} />
+        <Route path="/terminal" component={() => <RouteGuard path="/terminal"><TerminalLayout /></RouteGuard>} />
         <Route path="/forensics" component={EvidenceLocker} />
         <Route path="/governance" component={GovernanceDashboard} />
         <Route path="/features" component={FeatureGovernance} />
-        <Route path="/agents" component={AgentConsole} />
+        <Route path="/agents" component={() => <RouteGuard path="/agents"><AgentConsole /></RouteGuard>} />
         <Route path="/response" component={CommandCenter} />
         <Route path="/ransomware" component={RansomwareDashboard} />
         <Route path="/simulation" component={SimulationPanel} />
@@ -101,11 +103,12 @@ render(() => (
         <Route path="/offline-update" component={OfflineUpdate} />
         <Route path="/analytics" component={SplunkDashboard} />
         <Route path="/ai-assistant" component={AIAssistantPage} />
-        <Route path="/tunnels" component={TunnelsPage} />
-        <Route path="/recordings" component={RecordingsPage} />
-        <Route path="/snippets" component={SnippetsPage} />
-        <Route path="/notes" component={NotesPage} />
-        <Route path="/sync" component={SyncPage} />
+        <Route path="/tunnels" component={() => <RouteGuard path="/tunnels"><TunnelsPage /></RouteGuard>} />
+        <Route path="/recordings" component={() => <RouteGuard path="/recordings"><RecordingsPage /></RouteGuard>} />
+        <Route path="/snippets" component={() => <RouteGuard path="/snippets"><SnippetsPage /></RouteGuard>} />
+        <Route path="/notes" component={() => <RouteGuard path="/notes"><NotesPage /></RouteGuard>} />
+        <Route path="/sync" component={() => <RouteGuard path="/sync"><SyncPage /></RouteGuard>} />
         <Route path="/mitre-heatmap" component={MitreHeatmap} />
+        <Route path="/entity/:type/:id" component={EntityInvestigationPage} />
     </HashRouter>
 ), root);

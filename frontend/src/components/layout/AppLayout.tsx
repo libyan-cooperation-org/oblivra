@@ -1,5 +1,6 @@
 import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
 import { useApp } from '@core/store';
+import { IS_DESKTOP, IS_HYBRID } from '@core/context';
 import { TitleBar } from './TitleBar';
 import { StatusBar } from './StatusBar';
 import { QuickSwitcher } from '../ui/QuickSwitcher';
@@ -24,6 +25,19 @@ import { AlertToastContainer } from '../notifications/AlertSystem';
 import { JSX } from 'solid-js/jsx-runtime';
 
 import { usePanelShortcuts } from '../../hooks/usePanelShortcuts';
+
+// Tabs that show a drawer panel — filtered by context
+const DRAWER_TABS_BOTH    = ['hosts', 'team', 'plugins', 'health', 'metrics', 'updater', 'workspace', 'security', 'vault'];
+const DRAWER_TABS_DESKTOP = ['snippets', 'tunnels', 'terminal', 'recordings', 'notes', 'sync'];
+const DRAWER_TABS_BROWSER = ['soc', 'agents'];
+
+function isDrawerVisible(tab: string): boolean {
+    if (DRAWER_TABS_BOTH.includes(tab)) return true;
+    if (DRAWER_TABS_DESKTOP.includes(tab)) return IS_DESKTOP || IS_HYBRID;
+    if (DRAWER_TABS_BROWSER.includes(tab)) return !IS_DESKTOP || IS_HYBRID;
+    return false;
+}
+
 export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
     const [state, actions] = useApp();
     const [showSecurityKeys, setShowSecurityKeys] = createSignal(false);
@@ -79,7 +93,7 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
                     <CommandRail />
                 </Show>
 
-                <Show when={!state.focusMode && state.sidebarOpen && (['hosts', 'snippets', 'tunnels', 'terminal', 'recordings', 'notes', 'team', 'sync', 'plugins', 'health', 'metrics', 'updater', 'workspace', 'security', 'vault', 'ai-assistant', 'mitre-heatmap', 'soc', 'response'] as string[]).includes(state.activeNavTab)}>
+                <Show when={!state.focusMode && state.sidebarOpen && isDrawerVisible(state.activeNavTab)}>
                     <DrawerPanel onAddHost={() => setShowAddHost(true)} />
                 </Show>
 

@@ -8,6 +8,7 @@ import { ErrorScreen } from '@components/ui/ErrorScreen';
 import { ToastContainer } from '@components/layout/ToastContainer';
 import { useToast } from '@core/toast';
 import { PanelManagerProvider } from '@components/layout/PanelManager';
+import { APP_CONTEXT } from '@core/context';
 
 const App: Component<{ children?: any }> = (props) => {
     const [ready, setReady] = createSignal(false);
@@ -18,12 +19,13 @@ const App: Component<{ children?: any }> = (props) => {
         try {
             await initBridge();
 
-            // Hook Global Toasts into Wails Events
-            if ((window as any).runtime) {
-                (window as any).runtime.EventsOn('system.error', (msg: string) => {
+            // Hook Global Toasts into Wails Events (desktop only)
+            const rt = (window as any).runtime;
+            if (rt && APP_CONTEXT !== 'browser') {
+                rt.EventsOn('system.error', (msg: string) => {
                     addToast({ type: 'error', title: 'System Error', message: msg });
                 });
-                (window as any).runtime.EventsOn('system.toast', (toast: any) => {
+                rt.EventsOn('system.toast', (toast: any) => {
                     addToast(toast);
                 });
             }

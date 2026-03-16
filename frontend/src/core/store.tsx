@@ -28,7 +28,7 @@ export interface AppState {
     theme: string;
     sidebarOpen: boolean;
     loading: boolean;
-    activeNavTab: 'dashboard' | 'hosts' | 'snippets' | 'tunnels' | 'security' | 'terminal' | 'recordings' | 'notes' | 'compliance' | 'ops' | 'team' | 'sync' | 'plugins' | 'health' | 'metrics' | 'updater' | 'workspace' | 'alerts' | 'siem' | 'settings' | 'topology' | 'vault' | 'soc' | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay' | 'ai-assistant' | 'mitre-heatmap';
+    activeNavTab: 'dashboard' | 'hosts' | 'snippets' | 'tunnels' | 'security' | 'terminal' | 'recordings' | 'notes' | 'compliance' | 'ops' | 'team' | 'sync' | 'plugins' | 'health' | 'metrics' | 'updater' | 'workspace' | 'alerts' | 'siem' | 'settings' | 'topology' | 'vault' | 'soc' | 'temporal' | 'lineage' | 'decisions' | 'ledger' | 'replay' | 'ai-assistant' | 'mitre-heatmap' | 'entity';
     workspace: 'Personal' | 'Work' | 'Team';
     pluginPanels: PluginPanel[];
     pluginStatusIcons: PluginStatusIcon[];
