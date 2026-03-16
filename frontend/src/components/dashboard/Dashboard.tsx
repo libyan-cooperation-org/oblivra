@@ -38,34 +38,41 @@ export const Dashboard: Component = () => {
             backgroundColor: 'transparent',
             tooltip: {
                 trigger: 'axis',
-                backgroundColor: 'rgba(15, 18, 24, 0.95)',
-                borderColor: 'var(--border-primary)',
-                textStyle: { color: '#e4e7ec', fontSize: 11 }
+                backgroundColor: '#2b2d31',
+                borderColor: '#4a4d55',
+                textStyle: { color: '#d4d5d8', fontSize: 11 },
+                formatter: (params: any[]) => {
+                    const p = params[0];
+                    return `<div style="font-family:monospace">${p.name}<br/><span style="color:#0099e0">●</span> Events: <b>${p.value}</b></div>`;
+                }
             },
-            grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+            grid: { left: '3%', right: '3%', bottom: '3%', top: '8%', containLabel: true },
             xAxis: {
                 type: 'category',
                 boundaryGap: false,
                 data: data.map(d => d.date),
-                axisLabel: { color: '#667085', fontSize: 10 },
-                axisLine: { lineStyle: { color: '#232d3d' } }
+                axisLabel: { color: '#6b6e76', fontSize: 10, fontFamily: 'monospace' },
+                axisLine: { lineStyle: { color: '#3a3d44' } },
+                splitLine: { show: false }
             },
             yAxis: {
                 type: 'value',
-                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
-                axisLabel: { color: '#667085', fontSize: 10 }
+                splitLine: { lineStyle: { color: '#2b2d31', type: 'dashed' } },
+                axisLabel: { color: '#6b6e76', fontSize: 10, fontFamily: 'monospace' }
             },
             series: [{
                 name: 'Security Events',
                 type: 'line',
-                smooth: true,
+                smooth: false,
                 data: data.map(d => d.count),
-                itemStyle: { color: '#3B82F6' },
-                lineStyle: { width: 2 },
+                itemStyle: { color: '#0099e0' },
+                lineStyle: { width: 1.5, color: '#0099e0' },
+                symbol: 'circle',
+                symbolSize: 4,
                 areaStyle: {
                     color: new (echarts as any).graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: 'rgba(59, 130, 246, 0.2)' },
-                        { offset: 1, color: 'rgba(59, 130, 246, 0)' }
+                        { offset: 0, color: 'rgba(0,153,224,0.15)' },
+                        { offset: 1, color: 'rgba(0,153,224,0)' }
                     ])
                 }
             }]
@@ -136,7 +143,7 @@ export const Dashboard: Component = () => {
                                     </div>
                                     {kpi.trend && <span class={kpi.trendBad ? 'dash-trend-bad' : 'dash-trend-good'}>{kpi.trend}</span>}
                                 </div>
-                                <Sparkline data={generateSparklineData(kpi.value as number)} color={kpi.alert ? 'rgb(239, 68, 68)' : kpi.trendBad ? 'rgb(245, 158, 11)' : 'rgb(59, 130, 246)'} />
+                                <Sparkline data={generateSparklineData(kpi.value as number)} color={kpi.alert ? '#e04040' : kpi.trendBad ? '#f58b00' : '#0099e0'} />
                                 <div class="dash-kpi-sub" style="margin-top: 8px;">
                                     {kpi.sub}
                                 </div>

@@ -1,142 +1,110 @@
+/* ===== Vault Manager — Splunk Enterprise Style ===== */
+
 .vault-manager {
-    padding: 24px;
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--bg-primary);
+    background: var(--surface-0);
     color: var(--text-primary);
     font-family: var(--font-ui);
+    overflow: hidden;
 }
 
 .vault-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--gap-xl);
-    padding-bottom: var(--padding-md);
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border-primary);
+    background: var(--surface-1);
+    flex-shrink: 0;
 }
-
 .vault-header h2 {
     margin: 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: var(--gap-md);
-}
-
-.vault-locked-container {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.vault-locked-card {
-    width: 100%;
-    max-width: 400px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-lg);
-    padding: 32px;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
-}
-
-.vault-locked-icon {
-    font-size: 3rem;
-    margin-bottom: var(--gap-md);
-}
-
-.vault-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 24px;
-    background: var(--bg-tertiary);
-    padding: 4px;
-    border-radius: var(--radius-md);
-    width: fit-content;
-}
-
-.vault-tab {
-    padding: var(--padding-sm) var(--padding-lg);
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.vault-tab:hover {
-    color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.vault-tab.active {
-    background: var(--accent-primary);
-    color: white;
-}
-
-.vault-content {
-    flex: 1;
-    overflow-y: auto;
-}
-
-.credentials-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: var(--gap-md);
-}
-
-.vault-card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md);
-    padding: 16px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: all var(--transition-fast);
-}
-
-.vault-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent-primary);
-}
-
-.vault-card-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-xs);
-}
-
-.vault-card-label {
-    font-weight: 600;
-    font-size: 1rem;
-}
-
-.vault-card-meta {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-heading);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.vault-card-actions {
+/* Locked state */
+.vault-locked-container {
+    flex: 1;
     display: flex;
-    gap: var(--gap-sm);
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-0);
+}
+.vault-locked-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    text-align: center;
+    box-shadow: var(--shadow-md);
+}
+.vault-locked-icon { font-size: 40px; margin-bottom: 12px; }
+
+/* Tabs */
+.vault-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border-primary);
+    padding: 0 16px;
+    background: var(--surface-1);
+    flex-shrink: 0;
+}
+.vault-tab {
+    padding: 9px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    transition: color var(--transition-fast);
+}
+.vault-tab:hover { color: var(--text-secondary); }
+.vault-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-cta); font-weight: 600; }
+
+.vault-content { flex: 1; overflow-y: auto; padding: 16px; }
+
+/* Credentials grid */
+.credentials-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 10px;
 }
 
+.vault-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: border-color var(--transition-fast);   /* removed translateY */
+}
+.vault-card:hover { border-color: var(--border-secondary); }
+
+.vault-card-info { display: flex; flex-direction: column; gap: 4px; }
+.vault-card-label { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+.vault-card-meta  { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); }
+.vault-card-actions { display: flex; gap: 6px; }
+
+/* Icon buttons */
 .btn-icon {
     background: transparent;
     border: 1px solid var(--border-primary);
     color: var(--text-muted);
-    padding: 8px;
+    padding: 6px;
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all var(--transition-fast);
@@ -144,98 +112,68 @@
     align-items: center;
     justify-content: center;
 }
+.btn-icon:hover { background: var(--surface-3); border-color: var(--border-hover); color: var(--text-primary); }
+.btn-icon.delete:hover { background: rgba(224,64,64,0.1); border-color: rgba(224,64,64,0.4); color: var(--alert-critical); }
 
-.btn-icon:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--text-muted);
-}
-
-.btn-icon.delete:hover {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: #ef4444;
-    color: #ef4444;
-}
-
+/* Modal (vault-specific) */
 .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    inset: 0;
+    background: rgba(0,0,0,0.65);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 9000;
 }
-
 .modal-container {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border-secondary);
     border-radius: var(--radius-lg);
     width: 100%;
     max-width: 480px;
-    padding: 24px;
     box-shadow: var(--shadow-xl);
+    overflow: hidden;
 }
-
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--gap-lg);
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-primary);
+    background: var(--surface-2);
 }
+.modal-title { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-heading); }
 
-.modal-title {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-sm);
-    margin-bottom: var(--gap-md);
-}
-
-.form-group label {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-muted);
-}
+.form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; padding: 0 18px; }
+.form-group:first-child { padding-top: 16px; }
+.form-group label { font-size: 10px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }
 
 .form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: var(--gap-md);
-    margin-top: var(--gap-xl);
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border-primary);
+    background: var(--surface-2);
 }
 
+/* Public key display */
 .pubkey-display {
-    margin-top: var(--gap-md);
-    padding: var(--padding-md);
-    background: var(--bg-tertiary);
-    border-radius: 6px;
+    margin: 0 18px 16px;
+    padding: 10px 12px;
+    background: var(--surface-0);
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border-primary);
-    position: relative;
 }
-
 .pubkey-text {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
     white-space: pre-wrap;
     word-break: break-all;
     display: block;
-    max-height: 100px;
+    max-height: 90px;
     overflow-y: auto;
     color: var(--accent-primary);
+    line-height: 1.5;
 }
-
-.copy-hint {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-    display: block;
-}
+.copy-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; display: block; }

@@ -1,9 +1,9 @@
 .fleet-heatmap {
-    padding: 24px;
-    background: var(--bg-surface);
-    border-radius: var(--radius-lg);
+    padding: 16px;
+    background: var(--surface-1);
+    border-radius: var(--radius-md);
     border: 1px solid var(--border-primary);
-    margin: 16px;
+    margin: 12px;
 }
 
 .heatmap-header {
@@ -33,30 +33,26 @@
 }
 
 .health-tile {
-    background: rgba(30, 41, 59, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    padding: 1rem;
-    transition: transform 0.2s, box-shadow 0.2s;
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    transition: border-color var(--transition-fast);
     cursor: pointer;
     position: relative;
     overflow: hidden;
 }
-
-.health-tile:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    border-color: rgba(255, 255, 255, 0.1);
-}
+.health-tile:hover { border-color: var(--border-secondary); }
 
 .tile-host {
-    font-size: 0.85rem;
+    font-size: 11px;
     font-weight: 600;
-    color: #94a3b8;
-    margin-bottom: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-family: var(--font-mono);
 }
 
 .tile-metrics {
@@ -72,10 +68,11 @@
 }
 
 .metric-label {
-    font-size: 0.7rem;
-    color: #64748b;
+    font-size: 9px;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.5px;
+    font-family: var(--font-ui);
 }
 
 .metric-bar {
@@ -143,9 +140,10 @@
 
 .heatmap-legend {
     display: flex;
-    gap: 1.5rem;
-    font-size: 0.75rem;
-    color: #64748b;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
 }
 
 .legend-item {

@@ -278,13 +278,25 @@ func (c *Container) initPlatform() error {
 	c.Platform.TunnelService = services.NewTunnelService(c.Infra.Bus, c.Log)
 	c.Platform.PluginService = services.NewPluginService(c.Infra.Bus, c.Log)
 	c.Platform.LocalService = services.NewLocalService(c.Infra.Bus, c.Log, c.Product.SessionService, nil)
-	c.Platform.SyntheticService = services.NewSyntheticService(nil, c.Log)
+	c.Platform.SyntheticService = services.NewSyntheticService(monitoring.NewSyntheticManager(c.Log), c.Log)
 	c.Platform.BroadcastService = services.NewBroadcastService(nil, c.Log)
 	c.Platform.ResourceMonitor = services.NewResourceMonitor(c.Log, 1024) // 1GB limit before pressure signaling
 	c.Platform.ObservabilityService = services.NewObservabilityService(c.Infra.Bus, c.Infra.MetricsCollector, c.Infra.HotStore, c.Log)
 	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
+
+	// DiagnosticsService: wire bus dropped counter from the event bus.
+	busDropped := func() uint64 {
+		return c.Infra.Bus.DroppedCount()
+	}
+	c.Platform.DiagnosticsService = services.NewDiagnosticsService(c.Infra.Bus, c.Log, busDropped)
+
+	// Wire the ingest pipeline to push live EPS stats to DiagnosticsService.
+	// Both are initialised by this point (SIEM before Platform).
+	if c.SIEM.IngestService != nil && c.Platform.DiagnosticsService != nil {
+		c.SIEM.IngestService.Pipeline().SetDiagnosticsUpdater(c.Platform.DiagnosticsService)
+	}
 
 	return nil
 }
@@ -359,6 +371,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Platform.DataLifecycleService)
 	c.mustRegister(c.Platform.DisasterService)
 	c.mustRegister(c.Platform.ResourceMonitor)
+	c.mustRegister(c.Platform.DiagnosticsService)
 
 	// Intel
 	c.mustRegister(c.Intel.AnalyticsService)

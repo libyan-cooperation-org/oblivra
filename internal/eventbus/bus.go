@@ -221,6 +221,12 @@ func (b *Bus) Publish(eventType EventType, data interface{}) {
 	}
 }
 
+// DroppedCount returns the total number of events dropped due to rate limiting.
+// Used by DiagnosticsService to surface bus health to the frontend.
+func (b *Bus) DroppedCount() uint64 {
+	return atomic.LoadUint64(&b.dropped)
+}
+
 // Close gracefully shuts down all persistent event worker loops
 func (b *Bus) Close() {
 	close(b.closing)

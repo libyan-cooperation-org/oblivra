@@ -120,18 +120,18 @@ func (ac *AdaptiveController) scaleDown() {
 	// Nothing needed here — the active counter tracks running extras.
 }
 
-// EPSSummary is a frontend-friendly throughput report.
-type EPSSummary struct {
-	CurrentEPS     int64   `json:"current_eps"`
-	TargetEPS      int     `json:"target_eps"`
+// EPSSummarySnapshot is a frontend-friendly throughput report.
+type EPSSummarySnapshot struct {
+	CurrentEPS      int64   `json:"current_eps"`
+	TargetEPS       int     `json:"target_eps"`
 	PercentOfTarget float64 `json:"percent_of_target"`
-	BufferFillPct  float64 `json:"buffer_fill_pct"`
-	DroppedTotal   int64   `json:"dropped_total"`
-	WorkerCount    int     `json:"worker_count"`
+	BufferFillPct   float64 `json:"buffer_fill_pct"`
+	DroppedTotal    int64   `json:"dropped_total"`
+	WorkerCount     int     `json:"worker_count"`
 }
 
 // EPSSummary returns a diagnostics snapshot for the frontend Diagnostics Modal.
-func (p *Pipeline) EPSSummary() EPSSummary {
+func (p *Pipeline) EPSSummary() EPSSummarySnapshot {
 	snap := p.GetMetrics()
 	fillPct := 0.0
 	if snap.BufferCapacity > 0 {
@@ -141,7 +141,7 @@ func (p *Pipeline) EPSSummary() EPSSummary {
 	if EPSTarget > 0 {
 		pctOfTarget = float64(snap.EventsPerSecond) / float64(EPSTarget) * 100
 	}
-	return EPSSummary{
+	return EPSSummarySnapshot{
 		CurrentEPS:      snap.EventsPerSecond,
 		TargetEPS:       EPSTarget,
 		PercentOfTarget: pctOfTarget,

@@ -6,16 +6,19 @@
     height: 100%;
     width: 100%;
     position: relative;
-    background: transparent;
+    background: #0d0e10;
 }
 
 .terminal-container {
     flex: 1;
     overflow: hidden;
-    padding: 16px;
-    background: var(--bg-primary);
-    border-left: 1px solid var(--border-primary);
+    padding: 8px;
+    background: #0d0e10;
 }
+
+/* Splunk-style tab bar scroll */
+.terminal-tabbar::-webkit-scrollbar { height: 0; }
+.terminal-tabbar { scrollbar-width: none; }
 
 .terminal-container .xterm {
     height: 100%;

@@ -28,22 +28,35 @@ var (
 	ErrBufferFull = errors.New("pipeline buffer full")
 )
 
+// DiagnosticsUpdater is satisfied by services.DiagnosticsService.
+// Using an interface avoids an import cycle between ingest → services.
+type DiagnosticsUpdater interface {
+	UpdateIngestMetrics(eps, target, dropped int64, bufFill float64, workers int)
+}
+
 // Pipeline manages the buffering, crash-protection, and routing of incoming log streams.
 type Pipeline struct {
-	buffer    chan *events.SovereignEvent
-	wal       *storage.WAL
-	analytics *analytics.AnalyticsEngine
-	siem      database.SIEMStore
-	bus       *eventbus.Bus
-	log       *logger.Logger
-	temporal  *temporal.IntegrityService
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	metrics   Metrics
-	once      sync.Once
-	wasm      *wasm.PluginManager
-	dag       *dag.Engine
+	buffer      chan *events.SovereignEvent
+	wal         *storage.WAL
+	analytics   *analytics.AnalyticsEngine
+	siem        database.SIEMStore
+	bus         *eventbus.Bus
+	log         *logger.Logger
+	temporal    *temporal.IntegrityService
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+	metrics     Metrics
+	once        sync.Once
+	wasm        *wasm.PluginManager
+	dag         *dag.Engine
+	diagnostics DiagnosticsUpdater // optional; set after container init
+}
+
+// SetDiagnosticsUpdater wires the diagnostics service into the pipeline.
+// Called by the container after both ingest and diagnostics are initialised.
+func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) {
+	p.diagnostics = d
 }
 
 // Metrics tracks the real-time throughput of the pipeline
@@ -322,7 +335,8 @@ func (p *Pipeline) Replay(ctx context.Context) error {
 	return p.wal.Checkpoint()
 }
 
-// metricCollector updates the EPS (Events Per Second) speedometer
+// metricCollector updates the EPS (Events Per Second) speedometer and pushes
+// live metrics to the DiagnosticsService every tick.
 func (p *Pipeline) metricCollector() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -341,8 +355,25 @@ func (p *Pipeline) metricCollector() {
 			return
 		case <-ticker.C:
 			current := p.metrics.TotalProcessed.Load()
-			p.metrics.EventsPerSecond.Store(current - lastProcessed)
+			eps := current - lastProcessed
+			p.metrics.EventsPerSecond.Store(eps)
 			lastProcessed = current
+
+			// Feed live stats to DiagnosticsService (if wired)
+			if p.diagnostics != nil {
+				bufCap := p.metrics.BufferCapacity
+				bufFill := 0.0
+				if bufCap > 0 {
+					bufFill = float64(len(p.buffer)) / float64(bufCap) * 100
+				}
+				p.diagnostics.UpdateIngestMetrics(
+					eps,
+					int64(EPSTarget),
+					p.metrics.DroppedEvents.Load(),
+					bufFill,
+					runtime.NumCPU(),
+				)
+			}
 		}
 	}
 }

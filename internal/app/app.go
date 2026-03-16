@@ -87,6 +87,7 @@ type App struct {
 	TailingService        *services.TailingService
 	AnalyticsService      *services.AnalyticsService
 	DataLifecycleService  *services.DataLifecycleService
+	DiagnosticsService    *services.DiagnosticsService
 }
 
 // New creates a new App instance with placeholder service structs.
@@ -204,6 +205,7 @@ func New() *App {
 	a.TelemetryService = a.container.Platform.TelemetryService
 	a.TeamService = a.container.Product.TeamService
 	a.DataLifecycleService = a.container.Platform.DataLifecycleService
+	a.DiagnosticsService = a.container.Platform.DiagnosticsService
 
 	return a
 }
@@ -224,6 +226,11 @@ func (a *App) Startup(ctx context.Context) {
 	if err := a.container.Kernel.Start(); err != nil {
 		a.container.Log.Error("Failed to start services: %v", err)
 		return
+	}
+
+	// 4. Propagate the Wails context to VaultService so EventsEmit works correctly
+	if a.VaultService != nil {
+		a.VaultService.SetContext(ctx)
 	}
 
 	a.ready = true

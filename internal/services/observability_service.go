@@ -17,7 +17,7 @@ import (
 
 // otelShutdown holds the OpenTelemetry TracerProvider shutdown function.
 // Stored at package level so Shutdown() can flush pending spans on exit.
-var otelShutdown func(context.Context) error
+var otelShutdown func(interface{}) error
 
 // ObservabilityService provides self-monitoring for OBLIVRA.
 // It exposes pprof endpoints, watches goroutine counts, and
@@ -97,12 +97,20 @@ func (s *ObservabilityService) Start(ctx context.Context) error {
 	}
 
 	// Initialise OpenTelemetry tracing (non-fatal — observability must not block startup)
-	if shutdown, err := monitoring.InitTracing(); err != nil {
-		s.log.Warn("OTel tracing init failed (non-fatal): %v", err)
-	} else {
-		otelShutdown = shutdown
-		s.log.Info("OpenTelemetry tracing initialised")
-	}
+	// Wrapped in recover() so any OTel init panic cannot crash the app.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.log.Warn("OTel tracing init panicked (non-fatal): %v", r)
+			}
+		}()
+		if shutdown, err := monitoring.InitTracing(); err != nil {
+			s.log.Warn("OTel tracing init failed (non-fatal): %v", err)
+		} else {
+			otelShutdown = shutdown
+			s.log.Info("OpenTelemetry tracing initialised")
+		}
+	}()
 
 	// Register detection-specific Prometheus counters
 	if s.metrics != nil {
@@ -137,15 +145,8 @@ func (s *ObservabilityService) Stop(ctx context.Context) error {
 		defer cancel()
 		_ = s.pprofServer.Shutdown(shutCtx)
 	}
-	// Flush any buffered OTel spans before process exit
-	if otelShutdown != nil {
-		flushCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		if err := otelShutdown(flushCtx); err != nil {
-			s.log.Warn("OTel shutdown error: %v", err)
-		}
-		otelShutdown = nil
-	}
+	// No-op in default build (SDK not compiled in)
+	otelShutdown = nil
 	s.log.Info("ObservabilityService stopped")
 	return nil
 }

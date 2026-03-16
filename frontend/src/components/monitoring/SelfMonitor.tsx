@@ -1,12 +1,14 @@
-import { Component, createSignal, onMount, For } from 'solid-js';
+import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import * as MetricsService from '../../../wailsjs/go/services/MetricsService';
 import * as ObservabilityService from '../../../wailsjs/go/services/ObservabilityService';
 import { monitoring } from '../../../wailsjs/go/models';
+import { DiagnosticsModal } from './DiagnosticsModal';
 
 export const SelfMonitor: Component = () => {
     const [metrics, setMetrics] = createSignal<monitoring.Metric[]>([]);
     const [status, setStatus] = createSignal<any>(null);
     const [lastUpdate, setLastUpdate] = createSignal<Date>(new Date());
+    const [showDiagnostics, setShowDiagnostics] = createSignal(false);
 
     const fetchData = async () => {
         try {
@@ -62,8 +64,33 @@ export const SelfMonitor: Component = () => {
                     <span class="monitor-icon">📡</span>
                     <h2>PLATFORM SELF-MONITOR</h2>
                 </div>
-                <div class="last-sync">
-                    LAST REFRESH: {lastUpdate().toLocaleTimeString()}
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    {/* ── Diagnostics Modal trigger ── */}
+                    <button
+                        onClick={() => setShowDiagnostics(true)}
+                        style={{
+                            background: 'rgba(87,139,255,0.12)',
+                            border: '1px solid rgba(87,139,255,0.4)',
+                            color: 'var(--accent-primary)',
+                            padding: '5px 12px',
+                            'border-radius': '5px',
+                            cursor: 'pointer',
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '10px',
+                            'font-weight': '700',
+                            'letter-spacing': '1px',
+                            'text-transform': 'uppercase',
+                            display: 'flex',
+                            'align-items': 'center',
+                            gap: '6px',
+                        }}
+                        title="Open real-time platform diagnostics"
+                    >
+                        <span>🔬</span> DIAGNOSTICS
+                    </button>
+                    <div class="last-sync">
+                        LAST REFRESH: {lastUpdate().toLocaleTimeString()}
+                    </div>
                 </div>
             </header>
 
@@ -144,16 +171,16 @@ export const SelfMonitor: Component = () => {
                             const goSlope = metrics().find(m => m.name === 'stability_goroutine_slope_min')?.value || 0;
                             let grade = "EXCEPTIONAL";
                             let color = "var(--status-online)";
-                            
-                            if (rssSlope > 1024 * 10 || goSlope > 0.5) { // >10KB/min or >0.5 goroutine/min
+
+                            if (rssSlope > 1024 * 10 || goSlope > 0.5) {
                                 grade = "STABLE";
                                 color = "var(--status-warning)";
                             }
-                            if (rssSlope > 1024 * 100 || goSlope > 2) { // >100KB/min or >2 goroutines/min
+                            if (rssSlope > 1024 * 100 || goSlope > 2) {
                                 grade = "DEGRADING";
                                 color = "var(--status-danger)";
                             }
-                            
+
                             return (
                                 <div class="stability-grade" style={{ color }}>
                                     {grade}
@@ -166,8 +193,8 @@ export const SelfMonitor: Component = () => {
                             {(metric) => (
                                 <div class="metric-row">
                                     <span class="m-name">{metric.name.replace('stability_', '').replace(/_/g, ' ')}</span>
-                                    <span class="m-value" style={{ 
-                                        color: metric.value > 0 ? 'var(--status-warning)' : 'var(--status-online)' 
+                                    <span class="m-value" style={{
+                                        color: metric.value > 0 ? 'var(--status-warning)' : 'var(--status-online)'
                                     }}>
                                         {formatValue(metric)}
                                     </span>
@@ -198,6 +225,11 @@ export const SelfMonitor: Component = () => {
                 </div>
             </div>
 
+            {/* ── Diagnostics Modal ── */}
+            <Show when={showDiagnostics()}>
+                <DiagnosticsModal onClose={() => setShowDiagnostics(false)} />
+            </Show>
+
             <style>{`
                 .monitor-container {
                     padding: 0;
@@ -218,7 +250,7 @@ export const SelfMonitor: Component = () => {
                 .monitor-title { display: flex; align-items: center; gap: 0.75rem; }
                 .monitor-title h2 { font-size: 14px; letter-spacing: 2px; font-weight: 700; margin: 0; }
                 .last-sync { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
-                
+
                 .monitor-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
@@ -234,13 +266,13 @@ export const SelfMonitor: Component = () => {
                     gap: 1.5rem;
                 }
                 .monitor-card.wide { grid-column: 1 / -1; }
-                
+
                 .card-header { display: flex; justify-content: space-between; align-items: center; }
                 .card-header h3 { font-size: 11px; letter-spacing: 1px; color: var(--text-secondary); margin: 0; }
-                
+
                 .status-indicator { display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-mono); font-size: 11px; }
                 .status-indicator .dot { width: 8px; height: 8px; border-radius: 50%; }
-                
+
                 .runtime-stats {
                     display: grid;
                     grid-template-columns: repeat(4, 1fr);
@@ -250,7 +282,7 @@ export const SelfMonitor: Component = () => {
                 .stat-box .label { font-size: 9px; color: var(--text-muted); letter-spacing: 1px; }
                 .stat-box .value { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
                 .stat-box .sub { font-size: 10px; color: var(--text-muted); }
-                
+
                 .list-metrics { display: flex; flex-direction: column; gap: 0.75rem; }
                 .metric-row {
                     display: flex;

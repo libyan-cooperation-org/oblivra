@@ -1,8 +1,4 @@
-import {
-    Component,
-    onMount,
-    onCleanup,
-} from 'solid-js';
+import { Component, onMount, onCleanup, createEffect } from 'solid-js';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -13,31 +9,33 @@ interface TerminalProps {
     sessionId: string;
     onData?: (data: string) => void;
     onResize?: (cols: number, rows: number) => void;
+    /** When true the terminal is the visible/active tab — triggers fit on show */
+    active?: boolean;
 }
 
 const THEME = {
-    background: '#0d1117',
-    foreground: '#c9d1d9',
-    cursor: '#58a6ff',
-    cursorAccent: '#0d1117',
-    selectionBackground: '#264f78',
+    background: '#0d0e10',
+    foreground: '#d4d5d8',
+    cursor: '#0099e0',
+    cursorAccent: '#0d0e10',
+    selectionBackground: 'rgba(0,153,224,0.25)',
     selectionForeground: '#ffffff',
-    black: '#484f58',
-    red: '#ff7b72',
-    green: '#3fb950',
-    yellow: '#d29922',
-    blue: '#58a6ff',
-    magenta: '#bc8cff',
-    cyan: '#39c5cf',
-    white: '#b1bac4',
-    brightBlack: '#6e7681',
-    brightRed: '#ffa198',
-    brightGreen: '#56d364',
-    brightYellow: '#e3b341',
-    brightBlue: '#79c0ff',
-    brightMagenta: '#d2a8ff',
-    brightCyan: '#56d4dd',
-    brightWhite: '#f0f6fc',
+    black: '#3a3d44',
+    red: '#e04040',
+    green: '#5cc05c',
+    yellow: '#f5c518',
+    blue: '#0099e0',
+    magenta: '#b87fff',
+    cyan: '#00c8d4',
+    white: '#d4d5d8',
+    brightBlack: '#6b6e76',
+    brightRed: '#ff6b6b',
+    brightGreen: '#7dda7d',
+    brightYellow: '#ffd24d',
+    brightBlue: '#33b8ff',
+    brightMagenta: '#cc99ff',
+    brightCyan: '#4de8f0',
+    brightWhite: '#f0f1f3',
 };
 
 export const TerminalView: Component<TerminalProps> = (props) => {
@@ -45,21 +43,36 @@ export const TerminalView: Component<TerminalProps> = (props) => {
     let terminal: XTerm | undefined;
     let fitAddon: FitAddon | undefined;
     let resizeObserver: ResizeObserver | undefined;
+    let initialized = false;
+
+    const tryFit = () => {
+        if (!containerRef || !fitAddon) return;
+        if (containerRef.clientWidth > 0 && containerRef.clientHeight > 0) {
+            try { fitAddon.fit(); } catch (_) {}
+        }
+    };
+
+    // Re-fit whenever this terminal becomes the active one
+    createEffect(() => {
+        if (props.active) {
+            // Defer a frame so the container is fully visible
+            requestAnimationFrame(() => requestAnimationFrame(() => tryFit()));
+        }
+    });
 
     onMount(() => {
-        if (!containerRef) return;
+        if (!containerRef || initialized) return;
+        initialized = true;
 
-        // Create xterm instance
         terminal = new XTerm({
-            fontSize: 14,
+            fontSize: 13,
             fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
             theme: THEME,
             cursorBlink: true,
             cursorStyle: 'block',
             scrollback: 10000,
             convertEol: true,
-            lineHeight: 1.2,
-            // SECURITY: Explicitly disable OSC 52 (clipboard) access
+            lineHeight: 1.25,
             allowProposedApi: false,
         });
 
@@ -69,72 +82,44 @@ export const TerminalView: Component<TerminalProps> = (props) => {
 
         terminal.open(containerRef);
 
-        try {
-            fitAddon.fit();
-        } catch (_) { /* container may not be visible yet */ }
+        // Fit immediately and again after a short delay to handle layout settling
+        tryFit();
+        setTimeout(tryFit, 50);
+        setTimeout(tryFit, 200);
 
-        // User typing → send to backend
-        terminal.onData((data) => {
-            props.onData?.(data);
-        });
+        terminal.onData((data) => props.onData?.(data));
+        terminal.onResize(({ cols, rows }) => props.onResize?.(cols, rows));
 
-        // Terminal resize → send to backend
-        terminal.onResize(({ cols, rows }) => {
-            props.onResize?.(cols, rows);
-        });
-
-        // Listen for output from backend (base64 encoded)
-        // Backend emits: terminal-output-{sessionId} (hyphens, no spaces)
+        // Local PTY output
         EventsOn(`terminal-output-${props.sessionId}`, (data: string) => {
-            if (terminal && typeof data === 'string') {
-                try {
-                    const binaryString = atob(data);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    terminal.write(bytes);
-                } catch {
-                    terminal.write(data);
-                }
-            }
+            if (!terminal || typeof data !== 'string') return;
+            try {
+                const bin = atob(data);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                terminal.write(bytes);
+            } catch { terminal.write(data); }
         });
 
-        // Also listen for SSH session output (different event name format)
+        // SSH session output
         EventsOn(`session.output.${props.sessionId}`, (data: string) => {
-            if (terminal && typeof data === 'string') {
-                try {
-                    const binaryString = atob(data);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    terminal.write(bytes);
-                } catch {
-                    terminal.write(data);
-                }
-            }
+            if (!terminal || typeof data !== 'string') return;
+            try {
+                const bin = atob(data);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                terminal.write(bytes);
+            } catch { terminal.write(data); }
         });
 
-        // Auto-fit when container resizes (covers both native ResizeObserver
-        // AND the custom 'sov:panel:resize' event fired by DraggablePanel)
+        // Watch container for size changes
         resizeObserver = new ResizeObserver(() => {
-            requestAnimationFrame(() => {
-                if (containerRef && containerRef.clientWidth > 0 && containerRef.clientHeight > 0) {
-                    try { fitAddon?.fit(); } catch (_) { }
-                }
-            });
+            requestAnimationFrame(tryFit);
         });
         resizeObserver.observe(containerRef);
 
-        // Also re-fit when a DraggablePanel emits its resize event
-        const onPanelResize = () => {
-            requestAnimationFrame(() => {
-                if (containerRef && containerRef.clientWidth > 0 && containerRef.clientHeight > 0) {
-                    try { fitAddon?.fit(); } catch (_) { }
-                }
-            });
-        };
+        // DraggablePanel resize event
+        const onPanelResize = () => requestAnimationFrame(tryFit);
         window.addEventListener('sov:panel:resize', onPanelResize);
         onCleanup(() => window.removeEventListener('sov:panel:resize', onPanelResize));
 
@@ -142,19 +127,17 @@ export const TerminalView: Component<TerminalProps> = (props) => {
     });
 
     onCleanup(() => {
-        if (props.sessionId) {
-            EventsOff(`terminal-output-${props.sessionId}`);
-            EventsOff(`session.output.${props.sessionId}`);
-        }
+        EventsOff(`terminal-output-${props.sessionId}`);
+        EventsOff(`session.output.${props.sessionId}`);
         resizeObserver?.disconnect();
         terminal?.dispose();
+        initialized = false;
     });
 
     return (
         <div
             ref={containerRef}
-            class="terminal-container"
-            style={{ width: '100%', height: '100%' }}
+            style={{ width: '100%', height: '100%', padding: '0', background: '#0d0e10' }}
         />
     );
 };

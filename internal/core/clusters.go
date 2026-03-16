@@ -141,4 +141,5 @@ type PlatformCluster struct {
 	TelemetryService     *services.TelemetryService
 	DataLifecycleService *services.DataLifecycleService
 	ResourceMonitor      *services.ResourceMonitor
+	DiagnosticsService   *services.DiagnosticsService
 }

@@ -1,6 +1,7 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useApp } from '@core/store';
 import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
+import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { usePanelManager } from './PanelManager';
 
 export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) => {
@@ -9,7 +10,16 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
     const transferCount = () => state.transfers.filter(t => t.status === 'active' || t.status === 'pending').length;
     const [time, setTime] = createSignal('');
     const [healthMap, setHealthMap] = createSignal<Record<string, unknown>>({});
+    const [diagGrade, setDiagGrade] = createSignal<string | null>(null);
     const { openPanelCount } = usePanelManager();
+
+    // Subscribe to diagnostics broadcast for live health grade in status bar
+    onMount(() => {
+        EventsOn('diagnostics:snapshot', (data: any) => {
+            if (data?.health_grade) setDiagGrade(data.health_grade);
+        });
+    });
+    onCleanup(() => EventsOff('diagnostics:snapshot'));
 
     const activeHost = createMemo(() => {
         if (!state.activeSessionId) return null;
@@ -111,6 +121,25 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
                 </Show>
 
                 {sep()}
+
+                <Show when={diagGrade()}>
+                    <span
+                        title="Platform health grade — click SelfMonitor for details"
+                        style={{
+                            'font-family': 'var(--font-mono)',
+                            'font-size': '9px',
+                            'font-weight': '800',
+                            'letter-spacing': '0.5px',
+                            color: diagGrade() === 'A' ? 'var(--status-online)'
+                                 : diagGrade() === 'B' ? '#d29922'
+                                 : diagGrade() === 'C' ? '#f0883e'
+                                 : '#f85149',
+                        }}
+                    >
+                        ● {diagGrade()}
+                    </span>
+                    {sep()}
+                </Show>
 
                 <Show
                     when={state.vaultUnlocked}

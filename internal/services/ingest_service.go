@@ -38,6 +38,11 @@ func NewIngestService(p *ingest.Pipeline, srv *ingest.SyslogServer, agentSrv *in
 	}
 }
 
+// Pipeline returns the underlying ingest.Pipeline for cross-service wiring.
+func (s *IngestService) Pipeline() *ingest.Pipeline {
+	return s.pipeline
+}
+
 // Start initializes background workers (the pipeline processes the queue)
 func (s *IngestService) Start(ctx context.Context) error {
 	s.log.Info("Starting ingestion pipeline workers...")

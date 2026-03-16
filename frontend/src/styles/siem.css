@@ -1,452 +1,286 @@
-/* ===== Sovereign Tactical SIEM — Forensic Command & Control ===== */
+/* ===== SIEM — Splunk Enterprise Style ===== */
 
 .siem-panel {
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 0;
-    background: var(--bg-primary);
-    gap: 0;
+    background: var(--surface-0);
 }
 
+/* Tabs */
 .siem-tabs {
     display: flex;
-    gap: 0;
     background: var(--surface-1);
-    border-bottom: 2px solid var(--border-primary);
+    border-bottom: 1px solid var(--border-primary);
+    flex-shrink: 0;
 }
 
 .siem-tab-btn {
     background: transparent;
     border: none;
     border-right: 1px solid var(--border-primary);
-    padding: 12px 20px;
+    border-bottom: 2px solid transparent;
+    padding: 10px 18px;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
-    transition: background var(--transition-fast);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+    font-family: var(--font-ui);
+    transition: color var(--transition-fast), background var(--transition-fast);
 }
+.siem-tab-btn:hover  { background: var(--surface-3); color: var(--text-secondary); }
+.siem-tab-btn.active { color: var(--text-primary); background: var(--surface-0); border-bottom-color: var(--accent-cta); }
+.siem-tab-btn.alerts.active  { border-bottom-color: var(--alert-critical); color: var(--alert-critical); }
+.siem-tab-btn.mitre.active   { border-bottom-color: var(--accent-tertiary); color: var(--accent-tertiary); }
 
-.siem-tab-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-}
-
-.siem-tab-btn.active {
-    color: var(--text-primary);
-    background: var(--surface-0);
-    border-bottom: 3px solid var(--accent-primary);
-}
-
-/* Custom Tactical Tab States */
-.siem-tab-btn.alerts.active {
-    border-bottom-color: var(--status-offline);
-    color: var(--status-offline);
-}
-
-.siem-tab-btn.mitre.active {
-    border-bottom-color: var(--accent-tertiary);
-}
-
+/* Controls bar */
 .siem-controls {
     display: flex;
-    gap: 12px;
-    padding: 12px 20px;
-    background: var(--bg-secondary);
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--surface-1);
     border-bottom: 1px solid var(--border-primary);
     align-items: center;
+    flex-shrink: 0;
 }
 
 .siem-select {
-    background: var(--bg-primary);
+    background: var(--surface-0);
     border: 1px solid var(--border-primary);
     color: var(--text-primary);
-    padding: 0 12px;
-    border-radius: var(--radius-xs);
-    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    height: 30px;
     font-size: 11px;
     font-family: var(--font-mono);
     outline: none;
 }
-
 .siem-input {
-    background: var(--bg-primary);
+    background: var(--surface-0);
     border: 1px solid var(--border-primary);
     color: var(--text-primary);
-    padding: 0 12px;
-    border-radius: var(--radius-xs);
-    height: 32px;
+    padding: 0 10px;
+    border-radius: var(--radius-sm);
+    height: 30px;
     font-family: var(--font-mono);
     font-size: 12px;
     outline: none;
 }
+.siem-input:focus, .siem-select:focus { border-color: var(--accent-primary); }
 
-.siem-input:focus,
-.siem-select:focus {
-    border-color: var(--text-secondary);
-}
-
-/* Results Container (Forensic Log View) */
+/* Log results */
 .siem-results-container {
     flex: 1;
     overflow-y: auto;
-    background: var(--bg-primary);
-    border: none;
+    background: var(--surface-0);
 }
 
 .siem-event-item {
-    padding: 8px 20px;
-    border-bottom: 1px solid var(--border-primary);
+    padding: 8px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 11px;
     transition: background var(--transition-fast);
 }
+.siem-event-item:hover { background: var(--surface-3); }
 
-.siem-event-item:hover {
-    background: var(--bg-hover);
-}
+.siem-event-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
+.siem-event-host   { color: var(--accent-primary); font-weight: 700; }
+.siem-event-time   { color: var(--text-muted); font-size: 10px; }
+.siem-event-content { color: var(--text-primary); white-space: pre-wrap; word-break: break-all; line-height: 1.4; }
 
-.siem-event-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-}
-
-.siem-event-host {
-    color: var(--text-accent);
-    font-weight: 700;
-}
-
-.siem-event-time {
-    color: var(--text-muted);
-    font-size: 10px;
-}
-
-.siem-event-content {
-    color: var(--text-primary);
-    white-space: pre-wrap;
-    word-break: break-all;
-    line-height: 1.4;
-}
-
-.siem-event-tags {
-    margin-top: 8px;
-    display: flex;
-    gap: 8px;
-}
-
+.siem-event-tags { margin-top: 6px; display: flex; gap: 6px; }
 .siem-tag {
-    background: var(--bg-tertiary);
+    background: var(--surface-2);
     color: var(--text-muted);
-    padding: 2px 8px;
+    padding: 1px 7px;
     border: 1px solid var(--border-primary);
-    font-size: 10px;
-    font-weight: 800;
+    font-size: 9px;
+    font-weight: 700;
     text-transform: uppercase;
     border-radius: var(--radius-xs);
 }
+.siem-tag.danger { border-color: rgba(224,64,64,0.4); color: var(--alert-critical); }
 
-.siem-tag.danger {
-    border-color: var(--status-offline);
-    color: var(--status-offline);
-}
-
-/* Unified Panels */
+/* Threat Intel / Map panels */
 .threat-intel-panel,
 .threat-map-panel {
-    padding: 0;
-    /* Edge to edge */
     background: var(--surface-0);
     height: 100%;
     overflow-y: auto;
 }
 
+/* Stat grid (KPI tiles) */
 .stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1px;
     background: var(--border-primary);
     border: 1px solid var(--border-primary);
 }
-
 .stat-card {
-    background: var(--bg-primary);
-    padding: 20px;
+    background: var(--surface-1);
+    padding: 18px 20px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    transition: background var(--transition-fast);
 }
-
-.stat-card:hover {
-    background: var(--bg-hover);
-}
-
+.stat-card:hover { background: var(--surface-2); }
 .stat-label {
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.7px;
     font-family: var(--font-ui);
 }
+.stat-value { font-size: 28px; font-weight: 700; font-family: var(--font-mono); color: var(--text-heading); line-height: 1; }
+.stat-value.accent { color: var(--accent-primary); }
 
-.stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    font-family: var(--font-mono);
-    color: var(--text-primary);
-}
-
-.stat-value.accent {
-    color: var(--accent-secondary);
-}
-
-/* ===== Tactical Alert Dashboard & Incidents ===== */
-
-.alert-dashboard {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-primary);
-}
+/* Alert dashboard */
+.alert-dashboard { height: 100%; display: flex; flex-direction: column; background: var(--surface-0); }
 
 .alert-header {
-    padding: 16px 24px;
-    background: #000000;
-    border-bottom: 2px solid var(--border-primary);
+    padding: 12px 20px;
+    background: var(--surface-1);         /* was #000000 */
+    border-bottom: 1px solid var(--border-primary);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .incident-filters {
     display: flex;
-    background: var(--bg-surface);
+    background: var(--surface-1);
     border-bottom: 1px solid var(--border-primary);
-    padding: 0 24px;
+    padding: 0 16px;
+    flex-shrink: 0;
 }
-
 .filter-btn {
     background: transparent;
     border: none;
-    padding: 12px 16px;
+    padding: 10px 14px;
     font-size: 10px;
-    font-weight: 800;
-    font-family: var(--font-mono);
+    font-weight: 700;
+    font-family: var(--font-ui);
     color: var(--text-muted);
     cursor: pointer;
     text-transform: uppercase;
+    letter-spacing: 0.4px;
     border-bottom: 2px solid transparent;
+    transition: color var(--transition-fast);
 }
-
-.filter-btn:hover {
-    color: var(--text-secondary);
-}
-
-.filter-btn.active {
-    color: var(--text-primary);
-    border-bottom-color: var(--accent-primary);
-}
+.filter-btn:hover { color: var(--text-secondary); }
+.filter-btn.active { color: var(--text-primary); border-bottom-color: var(--accent-cta); }
 
 .incident-grid {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 16px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 12px;
     align-content: start;
 }
 
 .incident-card {
     background: var(--surface-1);
     border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
-    transition: transform var(--transition-fast), border-color var(--transition-fast);
+    transition: border-color var(--transition-fast);
 }
-
-.incident-card:hover {
-    border-color: var(--text-muted);
-}
-
-.incident-card.critical {
-    border-left: 4px solid var(--status-offline);
-}
-
-.incident-card.high {
-    border-left: 4px solid var(--accent-primary);
-}
-
-.incident-card.medium {
-    border-left: 4px solid var(--accent-secondary);
-}
+.incident-card:hover { border-color: var(--border-secondary); }
+.incident-card.critical { border-left: 3px solid var(--alert-critical); }
+.incident-card.high     { border-left: 3px solid var(--alert-high); }
+.incident-card.medium   { border-left: 3px solid var(--alert-medium); }
+.incident-card.low      { border-left: 3px solid var(--alert-low); }
 
 .incident-card-header {
-    padding: 12px 16px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--border-primary);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    background: var(--surface-2);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
+.incident-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+.incident-meta  { display: flex; gap: 8px; font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); }
 
-.incident-title {
-    font-size: 13px;
-    font-weight: 800;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
+.severity-badge { padding: 2px 7px; font-weight: 700; font-size: 9px; text-transform: uppercase; border-radius: var(--radius-full); }
+.severity-critical { background: rgba(224,64,64,0.15); color: var(--alert-critical); border: 1px solid rgba(224,64,64,0.3); }
+.severity-high     { background: rgba(245,139,0,0.15); color: var(--alert-high);     border: 1px solid rgba(245,139,0,0.3); }
+.severity-medium   { background: rgba(245,197,24,0.12); color: var(--alert-medium);  border: 1px solid rgba(245,197,24,0.3); }
 
-.incident-meta {
-    display: flex;
-    gap: 8px;
-    font-size: 10px;
-    font-family: var(--font-mono);
-    color: var(--text-muted);
-}
-
-.severity-badge {
-    padding: 2px 6px;
-    font-weight: 900;
-    background: transparent;
-    border: none;
-    font-size: 9px;
-    text-transform: uppercase;
-}
-
-.severity-critical {
-    background: var(--alert-critical);
-    color: #000000;
-}
-
-.severity-high {
-    background: var(--alert-high);
-    color: #000000;
-}
-
-.severity-medium {
-    background: var(--alert-medium);
-    color: #000000;
-}
-
-.incident-body {
-    padding: 16px;
-    flex: 1;
-}
-
-.incident-description {
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    margin-bottom: 12px;
-}
-
-.incident-stats {
-    display: flex;
-    gap: 16px;
-    padding: 8px 0;
-    border-top: 1px dashed var(--border-primary);
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-}
-
-.stat-item-label {
-    font-size: 9px;
-    text-transform: uppercase;
-    color: var(--text-muted);
-}
-
-.stat-item-value {
-    font-size: 11px;
-    font-weight: 700;
-    font-family: var(--font-mono);
-}
+.incident-body       { padding: 12px 14px; flex: 1; }
+.incident-description { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
+.incident-stats      { display: flex; gap: 16px; padding: 8px 0; border-top: 1px solid var(--border-subtle); }
+.stat-item           { display: flex; flex-direction: column; }
+.stat-item-label     { font-size: 9px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.4px; }
+.stat-item-value     { font-size: 12px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); }
 
 .incident-footer {
-    padding: 12px 16px;
-    background: var(--bg-surface);
+    padding: 10px 14px;
+    background: var(--surface-2);
     border-top: 1px solid var(--border-primary);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-}
-
-.tactical-btn {
-    height: 28px;
-    padding: 0 12px;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-primary);
-    color: var(--text-primary);
-    font-size: 10px;
-    font-family: var(--font-mono);
-    font-weight: 800;
-    cursor: pointer;
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
     gap: 6px;
 }
 
-.tactical-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--text-muted);
-}
-
-.tactical-btn.primary {
-    background: var(--accent-primary);
-    color: #000000;
-    border-color: var(--accent-primary);
-}
-
-.tactical-btn.secondary {
-    border-color: var(--status-online);
-    color: var(--status-online);
-}
-
-/* ===== High-Density Data Tables ===== */
-.ob-table-zebra {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 11px;
+/* Tactical buttons (used in incident footer) */
+.tactical-btn {
+    height: 26px;
+    padding: 0 12px;
+    background: var(--surface-3);
+    border: 1px solid var(--border-primary);
+    color: var(--text-secondary);
+    font-size: 10px;
     font-family: var(--font-ui);
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all var(--transition-fast);
 }
+.tactical-btn:hover          { background: var(--surface-4); border-color: var(--border-hover); color: var(--text-primary); }
+.tactical-btn.primary        { background: var(--accent-cta); color: #fff; border-color: transparent; }
+.tactical-btn.primary:hover  { background: var(--accent-cta-hover); }
+.tactical-btn.secondary      { border-color: rgba(92,192,92,0.4); color: var(--status-online); }
 
+/* High-density zebra tables */
+.ob-table-zebra { width: 100%; border-collapse: collapse; font-size: 11px; font-family: var(--font-ui); }
 .ob-table-zebra thead th {
     text-align: left;
-    padding: 8px 12px;
-    background: var(--bg-tertiary);
+    padding: 7px 12px;
+    background: var(--surface-2);
     color: var(--text-muted);
-    font-weight: 800;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.6px;
+    font-size: 10px;
     border-bottom: 1px solid var(--border-primary);
     position: sticky;
     top: 0;
     z-index: 10;
 }
-
 .ob-table-zebra tbody td {
     padding: 6px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255,255,255,0.03);
     color: var(--text-primary);
 }
+.ob-table-zebra tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.ob-table-zebra tbody tr:hover           { background: var(--surface-3); }
 
-.ob-table-zebra tbody tr:nth-child(even) {
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.ob-table-zebra tbody tr:hover {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.font-mono {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-}
+.font-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

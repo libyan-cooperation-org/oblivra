@@ -1,128 +1,106 @@
-/* ===== Dashboard Page Specific Styles ===== */
+/* ===== Dashboard — Splunk Enterprise Style ===== */
 
 /* Header */
 .dash-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding: 20px 24px 16px 24px;
+    align-items: center;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border-primary);
-    background: var(--surface-0);
+    background: var(--surface-1);
     flex-shrink: 0;
 }
 
 .dash-title {
     margin: 0;
     font-size: 15px;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--text-heading);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    font-family: var(--font-mono);
-    line-height: 1;
+    font-family: var(--font-ui);
+    letter-spacing: -0.2px;
 }
 
 .dash-subtitle {
-    margin: 5px 0 0 0;
+    margin: 2px 0 0 0;
     color: var(--text-muted);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    font-family: var(--font-mono);
-    font-weight: 400;
+    font-size: 11px;
+    font-family: var(--font-ui);
 }
 
-/* KPI Grid */
+/* KPI Grid — Splunk stat tiles */
 .dash-kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     border-bottom: 1px solid var(--border-primary);
-    background: var(--surface-0);
     flex-shrink: 0;
 }
 
 .dash-kpi {
-    border-radius: 0;
-    border: none;
-    border-right: 1px solid var(--border-primary);
-    background: transparent;
-    box-shadow: none;
+    border-radius: 0 !important;
+    border: none !important;
+    border-right: 1px solid var(--border-primary) !important;
+    background: var(--surface-1) !important;
     padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 8px;
-    transition: background var(--transition-fast);
+    gap: 6px;
     cursor: default;
+    transition: background var(--transition-fast);
 }
-
-.dash-kpi:last-child {
-    border-right: none;
-}
-
-.dash-kpi:hover {
-    background: var(--surface-1);
-}
+.dash-kpi:last-child { border-right: none !important; }
+.dash-kpi:hover { background: var(--surface-2) !important; }
 
 .dash-kpi-label {
-    font-size: 9px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
+    letter-spacing: 0.7px;
     color: var(--text-muted);
-    font-family: var(--font-mono);
-    line-height: 1;
+    font-family: var(--font-ui);
 }
 
 .dash-kpi-value {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--text-primary);
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-heading);
     font-family: var(--font-mono);
     line-height: 1;
-    letter-spacing: -0.5px;
 }
 
 .dash-kpi-sub {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    display: flex;
-    align-items: center;
-    gap: var(--gap-sm);
-    line-height: 1;
+    font-family: var(--font-ui);
 }
 
 .dash-trend-good {
-    font-size: 9px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
     color: var(--status-online);
-    font-weight: 700;
+    font-weight: 600;
     font-family: var(--font-mono);
-    background: rgba(55, 178, 77, 0.08);
-    padding: 2px 5px;
-    border-radius: 2px;
+    background: rgba(92,192,92,0.1);
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(92,192,92,0.2);
 }
 
 .dash-trend-bad {
-    font-size: 9px;
-    color: var(--status-offline);
-    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    color: var(--alert-critical);
+    font-weight: 600;
     font-family: var(--font-mono);
-    background: rgba(240, 62, 62, 0.08);
-    padding: 2px 5px;
-    border-radius: 2px;
+    background: rgba(224,64,64,0.1);
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(224,64,64,0.2);
 }
 
-.dash-kpi-alert .dash-kpi-label {
-    color: var(--alert-critical);
-}
-
-.dash-kpi-alert .dash-kpi-value {
-    color: var(--alert-critical);
-    text-shadow: 0 0 20px rgba(240, 62, 62, 0.3);
-}
+.dash-kpi-alert .dash-kpi-value { color: var(--alert-critical); }
+.dash-kpi-alert .dash-kpi-label { color: var(--alert-high); }
 
 /* Main Grid */
 .dash-main-grid {
@@ -130,104 +108,94 @@
     grid-template-columns: 2fr 1fr;
     flex: 1;
     min-height: 0;
-    background: var(--surface-0);
+    border-bottom: 1px solid var(--border-primary);
 }
 
 .dash-chart-card,
 .dash-heatmap-card {
-    border-radius: 0;
-    border: none;
-    border-bottom: 1px solid var(--border-primary);
-    box-shadow: none;
-    padding: 20px 24px;
+    border-radius: 0 !important;
+    border: none !important;
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    background: transparent;
-    gap: 0;
+    background: var(--surface-0) !important;
 }
 
-.dash-chart-card {
-    border-right: 1px solid var(--border-primary);
-}
+.dash-chart-card { border-right: 1px solid var(--border-primary) !important; }
 
+/* Section header — Splunk panel header style */
 .dash-section-header {
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-subtle);
-    margin-bottom: 16px;
-    font-family: var(--font-mono);
+    letter-spacing: 0.6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-primary);
+    margin-bottom: 14px;
+    font-family: var(--font-ui);
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.dash-section-header::before {
-    content: '';
-    width: 3px;
-    height: 10px;
-    background: var(--accent-primary);
-    display: inline-block;
-    border-radius: 1px;
-    opacity: 0.7;
-}
-
 .dash-chart {
     flex: 1;
     width: 100%;
-    min-height: 280px;
+    min-height: 260px;
 }
 
 /* Heatmap */
 .dash-heatmap-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(22px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(20px, 1fr));
     gap: 3px;
     padding: 10px;
     background: var(--surface-1);
     border: 1px solid var(--border-primary);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     flex: 1;
+    min-height: 120px;
 }
 
 .dash-heatmap-cell {
     aspect-ratio: 1;
     border-radius: 2px;
-    transition: all var(--transition-fast);
+    transition: transform 0.1s;
     cursor: crosshair;
 }
-
-.dash-heatmap-cell:hover {
-    transform: scale(1.15);
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.3);
-    z-index: 2;
-}
+.dash-heatmap-cell:hover { transform: scale(1.2); z-index: 2; }
 
 .dash-legend {
     display: flex;
-    gap: var(--gap-lg);
-    margin-top: 12px;
+    gap: 16px;
+    margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--border-primary);
 }
 
 .dash-legend-item {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-family: var(--font-mono);
+    font-weight: 500;
     display: flex;
     align-items: center;
     gap: 5px;
+    font-family: var(--font-ui);
 }
 
 .dash-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 1px;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+}
+
+/* Empty small */
+.ob-empty-sm {
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+    padding: 20px;
+    font-family: var(--font-ui);
+    grid-column: 1 / -1;
 }

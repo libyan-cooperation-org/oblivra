@@ -171,23 +171,19 @@ export const OpsCenter: Component = () => {
     return (
         <div class="ops-center-layout">
             {/* Header */}
-            <div class="ops-header">
-                <h2 class="ops-title">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <div class="ob-tabs" style={{ padding: '0 16px', 'flex-shrink': '0', background: 'var(--surface-1)', 'border-bottom': '1px solid var(--border-primary)' }}>
+                <div style={{ display: 'flex', 'align-items': 'center', gap: '8px', 'margin-right': '20px', 'padding': '0 0 0 0' }}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--accent-primary)" stroke-width="2">
                         <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
                     </svg>
-                    UNIFIED OPS CENTER
-                </h2>
-                <div class="ops-tabs">
-                    <Button variant={activeTab() === 'dashboard' ? 'primary' : 'ghost'} size="sm" onClick={() => setActiveTab('dashboard')}>DASHBOARD</Button>
-                    <Button variant={activeTab() === 'agents' ? 'primary' : 'ghost'} size="sm" onClick={() => setActiveTab('agents')}>AGENTS</Button>
-                    <Button variant={activeTab() === 'search' ? 'primary' : 'ghost'} size="sm" onClick={() => setActiveTab('search')}>SEARCH</Button>
-                    <Button variant={activeTab() === 'sources' ? 'primary' : 'ghost'} size="sm" onClick={() => setActiveTab('sources')}>SOURCES</Button>
-                    <Button variant={activeTab() === 'tail' ? 'primary' : 'ghost'} size="sm" onClick={() => setActiveTab('tail')}>LIVE TAIL</Button>
-                    <Button variant={activeTab() === 'synthetic' ? 'primary' : 'ghost'} size="sm" onClick={() => setActiveTab('synthetic')}>SYNTHETIC</Button>
-                    <Button variant={activeTab() === 'alerts' ? 'primary' : 'ghost'} size="sm" onClick={() => { setActiveTab('alerts'); loadAlerts(); }}>ALERTS</Button>
-                    <Button variant={activeTab() === 'history' ? 'primary' : 'ghost'} size="sm" onClick={() => { setActiveTab('history'); loadAlerts(); }}>HISTORY</Button>
+                    <span style={{ 'font-size': '11px', 'font-weight': '700', 'text-transform': 'uppercase', 'letter-spacing': '0.5px', color: 'var(--text-secondary)' }}>Ops Center</span>
                 </div>
+                {(['dashboard','agents','search','sources','tail','synthetic','alerts','history'] as TabView[]).map(t => (
+                    <button
+                        class={`ob-tab${activeTab() === t ? ' active' : ''}`}
+                        onClick={() => { setActiveTab(t); if (t === 'alerts' || t === 'history') loadAlerts(); }}
+                    >{t.replace('-', ' ').toUpperCase()}</button>
+                ))}
             </div>
 
             <Show when={error()}>

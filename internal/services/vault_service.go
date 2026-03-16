@@ -3,11 +3,11 @@ package services
 import (
 	"context"
 	"crypto/ed25519"
-	"math/big"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -60,6 +60,14 @@ func NewVaultService(v vault.Provider, db database.DatabaseStore, analytics *ana
 		fido2Manager: fido,
 		bus:          bus,
 		log:          log.WithPrefix("vault_service"),
+	}
+}
+
+// SetContext updates the Wails runtime context after DomReady.
+// Called by app.Startup so EventsEmit uses the correct context.
+func (s *VaultService) SetContext(ctx context.Context) {
+	if ctx != nil {
+		s.ctx = ctx
 	}
 }
 
@@ -146,6 +154,10 @@ func (s *VaultService) AccessMasterKey(fn func(key []byte) error) error {
 func (s *VaultService) GetYubiKeySerial() string { return s.vault.GetYubiKeySerial() }
 func (s *VaultService) IsTPMBound() bool         { return s.vault.IsTPMBound() }
 func (s *VaultService) Unlock(password string, hardwareKey []byte, rememberMe bool) error {
+	// Normalize: treat empty slice as nil so frontend passing [] doesn't affect key derivation
+	if len(hardwareKey) == 0 {
+		hardwareKey = nil
+	}
 	s.log.Info("Unlocking vault (hardware: %v, remember: %v)", hardwareKey != nil, rememberMe)
 	// If the vault is already unlocked (e.g. auto-unlock ran first), skip re-deriving
 	// the key and go straight to postUnlock which will emit the event and return fast.
@@ -186,7 +198,15 @@ func (s *VaultService) UnlockWithHardware(password string, hardwareKey []byte, r
 	return s.postUnlock()
 }
 
-func (s *VaultService) postUnlock() error {
+func (s *VaultService) postUnlock() (retErr error) {
+	// Catch any unexpected panic so a crash inside postUnlock never terminates the app.
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("postUnlock PANIC recovered: %v", r)
+			retErr = fmt.Errorf("postUnlock panic: %v", r)
+		}
+	}()
+
 	// Non-blocking: if postUnlock is already running (e.g. from auto-unlock),
 	// return immediately. The in-progress call will emit vault:unlocked when done.
 	if !s.postMu.TryLock() {
@@ -195,9 +215,18 @@ func (s *VaultService) postUnlock() error {
 	}
 	defer s.postMu.Unlock()
 
+	// Guard against nil service fields — can happen if called before Start()
+	if s.vault == nil {
+		return fmt.Errorf("postUnlock: vault is nil")
+	}
+	if s.db == nil {
+		return fmt.Errorf("postUnlock: database is nil")
+	}
+
 	// If database is already open, avoid redundant initialization
-	if s.db != nil && !s.db.IsLocked() {
+	if !s.db.IsLocked() {
 		// Still emit the event so the frontend can transition if it missed the first one
+		s.bus.Publish(eventbus.EventVaultUnlocked, nil)
 		EmitEvent(s.ctx, "vault:unlocked", nil)
 		return nil
 	}
