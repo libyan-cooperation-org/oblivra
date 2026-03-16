@@ -2,11 +2,11 @@ import { Component, createSignal, For, Show } from 'solid-js';
 import { LogDetail } from '../components/analytics/LogDetail';
 import { SplunkDashboard } from './SplunkDashboard';
 import { SourcesPanel } from '../components/ops/SourcesPanel';
-import { SearchLogs, RunOsquery } from '../../wailsjs/go/app/AnalyticsService';
+import { SearchLogs, RunOsquery } from '../../wailsjs/go/services/AnalyticsService';
 import {
     GetOsqueryTemplates, GetTriggers, AddTrigger, RemoveTrigger,
     GetAlertHistory, UpdateNotificationConfig, GetNotificationConfig, TestNotification
-} from '../../wailsjs/go/app/AlertingService';
+} from '../../wailsjs/go/services/AlertingService';
 import { FleetDashboard } from '../components/fleet/FleetDashboard';
 import { AgentConsole } from '../components/fleet/AgentConsole';
 import { analytics, notifications, osquery } from '../../wailsjs/go/models';

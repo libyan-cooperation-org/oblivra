@@ -4,7 +4,7 @@ import { TerminalView } from './Terminal';
 import { FileBrowser } from './FileBrowser';
 import { TerminalToolbar } from './TerminalToolbar';
 import { SessionShareModal } from './SessionShareModal';
-import { GetTotalViewers } from '../../../wailsjs/go/app/ShareService';
+import { GetTotalViewers } from '../../../wailsjs/go/services/ShareService';
 import '../../styles/splitpane.css';
 
 // Tree structure for pane layout

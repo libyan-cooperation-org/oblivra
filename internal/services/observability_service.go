@@ -43,9 +43,9 @@ type ObservabilityService struct {
 // Name returns the service name.
 func (s *ObservabilityService) Name() string { return "observability-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *ObservabilityService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 // NewObservabilityService creates a new self-monitoring service.

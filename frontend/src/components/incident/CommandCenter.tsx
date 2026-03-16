@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/app/IncidentService';
+import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/services/IncidentService';
 import { database } from '../../../wailsjs/go/models';
 import { PlaybookBuilder } from './PlaybookBuilder';
 

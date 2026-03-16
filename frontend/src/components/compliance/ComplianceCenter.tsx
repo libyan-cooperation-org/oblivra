@@ -5,8 +5,8 @@ import {
     ListCompliancePacks,
     EvaluatePack,
     ExportReportPDF
-} from '../../../wailsjs/go/app/ComplianceService';
-import { GetBiasLogs } from '../../../wailsjs/go/app/GovernanceService';
+} from '../../../wailsjs/go/services/ComplianceService';
+import { GetBiasLogs } from '../../../wailsjs/go/services/GovernanceService';
 import { compliance } from '../../../wailsjs/go/models';
 import { EmptyState } from '../ui/EmptyState';
 import { PolicyVerifier } from './PolicyVerifier';

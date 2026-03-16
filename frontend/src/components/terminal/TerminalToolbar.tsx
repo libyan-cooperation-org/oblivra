@@ -1,7 +1,7 @@
 import { Component, createSignal, Show, For, onCleanup } from 'solid-js';
-import { ListCredentials } from '../../../wailsjs/go/app/VaultService';
+import { ListCredentials } from '../../../wailsjs/go/services/VaultService';
 // @ts-ignore
-import { PushCredential, SendInput } from '../../../wailsjs/go/app/SSHService';
+import { PushCredential, SendInput } from '../../../wailsjs/go/services/SSHService';
 
 interface TerminalToolbarProps {
     sessionId: string;

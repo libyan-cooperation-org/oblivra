@@ -29,9 +29,9 @@ type MultiExecService struct {
 
 func (s *MultiExecService) Name() string { return "multiexec-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *MultiExecService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 func (s *MultiExecService) Start(ctx context.Context) error {

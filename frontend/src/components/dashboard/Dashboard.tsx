@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, For, Show, onCleanup } from 'solid-js';
 import * as echarts from 'echarts';
-import { GetGlobalThreatStats, GetEventTrend } from '../../../wailsjs/go/app/SIEMService';
-import { GetFleetTelemetry } from '../../../wailsjs/go/app/TelemetryService';
+import { GetGlobalThreatStats, GetEventTrend } from '../../../wailsjs/go/services/SIEMService';
+import { GetFleetTelemetry } from '../../../wailsjs/go/services/TelemetryService';
 import { useApp } from '@core/store';
 import { Sparkline } from '../ui/Sparkline';
 import '../../styles/dashboard.css';

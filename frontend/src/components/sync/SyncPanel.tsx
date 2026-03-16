@@ -8,7 +8,7 @@ export const SyncPanel: Component = () => {
         setSyncing(true);
         setResult(null);
         try {
-            const { Sync } = await import('../../../wailsjs/go/app/SyncService');
+            const { Sync } = await import('../../../wailsjs/go/services/SyncService');
             await Sync();
             setResult('Sync completed successfully ✓');
         } catch (e: unknown) { setResult(`Sync failed: ${(e as Error)?.message || e}`); }

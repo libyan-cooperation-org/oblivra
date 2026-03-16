@@ -1,9 +1,9 @@
 import { Component, createSignal, createEffect, onCleanup, For, Show } from 'solid-js';
-import { ListAgents } from '../../../wailsjs/go/app/AgentService';
-import { app } from '../../../wailsjs/go/models';
+import { ListAgents } from '../../../wailsjs/go/services/AgentService';
+import { services } from '../../../wailsjs/go/models';
 
 export const AgentConsole: Component = () => {
-    const [agents, setAgents] = createSignal<app.AgentDTO[]>([]);
+    const [agents, setAgents] = createSignal<services.AgentDTO[]>([]);
     const [error, setError] = createSignal<string | null>(null);
 
     const fetchAgents = async () => {

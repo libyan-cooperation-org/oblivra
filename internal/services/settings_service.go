@@ -19,9 +19,9 @@ type SettingsService struct {
 
 func (s *SettingsService) Name() string { return "settings-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *SettingsService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *SettingsService) Start(ctx context.Context) error {

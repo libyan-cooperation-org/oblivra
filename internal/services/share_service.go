@@ -20,9 +20,9 @@ type ShareService struct {
 
 func (s *ShareService) Name() string { return "share-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *ShareService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewShareService(sm *sharing.ShareManager, rm sharing.RecordingProvider, bus *eventbus.Bus, log *logger.Logger) *ShareService {

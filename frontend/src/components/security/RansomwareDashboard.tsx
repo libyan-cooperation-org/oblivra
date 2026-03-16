@@ -1,14 +1,14 @@
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
-import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/app/IncidentService';
-import { ListAgents } from '../../../wailsjs/go/app/AgentService';
+import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/services/IncidentService';
+import { ListAgents } from '../../../wailsjs/go/services/AgentService';
 import { database } from '../../../wailsjs/go/models';
 
 // Wails bindings for NetworkIsolatorService (generated at build; calling directly for now)
 const IsolateHost = (hostID: string, reason: string): Promise<void> =>
-    (window as any)['go']?.['app']?.['NetworkIsolatorService']?.['IsolateHost']?.(hostID, reason) ?? Promise.resolve();
+    (window as any)['go']?.['services']?.['NetworkIsolatorService']?.['IsolateHost']?.(hostID, reason) ?? Promise.resolve();
 
 const GetIsolatedHosts = (): Promise<any[]> =>
-    (window as any)['go']?.['app']?.['NetworkIsolatorService']?.['GetIsolatedHosts']?.() ?? Promise.resolve([]);
+    (window as any)['go']?.['services']?.['NetworkIsolatorService']?.['GetIsolatedHosts']?.() ?? Promise.resolve([]);
 
 // ── severity → colour token ──────────────────────────────────────────────────
 const sevColor = (s: string) => {

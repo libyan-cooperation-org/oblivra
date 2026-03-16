@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetPlugins, Activate, Deactivate, Refresh } from '../../wailsjs/go/app/PluginService';
+import { GetPlugins, Activate, Deactivate, Refresh } from '../../wailsjs/go/services/PluginService';
 import { plugin } from '../../wailsjs/go/models';
 import { EmptyState } from '../components/ui/EmptyState';
 

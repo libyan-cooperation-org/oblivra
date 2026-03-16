@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetRuleVerifications } from '../../../wailsjs/go/app/AlertingService';
+import { GetRuleVerifications } from '../../../wailsjs/go/services/AlertingService';
 import { detection } from '../../../wailsjs/go/models';
 
 export const PolicyVerifier: Component = () => {

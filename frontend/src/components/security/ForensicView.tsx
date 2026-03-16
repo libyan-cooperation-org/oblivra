@@ -1,5 +1,5 @@
 import { Component, createResource, For, Show } from 'solid-js';
-import { AnalyzeFile, GetEvidence } from '../../../wailsjs/go/app/ForensicsService';
+import { AnalyzeFile, GetEvidence } from '../../../wailsjs/go/services/ForensicsService';
 
 interface ForensicViewProps {
     evidenceId: string;

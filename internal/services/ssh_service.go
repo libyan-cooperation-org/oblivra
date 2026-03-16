@@ -1075,9 +1075,10 @@ func (s *SSHService) Name() string {
 	return "ssh-service"
 }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// Note: eventbus is infrastructure wired at construction time, not a kernel-managed service.
 func (s *SSHService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 // GetActiveSessionForHost returns the first active SSH session ID for a given hostID.

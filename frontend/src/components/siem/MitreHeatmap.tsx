@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetAlertHistory, GetDetectionRules } from '../../../wailsjs/go/app/AlertingService';
+import { GetAlertHistory, GetDetectionRules } from '../../../wailsjs/go/services/AlertingService';
 
 const TACTICS = [
     { id: "TA0001", name: "Initial Access" },

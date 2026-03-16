@@ -20,9 +20,9 @@ type SyncService struct {
 
 func (s *SyncService) Name() string { return "sync-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *SyncService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewSyncService(engine *sync.SyncEngine, bus *eventbus.Bus, log *logger.Logger) *SyncService {

@@ -18,9 +18,9 @@ type SessionService struct {
 
 func (s *SessionService) Name() string { return "session-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *SessionService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *SessionService) Start(ctx context.Context) error {

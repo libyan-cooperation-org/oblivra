@@ -31,9 +31,10 @@ type SIEMService struct {
 
 func (s *SIEMService) Name() string { return "siem-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// eventbus is infrastructure wired at construction time, not a kernel-managed service.
 func (s *SIEMService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, bus *eventbus.Bus, log *logger.Logger) *SIEMService {

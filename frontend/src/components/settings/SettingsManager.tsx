@@ -1,14 +1,14 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { CertificateManager } from '../auth/CertificateManager';
 // Wails bindings
-import { GetAllHealth } from '../../../wailsjs/go/app/HealthService';
-import { CheckForUpdate, ApplyUpdate } from '../../../wailsjs/go/app/UpdaterService';
+import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
+import { CheckForUpdate, ApplyUpdate } from '../../../wailsjs/go/services/UpdaterService';
 import { AttestationTab } from './AttestationTab';
 import { TemporalTab } from './TemporalTab';
 import { DataDestructionTab } from './DataDestructionTab';
 import '@styles/settings.css';
 
-const settingsSvc = window.go?.app?.SettingsService;
+const settingsSvc = (window as any).go?.services?.SettingsService;
 // (Theme service was removed)
 
 export const SettingsManager: Component = () => {

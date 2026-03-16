@@ -4,7 +4,7 @@ import { HostTree } from './HostTree';
 import { QuickConnect } from './QuickConnect';
 import { AddHostModal } from './AddHostModal';
 import { database } from '../../../wailsjs/go/models';
-import { Delete, ListHosts } from '../../../wailsjs/go/app/HostService';
+import { Delete, ListHosts } from '../../../wailsjs/go/services/HostService';
 
 export const Sidebar: Component = () => {
   const [state, actions] = useApp();

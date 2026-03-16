@@ -68,7 +68,6 @@ type SIEMCluster struct {
 	LogSourceService *services.LogSourceService
 	Enrichment       *enrich.Pipeline
 	AgentService     *services.AgentService
-	TailingService   *services.TailingService
 	NDRService       *services.NDRService
 	UEBAService      *services.UEBAService
 	ForensicsService *services.ForensicsService

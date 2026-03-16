@@ -135,6 +135,9 @@ func (p *Pipeline) Start() {
 	go p.metricCollector()
 
 	for i := 0; i < numWorkers; i++ {
+		// wg.Add MUST be called before go, not inside the goroutine body,
+		// otherwise Shutdown()'s wg.Wait() can return before the worker starts.
+		p.wg.Add(1)
 		go p.worker()
 	}
 }
@@ -201,17 +204,20 @@ func (p *Pipeline) GetMetrics() MetricsSnapshot {
 }
 
 // worker reads from the channel, writes to the WAL, and routes to storage tiers.
+// NOTE: wg.Add(1) is called by the *caller* before launching this goroutine,
+// so that wg.Wait() in Shutdown() cannot return before the worker registers.
 func (p *Pipeline) worker() {
-	p.wg.Add(1)
 	defer p.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			p.log.Error("[INGEST] Worker panicked: %v. Restarting worker...", r)
 			select {
 			case <-p.ctx.Done():
-				// Don't restart if shutting down
+				// Shutting down — do not restart, let wg drain cleanly.
 			default:
-				go p.worker() // Restart the worker
+				// Add to WaitGroup before spawning to avoid the shutdown race.
+				p.wg.Add(1)
+				go p.worker()
 			}
 		}
 	}()

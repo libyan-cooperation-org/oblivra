@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/app/AlertingService';
+import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/services/AlertingService';
 import { database } from '../../../wailsjs/go/models';
 import { EmptyState } from '../ui/EmptyState';
 import '../../styles/siem.css';

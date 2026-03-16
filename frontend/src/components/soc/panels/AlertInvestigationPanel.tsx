@@ -1,6 +1,6 @@
 import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
-import { GetAlertHistory } from '../../../../wailsjs/go/app/AlertingService';
-import { ConnectToSession } from '../../../../wailsjs/go/app/SSHService';
+import { GetAlertHistory } from '../../../../wailsjs/go/services/AlertingService';
+import { ConnectToSession } from '../../../../wailsjs/go/services/SSHService';
 import { useToast } from '../../../core/toast';
 
 export const AlertInvestigationPanel: Component = () => {

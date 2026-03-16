@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
-import * as UEBAService from '../../../wailsjs/go/app/UEBAService';
-import * as GovernanceService from '../../../wailsjs/go/app/GovernanceService';
+import * as UEBAService from '../../../wailsjs/go/services/UEBAService';
+import * as GovernanceService from '../../../wailsjs/go/services/GovernanceService';
 import { ueba } from '../../../wailsjs/go/models';
 
 export const UEBAPanel: Component = () => {

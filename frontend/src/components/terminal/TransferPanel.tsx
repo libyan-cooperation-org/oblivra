@@ -1,15 +1,15 @@
 import { Component, createSignal, onCleanup, For, Show } from 'solid-js';
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
-import { app } from '../../../wailsjs/go/models';
-import { CancelTransfer, ClearTransfers } from '../../../wailsjs/go/app/SSHService';
+import { services } from '../../../wailsjs/go/models';
+import { CancelTransfer, ClearTransfers } from '../../../wailsjs/go/services/SSHService';
 import '../../styles/filebrowser.css'; // Reuse some existing styles
 
 export const TransferPanel: Component = () => {
-    const [transfers, setTransfers] = createSignal<app.TransferJob[]>([]);
+    const [transfers, setTransfers] = createSignal<services.TransferJob[]>([]);
     const [isOpen, setIsOpen] = createSignal(false);
 
     // Listen for real-time progress events
-    EventsOn('sftp_transfer_update', (job: app.TransferJob) => {
+    EventsOn('sftp_transfer_update', (job: services.TransferJob) => {
         setTransfers(prev => {
             const idx = prev.findIndex(t => t.id === job.id);
             if (idx >= 0) {
@@ -26,7 +26,7 @@ export const TransferPanel: Component = () => {
         }
     });
 
-    EventsOn('sftp_transfers_list', (jobs: app.TransferJob[]) => {
+    EventsOn('sftp_transfers_list', (jobs: services.TransferJob[]) => {
         setTransfers(jobs);
     });
 

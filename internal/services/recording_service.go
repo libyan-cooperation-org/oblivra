@@ -21,9 +21,9 @@ type RecordingService struct {
 // NewRecordingService bounds the recording manager to the app context
 func (s *RecordingService) Name() string { return "recording-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *RecordingService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewRecordingService(provider sharing.RecordingProvider, bus *eventbus.Bus, log *logger.Logger) *RecordingService {

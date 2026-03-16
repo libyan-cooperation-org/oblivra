@@ -208,7 +208,6 @@ func (c *Container) initSIEM(_ context.Context) error {
 	c.SIEM.SourceManager = logsources.NewSourceManager(c.Log)
 	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
 	c.SIEM.AgentService = services.NewAgentService(nil, c.Log)
-	c.SIEM.TailingService = services.NewTailingService(c.Infra.Bus, c.Log)
 
 	return nil
 }
@@ -290,82 +289,93 @@ func (c *Container) initPlatform() error {
 	return nil
 }
 
+// mustRegister registers a service and panics on duplicate or nil service.
+// Duplicate registration is a programming error in Init, not a recoverable runtime condition.
+func (c *Container) mustRegister(s platform.Service) {
+	if s == nil {
+		// Skip nil services — some are optional and only wired when hardware is present.
+		return
+	}
+	if err := c.Registry.Register(s); err != nil {
+		panic("container: " + err.Error())
+	}
+}
+
 func (c *Container) registerServices() {
 	// Infrastructure (early)
-	c.Registry.Register(c.Infra.Vault)
+	c.mustRegister(c.Infra.Vault)
 	
 	// Security
-	c.Registry.Register(c.Security.SecurityService)
-	c.Registry.Register(c.Security.IdentityService)
-	c.Registry.Register(c.Security.PolicyService)
-	c.Registry.Register(c.Security.TrustService)
-	c.Registry.Register(c.Security.CanaryDeployment)
-	c.Registry.Register(c.Security.MemorySecurity)
-	c.Registry.Register(c.Security.GovernanceService)
-	c.Registry.Register(c.Security.CredentialIntel)
-	c.Registry.Register(c.Security.Sentinel)
-	
+	c.mustRegister(c.Security.SecurityService)
+	c.mustRegister(c.Security.IdentityService)
+	c.mustRegister(c.Security.PolicyService)
+	c.mustRegister(c.Security.TrustService)
+	c.mustRegister(c.Security.CanaryDeployment)
+	c.mustRegister(c.Security.MemorySecurity)
+	c.mustRegister(c.Security.GovernanceService)
+	c.mustRegister(c.Security.CredentialIntel)
+	c.mustRegister(c.Security.Sentinel)
+
 	// SIEM
-	c.Registry.Register(c.SIEM.SIEMService)
-	c.Registry.Register(c.SIEM.IngestService)
-	c.Registry.Register(c.SIEM.AlertingService)
-	c.Registry.Register(c.SIEM.NDRService)
-	c.Registry.Register(c.SIEM.UEBAService)
-	c.Registry.Register(c.SIEM.ForensicsService)
-	c.Registry.Register(c.SIEM.LogSourceService)
-	c.Registry.Register(c.SIEM.AgentService)
-	c.Registry.Register(c.SIEM.TailingService)
-	
+	c.mustRegister(c.SIEM.SIEMService)
+	c.mustRegister(c.SIEM.IngestService)
+	c.mustRegister(c.SIEM.AlertingService)
+	c.mustRegister(c.SIEM.NDRService)
+	c.mustRegister(c.SIEM.UEBAService)
+	c.mustRegister(c.SIEM.ForensicsService)
+	c.mustRegister(c.SIEM.LogSourceService)
+	c.mustRegister(c.SIEM.AgentService)
+
 	// Product
-	c.Registry.Register(c.Product.HostService)
-	c.Registry.Register(c.Product.VaultService)
-	c.Registry.Register(c.Product.SSHService)
-	c.Registry.Register(c.Product.SessionService)
-	c.Registry.Register(c.Product.SettingsService)
-	c.Registry.Register(c.Product.SnippetService)
-	c.Registry.Register(c.Product.MultiExecService)
-	c.Registry.Register(c.Product.FileService)
-	c.Registry.Register(c.Product.WorkspaceService)
-	c.Registry.Register(c.Product.NotesService)
-	c.Registry.Register(c.Product.ShareService)
-	c.Registry.Register(c.Product.RecordingService)
-	c.Registry.Register(c.Product.ComplianceService)
-	c.Registry.Register(c.Product.TailingService)
-	c.Registry.Register(c.Product.TeamService)
-	
+	c.mustRegister(c.Product.HostService)
+	c.mustRegister(c.Product.VaultService)
+	c.mustRegister(c.Product.SSHService)
+	c.mustRegister(c.Product.SessionService)
+	c.mustRegister(c.Product.SettingsService)
+	c.mustRegister(c.Product.SnippetService)
+	c.mustRegister(c.Product.MultiExecService)
+	c.mustRegister(c.Product.FileService)
+	c.mustRegister(c.Product.WorkspaceService)
+	c.mustRegister(c.Product.NotesService)
+	c.mustRegister(c.Product.ShareService)
+	c.mustRegister(c.Product.RecordingService)
+	c.mustRegister(c.Product.ComplianceService)
+	c.mustRegister(c.Product.TailingService)
+	c.mustRegister(c.Product.TeamService)
+
 	// Platform
-	c.Registry.Register(c.Platform.HealthService)
-	c.Registry.Register(c.Platform.MetricsService)
-	c.Registry.Register(c.Platform.AIService)
-	c.Registry.Register(c.Platform.DiscoveryService)
-	c.Registry.Register(c.Platform.UpdaterService)
-	c.Registry.Register(c.Platform.SyncService)
-	c.Registry.Register(c.Platform.TunnelService)
-	c.Registry.Register(c.Platform.PluginService)
-	c.Registry.Register(c.Platform.LocalService)
-	c.Registry.Register(c.Platform.SyntheticService)
-	c.Registry.Register(c.Platform.BroadcastService)
-	c.Registry.Register(c.Platform.TelemetryService)
-	c.Registry.Register(c.Platform.DataLifecycleService)
-	c.Registry.Register(c.Platform.DisasterService)
-	c.Registry.Register(c.Platform.ResourceMonitor)
+	c.mustRegister(c.Platform.HealthService)
+	c.mustRegister(c.Platform.MetricsService)
+	c.mustRegister(c.Platform.AIService)
+	c.mustRegister(c.Platform.DiscoveryService)
+	c.mustRegister(c.Platform.UpdaterService)
+	c.mustRegister(c.Platform.SyncService)
+	c.mustRegister(c.Platform.TunnelService)
+	c.mustRegister(c.Platform.PluginService)
+	c.mustRegister(c.Platform.LocalService)
+	c.mustRegister(c.Platform.SyntheticService)
+	c.mustRegister(c.Platform.BroadcastService)
+	c.mustRegister(c.Platform.TelemetryService)
+	c.mustRegister(c.Platform.DataLifecycleService)
+	c.mustRegister(c.Platform.DisasterService)
+	c.mustRegister(c.Platform.ResourceMonitor)
 
 	// Intel
-	c.Registry.Register(c.Intel.AnalyticsService)
-	c.Registry.Register(c.Intel.RiskService)
-	c.Registry.Register(c.Intel.GraphService)
-	c.Registry.Register(c.Intel.DecisionService)
-	c.Registry.Register(c.Intel.CounterfactualService)
-	c.Registry.Register(c.Intel.LineageService)
-	c.Registry.Register(c.Intel.TemporalService)
+	c.mustRegister(c.Intel.AnalyticsService)
+	c.mustRegister(c.Intel.RiskService)
+	c.mustRegister(c.Intel.GraphService)
+	c.mustRegister(c.Intel.DecisionService)
+	c.mustRegister(c.Intel.CounterfactualService)
+	c.mustRegister(c.Intel.LineageService)
+	c.mustRegister(c.Intel.TemporalService)
 
 	// Response
-	c.Registry.Register(c.Response.IncidentService)
-	c.Registry.Register(c.Response.PlaybookService)
-	c.Registry.Register(c.Response.NetworkIsolatorService)
-	c.Registry.Register(c.Response.DeterministicResponse)
-	c.Registry.Register(c.Response.LedgerService)
-	c.Registry.Register(c.Response.RansomwareService)
+	c.mustRegister(c.Response.IncidentService)
+	c.mustRegister(c.Response.PlaybookService)
+	c.mustRegister(c.Response.NetworkIsolatorService)
+	c.mustRegister(c.Response.DeterministicResponse)
+	c.mustRegister(c.Response.LedgerService)
+	c.mustRegister(c.Response.RansomwareService)
 }
 
 func (c *Container) Close() {

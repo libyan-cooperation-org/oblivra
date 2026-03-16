@@ -1,5 +1,5 @@
 import { Component, For, Show, createSignal, createResource, onMount } from 'solid-js';
-import { SearchHostEvents } from '../../../../wailsjs/go/app/SIEMService';
+import { SearchHostEvents } from '../../../../wailsjs/go/services/SIEMService';
 
 export const LogSearchPanel: Component = () => {
     const [query, setQuery] = createSignal('*');

@@ -22,9 +22,9 @@ type IngestService struct {
 
 func (s *IngestService) Name() string { return "ingest-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *IngestService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 // NewIngestService injects the ingestion dependencies

@@ -1,5 +1,5 @@
 import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
-import { ListIncidents } from '../../../../wailsjs/go/app/IncidentService';
+import { ListIncidents } from '../../../../wailsjs/go/services/IncidentService';
 
 export const TimelineInvestigationPanel: Component = () => {
     const [incidents, { refetch }] = createResource(async () => {

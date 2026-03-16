@@ -12,7 +12,7 @@ export const RecordingPanel: Component = () => {
 
     const reload = async () => {
         try {
-            const { ListRecordings } = await import('../../../wailsjs/go/app/RecordingService');
+            const { ListRecordings } = await import('../../../wailsjs/go/services/RecordingService');
             setRecordings(await ListRecordings() || []);
         } catch (e) { console.error('Recording load:', e); }
         setLoading(false);
@@ -30,7 +30,7 @@ export const RecordingPanel: Component = () => {
 
         setSearching(true);
         try {
-            const { SearchRecordings } = await import('../../../wailsjs/go/app/RecordingService');
+            const { SearchRecordings } = await import('../../../wailsjs/go/services/RecordingService');
             const results = await SearchRecordings(query);
             setSearchResults(results || []);
         } catch (e) {
@@ -42,7 +42,7 @@ export const RecordingPanel: Component = () => {
 
     const handleDelete = async (id: string) => {
         try {
-            const { DeleteRecording } = await import('../../../wailsjs/go/app/RecordingService');
+            const { DeleteRecording } = await import('../../../wailsjs/go/services/RecordingService');
             await DeleteRecording(id);
             await reload();
         } catch (e) { console.error('Delete recording:', e); }
@@ -58,7 +58,7 @@ export const RecordingPanel: Component = () => {
             });
 
             if (filename) {
-                const { ExportRecording } = await import('../../../wailsjs/go/app/RecordingService');
+                const { ExportRecording } = await import('../../../wailsjs/go/services/RecordingService');
                 await ExportRecording(id, filename);
                 console.log('Exported to:', filename);
             }

@@ -1,5 +1,5 @@
 import { Component, createSignal } from 'solid-js';
-import { ClearDatabase } from '../../../wailsjs/go/app/SettingsService';
+import { ClearDatabase } from '../../../wailsjs/go/services/SettingsService';
 
 export const DataDestructionTab: Component = () => {
     const [confirmText, setConfirmText] = createSignal('');

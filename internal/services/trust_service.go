@@ -75,9 +75,11 @@ func NewRuntimeTrustService(bus *eventbus.Bus, log *logger.Logger, att *attestat
 
 func (s *RuntimeTrustService) Name() string { return "trust-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// vault must be ready before trust checks run. attestation is wired at construction,
+// not a kernel-managed service. eventbus is infrastructure, not a service.
 func (s *RuntimeTrustService) Dependencies() []string {
-	return []string{"eventbus", "attestation-service", "vault"}
+	return []string{"vault"}
 }
 
 func (s *RuntimeTrustService) Start(ctx context.Context) error {

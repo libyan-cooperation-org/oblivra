@@ -38,9 +38,9 @@ func NewNDRService(collector *ndr.FlowCollector, bus *eventbus.Bus, log *logger.
 
 func (s *NDRService) Name() string { return "ndr-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *NDRService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *NDRService) Start(ctx context.Context) error {

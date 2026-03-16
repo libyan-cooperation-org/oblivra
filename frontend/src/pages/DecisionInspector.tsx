@@ -9,8 +9,8 @@ export const DecisionInspector: Component = () => {
     const loadTraces = async () => {
         try {
             setLoading(true);
-            if (window.go?.app?.DecisionService) {
-                const data = await window.go.app.DecisionService.ListRecentDecisions(50);
+            if (window.go?.services?.DecisionService) {
+                const data = await window.go.services.DecisionService.ListRecentDecisions(50);
                 // Ensure latest are first
                 setTraces(data || []);
             }

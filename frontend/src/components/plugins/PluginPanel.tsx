@@ -6,7 +6,7 @@ export const PluginPanel: Component = () => {
 
     const reload = async () => {
         try {
-            const { GetPlugins } = await import('../../../wailsjs/go/app/PluginService');
+            const { GetPlugins } = await import('../../../wailsjs/go/services/PluginService');
             setPlugins(await GetPlugins() || []);
         } catch (e) { console.error('Plugins load:', e); }
         setLoading(false);
@@ -16,7 +16,7 @@ export const PluginPanel: Component = () => {
 
     const toggle = async (id: string, active: boolean) => {
         try {
-            const { Activate, Deactivate } = await import('../../../wailsjs/go/app/PluginService');
+            const { Activate, Deactivate } = await import('../../../wailsjs/go/services/PluginService');
             if (active) await Deactivate(id); else await Activate(id);
             await reload();
         } catch (e) { console.error('Plugin toggle:', e); }
@@ -26,7 +26,7 @@ export const PluginPanel: Component = () => {
         <div class="panel-container flex-column h-full">
             <div class="panel-header drawer-header">
                 <span class="panel-title drawer-title">Plugins</span>
-                <button class="action-btn sm" onClick={async () => { const { Refresh } = await import('../../../wailsjs/go/app/PluginService'); await Refresh(); await reload(); }}>↻ Refresh</button>
+                <button class="action-btn sm" onClick={async () => { const { Refresh } = await import('../../../wailsjs/go/services/PluginService'); await Refresh(); await reload(); }}>↻ Refresh</button>
             </div>
             <div class="panel-content flex-1 overflow-y p-8">
                 <Show when={loading()}><div class="placeholder-text">Loading...</div></Show>

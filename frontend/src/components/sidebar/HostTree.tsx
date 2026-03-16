@@ -1,8 +1,8 @@
 import { Component, For, Show, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { useApp } from '@core/store';
-import { DeployKey } from '../../../wailsjs/go/app/SSHService';
-import { WakeHost } from '../../../wailsjs/go/app/HostService';
+import { DeployKey } from '../../../wailsjs/go/services/SSHService';
+import { WakeHost } from '../../../wailsjs/go/services/HostService';
 import { database } from '../../../wailsjs/go/models';
 
 type Host = database.Host;

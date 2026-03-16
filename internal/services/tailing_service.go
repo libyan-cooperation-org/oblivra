@@ -41,9 +41,9 @@ func (s *TailingService) Name() string {
 	return "tailing-service"
 }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *TailingService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *TailingService) Start(ctx context.Context) error {

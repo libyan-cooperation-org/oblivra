@@ -1,8 +1,8 @@
 import { Component, createSignal, createResource, For, Show } from 'solid-js';
-import * as AnalyticsService from '../../../wailsjs/go/app/AnalyticsService';
+import * as AnalyticsService from '../../../wailsjs/go/services/AnalyticsService';
 import { ForensicView } from './ForensicView';
-import * as UEBAService from '../../../wailsjs/go/app/UEBAService';
-import * as IncidentService from '../../../wailsjs/go/app/IncidentService';
+import * as UEBAService from '../../../wailsjs/go/services/UEBAService';
+import * as IncidentService from '../../../wailsjs/go/services/IncidentService';
 import { ueba } from '../../../wailsjs/go/models';
 
 interface EntityProfile extends ueba.EntityProfile { }

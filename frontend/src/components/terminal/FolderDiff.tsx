@@ -1,7 +1,7 @@
 import { Component, createSignal, For, Show } from 'solid-js';
-import { CompareDirectories } from '../../../wailsjs/go/app/SSHService';
-import { Download, Upload } from '../../../wailsjs/go/app/FileService';
-import { app } from '../../../wailsjs/go/models';
+import { CompareDirectories } from '../../../wailsjs/go/services/SSHService';
+import { Download, Upload } from '../../../wailsjs/go/services/FileService';
+import { services } from '../../../wailsjs/go/models';
 import { useApp } from '../../core/store';
 import '../../styles/filebrowser.css';
 
@@ -15,7 +15,7 @@ export const FolderDiff: Component<FolderDiffProps> = (props) => {
     const [remotePath, setRemotePath] = createSignal<string>('/etc/nginx'); // Example default
     const [_state, actions] = useApp();
 
-    const [diff, setDiff] = createSignal<app.DirectoryDiff | null>(null);
+    const [diff, setDiff] = createSignal<services.DirectoryDiff | null>(null);
     const [loading, setLoading] = createSignal(false);
     const [error, setError] = createSignal('');
 
@@ -33,7 +33,7 @@ export const FolderDiff: Component<FolderDiffProps> = (props) => {
         }
     };
 
-    const handleSync = async (item: app.DiffItem, direction: 'to_remote' | 'to_local') => {
+    const handleSync = async (item: services.DiffItem, direction: 'to_remote' | 'to_local') => {
         try {
             const local = `${localPath()}\\${item.name}`; // Naive join, could use path logic
             const remote = `${remotePath()}/${item.name}`;

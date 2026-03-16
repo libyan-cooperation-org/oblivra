@@ -15,7 +15,7 @@ export const RuntimeTrust: Component = () => {
     const loadTrustState = async () => {
         setLoading(true);
         try {
-            const svc = (window as any).go?.app?.RuntimeTrustService;
+            const svc = (window as any).go?.services?.RuntimeTrustService;
             if (!svc) return;
 
             // Force a refresh

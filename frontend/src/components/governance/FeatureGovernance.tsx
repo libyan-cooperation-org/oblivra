@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetActiveTier, GetCapabilitiesMatrix, SetTier } from '../../../wailsjs/go/app/PolicyService';
+import { GetActiveTier, GetCapabilitiesMatrix, SetTier } from '../../../wailsjs/go/services/PolicyService';
 import '../../styles/siem.css';
 
 export const FeatureGovernance: Component = () => {

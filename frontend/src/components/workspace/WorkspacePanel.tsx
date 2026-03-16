@@ -8,7 +8,7 @@ export const WorkspacePanel: Component = () => {
 
     const reload = async () => {
         try {
-            const { GetAll, GetActive } = await import('../../../wailsjs/go/app/WorkspaceService');
+            const { GetAll, GetActive } = await import('../../../wailsjs/go/services/WorkspaceService');
             const [all, act] = await Promise.all([GetAll(), GetActive()]);
             setWorkspaces(all || []);
             setActive(act);
@@ -21,7 +21,7 @@ export const WorkspacePanel: Component = () => {
     const createWorkspace = async () => {
         if (!newName()) return;
         try {
-            const { Create } = await import('../../../wailsjs/go/app/WorkspaceService');
+            const { Create } = await import('../../../wailsjs/go/services/WorkspaceService');
             await Create(newName(), '', '');
             setNewName('');
             await reload();
@@ -30,7 +30,7 @@ export const WorkspacePanel: Component = () => {
 
     const activateWorkspace = async (id: string) => {
         try {
-            const { Activate } = await import('../../../wailsjs/go/app/WorkspaceService');
+            const { Activate } = await import('../../../wailsjs/go/services/WorkspaceService');
             await Activate(id);
             await reload();
         } catch (e) { console.error('Activate workspace:', e); }
@@ -38,7 +38,7 @@ export const WorkspacePanel: Component = () => {
 
     const deleteWorkspace = async (id: string) => {
         try {
-            const { Delete } = await import('../../../wailsjs/go/app/WorkspaceService');
+            const { Delete } = await import('../../../wailsjs/go/services/WorkspaceService');
             await Delete(id);
             await reload();
         } catch (e) { console.error('Delete workspace:', e); }

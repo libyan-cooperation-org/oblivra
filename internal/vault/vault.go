@@ -314,9 +314,21 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 
 	oldKey := DeriveKey(oldPassword, meta.Salt)
 	decrypted, err := Decrypt(oldKey, meta.Canary)
-	expectedCanary := []byte("oblivra")
-	if err != nil || subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
+	if err != nil {
 		return ErrWrongPassword
+	}
+	// Use the same verification path as Unlock: prefer CanaryHash (random canary),
+	// fall back to legacy static string only for vaults that predate the random canary.
+	if len(meta.CanaryHash) > 0 {
+		hasher := sha256.New()
+		hasher.Write(decrypted)
+		if subtle.ConstantTimeCompare(hasher.Sum(nil), meta.CanaryHash) != 1 {
+			return ErrWrongPassword
+		}
+	} else {
+		if subtle.ConstantTimeCompare(decrypted, []byte("oblivra")) != 1 {
+			return ErrWrongPassword
+		}
 	}
 
 	// 2. Generate new salt and derive new key

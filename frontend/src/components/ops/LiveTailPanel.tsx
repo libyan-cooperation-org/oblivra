@@ -1,6 +1,6 @@
 import { Component, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
-import { StartTailing, StopTailing } from '../../../wailsjs/go/app/TailingService';
-import { GetActiveSessions } from '../../../wailsjs/go/app/SSHService';
+import { StartTailing, StopTailing } from '../../../wailsjs/go/services/TailingService';
+import { GetActiveSessions } from '../../../wailsjs/go/services/SSHService';
 
 
 interface TailLog {

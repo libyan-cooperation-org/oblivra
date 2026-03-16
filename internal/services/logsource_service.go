@@ -81,9 +81,9 @@ type LogSourceService struct {
 
 func (s *LogSourceService) Name() string { return "log-source-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *LogSourceService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewLogSourceService(manager *logsources.SourceManager, ae analytics.Engine, bus *eventbus.Bus, log *logger.Logger) *LogSourceService {

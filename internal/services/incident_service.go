@@ -36,9 +36,9 @@ func NewIncidentService(
 
 func (s *IncidentService) Name() string { return "incident-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *IncidentService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *IncidentService) Start(ctx context.Context) error {

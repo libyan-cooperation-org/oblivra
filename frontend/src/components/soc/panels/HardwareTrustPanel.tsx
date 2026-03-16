@@ -1,5 +1,5 @@
 import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
-import { GetAggregatedStatus, GetTrustDriftMetrics } from '../../../../wailsjs/go/app/RuntimeTrustService';
+import { GetAggregatedStatus, GetTrustDriftMetrics } from '../../../../wailsjs/go/services/RuntimeTrustService';
 
 const statusColor = (s: string) => {
     if (s === 'TRUSTED')   return 'var(--status-online)';

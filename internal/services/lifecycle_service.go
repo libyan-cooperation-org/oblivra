@@ -47,9 +47,9 @@ type DataLifecycleService struct {
 
 func (s *DataLifecycleService) Name() string { return "lifecycle-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *DataLifecycleService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 // DefaultPolicies returns the baseline retention policies

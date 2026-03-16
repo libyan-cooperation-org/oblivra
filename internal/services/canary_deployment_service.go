@@ -56,9 +56,11 @@ func NewCanaryDeploymentService(
 
 func (s *CanaryDeploymentService) Name() string { return "canary-deploy-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// ssh-service must be started before canaries can be deployed via SFTP.
+// eventbus is infrastructure, not a kernel-managed service.
 func (s *CanaryDeploymentService) Dependencies() []string {
-	return []string{"eventbus", "ssh-service"}
+	return []string{"ssh-service"}
 }
 
 func (s *CanaryDeploymentService) Start(ctx context.Context) error {

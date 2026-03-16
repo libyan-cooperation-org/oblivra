@@ -8,7 +8,7 @@ export const SessionHistory: Component = () => {
 
     onMount(async () => {
         try {
-            const { GetHistory, GetAuditLogs } = await import('../../../wailsjs/go/app/SessionService');
+            const { GetHistory, GetAuditLogs } = await import('../../../wailsjs/go/services/SessionService');
             const [s, a] = await Promise.all([GetHistory(50), GetAuditLogs(50)]);
             setSessions(s || []);
             setAuditLogs(a || []);

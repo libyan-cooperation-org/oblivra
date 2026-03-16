@@ -1,5 +1,5 @@
 import { Component, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
-import { AddProbe, GetResults } from '../../../wailsjs/go/app/SyntheticService';
+import { AddProbe, GetResults } from '../../../wailsjs/go/services/SyntheticService';
 import { monitoring } from '../../../wailsjs/go/models';
 import { Card, Badge, Button } from '../ui/TacticalComponents';
 

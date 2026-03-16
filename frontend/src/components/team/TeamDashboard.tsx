@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { ListMembers, ListSecrets, GetTeamName, AddMember } from '../../../wailsjs/go/app/TeamService';
+import { ListMembers, ListSecrets, GetTeamName, AddMember } from '../../../wailsjs/go/services/TeamService';
 import { team } from '../../../wailsjs/go/models';
 import { Card, Button, Badge } from '../ui/TacticalComponents';
 import { showModal } from '../ui/ModalSystem';

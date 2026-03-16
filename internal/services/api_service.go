@@ -24,9 +24,10 @@ type APIService struct {
 
 func (s *APIService) Name() string { return "api-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// settings-service must be up so API keys can be loaded from the DB.
 func (s *APIService) Dependencies() []string {
-	return []string{"settings-service", "attestation-service", "eventbus"}
+	return []string{"settings-service"}
 }
 
 func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger) *APIService {

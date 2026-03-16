@@ -23,7 +23,7 @@ export const TemporalIntegrity: Component = () => {
     const [loading, setLoading]       = createSignal(true);
     const [loadErr, setLoadErr]       = createSignal('');
 
-    const svc = () => (window as any).go?.app?.TemporalService;
+    const svc = () => (window as any).go?.services?.TemporalService;
 
     const loadData = async () => {
         setLoadErr('');

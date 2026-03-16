@@ -1,6 +1,6 @@
 import { Component, createSignal, For } from 'solid-js';
 import { database } from '../../../wailsjs/go/models';
-import { Create, Update, ImportSSHConfig } from '../../../wailsjs/go/app/HostService';
+import { Create, Update, ImportSSHConfig } from '../../../wailsjs/go/services/HostService';
 import { useApp } from '@core/store';
 import { z } from 'zod';
 

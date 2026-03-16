@@ -1,5 +1,5 @@
 import { Component, createSignal, For, Show, createResource, onCleanup, createEffect } from 'solid-js';
-import * as Forensics from '../../../wailsjs/go/app/ForensicsService';
+import * as Forensics from '../../../wailsjs/go/services/ForensicsService';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import { ForensicView } from '../security/ForensicView';
 

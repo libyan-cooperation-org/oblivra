@@ -22,9 +22,9 @@ type HealthService struct {
 // Name returns the name of the service
 func (s *HealthService) Name() string { return "health-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *HealthService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 // NewHealthService creates a new HealthService

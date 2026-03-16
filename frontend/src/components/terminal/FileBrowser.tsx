@@ -8,8 +8,8 @@ import {
     Upload,
     ReadFile,
     WriteFile,
-} from '../../../wailsjs/go/app/FileService';
-import { app } from '../../../wailsjs/go/models';
+} from '../../../wailsjs/go/services/FileService';
+import { services } from '../../../wailsjs/go/models';
 import { useApp } from '../../core/store';
 import { FolderDiff } from './FolderDiff';
 import '../../styles/filebrowser.css';
@@ -23,10 +23,10 @@ interface FileBrowserProps {
 export const FileBrowser: Component<FileBrowserProps> = (props) => {
     const [state, actions] = useApp();
     const [currentPath, setCurrentPath] = createSignal(props.initialPath || '/');
-    const [files, setFiles] = createSignal<app.FileInfo[]>([]);
+    const [files, setFiles] = createSignal<services.FileInfo[]>([]);
     const [loading, setLoading] = createSignal(false);
     const [selectedItems, setSelectedItems] = createSignal<string[]>([]);
-    const [contextMenu, setContextMenu] = createSignal<{ x: number, y: number, item: app.FileInfo | null } | null>(null);
+    const [contextMenu, setContextMenu] = createSignal<{ x: number, y: number, item: services.FileInfo | null } | null>(null);
     const [showDiffMode, setShowDiffMode] = createSignal(false);
     const [isOver, setIsOver] = createSignal(false);
     const [panelWidth, setPanelWidth] = createSignal(380);
@@ -51,7 +51,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
         setLoading(true);
         try {
             const result = await provider.list(path);
-            const sorted = result.sort((a: app.FileInfo, b: app.FileInfo) => {
+            const sorted = result.sort((a: services.FileInfo, b: services.FileInfo) => {
                 if (a.is_dir && !b.is_dir) return -1;
                 if (!a.is_dir && b.is_dir) return 1;
                 return a.name.localeCompare(b.name);
@@ -82,7 +82,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
         });
     };
 
-    const handleDownload = async (item: app.FileInfo) => {
+    const handleDownload = async (item: services.FileInfo) => {
         if (item.is_dir) return;
         try {
             // @ts-ignore
@@ -146,7 +146,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
         }
     };
 
-    const handleItemDblClick = (item: app.FileInfo) => {
+    const handleItemDblClick = (item: services.FileInfo) => {
         if (item.is_dir) {
             const separator = currentPath().endsWith('/') ? '' : '/';
             const nextPath = currentPath() === '~' ? item.name : `${currentPath()}${separator}${item.name}`;
@@ -156,7 +156,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
         }
     };
 
-    const handleContextMenu = (e: MouseEvent, item: app.FileInfo | null) => {
+    const handleContextMenu = (e: MouseEvent, item: services.FileInfo | null) => {
         e.preventDefault();
         if (item) toggleSelection(item.name);
         setContextMenu({ x: e.clientX, y: e.clientY, item });
@@ -216,7 +216,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
         closeContextMenu();
     };
 
-    const onDragStart = (e: DragEvent, item: app.FileInfo) => {
+    const onDragStart = (e: DragEvent, item: services.FileInfo) => {
         if (!e.dataTransfer) return;
         const sep = currentPath().endsWith('/') ? '' : '/';
         const fullPath = currentPath() === '~' ? item.name : `${currentPath()}${sep}${item.name}`;

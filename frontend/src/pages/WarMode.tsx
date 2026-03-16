@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, Show } from 'solid-js';
-import * as DisasterService from '../../wailsjs/go/app/DisasterService';
+import * as DisasterService from '../../wailsjs/go/services/DisasterService';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const modeColor = (mode: string | undefined) => {

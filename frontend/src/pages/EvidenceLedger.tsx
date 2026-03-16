@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetChain, VerifyChain, ExportChain } from '../../wailsjs/go/app/LedgerService';
+import { GetChain, VerifyChain, ExportChain } from '../../wailsjs/go/services/LedgerService';
 
 interface LedgerBlock {
     index: number;

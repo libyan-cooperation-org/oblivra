@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { GetThreatIntelStats, LoadOfflineIOCs } from '../../../wailsjs/go/app/SIEMService';
+import { GetThreatIntelStats, LoadOfflineIOCs } from '../../../wailsjs/go/services/SIEMService';
 import { EmptyState } from '../ui/EmptyState';
 import { showModal } from '../ui/ModalSystem';
 

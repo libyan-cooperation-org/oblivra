@@ -45,9 +45,11 @@ type AlertingService struct {
 
 func (s *AlertingService) Name() string { return "alerting-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// siem-service must be started before alerting can process SIEM events.
+// eventbus is infrastructure wired at construction time, not a kernel-managed service.
 func (s *AlertingService) Dependencies() []string {
-	return []string{"siem-service", "eventbus"}
+	return []string{"siem-service"}
 }
 
 func NewAlertingService(alerts analytics.AlertProvider, notifier notifications.Notifier, ae analytics.Engine, sr database.SIEMStore, inc IncidentManager, evaluator *detection.Evaluator, bus *eventbus.Bus, log *logger.Logger) *AlertingService {

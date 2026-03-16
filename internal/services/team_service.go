@@ -22,9 +22,9 @@ type TeamService struct {
 
 func (s *TeamService) Name() string { return "team-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *TeamService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewTeamService(tv *team.TeamVault, bus *eventbus.Bus, log *logger.Logger) *TeamService {

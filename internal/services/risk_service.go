@@ -32,9 +32,9 @@ func NewRiskService(engine *risk.RiskEngine, bus *eventbus.Bus, log *logger.Logg
 
 func (s *RiskService) Name() string { return "risk-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *RiskService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *RiskService) Start(ctx context.Context) error {

@@ -20,9 +20,9 @@ type PluginService struct {
 
 func (s *PluginService) Name() string { return "plugin-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *PluginService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewPluginService(bus *eventbus.Bus, log *logger.Logger) *PluginService {

@@ -23,7 +23,7 @@ interface TunnelManagerProps {
     sessionId: string;
 }
 
-const tunnelSvc = (window as any).go?.app?.TunnelService;
+const tunnelSvc = (window as any).go?.services?.TunnelService;
 
 export const TunnelManager: Component<TunnelManagerProps> = (props) => {
     const [tunnels, setTunnels] = createSignal<TunnelInfo[]>([]);

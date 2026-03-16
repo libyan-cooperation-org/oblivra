@@ -1,5 +1,5 @@
 import { Component, createResource, For, Show } from 'solid-js';
-import { GetRiskHistory } from '../../wailsjs/go/app/RiskService';
+import { GetRiskHistory } from '../../wailsjs/go/services/RiskService';
 
 export const ConfigRisk: Component = () => {
     const [history, { refetch }] = createResource(() => GetRiskHistory());

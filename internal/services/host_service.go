@@ -32,9 +32,10 @@ type HostService struct {
 
 func (s *HostService) Name() string { return "host-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// Note: eventbus is infrastructure wired at construction time, not a kernel-managed service.
 func (s *HostService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 func NewHostService(db database.DatabaseStore, v vault.Provider, repo database.HostStore, bus *eventbus.Bus, log *logger.Logger) *HostService {

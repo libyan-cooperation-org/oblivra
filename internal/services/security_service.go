@@ -23,9 +23,9 @@ type SecurityService struct {
 
 func (s *SecurityService) Name() string { return "security-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *SecurityService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 // NewSecurityService creates the Wails binding for FIDO2 and YubiKey functionality

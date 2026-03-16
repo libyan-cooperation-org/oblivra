@@ -37,9 +37,9 @@ type Message struct {
 
 func (s *AIService) Name() string { return "ai-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *AIService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewAIService(v vault.Provider, bus *eventbus.Bus, log *logger.Logger) *AIService {

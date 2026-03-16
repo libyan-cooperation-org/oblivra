@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetLiveTraffic } from '../../../wailsjs/go/app/NDRService';
+import { GetLiveTraffic } from '../../../wailsjs/go/services/NDRService';
 
 interface Flow {
     timestamp: string;

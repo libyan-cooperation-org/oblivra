@@ -30,9 +30,9 @@ type SnippetService struct {
 
 func (s *SnippetService) Name() string { return "snippet-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *SnippetService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewSnippetService(repo database.SnippetStore, sshSvc SessionExecutor, teamSvc *TeamService, bus *eventbus.Bus, log *logger.Logger) *SnippetService {

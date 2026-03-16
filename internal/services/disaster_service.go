@@ -66,9 +66,9 @@ type DisasterService struct {
 // Name returns the service name.
 func (s *DisasterService) Name() string { return "disaster-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *DisasterService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 // NewDisasterService creates a new disaster recovery service.

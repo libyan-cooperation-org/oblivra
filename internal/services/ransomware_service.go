@@ -32,9 +32,9 @@ func NewRansomwareService(
 
 func (s *RansomwareService) Name() string { return "ransomware-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *RansomwareService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *RansomwareService) Start(ctx context.Context) error {

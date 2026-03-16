@@ -26,7 +26,7 @@ export const PasswordVault: Component = () => {
     const loadCredentials = async () => {
         try {
             // @ts-ignore
-            const creds = await window.go?.app?.VaultService?.ListCredentials(typeFilter());
+            const creds = await window.go?.services?.VaultService?.ListCredentials(typeFilter());
             if (creds) setCredentials(creds);
         } catch (e) {
             console.error('[VAULT] Failed to load credentials:', e);
@@ -45,7 +45,7 @@ export const PasswordVault: Component = () => {
     const handleGenerate = async () => {
         try {
             // @ts-ignore
-            const pass = await window.go?.app?.VaultService?.GeneratePassword(passLength(), includeSymbols());
+            const pass = await window.go?.services?.VaultService?.GeneratePassword(passLength(), includeSymbols());
             if (pass) { setGeneratedPass(pass); setNewData(pass); }
         } catch {
             const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' + (includeSymbols() ? '!@#$%^&*()-_=+[]{}|;:,.<>?' : '');
@@ -60,7 +60,7 @@ export const PasswordVault: Component = () => {
         if (!newLabel() || !newData()) return;
         try {
             // @ts-ignore
-            await window.go?.app?.VaultService?.AddCredential(newLabel(), newType(), newData());
+            await window.go?.services?.VaultService?.AddCredential(newLabel(), newType(), newData());
             setShowAdd(false); setNewLabel(''); setNewType('password'); setNewData(''); setGeneratedPass('');
             await loadCredentials();
         } catch (e) { console.error('[VAULT] Add failed:', e); }
@@ -70,7 +70,7 @@ export const PasswordVault: Component = () => {
         if (revealedId() === id) { setRevealedId(null); setRevealedData(''); return; }
         try {
             // @ts-ignore
-            const data = await window.go?.app?.VaultService?.GetDecryptedCredential(id);
+            const data = await window.go?.services?.VaultService?.GetDecryptedCredential(id);
             if (data) { setRevealedId(id); setRevealedData(data); }
         } catch (e) { console.error('[VAULT] Decrypt failed:', e); }
     };
@@ -78,7 +78,7 @@ export const PasswordVault: Component = () => {
     const handleCopy = async (id: string) => {
         try {
             // @ts-ignore
-            const data = await window.go?.app?.VaultService?.GetDecryptedCredential(id);
+            const data = await window.go?.services?.VaultService?.GetDecryptedCredential(id);
             if (data) { await navigator.clipboard.writeText(data); setCopied(id); setTimeout(() => setCopied(null), 2000); }
         } catch (e) { console.error('[VAULT] Copy failed:', e); }
     };
@@ -87,7 +87,7 @@ export const PasswordVault: Component = () => {
         if (!confirm('Permanently delete this credential?')) return;
         try {
             // @ts-ignore
-            await window.go?.app?.VaultService?.DeleteCredential(id);
+            await window.go?.services?.VaultService?.DeleteCredential(id);
             await loadCredentials();
         } catch (e) { console.error('[VAULT] Delete failed:', e); }
     };

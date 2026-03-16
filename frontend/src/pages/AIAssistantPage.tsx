@@ -1,5 +1,5 @@
 import { Component, createSignal, For, onMount, Show } from 'solid-js';
-import { GetChatHistory, SendMessage } from '../../wailsjs/go/app/AIService';
+import { GetChatHistory, SendMessage } from '../../wailsjs/go/services/AIService';
 
 interface Message {
     role: 'user' | 'assistant' | 'system';

@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For } from 'solid-js';
-import { GetSubGraph } from '../../../wailsjs/go/app/GraphService';
+import { GetSubGraph } from '../../../wailsjs/go/services/GraphService';
 
 interface GraphNode {
     id: string;

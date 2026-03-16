@@ -26,12 +26,12 @@ import { TimelineInvestigationPanel } from './panels/TimelineInvestigationPanel'
 import { MitreAttackPanel }           from './panels/MitreAttackPanel';
 import { HardwareTrustPanel }         from './panels/HardwareTrustPanel';
 import { ThreatGraphPanel }           from './panels/ThreatGraphPanel';
-import { GetAllMetrics }    from '../../../wailsjs/go/app/MetricsService';
-import { GetAllHealth }     from '../../../wailsjs/go/app/HealthService';
+import { GetAllMetrics }    from '../../../wailsjs/go/services/MetricsService';
+import { GetAllHealth }     from '../../../wailsjs/go/services/HealthService';
 import {
     ActivateAirGapMode, ActivateKillSwitch,
     DeactivateKillSwitch, TriggerNuclearDestruction, GetMode,
-} from '../../../wailsjs/go/app/DisasterService';
+} from '../../../wailsjs/go/services/DisasterService';
 
 // ── Layout storage helpers ────────────────────────────────────────────────────
 const LAYOUT_KEY   = 'sov-soc-layout';

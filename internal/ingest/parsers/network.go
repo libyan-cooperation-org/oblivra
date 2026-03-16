@@ -32,10 +32,10 @@ func (p *NetworkFirewallParser) CanParse(line string) bool {
 func (p *NetworkFirewallParser) Parse(info Info, event *database.HostEvent) error {
 	line := info.RawLine
 
-	if match := p.paloRegex.FindStringSubmatch(line); match != nil && len(match) >= 3 {
+	if match := p.paloRegex.FindStringSubmatch(line); len(match) >= 4 {
 		action := match[1]
-		srcIP := match[2]
-		// dstIP := match[3]
+		srcIP := match[3]
+		// dstIP := match[4]
 
 		event.SourceIP = srcIP
 

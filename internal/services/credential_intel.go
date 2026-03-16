@@ -39,9 +39,9 @@ func NewCredentialIntelService(bus *eventbus.Bus, log *logger.Logger) *Credentia
 
 func (s *CredentialIntelService) Name() string { return "credential-intel-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *CredentialIntelService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 // Startup now accepts a context.Context

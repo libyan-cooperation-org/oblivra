@@ -1,5 +1,5 @@
 import { Component, For, Show, createResource, onMount, onCleanup } from 'solid-js';
-import { GetSubGraph } from '../../../../wailsjs/go/app/GraphService';
+import { GetSubGraph } from '../../../../wailsjs/go/services/GraphService';
 
 const nodeColor = (type: string) => {
     if (type === 'PROCESS') return 'var(--accent-secondary)';

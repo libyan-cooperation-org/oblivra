@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetHeatmapData, GetAnomalies, GetRiskScore } from '../../wailsjs/go/app/CredentialIntelService';
+import { GetHeatmapData, GetAnomalies, GetRiskScore } from '../../wailsjs/go/services/CredentialIntelService';
 
 interface Anomaly {
     type: string;

@@ -43,10 +43,10 @@ export const UsersPanel: Component = () => {
     onMount(async () => {
         try {
             // @ts-ignore - Wails runtime bindings
-            if ((window as any).go?.app?.IdentityService) {
-                const u = await (window as any).go.app.IdentityService.ListUsers();
+            if ((window as any).go?.services?.IdentityService) {
+                const u = await (window as any).go.services.IdentityService.ListUsers();
                 if (u) setUsers(u);
-                const r = await (window as any).go.app.IdentityService.ListRoles();
+                const r = await (window as any).go.services.IdentityService.ListRoles();
                 if (r) setRoles(r);
             } else {
                 // Demo data for development
@@ -67,9 +67,9 @@ export const UsersPanel: Component = () => {
     const handleCreateUser = async () => {
         try {
             // @ts-ignore
-            if ((window as any).go?.app?.IdentityService) {
-                await (window as any).go.app.IdentityService.CreateUser(newEmail(), newName(), newPassword(), newRoleId());
-                const u = await (window as any).go.app.IdentityService.ListUsers();
+            if ((window as any).go?.services?.IdentityService) {
+                await (window as any).go.services.IdentityService.CreateUser(newEmail(), newName(), newPassword(), newRoleId());
+                const u = await (window as any).go.services.IdentityService.ListUsers();
                 if (u) setUsers(u);
             }
         } catch (e) {
@@ -82,9 +82,9 @@ export const UsersPanel: Component = () => {
     const handleCreateRole = async () => {
         try {
             // @ts-ignore
-            if ((window as any).go?.app?.IdentityService) {
-                await (window as any).go.app.IdentityService.CreateRole(roleName(), roleDesc(), []);
-                const r = await (window as any).go.app.IdentityService.ListRoles();
+            if ((window as any).go?.services?.IdentityService) {
+                await (window as any).go.services.IdentityService.CreateRole(roleName(), roleDesc(), []);
+                const r = await (window as any).go.services.IdentityService.ListRoles();
                 if (r) setRoles(r);
             }
         } catch (e) {

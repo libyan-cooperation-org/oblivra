@@ -10,7 +10,7 @@ export const UpdaterPanel: Component = () => {
         setChecking(true);
         setResult(null);
         try {
-            const { CheckForUpdate } = await import('../../../wailsjs/go/app/UpdaterService');
+            const { CheckForUpdate } = await import('../../../wailsjs/go/services/UpdaterService');
             const info = await CheckForUpdate();
             setUpdateInfo(info);
             if (!info || !info.available) setResult('You are on the latest version ✓');
@@ -21,7 +21,7 @@ export const UpdaterPanel: Component = () => {
     const applyUpdate = async () => {
         setApplying(true);
         try {
-            const { ApplyUpdate } = await import('../../../wailsjs/go/app/UpdaterService');
+            const { ApplyUpdate } = await import('../../../wailsjs/go/services/UpdaterService');
             await ApplyUpdate();
             setResult('Update applied! Restart to complete.');
         } catch (e) { setResult(`Update failed: ${(e as Error)?.message || e}`); }

@@ -1,5 +1,5 @@
 import { Component, For, Show, createResource } from 'solid-js';
-import { GetCapabilitiesMatrix } from '../../../../wailsjs/go/app/PolicyService';
+import { GetCapabilitiesMatrix } from '../../../../wailsjs/go/services/PolicyService';
 
 const tactics = [
     { name: 'Initial Access',         technique: 'T1190 — Exploit Public-Facing App' },

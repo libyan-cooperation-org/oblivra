@@ -34,9 +34,9 @@ type TunnelService struct {
 
 func (s *TunnelService) Name() string { return "tunnel-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *TunnelService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *TunnelService) Start(ctx context.Context) error {

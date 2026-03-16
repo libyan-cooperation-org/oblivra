@@ -9,7 +9,7 @@ export const NotesPanel: Component<{ sessionId?: string }> = (props) => {
 
     const reload = async () => {
         try {
-            const { GetNotes, GetRunbooks } = await import('../../../wailsjs/go/app/NotesService');
+            const { GetNotes, GetRunbooks } = await import('../../../wailsjs/go/services/NotesService');
             const [n, r] = await Promise.all([GetNotes(props.sessionId || ''), GetRunbooks(props.sessionId || '')]);
             setNotes(n || []);
             setRunbooks(r || []);
@@ -23,7 +23,7 @@ export const NotesPanel: Component<{ sessionId?: string }> = (props) => {
         const note = editNote();
         if (!note) return;
         try {
-            const { SaveNote } = await import('../../../wailsjs/go/app/NotesService');
+            const { SaveNote } = await import('../../../wailsjs/go/services/NotesService');
             await SaveNote(note);
             setEditNote(null);
             await reload();
@@ -32,7 +32,7 @@ export const NotesPanel: Component<{ sessionId?: string }> = (props) => {
 
     const deleteNote = async (id: string) => {
         try {
-            const { DeleteNote } = await import('../../../wailsjs/go/app/NotesService');
+            const { DeleteNote } = await import('../../../wailsjs/go/services/NotesService');
             await DeleteNote(id);
             await reload();
         } catch (e) { console.error('Delete note:', e); }

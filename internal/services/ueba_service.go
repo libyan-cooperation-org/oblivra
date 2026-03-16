@@ -32,9 +32,9 @@ func NewUEBAService(engine UEBAManager, bus *eventbus.Bus, log *logger.Logger) *
 
 func (s *UEBAService) Name() string { return "ueba-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *UEBAService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *UEBAService) Start(ctx context.Context) error {

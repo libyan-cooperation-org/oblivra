@@ -20,9 +20,9 @@ type WorkspaceService struct {
 
 func (s *WorkspaceService) Name() string { return "workspace-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *WorkspaceService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewWorkspaceService(manager *workspace.WorkspaceManager, bus *eventbus.Bus, log *logger.Logger) *WorkspaceService {

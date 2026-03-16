@@ -1,5 +1,5 @@
 import { Component, createSignal, Show, onMount, onCleanup, For } from 'solid-js';
-import { CreateShare, GetSharesBySession, RevokeShare, GetViewers } from '../../../wailsjs/go/app/ShareService';
+import { CreateShare, GetSharesBySession, RevokeShare, GetViewers } from '../../../wailsjs/go/services/ShareService';
 
 export const SessionShareModal: Component<{ sessionId: string; hostLabel: string; onClose: () => void }> = (props) => {
     const [mode, setMode] = createSignal<string>('observe');

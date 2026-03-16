@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { Create, List, Delete, ExecuteSnippet, ExtractVariables } from '../../../wailsjs/go/app/SnippetService';
+import { Create, List, Delete, ExecuteSnippet, ExtractVariables } from '../../../wailsjs/go/services/SnippetService';
 
 export const SnippetVault: Component = () => {
     const [state] = useApp();

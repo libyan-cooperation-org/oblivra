@@ -8,10 +8,10 @@ export const LineageExplorer: Component = () => {
 
     const loadData = async () => {
         try {
-            if (window.go?.app?.LineageService) {
+            if (window.go?.services?.LineageService) {
                 const [recs, st] = await Promise.all([
-                    window.go.app.LineageService.GetRecentLineage(100),
-                    window.go.app.LineageService.GetStats()
+                    window.go.services.LineageService.GetRecentLineage(100),
+                    window.go.services.LineageService.GetStats()
                 ]);
                 setRecords(recs || []);
                 setStats(st);

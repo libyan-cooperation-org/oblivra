@@ -10,7 +10,7 @@ interface ExecutionSignature {
     final_hash: string;
 }
 
-const svc = () => (window as any).go?.app?.DeterministicResponseService;
+const svc = () => (window as any).go?.services?.DeterministicResponseService;
 
 const FieldRow: Component<{ label: string; value: string; accent?: string }> = (p) => (
     <div style={{ display: 'contents' }}>

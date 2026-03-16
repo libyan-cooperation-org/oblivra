@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { SSHListCertificates } from '../../../wailsjs/go/app/SecurityService';
+import { SSHListCertificates } from '../../../wailsjs/go/services/SecurityService';
 import { ssh } from '../../../wailsjs/go/models';
 
 export const CertificateManager: Component = () => {

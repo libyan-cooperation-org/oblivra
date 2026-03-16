@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import * as echarts from 'echarts';
 import { ChartBlock } from './ChartBlock';
-import { GetActiveSessions } from '../../../wailsjs/go/app/SSHService';
+import { GetActiveSessions } from '../../../wailsjs/go/services/SSHService';
 
 export const BandwidthMonitor: Component = () => {
     // Array of { time: string, in: number, out: number }

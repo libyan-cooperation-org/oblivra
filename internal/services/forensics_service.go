@@ -25,9 +25,9 @@ type ForensicsService struct {
 // Name returns the service name.
 func (s *ForensicsService) Name() string { return "forensics-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *ForensicsService) Dependencies() []string {
-	return []string{"vault", "eventbus"}
+	return []string{"vault"}
 }
 
 // NewForensicsService creates a new forensics service.

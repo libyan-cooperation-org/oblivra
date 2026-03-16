@@ -305,6 +305,30 @@
     border: 1px solid rgba(248, 81, 73, 0.3);
 }
 
+.compliance-badge.unknown {
+    background: rgba(139, 148, 158, 0.08);
+    color: #8b949e;
+    border: 1px solid rgba(139, 148, 158, 0.2);
+}
+
+/* Loading shimmer for KPI values that are fetching */
+.kpi-loading {
+    color: var(--text-muted);
+    animation: kpi-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes kpi-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Last-run caption in lifecycle card */
+.lifecycle-last-run {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 12px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 1200px) {
     .exec-kpi-grid {

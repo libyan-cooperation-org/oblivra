@@ -1,8 +1,8 @@
 import { Component, Show, For } from 'solid-js';
 import { useApp } from '@core/store';
 import { TerminalView } from './Terminal';
-import { Disconnect, SendInput as SendSSHInput, Resize as ResizeSSH } from '../../../wailsjs/go/app/SSHService';
-import { SendInput as SendLocalInput, Resize as ResizeLocal, CloseSession } from '../../../wailsjs/go/app/LocalService';
+import { Disconnect, SendInput as SendSSHInput, Resize as ResizeSSH } from '../../../wailsjs/go/services/SSHService';
+import { SendInput as SendLocalInput, Resize as ResizeLocal, CloseSession } from '../../../wailsjs/go/services/LocalService';
 
 export const TerminalLayout: Component = () => {
     const [state, actions] = useApp();

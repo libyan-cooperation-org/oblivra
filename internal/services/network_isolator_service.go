@@ -47,9 +47,11 @@ func NewNetworkIsolatorService(ssh SSHManager, playbook PlaybookProvider, bus *e
 
 func (s *NetworkIsolatorService) Name() string { return "network-isolator-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
+// ssh-service and playbook-service must be ready before isolation commands can execute.
+// eventbus is infrastructure, not a kernel-managed service.
 func (s *NetworkIsolatorService) Dependencies() []string {
-	return []string{"eventbus", "ssh-service", "playbook-service"}
+	return []string{"ssh-service", "playbook-service"}
 }
 
 func (s *NetworkIsolatorService) Start(ctx context.Context) error {

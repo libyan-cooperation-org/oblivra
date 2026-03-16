@@ -9,7 +9,7 @@ import {
     ExportCSV, ExportJSON,
     TestConnection,
     StartLokiStream, StopLokiStream
-} from '../../../wailsjs/go/app/LogSourceService';
+} from '../../../wailsjs/go/services/LogSourceService';
 
 const emptySource: LogSource = {
     id: '', name: '', type: 'elasticsearch', url: '', enabled: true,

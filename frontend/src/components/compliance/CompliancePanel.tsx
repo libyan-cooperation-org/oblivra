@@ -6,7 +6,7 @@ export const CompliancePanel: Component = () => {
 
     const reload = async () => {
         try {
-            const { ListReports } = await import('../../../wailsjs/go/app/ComplianceService');
+            const { ListReports } = await import('../../../wailsjs/go/services/ComplianceService');
             setReports(await ListReports() || []);
         } catch (e) { console.error('Compliance load:', e); }
         setLoading(false);
@@ -17,7 +17,7 @@ export const CompliancePanel: Component = () => {
     const generate = async () => {
         setLoading(true);
         try {
-            const { GenerateReport } = await import('../../../wailsjs/go/app/ComplianceService');
+            const { GenerateReport } = await import('../../../wailsjs/go/services/ComplianceService');
             const now = Date.now();
             await GenerateReport('SOC2', now - 30 * 24 * 3600 * 1000, now);
             await reload();

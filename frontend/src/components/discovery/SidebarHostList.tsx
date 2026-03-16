@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { DiscoverAll as DiscoverNetwork } from '../../../wailsjs/go/app/DiscoveryService';
+import { DiscoverAll as DiscoverNetwork } from '../../../wailsjs/go/services/DiscoveryService';
 import { discovery } from '../../../wailsjs/go/models';
 import { useApp } from '@core/store';
 

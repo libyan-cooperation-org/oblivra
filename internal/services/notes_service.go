@@ -20,9 +20,9 @@ type NotesService struct {
 
 func (s *NotesService) Name() string { return "notes-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *NotesService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func NewNotesService(manager *notes.NotesManager, bus *eventbus.Bus, log *logger.Logger) *NotesService {

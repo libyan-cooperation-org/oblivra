@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, For } from 'solid-js';
-import * as MetricsService from '../../../wailsjs/go/app/MetricsService';
-import * as ObservabilityService from '../../../wailsjs/go/app/ObservabilityService';
+import * as MetricsService from '../../../wailsjs/go/services/MetricsService';
+import * as ObservabilityService from '../../../wailsjs/go/services/ObservabilityService';
 import { monitoring } from '../../../wailsjs/go/models';
 
 export const SelfMonitor: Component = () => {

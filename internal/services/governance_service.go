@@ -39,9 +39,9 @@ func NewGovernanceService(bus *eventbus.Bus, log *logger.Logger) *GovernanceServ
 
 func (s *GovernanceService) Name() string { return "governance-service" }
 
-// Dependencies returns service dependencies
+// Dependencies returns service dependencies.
 func (s *GovernanceService) Dependencies() []string {
-	return []string{"eventbus"}
+	return []string{}
 }
 
 func (s *GovernanceService) Start(ctx context.Context) error {

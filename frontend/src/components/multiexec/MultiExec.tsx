@@ -16,8 +16,8 @@ interface MultiExecResult {
     error?: string;
 }
 
-const hostSvc = (window as any).go?.app?.HostService;
-const multiExecSvc = (window as any).go?.app?.MultiExecService;
+const hostSvc = (window as any).go?.services?.HostService;
+const multiExecSvc = (window as any).go?.services?.MultiExecService;
 
 export const MultiExec: Component = () => {
     const [hosts, setHosts] = createSignal<Host[]>([]);

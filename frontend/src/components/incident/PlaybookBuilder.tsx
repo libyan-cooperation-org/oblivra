@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { RunPlaybook } from '../../../wailsjs/go/app/PlaybookService';
-import { GetTimeline } from '../../../wailsjs/go/app/IncidentService';
+import { RunPlaybook } from '../../../wailsjs/go/services/PlaybookService';
+import { GetTimeline } from '../../../wailsjs/go/services/IncidentService';
 import { database } from '../../../wailsjs/go/models';
 
 export const PlaybookBuilder: Component<{ incident: database.Incident }> = (props) => {
