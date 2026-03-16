@@ -58,6 +58,7 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
     const sep = () => <span style="color: var(--border-secondary); font-family: var(--font-mono);">|</span>;
 
     return (
+    <>
         <footer style="
             display: flex;
             align-items: center;
@@ -163,5 +164,6 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
         <Show when={showDiag()}>
             <DiagnosticsModal onClose={() => setShowDiag(false)} />
         </Show>
+    </>
     );
 };

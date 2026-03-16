@@ -132,7 +132,7 @@ func TestIntegrationSmoke(t *testing.T) {
 	})
 
 	t.Run("Diagnostics_Snapshot", func(t *testing.T) {
-		snap := application.DiagnosticsService.GetSnapshot()
+		snap := application.DiagnosticsService.Snapshot()
 		if snap.HealthGrade == "" {
 			t.Error("expected non-empty health grade in diagnostics snapshot")
 		}

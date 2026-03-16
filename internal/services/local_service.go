@@ -75,7 +75,15 @@ func (s *LocalService) Stop(ctx context.Context) error {
 // StartLocalSession creates and starts a new local terminal session.
 // On Linux/macOS this spawns a real PTY via creack/pty for full terminal
 // emulation (cursor, colours, resize). On Windows it falls back to pipes.
-func (s *LocalService) StartLocalSession() (string, error) {
+func (s *LocalService) StartLocalSession() (sessionID string, retErr error) {
+	// Catch any panic from ConPTY / syscall layer so the whole app doesn't crash.
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("[LOCAL] StartLocalSession panic recovered: %v", r)
+			retErr = fmt.Errorf("terminal startup panic: %v", r)
+		}
+	}()
+
 	id := uuid.New().String()
 	s.log.Info("Starting local session %s", id)
 
@@ -95,7 +103,13 @@ func (s *LocalService) StartLocalSession() (string, error) {
 	// Use the platform-specific PTY abstraction (creack/pty on unix, pipes on windows)
 	ps, err := startPTY(cmd, 120, 40)
 	if err != nil {
-		return "", fmt.Errorf("start pty session: %w", err)
+		// ConPTY failed — try plain pipe mode as last resort
+		s.log.Warn("[LOCAL] startPTY failed (%v), falling back to pipe mode", err)
+		var pipeErr error
+		ps, pipeErr = startPTYPipeMode(cmd)
+		if pipeErr != nil {
+			return "", fmt.Errorf("start pty session: %w (pipe fallback: %v)", err, pipeErr)
+		}
 	}
 
 	// Per-session cancel context for read goroutines
@@ -183,12 +197,14 @@ func (s *LocalService) pump(ctx context.Context, sessionID string, r io.Reader) 
 
 // waitExit waits for the shell process to finish and cleans up.
 func (s *LocalService) waitExit(sessionID string, cmd *exec.Cmd) {
-	// cmd.Wait() is only safe if cmd.Start() was called (pipe mode).
-	// For ConPTY mode on Windows, cmd.Process is set directly and
-	// cmd.ProcessState may be nil — guard against that.
-	if cmd.Process != nil {
-		// Use Process.Wait() directly to avoid the exec.Cmd bookkeeping panic
-		// that occurs when Start() was never invoked.
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Warn("[LOCAL] waitExit recovered from panic (session %s): %v", sessionID, r)
+		}
+	}()
+	if cmd != nil && cmd.Process != nil {
+		// Process.Wait() is safe even when cmd.Start() was never called.
+		// exec.Cmd.Wait() panics if Start() was not used — use the lower-level call.
 		cmd.Process.Wait() //nolint:errcheck
 	}
 	time.Sleep(50 * time.Millisecond) // let buffered output flush
@@ -254,16 +270,22 @@ func (s *LocalService) cleanup(sessionID string, processExited bool) error {
 
 	sess.cancel()
 
-	// Close PTY-specific resources first
 	if sess.pty != nil && sess.pty.closer != nil {
-		sess.pty.closer()
-	} else if sess.stdin != nil {
-		sess.stdin.Close()
-	}
-
-	if !processExited && sess.cmd.Process != nil {
-		sess.cmd.Process.Kill()
-		sess.cmd.Wait()
+		// PTY mode: closer owns all handles including the process handle.
+		// Kill the process first (if still running), then let closer release handles.
+		if !processExited && sess.cmd != nil && sess.cmd.Process != nil {
+			sess.cmd.Process.Kill() //nolint:errcheck
+		}
+		sess.pty.closer() //nolint:errcheck
+	} else {
+		// Pipe mode: kill process, close stdin.
+		if !processExited && sess.cmd != nil && sess.cmd.Process != nil {
+			sess.cmd.Process.Kill()  //nolint:errcheck
+			sess.cmd.Wait()          //nolint:errcheck
+		}
+		if sess.stdin != nil {
+			sess.stdin.Close()
+		}
 	}
 
 	// Clean up the output batcher to prevent memory leak

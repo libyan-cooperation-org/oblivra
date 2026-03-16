@@ -8,6 +8,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/crewjam/saml v0.5.1
 	github.com/dgraph-io/badger/v4 v4.2.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/google/go-tpm v0.9.8
 	github.com/google/uuid v1.6.0
@@ -25,7 +26,6 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/tetratelabs/wazero v1.11.0
 	github.com/wailsapp/wails/v2 v2.11.0
-	github.com/fsnotify/fsnotify v1.8.0
 	github.com/yuin/gopher-lua v1.1.1
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/trace v1.24.0

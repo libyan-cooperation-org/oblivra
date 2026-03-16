@@ -42,6 +42,10 @@ type Evaluator struct {
 	*RuleEngine
 	log *logger.Logger
 
+	// routeIndex maps EventType → []Rule for O(1) rule lookup instead of O(N).
+	// Rebuilt atomically on every rule load / hot-reload.
+	routeIndex RouteIndex
+
 	// State tracking: RuleID -> Bounded LRU Cache (GroupKey -> []Event)
 	// Keeps max 10,000 tracked entities per rule. Discards old entities via TTL.
 	state   map[string]*expirable.LRU[string, []Event]
@@ -58,19 +62,44 @@ func NewEvaluator(rulesDir string, log *logger.Logger) (*Evaluator, error) {
 		return nil, err
 	}
 
-	return &Evaluator{
+	ev := &Evaluator{
 		RuleEngine: re,
 		log:        log,
 		state:      make(map[string]*expirable.LRU[string, []Event]),
 		alerts:     make(map[string]*expirable.LRU[string, time.Time]),
-	}, nil
+	}
+	// Build the initial route index from loaded rules.
+	ev.routeIndex = BuildRouteIndex(re.rules)
+	log.Info("[DETECTION] Route index built: %d EventType buckets, %d wildcard rules",
+		len(ev.routeIndex)-1, len(ev.routeIndex[wildcardKey]))
+	return ev, nil
+}
+
+// RebuildRouteIndex rebuilds the EventType routing index after a rule reload.
+// Called by AlertingService.reloadSigmaRules() after LoadSigmaDirectory completes.
+func (e *Evaluator) RebuildRouteIndex() {
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+	e.routeIndex = BuildRouteIndex(e.rules)
+	e.log.Info("[DETECTION] Route index rebuilt: %d buckets", len(e.routeIndex))
 }
 
 // ProcessEvent analyzes a new incoming event against all loaded rules.
+// Uses the RouteIndex to evaluate only rules relevant to the event's EventType
+// instead of scanning all rules — O(matching) rather than O(all rules).
 func (e *Evaluator) ProcessEvent(evt Event) []Match {
 	var matches []Match
 
-	for _, rule := range e.rules {
+	// Fetch only candidate rules for this EventType.
+	// Falls back to full rule set if routeIndex hasn't been built yet.
+	var candidates []Rule
+	if e.routeIndex != nil {
+		candidates = e.routeIndex.CandidateRules(evt.EventType)
+	} else {
+		candidates = e.rules
+	}
+
+	for _, rule := range candidates {
 		if rule.Type == SequenceRule {
 			// Sequences track state without needing to match generic top-level conditions
 			if match := e.evaluateRuleState(rule, evt); match != nil {

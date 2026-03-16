@@ -301,6 +301,8 @@ func (s *AlertingService) reloadSigmaRules() {
 		return
 	}
 	count := len(s.evaluator.GetRules())
+	// Rebuild the EventType routing index so new rules are picked up immediately.
+	s.evaluator.RebuildRouteIndex()
 	s.log.Info("[SIGMA] Hot-reload complete — %d rules active", count)
 	s.bus.Publish("sigma:rules_reloaded", map[string]interface{}{"rule_count": count, "dir": s.sigmaDir})
 	EmitEvent(s.ctx, "sigma:rules_reloaded", map[string]interface{}{"rule_count": count})

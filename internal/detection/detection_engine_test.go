@@ -1,6 +1,7 @@
 package detection_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ import (
 func newTestEvaluator(t *testing.T) *detection.Evaluator {
 	t.Helper()
 	log := logger.NewStdoutLogger()
-	ev, err := detection.NewEvaluator(filepath.Join("..", "detection", "rules"), log)
+	ev, err := detection.NewEvaluator(filepath.Join("rules"), log)
 	if err != nil {
 		t.Fatalf("NewEvaluator: %v", err)
 	}
@@ -385,5 +386,4 @@ func writeRule(t *testing.T, dir, name, content string) {
 	}
 }
 
-// fmt import for writeRule helper
-var _ = fmt.Sprintf
+

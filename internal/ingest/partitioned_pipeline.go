@@ -102,9 +102,9 @@ func (pp *PartitionedPipeline) QueueEvent(evt *events.SovereignEvent) error {
 }
 
 // shardFor computes the shard index for an event using FNV-1a on the partition key.
-// HostID is preferred; fall back to SourceIp so network events also distribute well.
+// Host is preferred; fall back to SourceIp so network events also distribute well.
 func (pp *PartitionedPipeline) shardFor(evt *events.SovereignEvent) *Pipeline {
-	key := evt.HostID
+	key := evt.Host
 	if key == "" {
 		key = evt.SourceIp
 	}
