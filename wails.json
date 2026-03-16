@@ -16,5 +16,8 @@
     "productVersion": "1.0.0",
     "copyright": "Copyright 2026",
     "comments": "OblivraShell Security Platform"
+  },
+  "security": {
+    "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://localhost wss://localhost; object-src 'none'; base-uri 'self'; frame-src 'none'"
   }
 }

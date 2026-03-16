@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"gopkg.in/yaml.v3"
@@ -142,6 +143,73 @@ func (e *RuleEngine) loadRuleFile(path string) error {
 // GetRules returns all currently loaded rules.
 func (e *RuleEngine) GetRules() []Rule {
 	return e.rules
+}
+
+// LoadSigmaDirectory converts and loads all Sigma rule files (.yml/.yaml) from a directory.
+// Sigma rules are automatically transpiled to the native Oblivra rule format.
+// Files that fail transpilation are logged and skipped; they do not block other rules.
+func (e *RuleEngine) LoadSigmaDirectory(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			e.log.Info("[SIGMA] Directory %s does not exist, skipping", dir)
+			return nil
+		}
+		return fmt.Errorf("read sigma dir %s: %w", dir, err)
+	}
+
+	loaded := 0
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext != ".yaml" && ext != ".yml" {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if err := e.LoadSigmaFile(path); err != nil {
+			e.log.Warn("[SIGMA] Skipping %s: %v", entry.Name(), err)
+			continue
+		}
+		loaded++
+	}
+
+	e.log.Info("[SIGMA] Loaded %d rules from %s", loaded, dir)
+	return nil
+}
+
+// LoadSigmaFile parses a single Sigma rule file and converts it to the native format.
+func (e *RuleEngine) LoadSigmaFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+
+	rule, err := TranspileSigma(data)
+	if err != nil {
+		return fmt.Errorf("transpile: %w", err)
+	}
+
+	result := e.verifier.Verify(rule)
+	e.verdicts = append(e.verdicts, result)
+
+	if !result.IsValid {
+		e.log.Warn("[SIGMA] Invalid transpiled rule '%s': %v", rule.Name, result.Errors)
+		return fmt.Errorf("validation failed: %v", result.Errors)
+	}
+
+	// Avoid duplicates when hot-reloading
+	for _, existing := range e.rules {
+		if existing.ID == rule.ID {
+			e.log.Info("[SIGMA] Rule %s already loaded, skipping duplicate", rule.ID)
+			return nil
+		}
+	}
+
+	e.rules = append(e.rules, *rule)
+	e.log.Info("[SIGMA] Loaded rule: %s [%s]", rule.Name, rule.Severity)
+	return nil
 }
 
 // GetVerificationResults returns the static analysis verdicts of loaded rule files

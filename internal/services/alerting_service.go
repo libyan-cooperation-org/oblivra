@@ -69,6 +69,18 @@ func (s *AlertingService) Start(ctx context.Context) error {
 	s.ctx = ctx
 	s.loadPersistedConfig()
 
+	// Load community Sigma rules from the user's sigma/ directory alongside builtin rules.
+	// This is done non-fatally — a missing sigma/ dir is fine, errors are logged only.
+	if s.evaluator != nil {
+		sigmaDir := "sigma" // resolved relative to the data dir at runtime
+		if err := s.evaluator.GetRuleEngine().LoadSigmaDirectory(sigmaDir); err != nil {
+			s.log.Warn("[SIGMA] Failed to load sigma directory: %v", err)
+		} else {
+			s.log.Info("[SIGMA] Community Sigma rules loaded from %s (%d total rules active)",
+				sigmaDir, len(s.evaluator.GetRuleEngine().GetRules()))
+		}
+	}
+
 	// Listen for heuristic security alerts from SIEMService
 	s.bus.Subscribe("security.alert", func(e eventbus.Event) {
 		// ... (omitted for brevity in prompt, but keep original content)
