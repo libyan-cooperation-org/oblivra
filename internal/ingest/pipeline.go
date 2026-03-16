@@ -116,20 +116,20 @@ func (p *Pipeline) Start() {
 	_, span := tracer.Start(p.ctx, "pipeline.Start")
 	defer span.End()
 
-	p.log.Info("[INGEST] Starting high-throughput pipeline (Buffer: %d)", p.metrics.BufferCapacity)
+	p.log.Info("[INGEST] Starting high-throughput pipeline (Buffer: %d, EPS target: %d)", p.metrics.BufferCapacity, EPSTarget)
 
 	// synchronous replay before accepting new events
 	if err := p.Replay(p.ctx); err != nil {
 		p.log.Error("[INGEST] WAL Replay failed: %v", err)
 	}
 
-	// Domain 7 Performance: Fan-Out Worker Pool based on available logical CPU cores
+	// Base worker pool: one worker per logical CPU core
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 2 {
 		numWorkers = 2
 	}
 
-	p.log.Info("[INGEST] Spawning %d parallel parsing workers...", numWorkers)
+	p.log.Info("[INGEST] Spawning %d base workers + adaptive controller (max %d workers)", numWorkers, numWorkers*4)
 
 	p.wg.Add(1) // for the metric collector
 	go p.metricCollector()
@@ -140,6 +140,15 @@ func (p *Pipeline) Start() {
 		p.wg.Add(1)
 		go p.worker()
 	}
+
+	// Launch the adaptive controller to scale workers and shed load automatically.
+	ac := NewAdaptiveController(p)
+	ac.Start()
+	// Stop the controller when the pipeline shuts down.
+	go func() {
+		<-p.ctx.Done()
+		ac.Stop()
+	}()
 }
 
 // Shutdown stops the pipeline and waits for all workers to drain the buffer.

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 type Server struct {
 	mu     sync.Mutex
 	srv    *http.Server
+	cfg    Config
 	port   int
 	token  string // API Token for authentication
 	db     database.DatabaseStore
@@ -42,6 +44,7 @@ type Config struct {
 
 func NewServer(cfg Config, db database.DatabaseStore, v vault.Provider, log *logger.Logger) *Server {
 	return &Server{
+		cfg:   cfg,
 		port:  cfg.Port,
 		token: cfg.Token,
 		db:    db,

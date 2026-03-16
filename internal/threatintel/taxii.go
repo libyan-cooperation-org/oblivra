@@ -59,8 +59,14 @@ func NewTAXIIClient(endpoint, username, password string, skipVerify bool) *TAXII
 	}
 }
 
-// FetchCollection retrieves a STIX bundle from a specific TAXII collection
+// FetchCollection retrieves a STIX bundle from a specific TAXII collection.
+// The endpoint URL is validated against SSRF rules before any network I/O.
 func (c *TAXIIClient) FetchCollection(collectionID string) (*Bundle, error) {
+	// SSRF guard: validate the base endpoint before constructing the full URL
+	if err := ValidateFeedURL(c.endpoint); err != nil {
+		return nil, fmt.Errorf("SSRF validation blocked TAXII request: %w", err)
+	}
+
 	url := fmt.Sprintf("%s/taxii2/collections/%s/objects", c.endpoint, collectionID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

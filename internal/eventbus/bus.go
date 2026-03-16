@@ -68,11 +68,11 @@ type subscription struct {
 	cancel  chan struct{} // closed to stop the worker goroutine
 }
 
-var nextSubID uint64 // monotonic counter for subscription IDs
-
 type Bus struct {
 	mu          sync.RWMutex
-	handlers    map[EventType][]*subscription // Changed from subscribers
+	handlers    map[EventType][]*subscription
+	subsByID    map[uint64]*subscription      // index for unsubscribe by ID
+	nextSubID   uint64
 	log         *logger.Logger
 	ingestLimit *rate.Limiter
 	dropped     uint64
@@ -83,7 +83,8 @@ type Bus struct {
 // To survive Economic DoS, we strictly limit ingestion capacity.
 func NewBus(log *logger.Logger) *Bus {
 	return &Bus{
-		handlers: make(map[EventType][]*subscription), // Changed from subscribers
+		handlers: make(map[EventType][]*subscription),
+		subsByID: make(map[uint64]*subscription),
 		log:      log,
 		// Max bursts of 5000 events, refilling at 1000 items/second.
 		// Exceeding this triggers immediate load-shedding before GC trashing.
@@ -95,7 +96,7 @@ func NewBus(log *logger.Logger) *Bus {
 // newSubscription creates a subscription struct with a unique ID.
 func (b *Bus) newSubscription(handler Handler) *subscription {
 	return &subscription{
-		id:      atomic.AddUint64(&nextSubID, 1),
+		id:      atomic.AddUint64(&b.nextSubID, 1),
 		ch:      make(chan Event, 2000),
 		handler: handler,
 		cancel:  make(chan struct{}),

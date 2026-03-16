@@ -159,7 +159,7 @@ func (s *RESTServer) Start() {
 		
 		s.server.TLSConfig = &tls.Config{
 			GetCertificate: s.certManager.GetCertificate,
-			MinVersion:     tls.VersionTLS12,
+			MinVersion:     tls.VersionTLS13, // TLS 1.2 is deprecated; require 1.3 for all agent channels
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/raft"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -17,11 +18,33 @@ type SQLWriteCommand struct {
 	Args  []interface{} `json:"args"`
 }
 
+// pluginRegistryApplier is the subset of ClusterRegistry needed by the FSM.
+// The FSM passes its own pluginRegistryEntry type which is structurally
+// identical to plugin.FSMEntry — the implementor converts as needed.
+type pluginRegistryApplier interface {
+	ApplyFromCluster(op, pluginID, timestamp, nodeID string) error
+}
+
+// pluginRegistryEntry mirrors plugin.RegistryLogEntry to avoid the import cycle.
+type pluginRegistryEntry struct {
+	Op        string `json:"op"`
+	PluginID  string `json:"plugin_id"`
+	Timestamp string `json:"timestamp"`
+	NodeID    string `json:"node_id"`
+}
+
 // FSM is a finite state machine that applies Raft log entries to the local SQLite database.
 type FSM struct {
-	db     *sql.DB
-	dbPath string
-	log    *logger.Logger
+	db             *sql.DB
+	dbPath         string
+	log            *logger.Logger
+	pluginRegistry pluginRegistryApplier // optional; nil in single-node mode
+}
+
+// SetPluginRegistry attaches a cluster-aware plugin registry to the FSM so that
+// replicated plugin state changes are applied on follower nodes.
+func (f *FSM) SetPluginRegistry(r pluginRegistryApplier) {
+	f.pluginRegistry = r
 }
 
 // FSMApplyResponse contains the result of a database execution
@@ -40,12 +63,21 @@ func NewFSM(db *sql.DB, dbPath string, log *logger.Logger) *FSM {
 	}
 }
 
-// Apply executes a Raft log entry on the local database
+// pluginRegistryPrefix marks a Raft log entry as a plugin registry op, not SQL.
+const pluginRegistryPrefix = "--plugin-registry-- "
+
+// Apply executes a Raft log entry on the local database or dispatches
+// non-SQL operations (e.g. plugin registry) to the appropriate handler.
 func (f *FSM) Apply(l *raft.Log) interface{} {
 	var cmd SQLWriteCommand
 	if err := json.Unmarshal(l.Data, &cmd); err != nil {
 		f.log.Error("[RAFT-FSM] Failed to unmarshal log entry: %v", err)
 		return FSMApplyResponse{Err: err}
+	}
+
+	// Route plugin registry commands to the dedicated handler.
+	if strings.HasPrefix(cmd.Query, pluginRegistryPrefix) {
+		return f.applyPluginRegistryOp(cmd.Query)
 	}
 
 	result, err := f.db.Exec(cmd.Query, cmd.Args...)
@@ -62,6 +94,26 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 		RowsAffected: rowsAff,
 		Err:          nil,
 	}
+}
+
+// applyPluginRegistryOp handles plugin activation/deactivation log entries.
+// The cluster registry is optional; if nil (single-node mode) this is a no-op.
+func (f *FSM) applyPluginRegistryOp(query string) interface{} {
+	payload := strings.TrimPrefix(query, pluginRegistryPrefix)
+	if f.pluginRegistry == nil {
+		// No registry attached — this node may be a pure-database replica.
+		return FSMApplyResponse{}
+	}
+	var entry pluginRegistryEntry
+	if err := json.Unmarshal([]byte(payload), &entry); err != nil {
+		f.log.Error("[RAFT-FSM] Failed to decode plugin registry entry: %v", err)
+		return FSMApplyResponse{Err: err}
+	}
+	if err := f.pluginRegistry.ApplyFromCluster(entry.Op, entry.PluginID, entry.Timestamp, entry.NodeID); err != nil {
+		f.log.Error("[RAFT-FSM] Plugin registry apply failed: %v", err)
+		return FSMApplyResponse{Err: err}
+	}
+	return FSMApplyResponse{}
 }
 
 // Snapshot creates an FSMSnapshot by using SQLite's online backup API via SQL

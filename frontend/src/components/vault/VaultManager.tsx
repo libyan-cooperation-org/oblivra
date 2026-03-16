@@ -115,6 +115,9 @@ export const VaultManager: Component = () => {
     const handleUnlock = async () => {
         try {
             await Unlock(password(), [], false);
+            // SECURITY: Clear the password signal immediately after use so it
+            // doesn't linger in JS heap memory once the vault is unlocked.
+            setPassword("");
             setUnlocked(true);
             await loadData();
         } catch (e) {
@@ -136,6 +139,8 @@ export const VaultManager: Component = () => {
             const hardwareKey = await YubiKeyDeriveVaultKey(keys[0].serial, password());
             // hardwareKey is a byte array (Uint8Array/number[])
             await UnlockWithHardware(password(), Array.from(hardwareKey), false);
+            // SECURITY: Clear password signal immediately after hardware unlock
+            setPassword("");
             setUnlocked(true);
             await loadData();
         } catch (e) {
