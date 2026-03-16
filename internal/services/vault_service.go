@@ -71,6 +71,17 @@ func (s *VaultService) SetContext(ctx context.Context) {
 	}
 }
 
+// HasKeychainEntry returns true if the OS keychain has a stored vault credential,
+// meaning a headless auto-unlock attempt is likely to succeed.
+// Returns false on any error — never panics.
+func (s *VaultService) HasKeychainEntry() bool {
+	if s == nil || s.vault == nil {
+		return false
+	}
+	defer func() { recover() }() // keychain probe must never crash the app
+	return s.vault.HasKeychainEntry()
+}
+
 func (s *VaultService) Stop(ctx context.Context) error {
 	s.log.Info("Shutting down VaultService and closing databases...")
 	if s.analytics != nil {

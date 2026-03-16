@@ -21,7 +21,7 @@ type DiagnosticsService struct {
 }
 
 func (s *DiagnosticsService) Name() string         { return "diagnostics-service" }
-func (s *DiagnosticsService) Dependencies() []string { return []string{"observability-service"} }
+func (s *DiagnosticsService) Dependencies() []string { return []string{} }
 
 // NewDiagnosticsService creates the service.
 // busDropped is a callback returning the event-bus cumulative dropped-event count.

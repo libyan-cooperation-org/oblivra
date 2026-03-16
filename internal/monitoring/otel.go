@@ -102,11 +102,12 @@ func OblivraMetricsHandler(mc *MetricsCollector) http.Handler {
 }
 
 func RegisterDetectionMetrics(mc *MetricsCollector) {
+	// Aggregate counter — label-free; use IncrCounter with labels for per-severity tracking
 	mc.RegisterCounter("detections_total", "Total detection rule matches", nil)
-	mc.RegisterCounter("detections_total", "Critical detections", map[string]string{"severity": "critical"})
-	mc.RegisterCounter("detections_total", "High detections", map[string]string{"severity": "high"})
-	mc.RegisterCounter("detections_total", "Medium detections", map[string]string{"severity": "medium"})
-	mc.RegisterCounter("detections_total", "Low detections", map[string]string{"severity": "low"})
+	// Per-severity counters use distinct keys so RegisterCounter's duplicate-key check passes
+	for _, sev := range []string{"critical", "high", "medium", "low"} {
+		mc.RegisterCounter("detections_total", sev+" detections", map[string]string{"severity": sev})
+	}
 	mc.RegisterGauge("detection_rules_loaded", "Number of detection rules currently loaded", nil)
 	mc.RegisterGauge("detection_rules_sigma", "Number of Sigma rules loaded", nil)
 	mc.RegisterCounter("detection_sigma_transpile_errors", "Sigma rules that failed transpilation", nil)

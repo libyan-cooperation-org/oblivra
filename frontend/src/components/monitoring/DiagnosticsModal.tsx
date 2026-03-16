@@ -1,282 +1,254 @@
 import { Component, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
+import { GetSnapshot } from '../../../wailsjs/go/services/DiagnosticsService';
+import { monitoring } from '../../../wailsjs/go/models';
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 
-// ── Types mirroring internal/monitoring/diagnostics.go ──────────────────────
-
-interface EventBusDiag {
-  dropped_events: number;
-  rate_limit_active: boolean;
-  lag_estimate_ms: number;
-}
-
-interface IngestDiag {
-  current_eps: number;
-  target_eps: number;
-  percent_of_target: number;
-  buffer_fill_pct: number;
-  dropped_total: number;
-  worker_count: number;
-}
-
-interface RuntimeDiag {
-  goroutines: number;
-  heap_alloc_mb: number;
-  heap_sys_mb: number;
-  gc_pause_ns: number;
-  gc_count: number;
-  num_cpu: number;
-  go_version: string;
-}
-
-interface QueryDiag {
-  last_query_ms: number;
-  avg_query_ms: number;
-  p99_query_ms: number;
-  slow_query_count: number;
-  total_queries: number;
-}
-
-interface DiagnosticsSnapshot {
-  captured_at: string;
-  event_bus: EventBusDiag;
-  ingest: IngestDiag;
-  runtime: RuntimeDiag;
-  query: QueryDiag;
-  health_grade: string;
-}
-
 interface DiagnosticsModalProps {
-  onClose: () => void;
+    onClose: () => void;
 }
 
-// ── Grade helpers ─────────────────────────────────────────────────────────────
+type Snap = monitoring.DiagnosticsSnapshot;
 
-const gradeColor = (grade: string) => {
-  switch (grade) {
-    case 'A': return '#3fb950';
-    case 'B': return '#d29922';
-    case 'C': return '#f0883e';
-    default:  return '#f85149'; // DEGRADED
-  }
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+const gradeColor = (g: string) => {
+    switch (g) {
+        case 'A': return '#5cc05c';
+        case 'B': return '#0099e0';
+        case 'C': return '#f5c518';
+        case 'D': return '#f58b00';
+        default:  return '#e04040';
+    }
 };
 
-const gradeLabel = (grade: string) => {
-  switch (grade) {
-    case 'A': return 'Nominal';
-    case 'B': return 'Minor Stress';
-    case 'C': return 'Moderate Load';
-    default:  return 'DEGRADED';
-  }
-};
+const fmt1 = (n: number) => n?.toFixed(1) ?? '—';
+const fmtInt = (n: number) => (n ?? 0).toLocaleString();
+const fmtMs = (ns: number) => ns > 0 ? `${(ns / 1_000_000).toFixed(2)} ms` : '—';
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+function Bar(props: { pct: number; color?: string }) {
+    const c = props.color ?? '#0099e0';
+    const w = Math.min(100, Math.max(0, props.pct ?? 0));
+    return (
+        <div style={{
+            height: '4px', background: 'var(--surface-3)',
+            'border-radius': '2px', overflow: 'hidden', flex: '1',
+        }}>
+            <div style={{ width: `${w}%`, height: '100%', background: c, 'border-radius': '2px', transition: 'width 0.4s ease' }} />
+        </div>
+    );
+}
 
-const GaugeBar: Component<{ label: string; value: number; max: number; unit?: string; warn?: number; crit?: number }> = (p) => {
-  const pct = () => Math.min(100, (p.value / p.max) * 100);
-  const color = () => {
-    if (p.crit !== undefined && p.value >= p.crit) return '#f85149';
-    if (p.warn !== undefined && p.value >= p.warn) return '#d29922';
-    return '#3fb950';
-  };
-  return (
-    <div style="margin-bottom: 10px;">
-      <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; font-family: var(--font-mono);">
-        <span style="color: var(--text-secondary);">{p.label}</span>
-        <span style={`color: ${color()};`}>{p.value.toFixed(p.unit === 'ms' ? 1 : 0)}{p.unit ?? ''}</span>
-      </div>
-      <div style="height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;">
-        <div style={`height: 100%; width: ${pct()}%; background: ${color()}; transition: width 0.4s ease, background 0.3s;`} />
-      </div>
-    </div>
-  );
-};
+function Row(props: { label: string; value: string; mono?: boolean; accent?: string }) {
+    return (
+        <div style={{ display: 'flex', 'justify-content': 'space-between', 'align-items': 'center', padding: '5px 0', 'border-bottom': '1px solid var(--border-subtle)' }}>
+            <span style={{ 'font-size': '11px', color: 'var(--text-muted)', 'font-family': 'var(--font-ui)' }}>{props.label}</span>
+            <span style={{
+                'font-size': '12px',
+                'font-family': props.mono ? 'var(--font-mono)' : 'var(--font-ui)',
+                'font-weight': '600',
+                color: props.accent ?? 'var(--text-primary)',
+            }}>{props.value}</span>
+        </div>
+    );
+}
 
-const StatRow: Component<{ label: string; value: string | number; accent?: boolean }> = (p) => (
-  <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 11px; font-family: var(--font-mono);">
-    <span style="color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">{p.label}</span>
-    <span style={p.accent ? 'color: var(--accent-primary); font-weight: 700;' : 'color: var(--text-primary);'}>{p.value}</span>
-  </div>
-);
+function Section(props: { title: string; children: any }) {
+    return (
+        <div style={{ 'margin-bottom': '16px' }}>
+            <div style={{
+                'font-size': '9px', 'font-weight': '700', 'text-transform': 'uppercase',
+                'letter-spacing': '1px', color: 'var(--text-muted)',
+                'padding-bottom': '6px', 'border-bottom': '1px solid var(--border-primary)',
+                'margin-bottom': '6px', 'font-family': 'var(--font-ui)',
+            }}>{props.title}</div>
+            {props.children}
+        </div>
+    );
+}
 
-const SectionHeader: Component<{ title: string; icon: string }> = (p) => (
-  <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
-    <span style="font-size: 14px;">{p.icon}</span>
-    <span style="font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--text-secondary); font-family: var(--font-mono);">{p.title}</span>
-  </div>
-);
-
-// ── Main Modal ────────────────────────────────────────────────────────────────
+// ── component ─────────────────────────────────────────────────────────────────
 
 export const DiagnosticsModal: Component<DiagnosticsModalProps> = (props) => {
-  const [snap, setSnap] = createSignal<DiagnosticsSnapshot | null>(null);
-  const [lastUpdate, setLastUpdate] = createSignal<Date | null>(null);
+    const [snap, setSnap] = createSignal<Snap | null>(null);
+    const [age, setAge] = createSignal(0); // seconds since last update
+    let ageTimer: ReturnType<typeof setInterval>;
 
-  onMount(() => {
-    EventsOn('diagnostics:snapshot', (data: DiagnosticsSnapshot) => {
-      setSnap(data);
-      setLastUpdate(new Date());
+    const load = async () => {
+        try {
+            const s = await GetSnapshot();
+            setSnap(s);
+            setAge(0);
+        } catch (e) {
+            console.error('[DiagnosticsModal] GetSnapshot failed:', e);
+        }
+    };
+
+    onMount(() => {
+        load();
+
+        // Poll every 2s (matches the backend broadcast interval)
+        const pollTimer = setInterval(load, 2000);
+
+        // Also listen for push events from backend broadcast
+        EventsOn('diagnostics:snapshot', (data: Snap) => {
+            setSnap(data);
+            setAge(0);
+        });
+
+        // Tick age counter every second
+        ageTimer = setInterval(() => setAge(a => a + 1), 1000);
+
+        onCleanup(() => {
+            clearInterval(pollTimer);
+            clearInterval(ageTimer);
+            EventsOff('diagnostics:snapshot');
+        });
     });
-  });
 
-  onCleanup(() => {
-    EventsOff('diagnostics:snapshot');
-  });
+    const handleBackdrop = (e: MouseEvent) => {
+        if ((e.target as HTMLElement).classList.contains('diag-overlay')) {
+            props.onClose();
+        }
+    };
 
-  return (
-    <div
-      style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);"
-      onClick={props.onClose}
-    >
-      <div
-        style="background: var(--surface-1); border: 1px solid var(--border-primary); border-radius: 10px; width: 780px; max-width: 95vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 80px rgba(0,0,0,0.6);"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Header ── */}
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-primary); background: var(--surface-2);">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 18px;">📡</span>
-            <div>
-              <div style="font-family: var(--font-mono); font-size: 13px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">Platform Diagnostics</div>
-              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px; font-family: var(--font-mono);">
-                Real-time subsystem health · Zero-latency feedback
-              </div>
+    return (
+        <div
+            class="diag-overlay"
+            onClick={handleBackdrop}
+            style={{
+                position: 'fixed', inset: '0',
+                background: 'rgba(0,0,0,0.6)',
+                display: 'flex', 'align-items': 'flex-start', 'justify-content': 'flex-end',
+                padding: '48px 16px 16px',
+                'z-index': '8000',
+                animation: 'fade-in 0.15s ease-out',
+            }}
+        >
+            <div style={{
+                width: '360px',
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border-secondary)',
+                'border-radius': 'var(--radius-lg)',
+                'box-shadow': 'var(--shadow-xl)',
+                display: 'flex',
+                'flex-direction': 'column',
+                overflow: 'hidden',
+                animation: 'slide-down 0.15s ease-out',
+                'max-height': 'calc(100vh - 64px)',
+            }}>
+                {/* Header */}
+                <div style={{
+                    display: 'flex', 'align-items': 'center', 'justify-content': 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--surface-2)',
+                    'border-bottom': '1px solid var(--border-primary)',
+                    'flex-shrink': '0',
+                }}>
+                    <div style={{ display: 'flex', 'align-items': 'center', gap: '10px' }}>
+                        <span style={{ 'font-size': '12px', 'font-weight': '700', color: 'var(--text-heading)', 'font-family': 'var(--font-ui)', 'text-transform': 'uppercase', 'letter-spacing': '0.5px' }}>
+                            Platform Diagnostics
+                        </span>
+                        <Show when={snap()}>
+                            <span style={{
+                                'font-size': '20px', 'font-weight': '800',
+                                color: gradeColor(snap()!.health_grade),
+                                'font-family': 'var(--font-mono)',
+                                'line-height': '1',
+                            }}>
+                                {snap()!.health_grade}
+                            </span>
+                        </Show>
+                    </div>
+                    <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                        <span style={{ 'font-size': '10px', color: 'var(--text-muted)', 'font-family': 'var(--font-mono)' }}>
+                            {age() === 0 ? 'live' : `${age()}s ago`}
+                        </span>
+                        <button
+                            onClick={props.onClose}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', 'font-size': '18px', padding: '0', 'line-height': '1' }}
+                            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >×</button>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div style={{ flex: '1', 'overflow-y': 'auto', padding: '14px 16px' }}>
+                    <Show when={!snap()} fallback={
+                        <div style={{ color: 'var(--text-muted)', 'font-size': '12px', 'text-align': 'center', padding: '24px 0' }}>
+                            Loading…
+                        </div>
+                    }>
+                        {/* Ingest */}
+                        <Section title="Ingest Pipeline">
+                            <Row label="Events / sec" value={fmtInt(snap()!.ingest.current_eps)} mono accent={snap()!.ingest.current_eps > 0 ? '#5cc05c' : 'var(--text-primary)'} />
+                            <div style={{ display: 'flex', 'align-items': 'center', gap: '8px', padding: '5px 0' }}>
+                                <span style={{ 'font-size': '11px', color: 'var(--text-muted)', 'white-space': 'nowrap', 'font-family': 'var(--font-ui)' }}>
+                                    Buffer {fmt1(snap()!.ingest.buffer_fill_pct)}%
+                                </span>
+                                <Bar
+                                    pct={snap()!.ingest.buffer_fill_pct}
+                                    color={snap()!.ingest.buffer_fill_pct > 80 ? '#e04040' : snap()!.ingest.buffer_fill_pct > 50 ? '#f58b00' : '#0099e0'}
+                                />
+                                <span style={{ 'font-size': '11px', color: 'var(--text-muted)', 'font-family': 'var(--font-mono)', 'white-space': 'nowrap' }}>
+                                    {fmtInt(snap()!.ingest.dropped_total)} dropped
+                                </span>
+                            </div>
+                            <Row label="Workers" value={String(snap()!.ingest.worker_count)} mono />
+                            <Row label="Target EPS" value={fmtInt(snap()!.ingest.target_eps)} mono />
+                        </Section>
+
+                        {/* Runtime */}
+                        <Section title="Go Runtime">
+                            <Row label="Goroutines" value={fmtInt(snap()!.runtime.goroutines)} mono
+                                accent={snap()!.runtime.goroutines > 800 ? '#f58b00' : snap()!.runtime.goroutines > 1500 ? '#e04040' : 'var(--text-primary)'}
+                            />
+                            <Row label="Heap Alloc" value={`${fmt1(snap()!.runtime.heap_alloc_mb)} MB`} mono />
+                            <Row label="Heap Sys" value={`${fmt1(snap()!.runtime.heap_sys_mb)} MB`} mono />
+                            <Row label="GC Pause" value={fmtMs(snap()!.runtime.gc_pause_ns)} mono />
+                            <Row label="GC Cycles" value={fmtInt(snap()!.runtime.gc_count)} mono />
+                            <Row label="CPUs" value={String(snap()!.runtime.num_cpu)} mono />
+                            <Row label="Go" value={snap()!.runtime.go_version} mono />
+                        </Section>
+
+                        {/* Event Bus */}
+                        <Section title="Event Bus">
+                            <Row label="Dropped Events" value={fmtInt(snap()!.event_bus.dropped_events)} mono
+                                accent={snap()!.event_bus.dropped_events > 0 ? '#f58b00' : 'var(--text-primary)'}
+                            />
+                            <Row label="Rate Limited" value={snap()!.event_bus.rate_limit_active ? 'YES' : 'No'} mono
+                                accent={snap()!.event_bus.rate_limit_active ? '#e04040' : '#5cc05c'}
+                            />
+                            <Row label="Lag Estimate" value={snap()!.event_bus.lag_estimate_ms > 0 ? `${fmtInt(snap()!.event_bus.lag_estimate_ms)} ms` : '< 1 ms'} mono />
+                        </Section>
+
+                        {/* Query */}
+                        <Section title="Database Queries">
+                            <Row label="Last Query" value={`${fmt1(snap()!.query.last_query_ms)} ms`} mono />
+                            <Row label="Avg Latency" value={`${fmt1(snap()!.query.avg_query_ms)} ms`} mono />
+                            <Row label="P99 Latency" value={`${fmt1(snap()!.query.p99_query_ms)} ms`} mono
+                                accent={snap()!.query.p99_query_ms > 200 ? '#f58b00' : 'var(--text-primary)'}
+                            />
+                            <Row label="Slow Queries" value={fmtInt(snap()!.query.slow_query_count)} mono
+                                accent={snap()!.query.slow_query_count > 0 ? '#f58b00' : 'var(--text-primary)'}
+                            />
+                            <Row label="Total Queries" value={fmtInt(snap()!.query.total_queries)} mono />
+                        </Section>
+
+                        {/* Captured at */}
+                        <div style={{ 'font-size': '10px', color: 'var(--text-muted)', 'font-family': 'var(--font-mono)', 'text-align': 'right', 'padding-top': '4px' }}>
+                            {snap()!.captured_at ? new Date(snap()!.captured_at).toLocaleTimeString() : ''}
+                        </div>
+                    </Show>
+                </div>
             </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 16px;">
-            <Show when={snap()}>
-              <div style="text-align: center;">
-                <div style={`font-size: 28px; font-weight: 900; font-family: var(--font-mono); color: ${gradeColor(snap()!.health_grade)};`}>
-                  {snap()!.health_grade}
-                </div>
-                <div style={`font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: ${gradeColor(snap()!.health_grade)};`}>
-                  {gradeLabel(snap()!.health_grade)}
-                </div>
-              </div>
-            </Show>
-            <button
-              onClick={props.onClose}
-              style="background: transparent; border: 1px solid var(--border-primary); color: var(--text-muted); padding: 6px 10px; border-radius: 5px; cursor: pointer; font-family: var(--font-mono); font-size: 11px;"
-            >✕ CLOSE</button>
-          </div>
+
+            <style>{`
+                @keyframes slide-down {
+                    from { opacity: 0; transform: translateY(-8px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
         </div>
-
-        {/* ── Body ── */}
-        <div style="flex: 1; overflow-y: auto; padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-          <Show when={!snap()}>
-            <div style="grid-column: 1 / -1; text-align: center; padding: 60px; color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px;">
-              <div style="font-size: 32px; margin-bottom: 12px; opacity: 0.3;">📡</div>
-              WAITING FOR DIAGNOSTICS STREAM...
-              <div style="font-size: 10px; margin-top: 8px; opacity: 0.5;">Backend broadcasts every 2 seconds</div>
-            </div>
-          </Show>
-
-          <Show when={snap()}>
-            {/* ── LEFT COLUMN ── */}
-            <div>
-              {/* Ingest Pipeline */}
-              <SectionHeader title="Ingest Pipeline" icon="⚡" />
-              <GaugeBar
-                label="Current EPS"
-                value={snap()!.ingest.current_eps}
-                max={snap()!.ingest.target_eps || 50000}
-                warn={snap()!.ingest.target_eps * 0.5}
-                crit={snap()!.ingest.target_eps * 0.2}
-              />
-              <GaugeBar
-                label="Buffer Fill"
-                value={snap()!.ingest.buffer_fill_pct}
-                max={100}
-                unit="%"
-                warn={50}
-                crit={80}
-              />
-              <StatRow label="Target EPS" value={snap()!.ingest.target_eps.toLocaleString()} />
-              <StatRow label="EPS % of Target" value={`${snap()!.ingest.percent_of_target.toFixed(1)}%`} accent={snap()!.ingest.percent_of_target >= 80} />
-              <StatRow label="Dropped Events" value={snap()!.ingest.dropped_total.toLocaleString()} />
-              <StatRow label="Workers" value={snap()!.ingest.worker_count} />
-
-              {/* Event Bus */}
-              <SectionHeader title="Event Bus" icon="🔀" />
-              <Show when={snap()!.event_bus.rate_limit_active}>
-                <div style="background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.4); border-radius: 5px; padding: 8px 12px; font-size: 11px; color: #f85149; font-family: var(--font-mono); margin-bottom: 10px; letter-spacing: 0.5px;">
-                  ⚠ RATE LIMIT ACTIVE — events are being dropped
-                </div>
-              </Show>
-              <StatRow label="Dropped Events" value={snap()!.event_bus.dropped_events.toLocaleString()} />
-              <StatRow label="Estimated Lag" value={`${snap()!.event_bus.lag_estimate_ms.toFixed(0)} ms`} />
-              <Show when={snap()!.event_bus.lag_estimate_ms > 500}>
-                <div style="font-size: 10px; color: #d29922; font-family: var(--font-mono); margin-top: 4px; padding: 6px 10px; background: rgba(210,153,34,0.08); border-radius: 4px;">
-                  ⚠ DATA MAY BE UP TO {(snap()!.event_bus.lag_estimate_ms / 1000).toFixed(1)}s DELAYED
-                </div>
-              </Show>
-            </div>
-
-            {/* ── RIGHT COLUMN ── */}
-            <div>
-              {/* Query Subsystem */}
-              <SectionHeader title="Query Performance" icon="🗄️" />
-              <GaugeBar
-                label="Last Query"
-                value={snap()!.query.last_query_ms}
-                max={2000}
-                unit=" ms"
-                warn={500}
-                crit={1000}
-              />
-              <GaugeBar
-                label="P99 Latency"
-                value={snap()!.query.p99_query_ms}
-                max={2000}
-                unit=" ms"
-                warn={500}
-                crit={1000}
-              />
-              <StatRow label="Avg Query" value={`${snap()!.query.avg_query_ms.toFixed(1)} ms`} />
-              <StatRow label="Slow Queries (>500ms)" value={snap()!.query.slow_query_count.toLocaleString()} />
-              <StatRow label="Total Queries" value={snap()!.query.total_queries.toLocaleString()} />
-
-              {/* Go Runtime */}
-              <SectionHeader title="Go Runtime" icon="⚙️" />
-              <GaugeBar
-                label="Heap Memory"
-                value={snap()!.runtime.heap_alloc_mb}
-                max={snap()!.runtime.heap_sys_mb || 512}
-                unit=" MB"
-                warn={snap()!.runtime.heap_sys_mb * 0.7}
-                crit={snap()!.runtime.heap_sys_mb * 0.9}
-              />
-              <GaugeBar
-                label="Goroutines"
-                value={snap()!.runtime.goroutines}
-                max={10000}
-                warn={5000}
-                crit={8000}
-              />
-              <StatRow label="GC Pause" value={`${(snap()!.runtime.gc_pause_ns / 1e6).toFixed(2)} ms`} />
-              <StatRow label="GC Cycles" value={snap()!.runtime.gc_count.toLocaleString()} />
-              <StatRow label="CPU Cores" value={snap()!.runtime.num_cpu} />
-              <StatRow label="Go Version" value={snap()!.runtime.go_version} />
-            </div>
-          </Show>
-        </div>
-
-        {/* ── Footer ── */}
-        <div style="padding: 10px 20px; border-top: 1px solid var(--border-primary); display: flex; justify-content: space-between; align-items: center; background: var(--surface-2);">
-          <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">
-            <Show when={lastUpdate()}>
-              LAST UPDATE: {lastUpdate()!.toLocaleTimeString()} · Interval: 2s
-            </Show>
-            <Show when={!lastUpdate()}>
-              STREAM: CONNECTING...
-            </Show>
-          </div>
-          <Show when={snap()}>
-            <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">
-              SNAPSHOT: {snap()!.captured_at.replace('T', ' ').substring(0, 19)} UTC
-            </div>
-          </Show>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };

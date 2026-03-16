@@ -25,6 +25,7 @@ require (
 	github.com/rs/zerolog v1.34.0
 	github.com/tetratelabs/wazero v1.11.0
 	github.com/wailsapp/wails/v2 v2.11.0
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/yuin/gopher-lua v1.1.1
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/trace v1.24.0

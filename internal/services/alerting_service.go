@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/detection"
@@ -32,15 +33,17 @@ type persistedTrigger struct {
 // AlertingService exposes alert and notification configuration to the frontend
 type AlertingService struct {
 	BaseService
-	ctx       context.Context
-	alerts    analytics.AlertProvider
-	notifier  notifications.Notifier
-	analytics analytics.Engine
-	siemRepo  database.SIEMStore
-	incidents IncidentManager
-	evaluator *detection.Evaluator
-	bus       *eventbus.Bus
-	log       *logger.Logger
+	ctx           context.Context
+	alerts        analytics.AlertProvider
+	notifier      notifications.Notifier
+	analytics     analytics.Engine
+	siemRepo      database.SIEMStore
+	incidents     IncidentManager
+	evaluator     *detection.Evaluator
+	bus           *eventbus.Bus
+	log           *logger.Logger
+	sigmaWatcher  *fsnotify.Watcher // hot-reload watcher; nil if sigma dir absent
+	sigmaDir      string            // absolute path being watched
 }
 
 func (s *AlertingService) Name() string { return "alerting-service" }
@@ -70,15 +73,17 @@ func (s *AlertingService) Start(ctx context.Context) error {
 	s.loadPersistedConfig()
 
 	// Load community Sigma rules from the user's sigma/ directory alongside builtin rules.
-	// This is done non-fatally — a missing sigma/ dir is fine, errors are logged only.
+	// Non-fatal — a missing sigma/ dir is fine, errors are logged only.
 	if s.evaluator != nil {
-		// Evaluator embeds *RuleEngine directly — methods are promoted, no getter needed.
 		sigmaDir := "sigma" // resolved relative to the binary's working directory
+		s.sigmaDir = sigmaDir
 		if err := s.evaluator.LoadSigmaDirectory(sigmaDir); err != nil {
 			s.log.Warn("[SIGMA] Failed to load sigma directory: %v", err)
 		} else {
 			s.log.Info("[SIGMA] Community Sigma rules loaded from %s (%d total rules active)",
 				sigmaDir, len(s.evaluator.GetRules()))
+			// Start filesystem watcher for hot-reload on .yml changes
+			s.startSigmaWatcher(ctx)
 		}
 	}
 
@@ -214,7 +219,100 @@ func (s *AlertingService) Start(ctx context.Context) error {
 }
 
 func (s *AlertingService) Stop(ctx context.Context) error {
+	if s.sigmaWatcher != nil {
+		_ = s.sigmaWatcher.Close()
+		s.sigmaWatcher = nil
+		s.log.Info("[SIGMA] Hot-reload watcher stopped")
+	}
 	return nil
+}
+
+// startSigmaWatcher watches sigmaDir for .yml file changes and reloads rules
+// with a 500 ms debounce so rapid saves don't trigger multiple reloads.
+func (s *AlertingService) startSigmaWatcher(ctx context.Context) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		s.log.Warn("[SIGMA] Could not create fsnotify watcher: %v", err)
+		return
+	}
+	if err := watcher.Add(s.sigmaDir); err != nil {
+		_ = watcher.Close()
+		s.log.Warn("[SIGMA] Could not watch sigma dir %s: %v", s.sigmaDir, err)
+		return
+	}
+	s.sigmaWatcher = watcher
+	s.log.Info("[SIGMA] Hot-reload watcher active on %s", s.sigmaDir)
+
+	go func() {
+		var debounce *time.Timer
+		defer func() {
+			if debounce != nil {
+				debounce.Stop()
+			}
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				// Only react to .yml / .yaml files being written, created or removed
+				n := event.Name
+				if !(
+					(len(n) > 4 && n[len(n)-4:] == ".yml") ||
+					(len(n) > 5 && n[len(n)-5:] == ".yaml")) {
+					continue
+				}
+				if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) && !event.Has(fsnotify.Remove) {
+					continue
+				}
+				// Debounce: reset timer so rapid successive saves only trigger one reload
+				if debounce != nil {
+					debounce.Stop()
+				}
+				debounce = time.AfterFunc(500*time.Millisecond, func() {
+					s.reloadSigmaRules()
+				})
+
+			case watchErr, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				s.log.Warn("[SIGMA] Watcher error: %v", watchErr)
+			}
+		}
+	}()
+}
+
+// reloadSigmaRules re-reads every .yml file in sigmaDir and atomically
+// replaces the active rule set. Called by the debounced watcher and also
+// exposed as a Wails-callable method so the UI can trigger manual reloads.
+func (s *AlertingService) reloadSigmaRules() {
+	if s.evaluator == nil || s.sigmaDir == "" {
+		return
+	}
+	if err := s.evaluator.LoadSigmaDirectory(s.sigmaDir); err != nil {
+		s.log.Warn("[SIGMA] Hot-reload failed: %v", err)
+		s.bus.Publish("sigma:reload_error", map[string]string{"error": err.Error()})
+		return
+	}
+	count := len(s.evaluator.GetRules())
+	s.log.Info("[SIGMA] Hot-reload complete — %d rules active", count)
+	s.bus.Publish("sigma:rules_reloaded", map[string]interface{}{"rule_count": count, "dir": s.sigmaDir})
+	EmitEvent(s.ctx, "sigma:rules_reloaded", map[string]interface{}{"rule_count": count})
+}
+
+// ReloadSigmaRules is the Wails-facing manual reload trigger.
+func (s *AlertingService) ReloadSigmaRules() int {
+	s.reloadSigmaRules()
+	if s.evaluator != nil {
+		return len(s.evaluator.GetRules())
+	}
+	return 0
 }
 
 func (s *AlertingService) scanGlobalThreatsLoop(ctx context.Context) {

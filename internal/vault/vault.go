@@ -425,6 +425,16 @@ func (v *Vault) IsUnlocked() bool {
 	return v.unlocked
 }
 
+// HasKeychainEntry returns true if the OS keychain has a stored credential for
+// this vault, meaning TryAutoUnlock / UnlockWithKeychain is likely to succeed.
+func (v *Vault) HasKeychainEntry() bool {
+	if v.keychain == nil || !v.keychain.Available() {
+		return false
+	}
+	_, err := v.keychain.Get(keychainService)
+	return err == nil
+}
+
 func (v *Vault) Encrypt(data []byte) ([]byte, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()

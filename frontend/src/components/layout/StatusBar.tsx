@@ -3,6 +3,7 @@ import { useApp } from '@core/store';
 import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { usePanelManager } from './PanelManager';
+import { DiagnosticsModal } from '../monitoring/DiagnosticsModal';
 
 export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) => {
     const [state] = useApp();
@@ -11,6 +12,7 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
     const [time, setTime] = createSignal('');
     const [healthMap, setHealthMap] = createSignal<Record<string, unknown>>({});
     const [diagGrade, setDiagGrade] = createSignal<string | null>(null);
+    const [showDiag, setShowDiag] = createSignal(false);
     const { openPanelCount } = usePanelManager();
 
     // Subscribe to diagnostics broadcast for live health grade in status bar
@@ -124,17 +126,21 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
 
                 <Show when={diagGrade()}>
                     <span
-                        title="Platform health grade — click SelfMonitor for details"
+                        title="Platform health — click to open diagnostics"
+                        onClick={() => setShowDiag(true)}
                         style={{
                             'font-family': 'var(--font-mono)',
                             'font-size': '9px',
                             'font-weight': '800',
                             'letter-spacing': '0.5px',
+                            cursor: 'pointer',
                             color: diagGrade() === 'A' ? 'var(--status-online)'
                                  : diagGrade() === 'B' ? '#d29922'
                                  : diagGrade() === 'C' ? '#f0883e'
                                  : '#f85149',
                         }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
                     >
                         ● {diagGrade()}
                     </span>
@@ -153,5 +159,9 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
                 <span style="color: var(--text-secondary); font-weight: 600; letter-spacing: 0.5px;">{time()}</span>
             </div>
         </footer>
+
+        <Show when={showDiag()}>
+            <DiagnosticsModal onClose={() => setShowDiag(false)} />
+        </Show>
     );
 };

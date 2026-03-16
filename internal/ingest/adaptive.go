@@ -68,7 +68,11 @@ func (ac *AdaptiveController) adjust() {
 	snap := ac.pipeline.GetMetrics()
 
 	eps := snap.EventsPerSecond
-	bufUsage := float64(snap.BufferUsage) / float64(snap.BufferCapacity)
+	bufCap := snap.BufferCapacity
+	if bufCap == 0 {
+		return // pipeline not yet started
+	}
+	bufUsage := float64(snap.BufferUsage) / float64(bufCap)
 
 	switch {
 	case bufUsage > 0.90:

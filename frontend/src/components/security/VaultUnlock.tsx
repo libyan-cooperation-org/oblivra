@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount } from 'solid-js';
-import { Unlock, ResetVault, IsUnlocked } from '../../../wailsjs/go/services/VaultService';
+import { UnlockWithPassword, ResetVault, IsUnlocked } from '../../../wailsjs/go/services/VaultService';
 
 interface VaultUnlockProps {
     onUnlock: () => void;

@@ -237,18 +237,31 @@ func (a *App) Startup(ctx context.Context) {
 	a.container.Log.Info("Application startup complete")
 
 	// 8. Headless / Server Auto-Unlock
-	// In sovereign server deployments, we attempt to auto-unlock via the OS keychain
-	// if the user has previously 'remembered' the credential.
+	// Only attempt keychain auto-unlock if the vault was previously set up with
+	// remember=true AND has a stored keychain entry. Attempting it unconditionally
+	// races with the user typing their password in the UI and produces a spurious
+	// "incorrect password" error on every startup.
 	if a.VaultService != nil {
 		go func() {
-			time.Sleep(2 * time.Second) // Give services a moment to settle
-			if !a.VaultService.IsUnlocked() {
-				a.container.Log.Info("[HARDENING] Attempting headless auto-unlock...")
-				if err := a.VaultService.TryAutoUnlock(); err != nil {
-					a.container.Log.Warn("[HARDENING] Headless auto-unlock failed: %v. Database-dependent features may remain locked.", err)
-				} else {
-					a.container.Log.Info("[HARDENING] Headless vault successfully unlocked.")
-				}
+			// Short pause so the vault UI can render before any backend activity
+			time.Sleep(500 * time.Millisecond)
+
+			// Bail immediately if already unlocked (e.g. fast user who typed password)
+			if a.VaultService.IsUnlocked() {
+				return
+			}
+
+			// Only attempt if a keychain credential actually exists
+			if !a.VaultService.HasKeychainEntry() {
+				a.container.Log.Info("[AUTO-UNLOCK] No keychain entry — skipping auto-unlock")
+				return
+			}
+
+			a.container.Log.Info("[AUTO-UNLOCK] Keychain entry found, attempting auto-unlock...")
+			if err := a.VaultService.TryAutoUnlock(); err != nil {
+				a.container.Log.Warn("[AUTO-UNLOCK] Auto-unlock failed: %v", err)
+			} else {
+				a.container.Log.Info("[AUTO-UNLOCK] Vault unlocked from keychain")
 			}
 		}()
 	}

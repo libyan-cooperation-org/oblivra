@@ -371,6 +371,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Platform.DataLifecycleService)
 	c.mustRegister(c.Platform.DisasterService)
 	c.mustRegister(c.Platform.ResourceMonitor)
+	c.mustRegister(c.Platform.ObservabilityService)
 	c.mustRegister(c.Platform.DiagnosticsService)
 
 	// Intel
