@@ -1,6 +1,6 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useApp } from '@core/store';
-import { GetAllHealth } from '../../../wailsjs/go/app/HealthService';
+import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
 import { usePanelManager } from './PanelManager';
 
 export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) => {

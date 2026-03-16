@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
-import { GetFleetTelemetry } from '../../../wailsjs/go/app/TelemetryService';
+import { GetFleetTelemetry } from '../../../wailsjs/go/services/TelemetryService';
 import { monitoring } from '../../../wailsjs/go/models';
 import '../../styles/heatmap.css';
 

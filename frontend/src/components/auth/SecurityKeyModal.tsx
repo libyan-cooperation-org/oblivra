@@ -4,7 +4,7 @@ import {
     YubiKeyDetect,
     YubiKeyGenerateSSHKey,
     FIDO2RemoveCredential
-} from '../../../wailsjs/go/app/SecurityService';
+} from '../../../wailsjs/go/services/SecurityService';
 import { security } from '../../../wailsjs/go/models';
 
 export const SecurityKeyModal: Component<{ onClose: () => void }> = (props) => {

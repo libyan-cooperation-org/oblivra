@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, onMount } from 'solid-js';
 import * as echarts from 'echarts';
-import { GetFailedLoginsByHost, GetRiskScoreByHost } from '../../../wailsjs/go/app/SIEMService';
+import { GetFailedLoginsByHost, GetRiskScoreByHost } from '../../../wailsjs/go/services/SIEMService';
 
 export const ThreatMap: Component<{ hostId: string }> = (props) => {
     let chartRef!: HTMLDivElement;

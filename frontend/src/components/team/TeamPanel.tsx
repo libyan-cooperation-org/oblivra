@@ -11,7 +11,7 @@ export const TeamPanel: Component = () => {
 
     onMount(async () => {
         try {
-            const { GetTeamName, ListMembers, ListSecrets } = await import('../../../wailsjs/go/app/TeamService');
+            const { GetTeamName, ListMembers, ListSecrets } = await import('../../../wailsjs/go/services/TeamService');
             const [tn, m, s] = await Promise.allSettled([GetTeamName(), ListMembers(), ListSecrets()]);
             setTeamName(tn.status === 'fulfilled' ? tn.value : '');
             setMembers(m.status === 'fulfilled' ? (m.value || []) : []);
@@ -23,7 +23,7 @@ export const TeamPanel: Component = () => {
     const addMember = async () => {
         if (!newEmail()) return;
         try {
-            const { AddMember } = await import('../../../wailsjs/go/app/TeamService');
+            const { AddMember } = await import('../../../wailsjs/go/services/TeamService');
             const member = await AddMember(newEmail(), newRole(), newEmail().split('@')[0]);
             setMembers(prev => [...prev, member]);
             setNewEmail('');

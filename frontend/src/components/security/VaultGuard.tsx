@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, JSX, Show } from 'solid-js';
-import { IsSetup, IsUnlocked } from '../../../wailsjs/go/app/VaultService';
+import { IsSetup, IsUnlocked } from '../../../wailsjs/go/services/VaultService';
 import { useApp } from '../../core/store';
 import { VaultSetup } from './VaultSetup';
 import { VaultUnlock } from './VaultUnlock';

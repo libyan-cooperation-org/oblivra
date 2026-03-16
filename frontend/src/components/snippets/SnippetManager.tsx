@@ -1,5 +1,5 @@
 import { Component, createSignal, For, Show, createMemo, onMount } from 'solid-js';
-import { List, ExportJSON, ImportJSON } from '../../../wailsjs/go/app/SnippetService';
+import { List, ExportJSON, ImportJSON } from '../../../wailsjs/go/services/SnippetService';
 
 interface Snippet {
   id: string;
@@ -304,7 +304,7 @@ export const SnippetManager: Component<SnippetManagerProps> = (props) => {
                     </button>
                     <button class="sm-btn" onClick={async () => {
                       try {
-                        const { ShareToTeam } = (window as any).go.app.SnippetService;
+                        const { ShareToTeam } = (window as any).go.services.SnippetService;
                         await ShareToTeam(snippet.id);
                         alert("Snippet shared to team vault!");
                       } catch (err) {

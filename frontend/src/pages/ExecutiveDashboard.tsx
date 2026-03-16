@@ -81,7 +81,7 @@ export const ExecutiveDashboard: Component = () => {
 
     async function loadAll() {
         try {
-            const svc = (window as any).go?.app as any;
+            const svc = (window as any).go?.services as any;
             if (!svc) return;
 
             // ── 1. Ingest metrics ─────────────────────────────────────────────

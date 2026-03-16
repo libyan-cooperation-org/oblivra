@@ -1,5 +1,5 @@
 import { Component, createSignal, For } from 'solid-js';
-import { SignData } from '../../../wailsjs/go/app/ComplianceService';
+import { SignData } from '../../../wailsjs/go/services/ComplianceService';
 import { EmptyState } from '../ui/EmptyState';
 import '../../styles/workflow.css';
 

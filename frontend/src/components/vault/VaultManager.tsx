@@ -1,10 +1,10 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { GetTeamName, ListMembers, ListSecrets } from '../../../wailsjs/go/app/TeamService';
+import { GetTeamName, ListMembers, ListSecrets } from '../../../wailsjs/go/services/TeamService';
 import {
     IsUnlocked, Unlock, ListCredentials, AddCredential,
     DeleteCredential, GenerateEd25519Key, GetDecryptedCredential, UnlockWithHardware
-} from '../../../wailsjs/go/app/VaultService';
-import { YubiKeyDetect, YubiKeyDeriveVaultKey } from '../../../wailsjs/go/app/SecurityService';
+} from '../../../wailsjs/go/services/VaultService';
+import { YubiKeyDetect, YubiKeyDeriveVaultKey } from '../../../wailsjs/go/services/SecurityService';
 import { team, database } from '../../../wailsjs/go/models';
 import '../../styles/vault.css';
 

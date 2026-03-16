@@ -6,10 +6,10 @@ import {
 } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { createStore } from 'solid-js/store';
-import { Connect } from '../../wailsjs/go/app/SSHService';
-import { StartLocalSession } from '../../wailsjs/go/app/LocalService';
-import { ListHosts } from '../../wailsjs/go/app/HostService';
-import { IsUnlocked } from '../../wailsjs/go/app/VaultService';
+import { Connect } from '../../wailsjs/go/services/SSHService';
+import { StartLocalSession } from '../../wailsjs/go/services/LocalService';
+import { ListHosts } from '../../wailsjs/go/services/HostService';
+import { IsUnlocked } from '../../wailsjs/go/services/VaultService';
 import { subscribe } from './bridge';
 import {
     Host,

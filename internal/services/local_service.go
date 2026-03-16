@@ -172,7 +172,14 @@ func (s *LocalService) pump(ctx context.Context, sessionID string, r io.Reader) 
 
 // waitExit waits for the shell process to finish and cleans up.
 func (s *LocalService) waitExit(sessionID string, cmd *exec.Cmd) {
-	_ = cmd.Wait()
+	// cmd.Wait() is only safe if cmd.Start() was called (pipe mode).
+	// For ConPTY mode on Windows, cmd.Process is set directly and
+	// cmd.ProcessState may be nil — guard against that.
+	if cmd.Process != nil {
+		// Use Process.Wait() directly to avoid the exec.Cmd bookkeeping panic
+		// that occurs when Start() was never invoked.
+		cmd.Process.Wait() //nolint:errcheck
+	}
 	time.Sleep(50 * time.Millisecond) // let buffered output flush
 	s.cleanup(sessionID, true)
 }

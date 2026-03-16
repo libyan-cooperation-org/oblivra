@@ -43,7 +43,7 @@ export interface DecisionTrace {
 declare global {
     interface Window {
         go: {
-            app: {
+            services: {
                 TemporalService: {
                     GetViolations(): Promise<Violation[]>;
                     GetAgentDrift(): Promise<Record<string, number>>;
@@ -56,6 +56,11 @@ declare global {
                     ListRecentDecisions(limit: number): Promise<DecisionTrace[]>;
                     GetExplanation(id: string): Promise<string>;
                     GetProof(id: string): Promise<string>;
+                };
+                DeterministicResponseService: {
+                    GetSignatures(): Promise<any[]>;
+                    MapResponse(action: string, event: string, policy: string): Promise<any>;
+                    Replay(inputHash: string, policy: string, action: string): Promise<any>;
                 };
                 SettingsService?: any;
             };

@@ -17,7 +17,7 @@ import { MetricsPanel } from '../monitoring/MetricsPanel';
 import { UpdaterPanel } from '../updater/UpdaterPanel';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
 import { AddHostModal } from '../sidebar/AddHostModal';
-import { Delete } from '../../../wailsjs/go/app/HostService';
+import { Delete } from '../../../wailsjs/go/services/HostService';
 import { database } from '../../../wailsjs/go/models';
 
 interface DrawerPanelProps {

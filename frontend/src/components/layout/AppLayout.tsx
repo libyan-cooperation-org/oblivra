@@ -12,7 +12,7 @@ import { ModalSystem } from '../ui/ModalSystem';
 import { useHotkeys } from '../../hooks/useHotkeys';
 import { TransferPanel } from '../terminal/TransferPanel';
 import { TransferDrawer } from '../terminal/TransferDrawer';
-import { GetActive } from '../../../wailsjs/go/app/WorkspaceService';
+import { GetActive } from '../../../wailsjs/go/services/WorkspaceService';
 import '../../styles/team.css';
 
 import '../../styles/dashboard.css';

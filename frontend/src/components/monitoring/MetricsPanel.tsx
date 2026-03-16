@@ -6,7 +6,7 @@ export const MetricsPanel: Component = () => {
 
     const reload = async () => {
         try {
-            const { GetAllMetrics } = await import('../../../wailsjs/go/app/MetricsService');
+            const { GetAllMetrics } = await import('../../../wailsjs/go/services/MetricsService');
             setMetrics(await GetAllMetrics() || []);
         } catch (e) { console.error('Metrics load:', e); }
         setLoading(false);

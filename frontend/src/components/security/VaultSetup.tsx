@@ -2,7 +2,7 @@ import { Component, createSignal, For } from 'solid-js';
 import {
     SetupVault, // @ts-ignore
     SetupVaultWithTPM
-} from '../../../wailsjs/go/app/VaultService';
+} from '../../../wailsjs/go/services/VaultService';
 
 interface VaultSetupProps {
     onComplete: () => void;

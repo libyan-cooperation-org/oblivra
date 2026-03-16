@@ -9,8 +9,8 @@ import {
     createEffect,
 } from 'solid-js';
 import { useApp } from '../../core/store';
-import { GenerateCommand } from '../../../wailsjs/go/app/AIService';
-import { List as ListSnippets } from '../../../wailsjs/go/app/SnippetService';
+import { GenerateCommand } from '../../../wailsjs/go/services/AIService';
+import { List as ListSnippets } from '../../../wailsjs/go/services/SnippetService';
 import { JSX } from 'solid-js';
 import '../../styles/palette.css';
 

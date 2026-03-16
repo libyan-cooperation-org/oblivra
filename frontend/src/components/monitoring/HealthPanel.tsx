@@ -8,7 +8,7 @@ export const HealthPanel: Component = () => {
 
     const reload = async () => {
         try {
-            const { GetAllHealth } = await import('../../../wailsjs/go/app/HealthService');
+            const { GetAllHealth } = await import('../../../wailsjs/go/services/HealthService');
             setHealth((await GetAllHealth() || {}) as Record<string, HealthData>);
         } catch (e) { console.error('Health load:', e); }
         setLoading(false);

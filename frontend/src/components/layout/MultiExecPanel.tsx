@@ -1,8 +1,8 @@
 import { Component, For, Show, createSignal, onMount } from 'solid-js';
 import { useApp } from '@core/store';
-import { Execute, GetRecentJobs, CheckSafety, SetMaxConcurrency } from '../../../wailsjs/go/app/MultiExecService';
+import { Execute, GetRecentJobs, CheckSafety, SetMaxConcurrency } from '../../../wailsjs/go/services/MultiExecService';
 import { EventsOn } from '../../../wailsjs/runtime/runtime';
-import { app } from '../../../wailsjs/go/models';
+import { services } from '../../../wailsjs/go/models';
 
 export const MultiExecPanel: Component = () => {
     const [state] = useApp();
@@ -13,7 +13,7 @@ export const MultiExecPanel: Component = () => {
     type ActiveJob = { id: string, command: string, status: string, host_ids?: string[], results: JobResult[] };
     const [activeJob, setActiveJob] = createSignal<ActiveJob | null>(null);
     const [recentJobs, setRecentJobs] = createSignal<ActiveJob[]>([]);
-    const [safetyResult, setSafetyResult] = createSignal<app.DestructiveCheckResult | null>(null);
+    const [safetyResult, setSafetyResult] = createSignal<services.DestructiveCheckResult | null>(null);
     const [showSafetyModal, setShowSafetyModal] = createSignal(false);
     const [concurrency, setConcurrency] = createSignal(5);
 

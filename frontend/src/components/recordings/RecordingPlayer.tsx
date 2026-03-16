@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { GetRecordingFrames, GetRecordingMeta } from '../../../wailsjs/go/app/RecordingService';
+import { GetRecordingFrames, GetRecordingMeta } from '../../../wailsjs/go/services/RecordingService';
 
 import '@xterm/xterm/css/xterm.css';
 

@@ -9,7 +9,7 @@ export const SecurityPanel: Component = () => {
 
     onMount(async () => {
         try {
-            const { SSHListCertificates, FIDO2ListCredentials, YubiKeyDetect } = await import('../../../wailsjs/go/app/SecurityService');
+            const { SSHListCertificates, FIDO2ListCredentials, YubiKeyDetect } = await import('../../../wailsjs/go/services/SecurityService');
             const [c, f, y] = await Promise.allSettled([SSHListCertificates(), FIDO2ListCredentials(), YubiKeyDetect()]);
             setCerts(c.status === 'fulfilled' ? (c.value || []) : []);
             setFido2Creds(f.status === 'fulfilled' ? (f.value || []) : []);
