@@ -142,4 +142,5 @@ type PlatformCluster struct {
 	DataLifecycleService *services.DataLifecycleService
 	ResourceMonitor      *services.ResourceMonitor
 	DiagnosticsService   *services.DiagnosticsService
+	APIService           *services.APIService
 }

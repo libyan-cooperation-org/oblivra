@@ -74,10 +74,14 @@ func (idx RouteIndex) CandidateRules(eventType string) []Rule {
 // extractLiteralEventType returns the bare event type string if the condition
 // value is a plain literal (not a regex pattern). Returns "" for regex values
 // so those rules fall into the wildcard bucket and are always evaluated.
-func extractLiteralEventType(v string) string {
-	lower := strings.ToLower(v)
+func extractLiteralEventType(v interface{}) string {
+	s, ok := v.(string)
+	if !ok {
+		return "" // could be a list or other type, skip indexing
+	}
+	lower := strings.ToLower(s)
 	if strings.HasPrefix(lower, "regex:") || strings.HasPrefix(lower, "cidr:") {
 		return "" // can't index regex patterns
 	}
-	return strings.TrimSpace(v)
+	return strings.TrimSpace(s)
 }

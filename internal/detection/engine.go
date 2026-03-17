@@ -1,7 +1,6 @@
 package detection
 
 import (
-
 	"fmt"
 	"net"
 	"regexp"
@@ -143,70 +142,122 @@ func safeRegexMatch(pattern, s string, timeout time.Duration) (bool, error) {
 }
 
 // matchesConditions checks if a single event matches the static criteria of a map of conditions.
-// We pass the condition map directly so this function can be reused for sequence steps.
-func (e *Evaluator) matchesConditions(conditions map[string]string, evt Event) bool {
-	timeout := 100 * time.Millisecond // Strict limit for regex execution per condition
-
+func (e *Evaluator) matchesConditions(conditions map[string]interface{}, evt Event) bool {
 	for k, v := range conditions {
-		valLower := strings.ToLower(v)
-		isRegex := strings.HasPrefix(valLower, "regex:")
-		regexPattern := ""
-		if isRegex {
-			regexPattern = strings.TrimSpace(v[6:])
-		}
-
-		switch strings.ToLower(k) {
-		case "eventtype":
-			if isRegex {
-				if matched, _ := safeRegexMatch(regexPattern, evt.EventType, timeout); !matched {
-					return false
-				}
-			} else if evt.EventType != v {
-				return false
-			}
-		case "source_ip":
-			if strings.HasPrefix(valLower, "cidr:") {
-				_, ipNet, err := net.ParseCIDR(strings.TrimSpace(v[5:]))
-				if err == nil {
-					ip := net.ParseIP(evt.SourceIP)
-					if ip == nil || !ipNet.Contains(ip) {
-						return false
-					}
-				}
-			} else if evt.SourceIP != v {
-				return false
-			}
-		case "user":
-			if isRegex {
-				if matched, _ := safeRegexMatch(regexPattern, evt.User, timeout); !matched {
-					return false
-				}
-			} else if evt.User != v {
-				return false
-			}
-		case "host":
-			if evt.HostID != v {
-				return false
-			}
-		case "output_contains":
-			if isRegex {
-				if matched, _ := safeRegexMatch("(?i)"+regexPattern, evt.RawLog, timeout); !matched {
-					return false
-				}
-			} else if !strings.Contains(strings.ToLower(evt.RawLog), valLower) {
-				return false
-			}
-		case "location":
-			if isRegex {
-				if matched, _ := safeRegexMatch("(?i)"+regexPattern, evt.Location, timeout); !matched {
-					return false
-				}
-			} else if !strings.Contains(strings.ToLower(evt.Location), valLower) {
-				return false
-			}
+		if !e.evalCondition(k, v, evt) {
+			return false
 		}
 	}
 	return true
+}
+
+func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
+	timeout := 100 * time.Millisecond
+
+	// Handle slice of values (OR logic)
+	// Supports both []interface{} (from yaml) and []string (transpiled)
+	if slice, ok := v.([]interface{}); ok {
+		for _, item := range slice {
+			if e.evalCondition(k, item, evt) {
+				return true
+			}
+		}
+		return false
+	}
+	if slice, ok := v.([]string); ok {
+		for _, item := range slice {
+			if e.evalCondition(k, item, evt) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Parse Sigma-style modifiers in keys: field|modifier1|modifier2
+	parts := strings.Split(k, "|")
+	fieldName := parts[0]
+	modifiers := parts[1:]
+
+	// Extract target value based on field name
+	var target string
+	isKnownField := true
+	switch strings.ToLower(fieldName) {
+	case "eventtype":
+		target = evt.EventType
+	case "source_ip", "src_ip":
+		target = evt.SourceIP
+	case "user", "username":
+		target = evt.User
+	case "host", "hostid":
+		target = evt.HostID
+	case "output_contains", "rawlog":
+		target = evt.RawLog
+	default:
+		// Default to RawLog for any unknown "sigma-style" fields (e.g. CommandLine, Image, AccessMask)
+		target = evt.RawLog
+		isKnownField = false
+	}
+
+	valStr := fmt.Sprintf("%v", v)
+	valLower := strings.ToLower(valStr)
+
+	// Check for special types in values
+	if strings.HasPrefix(valLower, "cidr:") && strings.ToLower(fieldName) == "source_ip" {
+		_, ipNet, err := net.ParseCIDR(strings.TrimSpace(valStr[5:]))
+		if err == nil {
+			ip := net.ParseIP(evt.SourceIP)
+			if ip != nil && ipNet.Contains(ip) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Determine matching logic based on modifiers or prefix
+	match := false
+	isNegated := false
+	matchType := "exact"
+	if !isKnownField {
+		matchType = "contains" // Force contains for unknown fields searched in RawLog
+	}
+
+	for _, m := range modifiers {
+		switch strings.ToLower(m) {
+		case "contains":
+			matchType = "contains"
+		case "startswith":
+			matchType = "startswith"
+		case "endswith":
+			matchType = "endswith"
+		case "not":
+			isNegated = true
+		}
+	}
+
+	// Handle "regex:" prefix in value (legacy Oblivra style)
+	if strings.HasPrefix(valLower, "regex:") {
+		regexPattern := strings.TrimSpace(valStr[6:])
+		matched, _ := safeRegexMatch(regexPattern, target, timeout)
+		match = matched
+	} else {
+		// Standard string matching
+		tLower := strings.ToLower(target)
+		switch matchType {
+		case "contains":
+			match = strings.Contains(tLower, valLower)
+		case "startswith":
+			match = strings.HasPrefix(tLower, valLower)
+		case "endswith":
+			match = strings.HasSuffix(tLower, valLower)
+		default:
+			match = tLower == valLower
+		}
+	}
+
+	if isNegated {
+		return !match
+	}
+	return match
 }
 
 // evaluateRuleState handles the stateful aspect of rules (thresholds, time windows, sequences)

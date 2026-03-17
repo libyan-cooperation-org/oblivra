@@ -3,8 +3,10 @@ package services_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/services"
@@ -23,17 +25,25 @@ func newTestVaultService(t *testing.T) (*services.VaultService, func()) {
 	log := logger.NewStdoutLogger()
 	bus := eventbus.NewBus(log)
 
+	db, err := database.New(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("database.New: %v", err)
+	}
+	credRepo := database.NewCredentialRepository(db)
+	auditRepo := database.NewAuditRepository(db)
+
 	v, err := vault.New(vault.Config{StorePath: tmpDir}, log)
 	if err != nil {
 		t.Fatalf("vault.New: %v", err)
 	}
 
-	svc := services.NewVaultService(v, nil, nil, nil, nil, nil, nil, bus, log)
+	svc := services.NewVaultService(v, db, nil, nil, credRepo, auditRepo, nil, bus, log)
 	ctx := context.WithValue(context.Background(), "test", "true")
 	svc.Start(ctx) //nolint:errcheck
 
 	cleanup := func() {
 		bus.Close()
+		svc.Stop(context.Background())
 	}
 	return svc, cleanup
 }

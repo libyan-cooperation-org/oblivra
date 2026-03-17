@@ -287,7 +287,7 @@ func TestSigmaTranspiler_TimeframeConversion(t *testing.T) {
 		{"5m", 300},
 		{"2h", 7200},
 		{"1d", 86400},
-		{"", 0},
+		{"", 3600}, // Default 1h
 	}
 	for _, tc := range cases {
 		yaml := []byte(`

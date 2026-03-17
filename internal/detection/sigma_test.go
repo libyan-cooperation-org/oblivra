@@ -101,10 +101,11 @@ func TestTranspileSigma_Mimikatz(t *testing.T) {
 	}
 
 	// Conditions should include output_contains with a regex
-	cond, ok := rule.Conditions["output_contains"]
+	condInterface, ok := rule.Conditions["output_contains"]
 	if !ok {
 		t.Fatal("expected output_contains condition")
 	}
+	cond := condInterface.(string)
 	if !strings.HasPrefix(cond, "regex:") {
 		t.Errorf("expected regex: prefix in condition, got: %s", cond)
 	}
@@ -113,8 +114,8 @@ func TestTranspileSigma_Mimikatz(t *testing.T) {
 	}
 
 	// EventType should be process_creation from logsource
-	if rule.Conditions["EventType"] != "process_creation" {
-		t.Errorf("expected EventType=process_creation, got: %s", rule.Conditions["EventType"])
+	if rule.Conditions["EventType"].(string) != "process_creation" {
+		t.Errorf("expected EventType=process_creation, got: %v", rule.Conditions["EventType"])
 	}
 }
 
@@ -129,17 +130,18 @@ func TestTranspileSigma_Keywords(t *testing.T) {
 	}
 
 	// Keywords should map to output_contains
-	cond, ok := rule.Conditions["output_contains"]
+	condInterface, ok := rule.Conditions["output_contains"]
 	if !ok {
 		t.Fatal("expected output_contains for keyword rule")
 	}
+	cond := condInterface.(string)
 	if !strings.Contains(cond, "Failed") && !strings.Contains(cond, "failed") {
 		t.Errorf("expected 'Failed' keyword in condition, got: %s", cond)
 	}
 
 	// logsource service=sshd should produce EventType=sshd
 	if et, ok := rule.Conditions["EventType"]; ok {
-		if et != "sshd" {
+		if et.(string) != "sshd" {
 			t.Errorf("expected EventType=sshd, got %s", et)
 		}
 	}

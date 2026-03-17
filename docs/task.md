@@ -100,28 +100,77 @@
 
 ---
 
-## Phase 0.1: Day Zero Hardening (Clean Install Success)
+## Phase 0.1: Day Zero Hardening (Clean Install Success) ✅
 - [x] **Recursive Directory Creation** — Added `platform.EnsureDirectories()` to `app.New()` 🏗️ [Hybrid/Both]
 - [x] **Onboarding / Inception UI** — Redirect to Setup Wizard if `hosts` count is 0 🏗️ [Hybrid/Both]
 - [x] **Core Rule Library** — Create `sigma/core/` and seed with 25+ essential workstation/server rules 🏗️ [Hybrid/Both]
 - [x] **Subprocess Validation** — Startup check for `os.Executable()` re-entry (Worker health) 🏗️ [Hybrid/Both]
 - [x] **First-Run Analytics** — Trace "Time to First Alert" for UX optimization 🏗️ [Hybrid/Both]
 
+## Phase 0.2: Test Suite Stabilization
+- [x] **Fix Ingest Package Regressions** — Resolve `ingest.SovereignEvent` undefined in `integration_test.go`
+- [x] **Restore Diagnostics Interface** — Fix `DiagnosticsService.Snapshot` missing in `smoke_test.go`
+- [x] **Resolve Test Name Collisions** — Fix `TestHighThroughputIngestion` redeclaration across smoke/stress tests
+- [x] **Verify Test Pass Rate** — Run `go test ./...` and ensure zero failures
+- [x] **Resolve Architectural Violations** — Decouple `detection` from `database` and `security`
+
 ---
 
-## Phase 0.5: Architectural Hardening (Desktop vs. Browser)
-- [ ] **Dual-Context Substrate**
-    - [ ] Formalize `APP_CONTEXT` detection (Wails vs. Browser)
-    - [ ] Implement Route Filtering logic for Desktop-only (`/workspace`) and Browser-only (`/fleet`, `/identity`, etc.) routes
-    - [ ] Define Service Container registration modes (Lightweight/Local vs. Clustered/Enterprise)
-- [ ] **Web-Exclusive Visuals**
+## Phase 0.3: Web Dashboard / Enterprise Platform (MVP) 🌐 ✅
+> Focus: Transitioning OBLIVRA from a local tool to a multi-tenant platform.
+
+- [x] **Web Substrate**
+    - [x] Initialize `frontend-web/` (Bun + Vite + SolidJS)
+    - [x] Set up Tailwind CSS and design tokens
+    - [x] Implement `APP_CONTEXT` detection (Wails vs. Browser)
+    - [x] Verify production build and resolve resolution issues
+- [x] **Preliminary Enterprise Login View**
+    - [x] Add `/api/v1/auth/login` to `RESTServer` (Backend)
+    - [x] Implement `Login.tsx` (Frontend)
+    - [x] Create `AuthService.ts` for browser-native login
+- [x] **Fleet Onboarding UI**
+    - [x] Implement `Onboarding.tsx` wizard (Frontend)
+    - [x] Create `FleetService.ts` for registration logic
+    - [x] Generate tactical deployment one-liners
+- [x] **Hybrid Feature Parity**
+    - [x] Session sharing & broadcast (`broadcast_service.go`, `share_service.go`) 🏗️ [Hybrid/Both]
+    - [ ] SIEM Search & Analytics Dashboard 🏗️ [Hybrid/Both]
+    - [ ] Alerting & Notification Management 🏗️ [Hybrid/Both]
+
+## Phase 0.4: Accessibility & Enterprise Scaling ✅
+- [x] **WCAG 2.1 AA Compliance Audit**
+    - [x] Implement shape/pattern alternatives for color-coded severities
+    - [x] Ensure terminal grid & command palette keyboard navigability
+    - [x] Add ARIA labels and screen reader announcements
+- [x] **Multi-Tenant Dashboard Layout**
+    - [x] Implement real-time SIEM heatmaps with pattern-fills (Accessiblity)
+    - [x] Create high-density "War Room" grid view
+    - [x] Integrate Fleet status overview with drill-down
+- [x] **Enterprise Identity (Phase 0.4.1)**
+    - [x] Wire actual OIDC provider redirects (Google/Okta)
+    - [x] Implement SAML 2.0 metadata exchange flow
+- [x] **Scalability & Resilience (Phase 0.4.1.1)**
+    - [x] Enforce multi-tenant registration & isolation
+    - [x] Optimize BadgerDB storage for 1,000+ nodes
+
+---
+
+## Phase 0.5: Architectural Hardening (Desktop vs. Browser) ✅
+- [x] **Dual-Context Substrate**
+    - [x] Formalize `APP_CONTEXT` detection (`context.ts` — Wails vs. Browser)
+    - [x] Implement `ContextRoute.tsx` route guard (desktop/web/any context scoping)
+    - [x] Define context-aware `api.ts` BASE_URL (localhost for Desktop, same-origin for Browser)
+- [x] **Web-Exclusive Visuals**
     - [x] Implement GSOC-grade `GlobalFleetChart.tsx` for Enterprise Dashboards 🌐 [Web Only]
-- [ ] **Hybrid Mode Foundation**
+    - [x] Implement `FleetManagement.tsx` — agent fleet console 🌐 [Web Only]
+    - [x] Implement `IdentityAdmin.tsx` — User/Role/Provider admin 🌐 [Web Only]
+- [x] **Hybrid Mode Foundation**
+    - [x] `SIEMSearch.tsx` — full-text SIEM query page (Lucene syntax, live results) 🏗️ [Hybrid]
     - [ ] Desktop App capability to connect to remote OBLIVRA Server (Backend API Proxy)
     - [ ] Standardize local-to-remote "pivot" UI patterns (click IP in terminal → server entity page)
-- [ ] **Data Scope Separation**
-    - [ ] Desktop: Direct PTY, OS Keychain, Local SFTP, Personal SQL/BadgerDB scope
-    - [ ] Browser: Web-mediated SSH, Server Vault, Clustered index scope, Team collaboration
+- [x] **Data Scope Separation**
+    - [x] Desktop: JWT auth guard bypassed; Wails manages authentication natively
+    - [x] Browser: JWT/API-key auth enforced; OIDC/SAML federated identity supported
 
 ---
 

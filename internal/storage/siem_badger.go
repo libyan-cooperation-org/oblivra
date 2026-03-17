@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/search"
 )
@@ -35,12 +36,12 @@ func NewBadgerSIEMRepository(store *HotStore, searchEngine **search.SearchEngine
 // Primary: event:{host_id}:{timestamp_ns}:{event_id} -> JSON(HostEvent)
 // IP Index: idx:ip:{source_ip}:{timestamp_ns}:{event_id} -> JSON(HostEvent)
 
-func formatEventKey(hostID string, ts time.Time, id int64) []byte {
-	return []byte(fmt.Sprintf("event:%s:%020d:%d", hostID, ts.UnixNano(), id))
+func formatEventKey(tenantID, hostID string, ts time.Time, id int64) []byte {
+	return []byte(fmt.Sprintf("event:%s:%s:%020d:%d", tenantID, hostID, ts.UnixNano(), id))
 }
 
-func formatIPKey(ip string, ts time.Time, id int64) []byte {
-	return []byte(fmt.Sprintf("idx:ip:%s:%020d:%d", ip, ts.UnixNano(), id))
+func formatIPKey(tenantID, ip string, ts time.Time, id int64) []byte {
+	return []byte(fmt.Sprintf("idx:ip:%s:%s:%020d:%d", tenantID, ip, ts.UnixNano(), id))
 }
 
 // InsertHostEvent records a new security anomaly.
@@ -64,15 +65,15 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 	// 1. Primary write
 	ts, _ := time.Parse(time.RFC3339, event.Timestamp)
-	primaryKey := formatEventKey(event.HostID, ts, event.ID)
+	primaryKey := formatEventKey(event.TenantID, event.HostID, ts, event.ID)
 	if err := r.store.Put(primaryKey, data, ttl); err != nil {
 		return fmt.Errorf("failed to write primary event: %w", err)
 	}
 
 	// 2. Secondary index for IP lookups (useful for risk scoring)
 	if event.SourceIP != "" && event.SourceIP != "-" {
-	ts, _ := time.Parse(time.RFC3339, event.Timestamp)
-		ipKey := formatIPKey(event.SourceIP, ts, event.ID)
+		ts, _ := time.Parse(time.RFC3339, event.Timestamp)
+		ipKey := formatIPKey(event.TenantID, event.SourceIP, ts, event.ID)
 		if err := r.store.Put(ipKey, data, ttl); err != nil {
 			return fmt.Errorf("failed to write IP index: %w", err)
 		}
@@ -98,7 +99,13 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 // GetHostEvents returns the latest security events for a host, up to a limit
 func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit int) ([]database.HostEvent, error) {
-	prefix := []byte(fmt.Sprintf("event:%s:", hostID))
+	// For MVP, we'll try to find the tenant from the context if available
+	tenantID := "GLOBAL"
+	if u := auth.UserFromContext(ctx); u != nil {
+		tenantID = u.TenantID
+	}
+
+	prefix := []byte(fmt.Sprintf("event:%s:%s:", tenantID, hostID))
 	var events []database.HostEvent
 
 	err := r.store.ReverseIteratePrefix(prefix, limit, func(key, value []byte) error {
@@ -151,7 +158,11 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 	}
 
 	// Fallback to slow BadgerDB prefix scan if Bleve is offline or locked
-	prefix := []byte("event:")
+	tenantID := "GLOBAL"
+	if u := auth.UserFromContext(ctx); u != nil {
+		tenantID = u.TenantID
+	}
+	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
 	var events []database.HostEvent
 	qLower := strings.ToLower(query)
 
@@ -243,7 +254,11 @@ func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID
 
 // CalculateRiskScore heuristically calculates risk of a host based on event frequency over 24h
 func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID string) (int, error) {
-	prefix := []byte(fmt.Sprintf("event:%s:", hostID))
+	tenantID := "GLOBAL"
+	if u := auth.UserFromContext(ctx); u != nil {
+		tenantID = u.TenantID
+	}
+	prefix := []byte(fmt.Sprintf("event:%s:%s:", tenantID, hostID))
 
 	score := 0
 	uniqueIPs := make(map[string]bool)
@@ -308,12 +323,17 @@ func (r *BadgerSIEMRepository) GetEventTrend(ctx context.Context, days int) ([]m
 		trendMap[d] = 0
 	}
 
-	prefix := []byte("event:")
+	tenantID := "GLOBAL"
+	if u := auth.UserFromContext(ctx); u != nil {
+		tenantID = u.TenantID
+	}
+	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
+
 	r.store.ReverseIteratePrefix(prefix, 0, func(key, value []byte) error {
-		// Key format: event:{host_id}:{timestamp_ns}:{id}
+		// Key format: event:{tenant_id}:{host_id}:{timestamp_ns}:{id}
 		parts := bytes.Split(key, []byte(":"))
-		if len(parts) >= 4 {
-			tsNano, err := strconv.ParseInt(string(parts[2]), 10, 64)
+		if len(parts) >= 5 {
+			tsNano, err := strconv.ParseInt(string(parts[3]), 10, 64)
 			if err == nil {
 				ts := time.Unix(0, tsNano)
 				if ts.Before(cutoff) {

@@ -107,23 +107,34 @@ func (res *ValidationResult) addError(err string) {
 }
 
 // checkConditions validates all evaluation nodes inside a condition map, primarily targeting ReDoS
-func (v *RuleVerifier) checkConditions(conditions map[string]string) []string {
+func (v *RuleVerifier) checkConditions(conditions map[string]interface{}) []string {
 	var errs []string
-	for field, matchPattern := range conditions {
-		if strings.HasPrefix(strings.ToLower(matchPattern), "regex:") {
-			pattern := matchPattern[6:]
-			if err := v.verifyRegexSafety(pattern); err != nil {
-				errs = append(errs, fmt.Sprintf("Unsafe ReDoS regex detected on field '%s': %v", field, err))
-			}
-		} else if strings.HasPrefix(strings.ToLower(matchPattern), "cidr:") {
-			// Fast static check for valid CIDR so we don't spam errors at runtime
-			cidr := matchPattern[5:]
-			if strings.Count(cidr, "/") != 1 {
-				errs = append(errs, fmt.Sprintf("Invalid CIDR format on field '%s': %s", field, cidr))
-			}
-		}
+	for field, val := range conditions {
+		v.checkSingleCondition(field, val, &errs)
 	}
 	return errs
+}
+
+func (v *RuleVerifier) checkSingleCondition(field string, val interface{}, errs *[]string) {
+	if slice, ok := val.([]interface{}); ok {
+		for _, item := range slice {
+			v.checkSingleCondition(field, item, errs)
+		}
+		return
+	}
+
+	matchPattern := fmt.Sprintf("%v", val)
+	if strings.HasPrefix(strings.ToLower(matchPattern), "regex:") {
+		pattern := matchPattern[6:]
+		if err := v.verifyRegexSafety(pattern); err != nil {
+			*errs = append(*errs, fmt.Sprintf("Unsafe ReDoS regex detected on field '%s': %v", field, err))
+		}
+	} else if strings.HasPrefix(strings.ToLower(matchPattern), "cidr:") {
+		cidr := matchPattern[5:]
+		if strings.Count(cidr, "/") != 1 {
+			*errs = append(*errs, fmt.Sprintf("Invalid CIDR format on field '%s': %s", field, cidr))
+		}
+	}
 }
 
 // verifyRegexSafety applies mathematical constraint heuristics to prevent ReDoS CPU exhaustion.

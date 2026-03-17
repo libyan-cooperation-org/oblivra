@@ -153,6 +153,10 @@ func (s *SIEMService) Start(ctx context.Context) error {
 	return nil
 }
 
+func (s *SIEMService) Store() database.SIEMStore {
+	return s.repo
+}
+
 func (s *SIEMService) Stop(ctx context.Context) error {
 	return nil
 }

@@ -97,7 +97,9 @@ func (w *WAL) Append(payload []byte) error {
 	}
 
 	w.flushedBytes += int64(8 + len(payload))
-	return nil
+	// Flush to the OS buffer immediately to ensure crash resilience 
+	// (syncLoop will handle the physical disk sync every 50ms)
+	return w.writer.Flush()
 }
 
 func (w *WAL) syncLoop() {

@@ -24,6 +24,7 @@ func NewAPIKeyMiddleware(keys []string, log *logger.Logger) *APIKeyMiddleware {
 		// By default, system keys are given Admin. In a real DB they would map to specific user roles.
 		valid[k] = UserAccount{
 			ID:        "system",
+			TenantID:  "GLOBAL",
 			Username:  "ServiceAccount",
 			Role:      RoleAdmin,
 			Clearance: ClearanceTopSecret, // System gets highest clearance
@@ -121,6 +122,7 @@ func apiKeyToIdentityUser(u *UserAccount) *IdentityUser {
 	}
 	return &IdentityUser{
 		ID:          u.ID,
+		TenantID:    u.TenantID,
 		Email:       u.Username,
 		Name:        u.Username,
 		RoleID:      string(u.Role),

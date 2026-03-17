@@ -8,10 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
-	"github.com/kingknull/oblivrashell/internal/security"
 )
 
 // ── Signal types ─────────────────────────────────────────────────────────────
@@ -117,19 +115,25 @@ const (
 
 // ── RansomwareEngine ─────────────────────────────────────────────────────────
 
+// incidentStore is a local interface to decouple detection from the database package.
+type incidentStore interface {
+	Upsert(ctx context.Context, incident interface{}) error
+}
+
 // RansomwareEngine correlates multiple behavioural signals to detect ransomware
 // with high confidence and trigger automatic network isolation.
 type RansomwareEngine struct {
 	bus       *eventbus.Bus
-	incidents database.IncidentStore
+	incidents incidentStore
 	log       *logger.Logger
+	entropyFn func([]byte) bool // Injected entropy checker
 
 	mu         sync.Mutex
 	hostStates map[string]*hostState // hostID -> accumulated signals
 	lastAlert  map[string]time.Time  // hostID -> last isolation timestamp (cooldown)
 }
 
-func NewRansomwareEngine(bus *eventbus.Bus, incidents database.IncidentStore, log *logger.Logger) *RansomwareEngine {
+func NewRansomwareEngine(bus *eventbus.Bus, incidents incidentStore, log *logger.Logger) *RansomwareEngine {
 	return &RansomwareEngine{
 		bus:        bus,
 		incidents:  incidents,
@@ -137,6 +141,12 @@ func NewRansomwareEngine(bus *eventbus.Bus, incidents database.IncidentStore, lo
 		hostStates: make(map[string]*hostState),
 		lastAlert:  make(map[string]time.Time),
 	}
+}
+
+// SetEntropyChecker allows injecting the entropy check function from the security layer
+// at the application level to avoid direct dependency violations.
+func (e *RansomwareEngine) SetEntropyChecker(fn func([]byte) bool) {
+	e.entropyFn = fn
 }
 
 func (e *RansomwareEngine) Name() string { return "RansomwareEngine" }
@@ -182,7 +192,7 @@ func (e *RansomwareEngine) handleFIMModified(event eventbus.Event) {
 	}
 
 	// Signal 1: High-entropy content write (potential encryption in progress)
-	if len(content) > 512 && security.IsHighEntropy(content) {
+	if len(content) > 512 && e.entropyFn != nil && e.entropyFn(content) {
 		e.addSignal(hostID, ransomSignal{
 			kind:   "entropy",
 			detail: fmt.Sprintf("high-entropy write: %s (entropy>7.5)", filePath),
@@ -456,21 +466,22 @@ func (e *RansomwareEngine) triggerIsolation(hostID string, state *hostState, sco
 	})
 }
 
-// triggerAlert persists an incident record without triggering isolation.
+// triggerAlert persists an alert event to the incident store.
 func (e *RansomwareEngine) triggerAlert(hostID string, score int, severity, reason string) {
-	incident := &database.Incident{
-		ID:              fmt.Sprintf("RANS-%s-%d", hostID, time.Now().Unix()),
-		RuleID:          "Ransomware.Behavioral.MultiSignal",
-		GroupKey:        hostID,
-		Status:          "Active",
-		Severity:        severity,
-		Title:           "Ransomware Activity Detected",
-		Description:     reason,
-		FirstSeenAt:     time.Now().Format(time.RFC3339),
-		LastSeenAt:      time.Now().Format(time.RFC3339),
-		EventCount:      score,
-		MitreTactics:    []string{"Impact", "Defense Evasion"},
-		MitreTechniques: []string{"T1486", "T1490"},
+	// We use a generic map to represent the incident to avoid dependency on database.Incident
+	incident := map[string]interface{}{
+		"id":               fmt.Sprintf("RANS-%s-%d", hostID, time.Now().Unix()),
+		"rule_id":          "Ransomware.Behavioral.MultiSignal",
+		"group_key":        hostID,
+		"status":           "Active",
+		"severity":         severity,
+		"title":            "Ransomware Activity Detected",
+		"description":      reason,
+		"first_seen_at":    time.Now().Format(time.RFC3339),
+		"last_seen_at":     time.Now().Format(time.RFC3339),
+		"event_count":      score,
+		"mitre_tactics":    []string{"Impact", "Defense Evasion"},
+		"mitre_techniques": []string{"T1486", "T1490"},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

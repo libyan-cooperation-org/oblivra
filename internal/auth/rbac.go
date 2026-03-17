@@ -31,6 +31,7 @@ const (
 // UserAccount is a stub for future multi-user RBAC and MAC integration
 type UserAccount struct {
 	ID        string
+	TenantID  string
 	Username  string
 	Role      Role
 	Clearance Clearance

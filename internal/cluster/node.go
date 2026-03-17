@@ -139,3 +139,10 @@ func (n *Node) ApplyWrite(ctx context.Context, query string, args ...interface{}
 
 	return 0, 0, nil
 }
+func (n *Node) Shutdown() error {
+	future := n.raft.Shutdown()
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("raft shutdown: %w", err)
+	}
+	return nil
+}

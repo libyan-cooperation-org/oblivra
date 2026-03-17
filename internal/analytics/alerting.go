@@ -64,7 +64,7 @@ func NewAlertEngine(notifier notifications.Notifier, ana Engine) *AlertEngine {
 		ThrottlingEnabled: true,
 		triggers: []Trigger{
 			{ID: "builtin-1", Name: "OOM Killer", Pattern: regexp.MustCompile(`(?i)Out of memory|Kill process`), RawExpr: `(?i)Out of memory|Kill process`, Severity: "critical", Enabled: true},
-			{ID: "builtin-2", Name: "Root Login", Pattern: regexp.MustCompile(`Accepted password for root`), RawExpr: `Accepted password for root`, Severity: "high", Enabled: true},
+			{ID: "builtin-2", Name: "Root Login", Pattern: regexp.MustCompile(`Accepted (password|publickey) for root`), RawExpr: `Accepted (password|publickey) for root`, Severity: "high", Enabled: true},
 			{ID: "builtin-3", Name: "Kernel Panic", Pattern: regexp.MustCompile(`(?i)Kernel panic`), RawExpr: `(?i)Kernel panic`, Severity: "critical", Enabled: true},
 			{ID: "builtin-4", Name: "Failed SSH", Pattern: regexp.MustCompile(`Failed password for`), RawExpr: `Failed password for`, Severity: "medium", Enabled: true},
 			{ID: "builtin-5", Name: "Disk Full", Pattern: regexp.MustCompile(`(?i)No space left on device`), RawExpr: `(?i)No space left on device`, Severity: "critical", Enabled: true},

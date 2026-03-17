@@ -30,7 +30,7 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger) *APIService {
+func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, identity *IdentityService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -53,8 +53,8 @@ func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 
 	// PRR Fix: Dynamic TLS loading
 	cm := security.NewCertificateManager("cert.pem", "key.pem", log)
-
-	server := api.NewRESTServer(port, siem, pipeline, attest, am, bus, cm, log)
+	
+	server := api.NewRESTServer(port, siem, pipeline, attest, am, identity, bus, cm, log)
 
 	return &APIService{
 		server: server,

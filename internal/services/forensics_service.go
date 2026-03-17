@@ -89,27 +89,32 @@ func NewForensicsService(store database.EvidenceStore, v *vault.Vault, bus *even
 // Startup initializes the service.
 func (s *ForensicsService) Start(ctx context.Context) error {
 	s.ctx = ctx
-	s.log.Info("ForensicsService starting...")
+	s.log.Info("ForensicsService starting (waiting for vault unlock)...")
 
-	// Load existing items from store
-	items, err := s.store.ListAll(context.Background())
-	if err != nil {
-		s.log.Error("Failed to load evidence: %v", err)
-		return nil // Non-fatal
-	}
-
-	for _, dbItem := range items {
-		chain, err := s.store.GetChain(context.Background(), dbItem.ID)
+	// Subscribe to vault unlock to load existing evidence
+	s.bus.Subscribe(eventbus.EventVaultUnlocked, func(e eventbus.Event) {
+		s.log.Info("Vault unlocked detected, loading evidence items...")
+		// Load existing items from store
+		items, err := s.store.ListAll(context.Background())
 		if err != nil {
-			s.log.Error("Failed to load chain for %s: %v", dbItem.ID, err)
-			continue
+			s.log.Error("Failed to load evidence: %v", err)
+			return
 		}
 
-		domainItem := s.mapDBToDomain(dbItem, chain)
-		s.locker.LoadItem(domainItem)
-	}
+		for _, dbItem := range items {
+			chain, err := s.store.GetChain(context.Background(), dbItem.ID)
+			if err != nil {
+				s.log.Error("Failed to load chain for %s: %v", dbItem.ID, err)
+				continue
+			}
 
-	s.log.Info("ForensicsService ready with %d loaded items", len(items))
+			domainItem := s.mapDBToDomain(dbItem, chain)
+			s.locker.LoadItem(domainItem)
+		}
+
+		s.log.Info("ForensicsService ready with %d loaded items", len(items))
+	})
+
 	return nil
 }
 

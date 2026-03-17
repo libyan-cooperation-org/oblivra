@@ -8,6 +8,7 @@ import (
 // It includes metadata, raw logs, and processing context.
 type SovereignEvent struct {
 	Id        string            `json:"id"`
+	TenantID  string            `json:"tenant_id"`
 	Timestamp string            `json:"timestamp"`
 	Host      string            `json:"host"`
 	EventType string            `json:"event_type"`

@@ -28,11 +28,14 @@ func (d *Database) Open(dbPath string, encryptionKey []byte) error {
 		d.db.Close()
 	}
 
-	var dsn string
-	dsn = fmt.Sprintf(
-		"file:%s?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000",
-		dbPath,
-	)
+	// Ensure directory exists for the actual database file
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		return fmt.Errorf("create db directory: %w", err)
+	}
+
+	// modernc.org/sqlite prefers standard paths with ?params on Windows
+	// and doesn't always need the file: prefix if we're not using special URI features.
+	dsn := filepath.ToSlash(dbPath) + "?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000"
 
 	// Open initializes the SQLite connection (pure driver)
 	// SQLite pure doesn't support encryption via this driver easily, but we'll ignore key for now

@@ -72,6 +72,15 @@ func (s *DataDestructionService) CryptoWipe(tableName, whereClause string) error
 		return fmt.Errorf("crypto wipe refused: %w", err)
 	}
 
+	// 0. Check if table exists
+	var name string
+	err := s.db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&name)
+	if err == sql.ErrNoRows {
+		return nil // Table already gone/never existed, goal achieved
+	} else if err != nil {
+		return fmt.Errorf("check table existence: %w", err)
+	}
+
 	// 1. Enable secure_delete to ensure SQLite overwrites deleted pages with zeros
 	if _, err := s.db.Exec("PRAGMA secure_delete = ON"); err != nil {
 		return fmt.Errorf("failed to enable secure_delete: %w", err)

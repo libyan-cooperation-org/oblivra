@@ -81,10 +81,13 @@ func TestRaftSplitBrain(t *testing.T) {
 
 	nodeA, dbA, _ := setupMockNode(t, "NodeA", transportA)
 	defer dbA.Close()
+	defer nodeA.Shutdown()
 	nodeB, dbB, _ := setupMockNode(t, "NodeB", transportB)
 	defer dbB.Close()
+	defer nodeB.Shutdown()
 	nodeC, dbC, _ := setupMockNode(t, "NodeC", transportC)
 	defer dbC.Close()
+	defer nodeC.Shutdown()
 
 	// Bootstrap cluster
 	configuration := raft.Configuration{

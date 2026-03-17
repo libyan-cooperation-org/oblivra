@@ -71,8 +71,35 @@ func TranspileSigma(data []byte) (*Rule, error) {
 	}
 
 	if sigma.Title == "" {
-		return nil, fmt.Errorf("sigma rule missing title")
+		// Fallback to name (Oblivra native format)
+		var native struct {
+			Name string `yaml:"name"`
+		}
+		_ = yaml.Unmarshal(data, &native)
+		sigma.Title = native.Name
 	}
+
+	if sigma.Title == "" {
+		return nil, fmt.Errorf("sigma rule missing title (or name)")
+	}
+
+	// Check if this is already an Oblivra native rule (type field present)
+	var typeCheck struct {
+		Type string `yaml:"type"`
+	}
+	_ = yaml.Unmarshal(data, &typeCheck)
+	if typeCheck.Type != "" {
+		// It's already a native rule, just unmarshal it fully and return
+		var rule Rule
+		if err := yaml.Unmarshal(data, &rule); err != nil {
+			return nil, fmt.Errorf("parse native rule: %w", err)
+		}
+		if rule.ID == "" {
+			rule.ID = sigmaRuleID(sigma)
+		}
+		return &rule, nil
+	}
+
 	if sigma.Detection.Condition == "" {
 		return nil, fmt.Errorf("sigma rule '%s' missing detection.condition", sigma.Title)
 	}
@@ -100,6 +127,11 @@ func TranspileSigma(data []byte) (*Rule, error) {
 	conditions, err := buildSigmaConditions(sigma)
 	if err != nil {
 		return nil, fmt.Errorf("build conditions for '%s': %w", sigma.Title, err)
+	}
+
+	rule.WindowSec = parseSigmaTimeframe(sigma.Timeframe)
+	if rule.WindowSec == 0 {
+		rule.WindowSec = 3600 // Default 1h to pass mathematical bounding check
 	}
 	rule.Conditions = conditions
 	rule.GroupBy = inferSigmaGroupBy(sigma)
@@ -208,8 +240,8 @@ func parseSigmaTimeframe(tf string) int {
 }
 
 // buildSigmaConditions converts a Sigma detection block into an Oblivra condition map.
-func buildSigmaConditions(sigma SigmaRule) (map[string]string, error) {
-	conditions := make(map[string]string)
+func buildSigmaConditions(sigma SigmaRule) (map[string]interface{}, error) {
+	conditions := make(map[string]interface{})
 
 	// Add logsource as an EventType hint
 	if et := sigmaLogsourceToEventType(sigma.LogSource); et != "" {
@@ -236,7 +268,7 @@ func buildSigmaConditions(sigma SigmaRule) (map[string]string, error) {
 }
 
 // mergeSigmaSelectionConditions flattens a Sigma detection identifier into Oblivra conditions.
-func mergeSigmaSelectionConditions(out map[string]string, raw interface{}) error {
+func mergeSigmaSelectionConditions(out map[string]interface{}, raw interface{}) error {
 	switch v := raw.(type) {
 	case []interface{}:
 		// Keyword list — match against RawLog
@@ -273,14 +305,18 @@ func mergeSigmaSelectionConditions(out map[string]string, raw interface{}) error
 }
 
 // appendSigmaPattern merges a new pattern into an existing Oblivra condition, combining with OR.
-func appendSigmaPattern(out map[string]string, key, pattern string) {
+func appendSigmaPattern(out map[string]interface{}, key, pattern string) {
 	existing, ok := out[key]
 	if !ok {
 		out[key] = pattern
 		return
 	}
 	// Both should start with "regex:" — combine as OR alternatives
-	existingBody := strings.TrimPrefix(existing, "regex:(?i)")
+	s, ok := existing.(string)
+	if !ok {
+		return // should not happen with our transpiler
+	}
+	existingBody := strings.TrimPrefix(s, "regex:(?i)")
 	newBody := strings.TrimPrefix(pattern, "regex:(?i)")
 	out[key] = "regex:(?i)" + existingBody + "|" + newBody
 }
@@ -369,6 +405,10 @@ func sigmaLogsourceToEventType(ls SigmaLogSource) string {
 	service := strings.ToLower(ls.Service)
 
 	switch {
+	case service == "sshd":
+		return "sshd"
+	case service == "sudo":
+		return "sudo"
 	case product == "windows" && service == "security":
 		return "windows_security"
 	case product == "windows" && service == "system":
@@ -383,10 +423,6 @@ func sigmaLogsourceToEventType(ls SigmaLogSource) string {
 		return "azure_log"
 	case product == "gcp":
 		return "gcp_log"
-	case service == "sshd":
-		return "sshd"
-	case service == "sudo":
-		return "sudo"
 	}
 	return ""
 }

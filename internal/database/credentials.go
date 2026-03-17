@@ -45,11 +45,11 @@ func (r *CredentialRepository) List(ctx context.Context, typeFilter string) ([]C
 
 	if typeFilter != "" {
 		rows, err = conn.Query(`
-			SELECT id, tenant_id, label, type, fingerprint, created_at, updated_at 
+			SELECT id, tenant_id, label, type, encrypted_data, fingerprint, created_at, updated_at 
 			FROM credentials WHERE type = ? AND tenant_id = ? ORDER BY label ASC`, typeFilter, tenantID)
 	} else {
 		rows, err = conn.Query(`
-			SELECT id, tenant_id, label, type, fingerprint, created_at, updated_at 
+			SELECT id, tenant_id, label, type, encrypted_data, fingerprint, created_at, updated_at 
 			FROM credentials WHERE tenant_id = ? ORDER BY label ASC`, tenantID)
 	}
 
@@ -61,7 +61,7 @@ func (r *CredentialRepository) List(ctx context.Context, typeFilter string) ([]C
 	var creds []Credential
 	for rows.Next() {
 		var c Credential
-		err := rows.Scan(&c.ID, &c.TenantID, &c.Label, &c.Type, &c.Fingerprint, &c.CreatedAt, &c.UpdatedAt)
+		err := rows.Scan(&c.ID, &c.TenantID, &c.Label, &c.Type, &c.EncryptedData, &c.Fingerprint, &c.CreatedAt, &c.UpdatedAt)
 		if err != nil {
 			continue
 		}

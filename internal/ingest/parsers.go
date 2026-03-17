@@ -25,6 +25,7 @@ func ParseSyslog(raw string) (*events.SovereignEvent, error) {
 
 	evt := &events.SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
+		TenantID:  "GLOBAL", // Default for Syslog
 		RawLine:   raw,
 		Host:      "unknown",
 		EventType: "syslog",
@@ -41,9 +42,9 @@ func ParseSyslog(raw string) (*events.SovereignEvent, error) {
 
 	// Try extracting standard keywords
 	rawLower := strings.ToLower(raw)
-	if strings.Contains(rawLower, "failed password") || strings.Contains(rawLower, "authentication failure") || strings.Contains(raw, "SOAK_TEST_") {
+	if strings.Contains(rawLower, "failed password") || strings.Contains(rawLower, "failed login") || strings.Contains(rawLower, "authentication failure") || strings.Contains(raw, "SOAK_TEST_") {
 		evt.EventType = "failed_login"
-	} else if strings.Contains(rawLower, "accepted password") {
+	} else if strings.Contains(rawLower, "accepted password") || strings.Contains(rawLower, "accepted login") || strings.Contains(rawLower, "successful login") {
 		evt.EventType = "successful_login"
 	} else if strings.Contains(rawLower, "sudo:") {
 		evt.EventType = "sudo_exec"
@@ -65,6 +66,7 @@ func ParseSyslog(raw string) (*events.SovereignEvent, error) {
 func ParseJSON(raw string) (*events.SovereignEvent, error) {
 	evt := &events.SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
+		TenantID:  "GLOBAL", // Default for JSON
 		RawLine:   raw,
 	}
 
@@ -117,6 +119,7 @@ func ParseCEF(raw string) (*events.SovereignEvent, error) {
 	// CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension
 	evt := &events.SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
+		TenantID:  "GLOBAL", // Default for CEF
 		RawLine:   raw,
 		EventType: "cef",
 	}
@@ -159,6 +162,7 @@ func ParseLEEF(raw string) (*events.SovereignEvent, error) {
 	// LEEF:Version|Vendor|Product|Version|EventID|Extension (Tab separated usually)
 	evt := &events.SovereignEvent{
 		Timestamp: time.Now().Format(time.RFC3339),
+		TenantID:  "GLOBAL", // Default for LEEF
 		RawLine:   raw,
 		EventType: "leef",
 	}
@@ -224,6 +228,7 @@ func AutoParse(raw string) *events.SovereignEvent {
 	if advancedRegistry.Process(info, hEvt) {
 		return &events.SovereignEvent{
 			Timestamp: time.Now().Format(time.RFC3339),
+			TenantID:  "GLOBAL", // Default for Advanced Parsed
 			RawLine:   rawTrimmed,
 			EventType: hEvt.EventType,
 			SourceIp:  hEvt.SourceIP,

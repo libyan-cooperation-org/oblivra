@@ -10,7 +10,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
-	"github.com/kingknull/oblivrashell/internal/ingest"
+	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/kingknull/oblivrashell/internal/core"
@@ -44,7 +44,7 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	// Start all services via Kernel
-	kernel, err := platform.NewKernel(container.Registry)
+	kernel, err := platform.NewKernel(ctx, container.Registry)
 	if err != nil {
 		t.Fatalf("Failed to initialize platform kernel: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestFullFlow(t *testing.T) {
 
 	// 3. Test Detection Layer (SIEM Ingestion)
 	t.Run("SIEM_Ingestion_and_Search", func(t *testing.T) {
-		evt := &ingest.SovereignEvent{
+		evt := &events.SovereignEvent{
 			Host:      "test-host-1",
 			Timestamp: time.Now().Format(time.RFC3339),
 			EventType: "failed_login",
@@ -134,7 +134,7 @@ func TestFullFlow(t *testing.T) {
 		ips := []string{"192.168.1.101", "192.168.1.102", "192.168.1.103", "192.168.1.104", "192.168.1.105"}
 		for _, ip := range ips {
 			for i := 0; i < 10; i++ {
-				evt := &ingest.SovereignEvent{
+				evt := &events.SovereignEvent{
 					Host:      "test-host-alert",
 					Timestamp: time.Now().Format(time.RFC3339),
 					EventType: "failed_login",
@@ -149,7 +149,7 @@ func TestFullFlow(t *testing.T) {
 
 		// Add root attempts
 		for i := 0; i < 10; i++ {
-			evt := &ingest.SovereignEvent{
+			evt := &events.SovereignEvent{
 				Host:      "test-host-alert",
 				Timestamp: time.Now().Format(time.RFC3339),
 				EventType: "failed_login",

@@ -19,13 +19,13 @@ type Kernel struct {
 }
 
 // NewKernel creates a new platform kernel with resolved service ordering.
-func NewKernel(reg *Registry) (*Kernel, error) {
+func NewKernel(ctx context.Context, reg *Registry) (*Kernel, error) {
 	order, err := reg.ResolveOrder()
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve service order: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
 	return &Kernel{
 		registry: reg,

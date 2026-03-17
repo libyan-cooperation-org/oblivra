@@ -79,12 +79,13 @@ func (ac *AdaptiveController) adjust() {
 		// Emergency: buffer critically full.
 		// Drop oldest items — drain up to 5% of capacity to relieve pressure.
 		toDrop := int(float64(snap.BufferCapacity) * 0.05)
+	drainLoop:
 		for i := 0; i < toDrop; i++ {
 			select {
 			case <-ac.pipeline.buffer:
 				ac.pipeline.metrics.DroppedEvents.Add(1)
 			default:
-				break
+				break drainLoop
 			}
 		}
 		ac.pipeline.log.Warn("[ADAPTIVE] EMERGENCY SHED: buffer at %.0f%%, dropped %d events", bufUsage*100, toDrop)

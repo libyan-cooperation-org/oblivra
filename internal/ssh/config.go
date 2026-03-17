@@ -67,7 +67,7 @@ func (c *ConnectionConfig) Address() string {
 func DefaultConfig() ConnectionConfig {
 	return ConnectionConfig{
 		Port:              22,
-		AuthMethod:        AuthPassword,
+		AuthMethod:        AuthPublicKey,
 		ConnectTimeout:    10 * time.Second,
 		KeepAliveInterval: 30 * time.Second,
 		KeepAliveMax:      3,

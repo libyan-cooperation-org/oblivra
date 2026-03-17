@@ -221,7 +221,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
 	// Initialize Kernel
-	kernel, err := platform.NewKernel(a.container.Registry)
+	kernel, err := platform.NewKernel(ctx, a.container.Registry)
 	if err != nil {
 		a.container.Log.Error("Failed to initialize platform kernel: %v", err)
 		return

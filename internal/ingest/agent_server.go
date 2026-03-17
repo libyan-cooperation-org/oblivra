@@ -192,6 +192,11 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		agentVersion = "unknown"
 	}
 
+	tenantID := r.Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		tenantID = "GLOBAL"
+	}
+
 	var reader io.Reader = r.Body
 	defer r.Body.Close()
 
@@ -291,6 +296,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 		ingestEv := &events.SovereignEvent{
 			Timestamp: ev.Timestamp,
+			TenantID:  tenantID,
 			Host:      ev.Host,
 			SourceIp:  r.RemoteAddr,
 			EventType: ev.Type,

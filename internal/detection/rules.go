@@ -28,7 +28,7 @@ type Rule struct {
 	Severity    string   `yaml:"severity"` // low, medium, high, critical
 	Type        RuleType `yaml:"type"`
 
-	Conditions map[string]string `yaml:"conditions"` // e.g. {"EventType": "failed_login", "User": "root"}
+	Conditions map[string]interface{} `yaml:"conditions"` // e.g. {"EventType": "failed_login", "User": "root"}
 
 	// MITRE Framework
 	MitreTactics    []string `yaml:"mitre_tactics"`    // e.g. ["Initial Access", "Credential Access"]
@@ -50,8 +50,8 @@ type Rule struct {
 
 // RuleSequenceStep represents a required stage in a SequenceRule.
 type RuleSequenceStep struct {
-	StepID     string            `yaml:"step_id"`
-	Conditions map[string]string `yaml:"conditions"`
+	StepID     string                 `yaml:"step_id"`
+	Conditions map[string]interface{} `yaml:"conditions"`
 }
 
 // RuleEngine manages active detection rules and evaluating events.

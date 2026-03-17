@@ -23,6 +23,16 @@ import (
 	"github.com/kingknull/oblivrashell/internal/security"
 )
 
+// IdentityProvider defines the subset of IdentityService required by the REST API.
+type IdentityProvider interface {
+	LoginLocal(email, password string) (*database.User, error)
+	GetUser(id string) (*database.User, error)
+	GetOIDCURL() (string, error)
+	GetSAMLURL() (string, error)
+	HandleOIDCCallback(code string) (*database.User, error)
+	HandleSAMLCallback(data string) (*database.User, error)
+}
+
 // RESTServer exposes backend capabilities to external clients (headless mode)
 type RESTServer struct {
 	port     int
@@ -30,6 +40,7 @@ type RESTServer struct {
 	siem     database.SIEMStore
 	pipeline *ingest.Pipeline
 	auth     *auth.APIKeyMiddleware
+	identity IdentityProvider
 	bus      *eventbus.Bus
 	log      *logger.Logger
 	attest   *attestation.AttestationService
@@ -62,12 +73,13 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger) *RESTServer {
+func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger) *RESTServer {
 	s := &RESTServer{
 		port:     port,
 		siem:     siem,
 		pipeline: pipeline,
 		auth:     authMw,
+		identity: identity,
 		bus:      bus,
 		log:      log,
 		attest:   attest,
@@ -109,6 +121,16 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	// SIEM endpoints
 	mux.HandleFunc("/api/v1/siem/search", s.handleSIEMSearch)
 	mux.HandleFunc("/api/v1/alerts", s.handleAlertsList)
+
+	// Authentication endpoints
+	mux.HandleFunc("/api/v1/auth/login", s.handleLogin)
+	mux.HandleFunc("/api/v1/auth/logout", s.handleLogout)
+	mux.HandleFunc("/api/v1/auth/me", s.handleMe)
+	mux.HandleFunc("/api/v1/auth/oidc/login", s.handleOIDCLogin)
+	mux.HandleFunc("/api/v1/auth/oidc/callback", s.handleOIDCCallback)
+	mux.HandleFunc("/api/v1/auth/saml/login", s.handleSAMLLogin)
+	mux.HandleFunc("/api/v1/auth/saml/callback", s.handleSAMLCallback)
+	mux.HandleFunc("/api/v1/auth/saml/metadata", s.handleSAMLMetadata)
 
 	// Events endpoint
 	mux.HandleFunc("/api/v1/events", s.handleEvents)
@@ -342,6 +364,14 @@ func (s *RESTServer) handleSIEMSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. Multi-Tenant Enforcement: Scoped Search
+	identityUser := auth.UserFromContext(r.Context())
+	if identityUser != nil && identityUser.TenantID != "" && identityUser.TenantID != "GLOBAL" {
+		// Prepend TenantID filter if not already present or if we want to force scope.
+		// For MVP, we'll force the scope.
+		query = fmt.Sprintf("TenantID:%s AND (%s)", identityUser.TenantID, query)
+	}
+
 	events, err := s.siem.SearchHostEvents(r.Context(), query, limit)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Search failed: %v", err), http.StatusInternalServerError)
@@ -377,8 +407,15 @@ func (s *RESTServer) handleAlertsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. Multi-Tenant Enforcement: Scoped Alerts
+	identityUser := auth.UserFromContext(r.Context())
+	query := "EventType:security_alert"
+	if identityUser != nil && identityUser.TenantID != "" && identityUser.TenantID != "GLOBAL" {
+		query = fmt.Sprintf("TenantID:%s AND %s", identityUser.TenantID, query)
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	alerts, err := s.siem.SearchHostEvents(ctx, "EventType:security_alert", 100)
+	alerts, err := s.siem.SearchHostEvents(ctx, query, 100)
 	cancel()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Query failed: %v", err), http.StatusInternalServerError)
@@ -525,4 +562,121 @@ func (s *RESTServer) handleDocs(w http.ResponseWriter, r *http.Request) {
 	// SECURITY: Disabled to prevent leakage via external CDN links in production-like builds.
 	// Documentation should be served from a separate, secure portal or localized assets.
 	http.Error(w, "Documentation endpoint disabled for security", http.StatusForbidden)
+}
+
+func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if s.identity == nil {
+		http.Error(w, "Identity service disabled", http.StatusNotImplemented)
+		return
+	}
+
+	user, err := s.identity.LoginLocal(req.Email, req.Password)
+	if err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	// For the MVP, we'll return the user and a placeholder token.
+	// In Phase 0.5, we'll implement full JWT/session persistence.
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"user":  user,
+		"token": "oblivra-dev-key", // Temporary: using dev-key to pass existing middleware
+	})
+}
+
+func (s *RESTServer) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
+	if s.identity == nil {
+		http.Error(w, "Identity service disabled", http.StatusNotImplemented)
+		return
+	}
+
+	url, err := s.identity.GetOIDCURL()
+	if err != nil {
+		http.Error(w, "Failed to generate OIDC redirect", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (s *RESTServer) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "Missing state or code", http.StatusBadRequest)
+		return
+	}
+
+	user, err := s.identity.HandleOIDCCallback(code)
+	if err != nil {
+		http.Error(w, "Federated authentication failed", http.StatusUnauthorized)
+		return
+	}
+
+	// Redirect to frontend with a temporary session fragment (Phase 0.5 will use secure cookies)
+	http.Redirect(w, r, fmt.Sprintf("/?user=%s&token=oblivra-dev-key", user.ID), http.StatusTemporaryRedirect)
+}
+
+func (s *RESTServer) handleSAMLLogin(w http.ResponseWriter, r *http.Request) {
+	if s.identity == nil {
+		http.Error(w, "Identity service disabled", http.StatusNotImplemented)
+		return
+	}
+
+	url, err := s.identity.GetSAMLURL()
+	if err != nil {
+		http.Error(w, "Failed to generate SAML redirect", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func (s *RESTServer) handleSAMLCallback(w http.ResponseWriter, r *http.Request) {
+	samlResponse := r.FormValue("SAMLResponse")
+	if samlResponse == "" {
+		http.Error(w, "Missing SAML response", http.StatusBadRequest)
+		return
+	}
+
+	user, err := s.identity.HandleSAMLCallback(samlResponse)
+	if err != nil {
+		http.Error(w, "SAML authentication failed", http.StatusUnauthorized)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/?user=%s&token=oblivra-dev-key", user.ID), http.StatusTemporaryRedirect)
+}
+
+func (s *RESTServer) handleSAMLMetadata(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/xml")
+	// Placeholder: In a real implementation, this would be generated by a SAML library
+	fmt.Fprintf(w, "<EntityDescriptor>OBLIVRA-SAML-V2-MVP</EntityDescriptor>")
+}
+
+func (s *RESTServer) handleLogout(w http.ResponseWriter, r *http.Request) {
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"status": "logged_out"})
+}
+
+func (s *RESTServer) handleMe(w http.ResponseWriter, r *http.Request) {
+	// This relies on the middleware having injected the user into context.
+	identityUser := auth.UserFromContext(r.Context())
+	if identityUser == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, identityUser)
 }

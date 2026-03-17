@@ -363,11 +363,14 @@ func (s *VaultService) AddCredential(label, credType, rawData string) (string, e
 	}
 
 	id := uuid.New().String()
+	now := time.Now().Format(time.RFC3339)
 	cred := &database.Credential{
 		ID:            id,
 		Label:         label,
 		Type:          credType,
 		EncryptedData: encrypted,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := s.creds.Create(context.Background(), cred); err != nil {
@@ -617,9 +620,9 @@ func (s *VaultService) PasswordHealthAudit() ([]CredentialHealth, error) {
 			health.Score = 0
 		}
 
-		if health.Score >= 80 {
+		if health.Score >= 90 {
 			health.Severity = "good"
-		} else if health.Score >= 50 {
+		} else if health.Score >= 70 {
 			health.Severity = "warning"
 		} else {
 			health.Severity = "critical"

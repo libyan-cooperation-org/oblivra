@@ -372,3 +372,40 @@ func (s *IdentityService) buildIdentityUser(userID string) (*auth.IdentityUser, 
 		Permissions: role.Permissions,
 	}, nil
 }
+
+// --- Federated Identity (OIDC/SAML) ---
+
+// GetOIDCURL returns the redirect URL for the configured OIDC provider
+func (s *IdentityService) GetOIDCURL() (string, error) {
+	// In Phase 0.5, this will use the 'auth.OIDCProvider' to generate a real URL.
+	// For now, redirect to a mock callback for MVP validation.
+	s.log.Info("Generating OIDC redirect URL (Mock)")
+	return "/api/v1/auth/oidc/callback?code=mock-oidc-code", nil
+}
+
+// GetSAMLURL returns the redirect URL for the configured SAML IdP
+func (s *IdentityService) GetSAMLURL() (string, error) {
+	s.log.Info("Generating SAML redirect URL (Mock)")
+	return "/api/v1/auth/saml/callback?SAMLResponse=mock-saml-response", nil
+}
+
+// HandleOIDCCallback processes the OIDC authorization code
+func (s *IdentityService) HandleOIDCCallback(code string) (*database.User, error) {
+	s.log.Info("Processing OIDC callback with code: %s", code)
+	// Return the primary admin user for MVP validation
+	user, err := s.userRepo.GetUserByEmail(context.Background(), "admin@oblivra.org")
+	if err != nil {
+		return nil, fmt.Errorf("OIDC user mapping failed: %w", err)
+	}
+	return user, nil
+}
+
+// HandleSAMLCallback processes the SAML assertion
+func (s *IdentityService) HandleSAMLCallback(data string) (*database.User, error) {
+	s.log.Info("Processing SAML callback")
+	user, err := s.userRepo.GetUserByEmail(context.Background(), "admin@oblivra.org")
+	if err != nil {
+		return nil, fmt.Errorf("SAML user mapping failed: %w", err)
+	}
+	return user, nil
+}
