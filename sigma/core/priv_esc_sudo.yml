@@ -1,0 +1,21 @@
+title: Privilege Escalation - Unexpected Sudo Usage
+id: e5f6a7b8-c9d0-4e1f-8a2b-b3c4d5e6f7a8
+description: Detects sudo command execution by unexpected users or for high-risk binaries.
+status: stable
+author: OBLIVRA Core
+level: high
+logsource:
+    category: authentication
+    service: sudo
+detection:
+    selection:
+        EventType: sudo
+        output_contains:
+            - 'root'
+            - 'NOPASSWD'
+    condition: selection
+falsepositives:
+    - Normal administrative tasks by authorized personnel
+tags:
+    - attack.privilege-escalation
+    - attack.t1548.003

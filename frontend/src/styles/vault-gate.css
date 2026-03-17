@@ -51,11 +51,12 @@
     width: 100%;
 }
 
-/* Orange brand block — Splunk style */
+/* Blue brand block — OBLIVRA style */
 .vault-gate-shield {
     width: 48px;
     height: 48px;
-    background: #f58b00;
+    background: #0099e0;
+    box-shadow: 0 0 20px rgba(0, 153, 224, 0.4);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
@@ -155,12 +156,12 @@
     font-family: var(--font-ui);
 }
 
-/* Button — Splunk orange CTA */
+/* Button — OBLIVRA blue CTA */
 .vault-gate-btn {
     width: 100%;
     padding: 10px;
     margin-top: 4px;
-    background: #f58b00;
+    background: #0099e0;
     border: none;
     border-radius: var(--radius-sm);
     color: #fff;
@@ -168,15 +169,15 @@
     font-weight: 700;
     font-family: var(--font-ui);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     letter-spacing: 0.3px;
 }
-.vault-gate-btn:hover { background: #d97a00; }
-.vault-gate-btn:active { background: #c06d00; }
+.vault-gate-btn:hover { background: #0088cc; box-shadow: 0 0 15px rgba(0, 153, 224, 0.3); }
+.vault-gate-btn:active { background: #0077bb; transform: scale(0.98); }
 .vault-gate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Spinner */

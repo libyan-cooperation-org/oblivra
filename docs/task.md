@@ -33,61 +33,61 @@
 > All exist in code, compile, and are wired into `container.go`.
 
 ### Terminal & SSH
-- [x] SSH client with key/password/agent auth (`internal/ssh/client.go`, `auth.go`)
-- [x] Local PTY terminal (`local_service.go`)
-- [x] SSH connection pooling (`internal/ssh/pool.go`)
-- [x] SSH config parser + bulk import (`internal/ssh/config_parser.go`)
-- [x] SSH tunneling / port forwarding (`internal/ssh/tunnel.go`, `tunnel_service.go`)
-- [x] Session recording & playback (`recording_service.go`, `internal/sharing/`)
-- [x] Session sharing & broadcast (`broadcast_service.go`, `share_service.go`)
-- [x] Multi-exec concurrent commands (`multiexec_service.go`)
-- [x] Terminal grid with split panes (`frontend/src/components/terminal/`)
-- [x] File browser & SFTP transfers (`file_service.go`, `transfer_manager.go`)
+- [x] SSH client with key/password/agent auth (`internal/ssh/client.go`, `auth.go`) 🖥️ [Desktop Only]
+- [x] Local PTY terminal (`local_service.go`) 🖥️ [Desktop Only]
+- [x] SSH connection pooling (`internal/ssh/pool.go`) 🖥️ [Desktop Only]
+- [x] SSH config parser + bulk import (`internal/ssh/config_parser.go`) 🖥️ [Desktop Only]
+- [x] SSH tunneling / port forwarding (`internal/ssh/tunnel.go`, `tunnel_service.go`) 🖥️ [Desktop Only]
+- [x] Session recording & playback (`recording_service.go`, `internal/sharing/`) 🖥️ [Desktop Only]
+- [x] Session sharing & broadcast (`broadcast_service.go`, `share_service.go`) 🏗️ [Hybrid/Both]
+- [x] Multi-exec concurrent commands (`multiexec_service.go`) 🖥️ [Desktop Only]
+- [x] Terminal grid with split panes (`frontend/src/components/terminal/`) 🖥️ [Desktop Only]
+- [x] File browser & SFTP transfers (`file_service.go`, `transfer_manager.go`) 🖥️ [Desktop Only]
 
 ### Security & Vault
-- [x] AES-256 encrypted Vault (`internal/vault/vault.go`, `crypto.go`)
-- [x] OS keychain integration (`internal/vault/keychain.go`)
-- [x] FIDO2 / YubiKey support (`internal/security/fido2.go`, `yubikey.go`)
-- [x] TLS certificate generation (`internal/ssh/certificate.go`, `cmd/certgen/`)
-- [x] Security key modal UI (`frontend/src/components/security/`)
-- [x] Snippet vault / command library (`snippet_service.go`)
+- [x] AES-256 encrypted Vault (`internal/vault/vault.go`, `crypto.go`) 🖥️ [Desktop Only]
+- [x] OS keychain integration (`internal/vault/keychain.go`) 🖥️ [Desktop Only]
+- [x] FIDO2 / YubiKey support (`internal/security/fido2.go`, `yubikey.go`) 🖥️ [Desktop Only]
+- [x] TLS certificate generation (`internal/ssh/certificate.go`, `cmd/certgen/`) 🏗️ [Hybrid/Both]
+- [x] Security key modal UI (`frontend/src/components/security/`) 🖥️ [Desktop Only]
+- [x] Snippet vault / command library (`snippet_service.go`) 🏗️ [Hybrid/Both]
 
 ### Productivity
-- [x] Notes & runbook service (`notes_service.go`)
-- [x] Workspace manager (`workspace_service.go`)
-- [x] AI assistant — error explanation, command gen (`ai_service.go`)
-- [x] Theme engine with custom themes (`theme_service.go`)
-- [x] Settings & configuration UI (`settings_service.go`, `pages/Settings.tsx`)
-- [x] Command palette & quick switcher (`frontend/src/components/ui/`)
-- [x] Auto-updater service (`updater_service.go`)
+- [x] Notes & runbook service (`notes_service.go`) 🏗️ [Hybrid/Both]
+- [x] Workspace manager (`workspace_service.go`) 🖥️ [Desktop Only]
+- [x] AI assistant — error explanation, command gen (`ai_service.go`) 🏗️ [Hybrid/Both]
+- [x] Theme engine with custom themes (`theme_service.go`) 🏗️ [Hybrid/Both]
+- [x] Settings & configuration UI (`settings_service.go`, `pages/Settings.tsx`) 🏗️ [Hybrid/Both]
+- [x] Command palette & quick switcher (`frontend/src/components/ui/`) 🏗️ [Hybrid/Both]
+- [x] Auto-updater service (`updater_service.go`) 🖥️ [Desktop Only]
 
 ### Collaboration
-- [x] Team collaboration service (`team_service.go`, `internal/team/`)
-- [x] Sync service (`sync_service.go`)
+- [x] Team collaboration service (`team_service.go`, `internal/team/`) 🌐 [Web Only]
+- [x] Sync service (`sync_service.go`) 🏗️ [Hybrid/Both]
 
 ### Ops & Monitoring
-- [x] Unified Ops Center — multi-syntax search (LogQL, Lucene, SQL, Osquery) (`pages/OpsCenter.tsx`)
-- [x] Splunk-style analytics dashboard (`pages/SplunkDashboard.tsx`)
-- [x] Customizable widget dashboard (`frontend/src/components/dashboard/`)
-- [x] Network discovery service (`discovery_service.go`, `worker_discovery.go`)
-- [x] Global topology visualization (`pages/GlobalTopology.tsx`)
-- [x] Bandwidth monitor chart (`frontend/src/components/charts/BandwidthMonitor.tsx`)
-- [x] Fleet heatmap (`frontend/src/components/fleet/FleetHeatmap.tsx`)
-- [x] Osquery integration — live forensics (`internal/osquery/`)
-- [x] Log source manager (`logsource_service.go`, `internal/logsources/`)
-- [x] Health & metrics service (`health_service.go`, `metrics_service.go`)
-- [x] Telemetry worker (`worker_telemetry.go`, `telemetry_service.go`)
+- [x] Unified Ops Center — multi-syntax search (LogQL, Lucene, SQL, Osquery) (`pages/OpsCenter.tsx`) 🏗️ [Hybrid/Both]
+- [x] Splunk-style analytics dashboard (`pages/SplunkDashboard.tsx`) 🏗️ [Hybrid/Both]
+- [x] Customizable widget dashboard (`frontend/src/components/dashboard/`) 🏗️ [Hybrid/Both]
+- [x] Network discovery service (`discovery_service.go`, `worker_discovery.go`) 🏗️ [Hybrid/Both]
+- [x] Global topology visualization (`pages/GlobalTopology.tsx`) 🏗️ [Hybrid/Both]
+- [x] Bandwidth monitor chart (`frontend/src/components/charts/BandwidthMonitor.tsx`) 🏗️ [Hybrid/Both]
+- [x] Fleet heatmap (`frontend/src/components/fleet/FleetHeatmap.tsx`) 🌐 [Web Only]
+- [x] Osquery integration — live forensics (`internal/osquery/`) 🏗️ [Hybrid/Both]
+- [x] Log source manager (`logsource_service.go`, `internal/logsources/`) 🏗️ [Hybrid/Both]
+- [x] Health & metrics service (`health_service.go`, `metrics_service.go`) 🏗️ [Hybrid/Both]
+- [x] Telemetry worker (`worker_telemetry.go`, `telemetry_service.go`) 🏗️ [Hybrid/Both]
 
 ### Infrastructure
-- [x] Plugin framework with Lua sandbox (`internal/plugin/`, `plugin_service.go`)
-- [x] Plugin manager UI (`pages/PluginManager.tsx`)
-- [x] Event bus pub/sub (`internal/eventbus/`)
-- [x] Output batcher (`output_batcher.go`)
-- [x] Hardening module (`hardening.go`)
-- [x] Sentinel file integrity monitor (`sentinel.go`)
-- [x] CLI mode binary (`cmd/cli/`)
-- [x] SIEM benchmark tool (`cmd/bench_siem/`)
-- [x] Soak test generator (`cmd/soak_test/`)
+- [x] Plugin framework with Lua sandbox (`internal/plugin/`, `plugin_service.go`) 🏗️ [Hybrid/Both]
+- [x] Plugin manager UI (`pages/PluginManager.tsx`) 🏗️ [Hybrid/Both]
+- [x] Event bus pub/sub (`internal/eventbus/`) 🏗️ [Hybrid/Both]
+- [x] Output batcher (`output_batcher.go`) 🏗️ [Hybrid/Both]
+- [x] Hardening module (`hardening.go`) 🏗️ [Hybrid/Both]
+- [x] Sentinel file integrity monitor (`sentinel.go`) 🏗️ [Hybrid/Both]
+- [x] CLI mode binary (`cmd/cli/`) 🖥️ [Desktop Only]
+- [x] SIEM benchmark tool (`cmd/bench_siem/`) 🏗️ [Hybrid/Both]
+- [x] Soak test generator (`cmd/soak_test/`) 🏗️ [Hybrid/Both]
 
 ---
 
@@ -100,11 +100,22 @@
 
 ---
 
+## Phase 0.1: Day Zero Hardening (Clean Install Success)
+- [x] **Recursive Directory Creation** — Added `platform.EnsureDirectories()` to `app.New()` 🏗️ [Hybrid/Both]
+- [x] **Onboarding / Inception UI** — Redirect to Setup Wizard if `hosts` count is 0 🏗️ [Hybrid/Both]
+- [x] **Core Rule Library** — Create `sigma/core/` and seed with 25+ essential workstation/server rules 🏗️ [Hybrid/Both]
+- [x] **Subprocess Validation** — Startup check for `os.Executable()` re-entry (Worker health) 🏗️ [Hybrid/Both]
+- [x] **First-Run Analytics** — Trace "Time to First Alert" for UX optimization 🏗️ [Hybrid/Both]
+
+---
+
 ## Phase 0.5: Architectural Hardening (Desktop vs. Browser)
 - [ ] **Dual-Context Substrate**
     - [ ] Formalize `APP_CONTEXT` detection (Wails vs. Browser)
     - [ ] Implement Route Filtering logic for Desktop-only (`/workspace`) and Browser-only (`/fleet`, `/identity`, etc.) routes
     - [ ] Define Service Container registration modes (Lightweight/Local vs. Clustered/Enterprise)
+- [ ] **Web-Exclusive Visuals**
+    - [x] Implement GSOC-grade `GlobalFleetChart.tsx` for Enterprise Dashboards 🌐 [Web Only]
 - [ ] **Hybrid Mode Foundation**
     - [ ] Desktop App capability to connect to remote OBLIVRA Server (Backend API Proxy)
     - [ ] Standardize local-to-remote "pivot" UI patterns (click IP in terminal → server entity page)
@@ -117,14 +128,14 @@
 ## Phase 1: Core Storage + Ingestion + Search (Months 1–4)
 
 ### Phase 1: Storage Layer
-- [x] Integrate BadgerDB (replaces SQLite for high-velocity logs/indices)
-- [x] Integrate Bleve (pure-Go Lucene alternative for log full-text search)
-- [x] Integrate Parquet Archival (native go instead of duckdb CLI wrapper)
-- [x] Implement robust Syslog (RFC 5424/3164) ingestion pipeline
-- [x] Implement crash-safe Write-Ahead Log (WAL) prior to search indexing
-- [x] Write storage adapter interfaces (swap SQLite → Bleve/BadgerDB without breaking existing)
-- [x] Migrate existing SIEM queries to Bleve + BadgerDB
-- [x] Benchmark: 10M event search <5s
+- [x] Integrate BadgerDB (replaces SQLite for high-velocity logs/indices) 🏗️ [Hybrid/Both]
+- [x] Integrate Bleve (pure-Go Lucene alternative for log full-text search) 🏗️ [Hybrid/Both]
+- [x] Integrate Parquet Archival (native go instead of duckdb CLI wrapper) 🏗️ [Hybrid/Both]
+- [x] Implement robust Syslog (RFC 5424/3164) ingestion pipeline 🌐 [Web Only]
+- [x] Implement crash-safe Write-Ahead Log (WAL) prior to search indexing 🏗️ [Hybrid/Both]
+- [x] Write storage adapter interfaces (swap SQLite → Bleve/BadgerDB without breaking existing) 🏗️ [Hybrid/Both]
+- [x] Migrate existing SIEM queries to Bleve + BadgerDB 🏗️ [Hybrid/Both]
+- [x] Benchmark: 10M event search <5s 🏗️ [Hybrid/Both]
 
 ### 1.2 — Ingestion Pipeline
 - [x] Build **Syslog listener** (RFC 5424/3164) with TLS (`internal/ingest/syslog.go`)
@@ -139,17 +150,17 @@
 - [v] Test: 10,000 EPS sustained (Validated [v])
 
 ### 1.3 — Search & Query
-- [x] Build **Lucene-style query parser** (extend `transpiler.go`/Bleve)
-- [x] Implement **field-level indexing** via Bleve field mappings
-- [x] Add **aggregation** support (facets, group-by, histograms)
-- [x] Implement **saved searches** (DB model + API + UI)
-- [x] Performance validation: <5s for 10M events
+- [x] Build **Lucene-style query parser** (extend `transpiler.go`/Bleve) 🏗️ [Hybrid/Both]
+- [x] Implement **field-level indexing** via Bleve field mappings 🏗️ [Hybrid/Both]
+- [x] Add **aggregation** support (facets, group-by, histograms) 🏗️ [Hybrid/Both]
+- [x] Implement **saved searches** (DB model + API + UI) 🏗️ [Hybrid/Both]
+- [x] Performance validation: <5s for 10M events 🏗️ [Hybrid/Both]
 
 #### 20.4.5 — Lookup Tables
-- [ ] **Lookup Management**
+- [ ] **Lookup Management** 🏗️ [Hybrid/Both]
     - [ ] CSV/JSON lookup file upload and API-based updates
     - [ ] Exact, CIDR, Wildcard, and Regex match support
-- [ ] **Query & Index Integration**
+- [ ] **Query & Index Integration** 🏗️ [Hybrid/Both]
     - [ ] OQL `lookup` command; Enrichment pipeline field aliasing
     - [ ] Pre-built lookups: RFC 1918, Port-to-Service, MITRE technique-to-name
 
@@ -158,44 +169,44 @@
 ## Phase 2: Alerting + REST API (Months 4–6)
 
 ### 2.1 — Alerting Hardening
-- [x] Implement YAML detection rule loader (`internal/detection/rules/`)
-- [x] Build rule engine: **threshold** rules
-- [x] Build rule engine: **frequency** rules
-- [x] Build rule engine: **sequence** rules
-- [x] Build rule engine: **correlation** rules
-- [x] Add **alert deduplication** with configurable windows
-- [x] Extend notifications: **webhook** channel
-- [x] Extend notifications: **email** channel
-- [x] Extend notifications: **Slack** channel
-- [x] Extend notifications: **Teams** channel
-- [x] Test: alerts fire within 10s
+- [x] Implement YAML detection rule loader (`internal/detection/rules/`) 🏗️ [Hybrid/Both]
+- [x] Build rule engine: **threshold** rules 🏗️ [Hybrid/Both]
+- [x] Build rule engine: **frequency** rules 🏗️ [Hybrid/Both]
+- [x] Build rule engine: **sequence** rules 🏗️ [Hybrid/Both]
+- [x] Build rule engine: **correlation** rules 🏗️ [Hybrid/Both]
+- [x] Add **alert deduplication** with configurable windows 🏗️ [Hybrid/Both]
+- [x] Extend notifications: **webhook** channel 🌐 [Web Only]
+- [x] Extend notifications: **email** channel 🌐 [Web Only]
+- [x] Extend notifications: **Slack** channel 🌐 [Web Only]
+- [x] Extend notifications: **Teams** channel 🌐 [Web Only]
+- [x] Test: alerts fire within 10s 🏗️ [Hybrid/Both]
 
 #### 2.1.5 — Notification Escalation
-- [ ] **Escalation Policies**
+- [ ] **Escalation Policies** 🌐 [Web Only]
     - [ ] Multi-level chains (Analyst → Team Lead → Manager → CISO)
     - [ ] Time-based escalation (if unacknowledged after N minutes)
     - [ ] Schedule-aware routing (escalate to on-call only)
-- [ ] **On-Call & Acknowledgment**
+- [ ] **On-Call & Acknowledgment** 🌐 [Web Only]
     - [ ] Native on-call rotation schedules; Vacation/OOO handling
     - [ ] Slack/Email/API-based acknowledgment tracking
     - [ ] Unacknowledged alert reporting and SLA breach alerting
 
 ### 2.2 — Headless REST API
-- [x] Create `internal/api/rest.go` with router (chi or net/http)
-- [x] Expose SIEM search endpoints
-- [x] Agent management console (frontend)
-- [x] Server-side agent ingest endpoints
-- [x] Expose alert management endpoints
-- [x] Expose ingestion status endpoints
-- [x] Implement API key authentication (`internal/auth/apikey.go`)
-- [x] Stub user accounts + RBAC (`internal/auth/`)
-- [x] Enable TLS for all external listeners
+- [x] Create `internal/api/rest.go` with router (chi or net/http) 🌐 [Web Only]
+- [x] Expose SIEM search endpoints 🌐 [Web Only]
+- [x] Agent management console (frontend) 🌐 [Web Only]
+- [x] Server-side agent ingest endpoints 🌐 [Web Only]
+- [x] Expose alert management endpoints 🌐 [Web Only]
+- [x] Expose ingestion status endpoints 🌐 [Web Only]
+- [x] Implement API key authentication (`internal/auth/apikey.go`) 🌐 [Web Only]
+- [x] Stub user accounts + RBAC (`internal/auth/`) 🌐 [Web Only]
+- [x] Enable TLS for all external listeners 🌐 [Web Only]
 
 ### 2.3 — Web UI Hardening
-- [x] Build **real-time streaming search** in `SIEMPanel.tsx`
-- [x] Build dedicated **AlertDashboard.tsx** (filtering, ack, status)
-- [x] Add **Prometheus-compatible** `/metrics` endpoint
-- [x] Implement **liveness + readiness** probes
+- [x] Build **real-time streaming search** in `SIEMPanel.tsx` 🏗️ [Hybrid/Both]
+- [x] Build dedicated **AlertDashboard.tsx** (filtering, ack, status) 🏗️ [Hybrid/Both]
+- [x] Add **Prometheus-compatible** `/metrics` endpoint 🌐 [Web Only]
+- [x] Implement **liveness + readiness** probes 🌐 [Web Only]
 - [x] Audit all services for JSON structured logging
 
 ### 2.4 — Milestone Validation
@@ -210,11 +221,11 @@
 ## Phase 3: Threat Intel + Enrichment (Months 7–10)
 
 ### 3.1 — Threat Intelligence Enrichment
-- [x] Build **STIX/TAXII Client** (`internal/threatintel/taxii.go`)
-- [x] Build **Offline rule ingestion** (JSON, OpenIOC wrappers)
-- [x] Create **MatchEngine** for O(1) IP/Hash lookups against logs
-- [x] Integrate IOC Matcher into `IngestionService` pipeline
-- [x] Build `ThreatIntelPanel.tsx` in frontend
+- [x] Build **STIX/TAXII Client** (`internal/threatintel/taxii.go`) 🏗️ [Hybrid/Both]
+- [x] Build **Offline rule ingestion** (JSON, OpenIOC wrappers) 🏗️ [Hybrid/Both]
+- [x] Create **MatchEngine** for O(1) IP/Hash lookups against logs 🏗️ [Hybrid/Both]
+- [x] Integrate IOC Matcher into `IngestionService` pipeline 🏗️ [Hybrid/Both]
+- [x] Build `ThreatIntelPanel.tsx` in frontend 🏗️ [Hybrid/Both]
 
 ### 3.2 — Enrichment Pipeline
 - [x] Build **GeoIP module** (MaxMind offline DB, `internal/enrich/geoip.go`)
@@ -223,20 +234,20 @@
 - [x] Create **Enrichment Pipeline orchestrator** (`internal/enrich/pipeline.go`)
 - [x] Update `ThreatMap.tsx` and SIEM UI to display context tags
 ### 3.3 — Advanced Parsing
-- [x] Windows Event Log parser (`internal/ingest/parsers/windows.go`)
-- [x] Linux syslog + journald parser (`internal/ingest/parsers/linux.go`)
-- [x] Cloud audit (AWS/Azure/GCP) (`internal/ingest/parsers/cloud_aws.go`, `cloud_azure.go`, `cloud_gcp.go`)
-- [x] Network logs (NetFlow, DNS, firewall) (`internal/ingest/parsers/network.go`)
-- [x] Unified parser registry (`internal/ingest/parsers/registry.go`)
+- [x] Windows Event Log parser (`internal/ingest/parsers/windows.go`) 🏗️ [Hybrid/Both]
+- [x] Linux syslog + journald parser (`internal/ingest/parsers/linux.go`) 🏗️ [Hybrid/Both]
+- [x] Cloud audit (AWS/Azure/GCP) (`internal/ingest/parsers/cloud_aws.go`, `cloud_azure.go`, `cloud_gcp.go`) 🌐 [Web Only]
+- [x] Network logs (NetFlow, DNS, firewall) (`internal/ingest/parsers/network.go`) 🌐 [Web Only]
+- [x] Unified parser registry (`internal/ingest/parsers/registry.go`) 🏗️ [Hybrid/Both]
 
 ---
 
 ## Phase 4: Detection Engineering + MITRE ✅
 
-- [x] Author 50+ YAML detection rules covering MITRE ATT&CK (52 rules across all 12 tactics, 45+ techniques)
-- [x] Build MITRE ATT&CK technique mapper (`internal/detection/mitre.go` — 45 techniques, 12 tactics)
-- [x] Implement **correlation engine** (`internal/detection/correlation.go` — 7 builtin cross-source rules, LRU state, dedup, wired into SIEMService)
-- [x] Build **MITRE ATT&CK heatmap** (`MitreHeatmap.tsx`)
+- [x] Author 50+ YAML detection rules covering MITRE ATT&CK (52 rules across all 12 tactics, 45+ techniques) 🏗️ [Hybrid/Both]
+- [x] Build MITRE ATT&CK technique mapper (`internal/detection/mitre.go` — 45 techniques, 12 tactics) 🏗️ [Hybrid/Both]
+- [x] Implement **correlation engine** (`internal/detection/correlation.go` — 7 builtin cross-source rules, LRU state, dedup, wired into SIEMService) 🏗️ [Hybrid/Both]
+- [x] Build **MITRE ATT&CK heatmap** (`MitreHeatmap.tsx`) 🏗️ [Hybrid/Both]
 - [s] Recruit 10 design partners (Current: 0 recruited, pilot agreement pending)
 - [v] Validate: <5% false positives, 30+ ATT&CK techniques
 
@@ -278,12 +289,12 @@
 - [x] PDF/HTML reporting engine (enhance `internal/compliance/report.go`)
 - [x] Forensics service Wails integration (`internal/app/forensics_service.go`)
 - [x] Compliance evaluator engine (`internal/compliance/evaluator.go`)
-- [ ] **6.5 — Legal-Grade Digital Evidence (Court Admissible)**
+- [ ] **6.5 — Legal-Grade Digital Evidence (Court Admissible)** 🏗️ [Hybrid/Both]
     - [ ] RFC 3161 Timestamping: Integration with trusted TSA; Batch submission for cost-efficiency
     - [ ] Chain of Custody Formalization: NIST SP 800-86 compliant handling; Two-person integrity
     - [ ] Forensic Export: E01/AFF4 format support with independently verifiable integrity proofs
     - [ ] Expert Witness Package: Evidence provenance reports and tool validation records
-- [ ] **6.6 — Regulator-Ready Audit Export**
+- [ ] **6.6 — Regulator-Ready Audit Export** 🌐 [Web Only]
     - [ ] Standardized format: JSON Lines with cryptographic chaining (RFC 3161/Merkle)
     - [ ] Regulator Portal: Scoped, read-only audit viewer for external auditors
     - [ ] One-click compliance package generation (logs + integrity proofs + config)
@@ -422,38 +433,38 @@
 ---
 
 ## Phase 7: Agent Framework (Months 22–27)
-- [v] Agent binary scaffold (`cmd/agent/main.go`)
-- [v] File tailing collector
-- [v] Windows Event Log streaming collector
-- [v] System metrics collector
-- [v] FIM collector
-- [v] gRPC/TLS/mTLS transport layer
-- [v] Zstd compression
-- [v] Offline buffering (local WAL on agent)
-- [v] Edge filtering + PII redaction
-- [v] Agent registration + heartbeat API
-- [v] Agent console (`AgentConsole.tsx`)
-- [v] Fleet-wide config push
-- [x] eBPF collector (`internal/agent/ebpf_collector_linux.go` — real kprobe/tracepoint attachment via raw BPF syscalls, epoll ring-buffer polling, 4 probes: execve/tcp/file_open/ptrace, /proc fallback on kernels <4.18)
+- [v] Agent binary scaffold (`cmd/agent/main.go`) 🏗️ [Hybrid/Both]
+- [v] File tailing collector 🏗️ [Hybrid/Both]
+- [v] Windows Event Log streaming collector 🏗️ [Hybrid/Both]
+- [v] System metrics collector 🏗️ [Hybrid/Both]
+- [v] FIM collector 🏗️ [Hybrid/Both]
+- [v] gRPC/TLS/mTLS transport layer 🏗️ [Hybrid/Both]
+- [v] Zstd compression 🏗️ [Hybrid/Both]
+- [v] Offline buffering (local WAL on agent) 🏗️ [Hybrid/Both]
+- [v] Edge filtering + PII redaction 🏗️ [Hybrid/Both]
+- [v] Agent registration + heartbeat API 🌐 [Web Only]
+- [v] Agent console (`AgentConsole.tsx`) 🌐 [Web Only]
+- [v] Fleet-wide config push 🌐 [Web Only]
+- [x] eBPF collector (`internal/agent/ebpf_collector_linux.go` — real kprobe/tracepoint attachment via raw BPF syscalls, epoll ring-buffer polling, 4 probes: execve/tcp/file_open/ptrace, /proc fallback on kernels <4.18) 🏗️ [Hybrid/Both]
 
 #### 7.5 — Agentless Collection Methods
-- [ ] **WMI/WinRM Subscriptions**
+- [ ] **WMI/WinRM Subscriptions** 🌐 [Web Only]
     - [ ] Remote Windows Event Log collection without local agent
-- [ ] **SNMP & Network Ingest**
+- [ ] **SNMP & Network Ingest** 🌐 [Web Only]
     - [ ] SNMPv2c/v3 trap listener; MIB-based event translation
-- [ ] **Remote DB & File Polling**
+- [ ] **Remote DB & File Polling** 🌐 [Web Only]
     - [ ] SQL-based audit log polling (Oracle, SQL Server, Postgres, MySQL)
     - [ ] Remote file tailing via SMB/NFS mounts; Log rotation handling
-- [ ] **Generic REST API Polling**
+- [ ] **Generic REST API Polling** 🌐 [Web Only]
     - [ ] Declarative collector for SaaS sources without webhook support
 
 ## Phase 8: Autonomous Response (SOAR)
-- [v] Case management (CRUD, assignment, timeline)
-- [v] Playbook Engine: Selective response & Approval gating (Validated [v])
-- [v] Rollback Integrity: State-aware recovery (Validated [v])
-- [x] Jira/ServiceNow integration (`internal/incident/integrations.go` — native REST API v3 + Table API, ADF, severity mapping)
+- [v] Case management (CRUD, assignment, timeline) 🌐 [Web Only]
+- [v] Playbook Engine: Selective response & Approval gating (Validated [v]) 🏗️ [Hybrid/Both]
+- [v] Rollback Integrity: State-aware recovery (Validated [v]) 🏗️ [Hybrid/Both]
+- [x] Jira/ServiceNow integration (`internal/incident/integrations.go` — native REST API v3 + Table API, ADF, severity mapping) 🌐 [Web Only]
 - [v] Batch 1-4 CSS Standardization
-- [v] Deterministic Execution Service (Validated [v])
+- [v] Deterministic Execution Service (Validated [v]) 🏗️ [Hybrid/Both]
 - [ ] **Playbook Marketplace / Community Library**
     - [ ] Import/export playbooks as YAML bundles
     - [ ] Version-controlled playbook repository
@@ -464,10 +475,10 @@
     - [ ] Bottleneck identification (which step takes longest?)
 
 ## Phase 9: Ransomware Defense
-- [x] Entropy-based behavioral detection (`internal/detection/ransomware_engine.go` — multi-signal: entropy, ext rename, ransom note, shadow copy, canary)
-- [x] Canary file deployment (`canary_deployment_service.go` — auto-deploys on `agent.registered`, monitors FIM hits)
-- [v] Honeypot infrastructure
-- [x] Automated network isolation (`network_isolator_service.go` — subscribes to `ransomware.isolation_requested`, executes via playbook + SSH, exposes frontend controls)
+- [x] Entropy-based behavioral detection (`internal/detection/ransomware_engine.go` — multi-signal: entropy, ext rename, ransom note, shadow copy, canary) 🏗️ [Hybrid/Both]
+- [x] Canary file deployment (`canary_deployment_service.go` — auto-deploys on `agent.registered`, monitors FIM hits) 🏗️ [Hybrid/Both]
+- [v] Honeypot infrastructure 🏗️ [Hybrid/Both]
+- [x] Automated network isolation (`network_isolator_service.go` — subscribes to `ransomware.isolation_requested`, executes via playbook + SSH, exposes frontend controls) 🏗️ [Hybrid/Both]
 - [v] Forensic Deep-Dive UI
 - [ ] **Immutable Backup Verification**
     - [ ] Verify backup integrity hashes on schedule
@@ -479,10 +490,10 @@
     - [ ] Payment risk scoring (OFAC sanctions list checking)
 
 ## Phase 10: UEBA / ML
-- [v] Per-user/entity behavioral baselines (Persistence in BadgerDB) [v]
-- [v] Isolation Forest anomaly detection (Deterministic seeding) [v]
-- [v] Identity Threat Detection & Response (EMA behavior tracking) [v]
-- [v] Threat hunting interface (`ThreatHunter.tsx`)
+- [v] Per-user/entity behavioral baselines (Persistence in BadgerDB) [v] 🏗️ [Hybrid/Both]
+- [v] Isolation Forest anomaly detection (Deterministic seeding) [v] 🏗️ [Hybrid/Both]
+- [v] Identity Threat Detection & Response (EMA behavior tracking) [v] 🏗️ [Hybrid/Both]
+- [v] Threat hunting interface (`ThreatHunter.tsx`) 🏗️ [Hybrid/Both]
 
 #### 10.5 — Peer Group Behavioral Analysis
 - [ ] **Peer Group Construction**
@@ -515,45 +526,45 @@
 
 ## Phase 11: NDR (Months 52–57)
 
-- [x] NetFlow/IPFIX collector
-- [x] DNS log analysis engine — detecting DGA and DNS tunneling
-- [x] TLS metadata extraction — identifying JA3/JA3S fingerprints (no decryption)
-- [x] HTTP proxy log parser — normalized inspection
-- [x] eBPF network probes (extend agent)
-- [x] Lateral movement detection
-- [x] NDR Network Map (`NetworkMap.tsx`) — visualize flows, anomalies, and lateral movement
-- [x] **LateralMovementEngine** — multi-hop connection correlation
-- [x] Network map visualization (`NetworkMap.tsx`)
-- [x] Validate: lateral movement <5 min, 90%+ C2 identification (Verified via soak tests and simulation)
+- [x] NetFlow/IPFIX collector 🌐 [Web Only]
+- [x] DNS log analysis engine — detecting DGA and DNS tunneling 🌐 [Web Only]
+- [x] TLS metadata extraction — identifying JA3/JA3S fingerprints (no decryption) 🌐 [Web Only]
+- [x] HTTP proxy log parser — normalized inspection 🌐 [Web Only]
+- [x] eBPF network probes (extend agent) 🏗️ [Hybrid/Both]
+- [x] Lateral movement detection 🌐 [Web Only]
+- [x] NDR Network Map (`NetworkMap.tsx`) — visualize flows, anomalies, and lateral movement 🌐 [Web Only]
+- [x] **LateralMovementEngine** — multi-hop connection correlation 🌐 [Web Only]
+- [x] Network map visualization (`NetworkMap.tsx`) 🌐 [Web Only]
+- [x] Validate: lateral movement <5 min, 90%+ C2 identification (Verified via soak tests and simulation) 🌐 [Web Only]
 
 ---
 
 ## Phase 12: Enterprise (Months 58–63)
 
-- [x] Multi-tenancy with data partitioning
-- [x] HA clustering (Raft consensus) — `internal/cluster/`, `cluster_service.go`
+- [x] Multi-tenancy with data partitioning 🌐 [Web Only]
+- [x] HA clustering (Raft consensus) — `internal/cluster/`, `cluster_service.go` 🌐 [Web Only]
 - [x] Advanced RBAC & Identity Integration
-  - [x] User & Role database models (`internal/database/users.go`, migration v12)
-  - [x] OIDC/OAuth2 provider (`internal/auth/oidc.go`)
-  - [x] SAML 2.0 Service Provider (`internal/auth/saml.go`)
-  - [x] TOTP MFA module (`internal/auth/mfa.go`)
-  - [x] Granular RBAC engine (`internal/auth/rbac.go`)
-  - [x] IdentityService — user CRUD, local login, MFA, RBAC checking (`identity_service.go`)
-- [ ] **Managed Security Service Provider (MSSP) Mode**
+  - [x] User & Role database models (`internal/database/users.go`, migration v12) 🌐 [Web Only]
+  - [x] OIDC/OAuth2 provider (`internal/auth/oidc.go`) 🌐 [Web Only]
+  - [x] SAML 2.0 Service Provider (`internal/auth/saml.go`) 🌐 [Web Only]
+  - [x] TOTP MFA module (`internal/auth/mfa.go`) 🌐 [Web Only]
+  - [x] Granular RBAC engine (`internal/auth/rbac.go`) 🌐 [Web Only]
+  - [x] IdentityService — user CRUD, local login, MFA, RBAC checking (`identity_service.go`) 🌐 [Web Only]
+- [ ] **Managed Security Service Provider (MSSP) Mode** 🌐 [Web Only]
     - [ ] Multi-tenant SOC view (single pane across all tenants)
     - [ ] Per-tenant SLA tracking and reporting
     - [ ] Tenant onboarding automation
     - [ ] White-label UI capability
-- [ ] **Data Sovereignty Controls**
+- [ ] **Data Sovereignty Controls** 🌐 [Web Only]
     - [ ] Per-tenant data residency enforcement
     - [ ] Cross-border data transfer logging and controls
     - [ ] Configurable data processing locations
-  - [x] Frontend Users & Roles admin panel (`UsersPanel.tsx`)
-  - [x] Identity route wired (`/identity`)
-- [x] Data lifecycle management — `lifecycle_service.go` (7 retention policies, legal hold, 6h purge loop)
-- [x] Executive dashboards — `ExecutiveDashboard.tsx` (KPIs, posture, retention table, compliance badges)
-- [x] Credential Vault → full Password Manager — `PasswordVault.tsx`, `GeneratePassword()`, `/vault` route
-- [x] Validate: 50+ tenants, 99.9% uptime — 60 tenants, 6000 ops, zero leaks, 100% uptime
+  - [x] Frontend Users & Roles admin panel (`UsersPanel.tsx`) 🌐 [Web Only]
+  - [x] Identity route wired (`/identity`) 🌐 [Web Only]
+- [x] Data lifecycle management — `lifecycle_service.go` (7 retention policies, legal hold, 6h purge loop) 🌐 [Web Only]
+- [x] Executive dashboards — `ExecutiveDashboard.tsx` (KPIs, posture, retention table, compliance badges) 🌐 [Web Only]
+- [x] Credential Vault → full Password Manager — `PasswordVault.tsx`, `GeneratePassword()`, `/vault` route 🏗️ [Hybrid/Both]
+- [x] Validate: 50+ tenants, 99.9% uptime — 60 tenants, 6000 ops, zero leaks, 100% uptime 🌐 [Web Only]
 
 ---
 
@@ -561,11 +572,11 @@
 
 ### Phase 13: Elite Research & Academic Rigor (DARPA/NSA Grade)
 
-#### 13.1 — Formal Verification Extension (Beyond TLA+)
+#### 13.1 — Formal Verification Extension (Beyond TLA+) 🏗️ [Hybrid/Both]
 - [x] **Model-Level Verification**
     - [x] Model `DeterministicExecutionService` safety invariants (`internal/decision/deterministic_model.tla`)
     - [x] Model detection rule engine execution paths (`internal/detection/rules_model.tla`)
-- [ ] **Protocol Verification (Tamarin/ProVerif)**
+- [ ] **Protocol Verification (Tamarin/ProVerif)** 🏗️ [Hybrid/Both]
     - [ ] Model gRPC agent↔server mutual auth protocol
     - [ ] Model vault unlock/seal ceremony
     - [ ] Model cluster Raft leader election trust boundaries
@@ -694,11 +705,11 @@
 - [ ] Labs + CTFs + video tutorials
 
 ### Phase 15: Sovereignty ✅
-- [x] Zero Internet dependency audit (Completed in zero_internet_audit.md)
-- [x] **Implement Offline Update Bundle support** (Added ApplyOfflineUpdate to updater.go)
-- [x] Signature verification enforcement (`internal/updater/signature.go` — ed25519, ldflags key injection)
-- [x] Offline update bundle integrity validation (`internal/updater/signature.go` — VerifiedUpdater.ApplyVerifiedOfflineBundle)
-- [x] Update downgrade protection (`internal/updater/signature.go` — DowngradeProtector, semver-aware version lock)
+- [x] Zero Internet dependency audit (Completed in zero_internet_audit.md) 🏗️ [Hybrid/Both]
+- [x] **Implement Offline Update Bundle support** (Added ApplyOfflineUpdate to updater.go) 🖥️ [Desktop Only]
+- [x] Signature verification enforcement (`internal/updater/signature.go` — ed25519, ldflags key injection) 🖥️ [Desktop Only]
+- [x] Offline update bundle integrity validation (`internal/updater/signature.go` — VerifiedUpdater.ApplyVerifiedOfflineBundle) 🖥️ [Desktop Only]
+- [x] Update downgrade protection (`internal/updater/signature.go` — DowngradeProtector, semver-aware version lock) 🖥️ [Desktop Only]
 
 ---
 
@@ -798,7 +809,7 @@
     - [ ] Bloom filter pre-check before full scan
     - [ ] Parallel partition scanning with merge
     - [ ] Query result caching (LRU, TTL-aware)
-- [ ] **Interactive Experience**
+- [ ] **Interactive Experience** 🏗️ [Hybrid/Both]
     - [ ] Syntax-highlighted editor with autocomplete (`QueryEditor.tsx`)
     - [ ] Intellisense: field name suggestion from indexed data
     - [ ] Query history with execution stats (duration, events scanned, results)
@@ -827,7 +838,7 @@
     - [ ] Upload with server-side encryption + integrity checksums
     - [ ] Manifest index: lightweight local index of what's in remote storage
     - [ ] Parallel download + local cache for repeated cold queries
-- [ ] **Storage Dashboard** (`StorageManager.tsx`)
+- [ ] **Storage Dashboard** (`StorageManager.tsx`) 🌐 [Web Only]
     - [ ] Per-tier utilization visualization
     - [ ] Ingestion rate vs. retention budget projection
     - [ ] Cost estimation (GB-days per tier)
@@ -851,7 +862,7 @@
     - [ ] Risk Incident includes: all contributing detections, timeline, entity profile
     - [ ] Auto-correlate: group all risk events for entity into single investigation
     - [ ] Analyst can adjust entity risk (suppress known-good, boost suspect)
-- [ ] **Risk Dashboard** (`RiskDashboard.tsx`)
+- [ ] **Risk Dashboard** (`RiskDashboard.tsx`) 🌐 [Web Only]
     - [ ] Top-N riskiest entities (sortable by score, trend, entity type)
     - [ ] Risk timeline per entity (sparkline of score over time)
     - [ ] Risk heatmap by department/subnet/business unit
@@ -888,7 +899,7 @@
     - [ ] Background summarization job (like Splunk's tstats)
     - [ ] Ultra-fast dashboard queries against summaries instead of raw events
     - [ ] Configurable acceleration window (last 7 days, 30 days, etc.)
-- [ ] **Schema Browser UI** (`SchemaExplorer.tsx`)
+- [ ] **Schema Browser UI** (`SchemaExplorer.tsx`) 🏗️ [Hybrid/Both]
     - [ ] Browse all data models and their fields
     - [ ] Show which log sources map to which data model
     - [ ] Field coverage report (what % of events have each field populated?)
@@ -910,7 +921,7 @@
     - [ ] MITRE ATT&CK data source mapping (which sources cover which techniques?)
     - [ ] Gap analysis: "you have no visibility into technique T1055 because no EDR logs"
     - [ ] Compliance mapping: "PCI requires auth logs from these 12 systems, 3 are silent"
-- [ ] **Health Dashboard** (`SourceHealth.tsx`)
+- [ ] **Health Dashboard** (`SourceHealth.tsx`) 🌐 [Web Only]
     - [ ] Traffic light grid: all sources, red/yellow/green
     - [ ] Ingestion timeline per source (sparklines)
     - [ ] Coverage heatmap overlaid on MITRE matrix
@@ -957,7 +968,7 @@
     - [ ] **Ticketing**: Jira, ServiceNow, PagerDuty, OpsGenie, Zendesk
     - [ ] **Communication**: Slack, Teams, Discord, Telegram
     - [ ] **Cloud/EDR/Network/Email/Vulnerability**: Major vendor coverage (AWS, CrowdStrike, etc.)
-- [ ] **Integration Dashboard** (`IntegrationHub.tsx`)
+- [ ] **Integration Dashboard** (`IntegrationHub.tsx`) 🌐 [Web Only]
     - [ ] Connector catalog with search/filter, health status, last sync, error logs
     - [ ] Data flow visualization; "Missing integration" request workflow
 
@@ -974,7 +985,7 @@
 - [ ] **SOC Maturity & Reporting**
     - [ ] CMMI-based SOC maturity scoring; Automated gap identification
     - [ ] Executive SOC Report (Board-ready PDF, weekly/monthly summaries)
-- [ ] **SOC Dashboard** (`SOCMetrics.tsx`)
+- [ ] **SOC Dashboard** (`SOCMetrics.tsx`) 🌐 [Web Only]
     - [ ] Real-time floor view: active analysts, queue depth, SLA countdowns
     - [ ] Shift handoff view; trend charts (30/90/365 days); analyst leaderboards
 
@@ -989,7 +1000,7 @@
 - [ ] **Verdict Recommendation**
     - [ ] ML-assisted historical decision matching; confidence scoring
     - [ ] Suggested actions; one-click disposition workflow
-- [ ] **Triage Queue** (`TriageQueue.tsx`)
+- [ ] **Triage Queue** (`TriageQueue.tsx`) 🌐 [Web Only]
     - [ ] Priority-sorted queue by triage score; inline context; bulk actions
     - [ ] SLA timers for untriaged high-priority alerts
 
@@ -1001,11 +1012,11 @@
 - [ ] **Scheduling & Delivery**
     - [ ] Cron-based scheduling; Email, S3, Slack, Webhook delivery
     - [ ] Recipient distribution lists; archive of generated reports
-- [ ] **Reporting Dashboard** (`ReportManager.tsx`)
+- [ ] **Reporting Dashboard** (`ReportManager.tsx`) 🌐 [Web Only]
     - [ ] Catalog with preview, schedule management, delivery status tracking
 
 #### 20.11 — Dashboard Studio
-- [ ] **Visual Builder** (`DashboardStudio.tsx`)
+- [ ] **Visual Builder** (`DashboardStudio.tsx`) 🏗️ [Hybrid/Both]
     - [ ] Drag-and-drop grid; real-time OQL preview; template gallery
     - [ ] Widget types: charts, tables, maps, heatmaps, markdown
     - [ ] Responsive layouts (SOC wall display / TV mode)
@@ -1022,7 +1033,7 @@
 - [ ] **Assignment & Collaboration**
     - [ ] Auto-assignment (round-robin/load-balanced); Team queues
     - [ ] Analyst-only internal comments; Evidence attachments; Parent/child linking
-- [ ] **Ticket Queue Dashboard** (`InvestigationQueue.tsx`)
+- [ ] **Ticket Queue Dashboard** (`InvestigationQueue.tsx`) 🌐 [Web Only]
     - [ ] Kanban/List views; Bulk operations; My Tickets vs. Team views
 
 #### 20.13 — Competitive Migration Engine
@@ -1081,13 +1092,13 @@
     - [ ] Action item tracking from post-mortem (linked to remediation workflow)
     - [ ] Metrics: time-to-detect, time-to-contain, time-to-communicate, time-to-resolve
     - [ ] Archive: searchable history of all past incidents with post-mortems
-- [ ] **Communication Dashboard** (`IncidentComms.tsx`)
+- [ ] **Communication Dashboard** (`IncidentComms.tsx`) 🌐 [Web Only]
     - [ ] Active incidents with war room status
     - [ ] Communication timeline per incident
     - [ ] Outstanding action items across all incidents
 
 #### 20.18 — Entity Investigation Pages (360° Entity View)
-- [ ] **Unified Entity View** (`EntityView.tsx`)
+- [ ] **Unified Entity View** (`EntityView.tsx`) 🏗️ [Hybrid/Both]
     - [ ] Entity types: User, Host, IP Address, Domain, Hash, Email Address, Service Account
     - [ ] Automatic entity type detection from query context or click-through
 - [ ] **User Entity Page**
@@ -1176,13 +1187,13 @@
     - [ ] Entity relationship graph built from notebook queries
     - [ ] Drag entities between cells to pivot
     - [ ] Auto-suggest: "this IP appeared in 3 other investigations"
-- [ ] **Notebook UI** (`InvestigationNotebook.tsx`)
+- [ ] **Notebook UI** (`InvestigationNotebook.tsx`) 🏗️ [Hybrid/Both]
     - [ ] Cell-based editor with drag-and-drop reordering
     - [ ] Side panel: entity summary, threat intel, related alerts
     - [ ] Timeline scrubber: filter all cells to time window
 
 #### 21.3 — Data Pipeline Engine (Cribl-Style)
-- [ ] **Visual Pipeline Builder** (`PipelineBuilder.tsx`)
+- [ ] **Visual Pipeline Builder** (`PipelineBuilder.tsx`) 🌐 [Web Only]
     - [ ] Drag-and-drop nodes: Source → Filter → Transform → Route → Destination
     - [ ] Source nodes: syslog, agent, API, file, S3, Kafka
     - [ ] Transform nodes: parse, rename fields, add fields, regex extract, lookup
@@ -1216,7 +1227,7 @@
     - [ ] JavaScript deobfuscation (extract final payload URLs)
     - [ ] Certificate analysis (age, issuer, SAN mismatch)
     - [ ] Redirect chain following (detect fast-flux/TDS)
-- [ ] **Analysis Dashboard** (`MalwareAnalysis.tsx`)
+- [ ] **Analysis Dashboard** (`MalwareAnalysis.tsx`) 🌐 [Web Only]
     - [ ] Sample submission (file upload, URL, hash lookup)
     - [ ] Analysis report: static + dynamic findings, risk score
     - [ ] IOC auto-extraction → feed back into threat intel engine
@@ -1244,7 +1255,7 @@
     - [ ] Internet-facing asset identification
     - [ ] Unpatched + internet-facing + critical = maximum risk
     - [ ] Attack surface trend over time (are we getting better or worse?)
-- [ ] **Asset Dashboard** (`AssetIntelligence.tsx`)
+- [ ] **Asset Dashboard** (`AssetIntelligence.tsx`) 🌐 [Web Only]
     - [ ] Searchable asset inventory with filters
     - [ ] Asset detail view: related alerts, risk score, compliance status
     - [ ] Crown jewel map: visual representation of critical assets and their defenses
@@ -1274,7 +1285,7 @@
     - [ ] ATO (Authority to Operate) package generation
     - [ ] Continuous monitoring feeds for ISSO/ISSM
 
-#### 21.7 — Knowledge Base (Analyst Wiki)
+#### 21.7 — Knowledge Base (Analyst Wiki) 🌐 [Web Only]
 - [ ] **Built-In Wiki Engine**
     - [ ] Markdown-based knowledge articles with versioning
     - [ ] Categorization: by log source, alert type, technique, or procedure
@@ -1340,7 +1351,7 @@
     - [ ] Scheduled hunt library, hunt playbooks with decision branches
 - [ ] **Hunt Analytics**
     - [ ] Hunt coverage map, yield metrics, hunt-to-rule pipeline
-- [ ] **Hunt Dashboard** (`HuntManager.tsx`)
+- [ ] **Hunt Dashboard** (`HuntManager.tsx`) 🌐 [Web Only]
     - [ ] Hunt library, active workspace, history with findings
 
 ### Phase 23: Tier 3 Scale & Architecture
@@ -1361,7 +1372,7 @@
 - [ ] **Real-Time Dashboards**
     - [ ] WebSocket push, live tail, streaming search results
 
-#### 23.3 — App / Extension Marketplace
+#### 23.3 — App / Extension Marketplace 🌐 [Web Only]
 - [ ] **App Framework**
     - [ ] Package format, manifest, sandboxing, lifecycle management
 - [ ] **Pre-Built Apps (20+)**
@@ -1388,7 +1399,7 @@
     - [ ] Declarative source definitions; Checkpoint management (resume); Deduplication
     - [ ] Rate limit awareness; Integrated health monitoring per source
 
-### Phase 23.6: Multi-Region Architecture
+### Phase 23.6: Multi-Region Architecture 🌐 [Web Only]
 - [ ] **Geo-Distributed Ingestion**
     - [ ] Regional ingestion endpoints: agents connect to nearest region
     - [ ] Regional data sovereignty: events stay in origin region unless policy permits replication
@@ -1411,7 +1422,7 @@
 
 ### Phase 24: Advanced Frontiers (Specialized Programs)
 
-#### 24.1 — Insider Threat Detection
+#### 24.1 — Insider Threat Detection 🌐 [Web Only]
 - [ ] **Exfiltration & Access Monitoring**
     - [ ] USB, Cloud upload, Print job, Email attachment volume anomalies
     - [ ] After-hours access baselines; RBAC scope deviation; Badge/VPN mismatch
@@ -1421,7 +1432,7 @@
 - [ ] **Insider Threat Dashboard** (`InsiderThreat.tsx`)
     - [ ] Risk-ranked user list with contributing factors and correlated timelines
 
-#### 24.2 — Data Loss Prevention (DLP)
+#### 24.2 — Data Loss Prevention (DLP) 🏗️ [Hybrid/Both]
 - [ ] **Content Classifiers**
     - [ ] Regex patterns (SSN/CC); Document fingerprinting; ML-based classifiers
 - [ ] **Policy & Enforcement**
@@ -1430,7 +1441,7 @@
 - [ ] **DLP Dashboard** (`DataProtection.tsx`)
     - [ ] Policy violation timeline, top violators, and data classification inventory
 
-#### 24.3 — API Security Monitoring
+#### 24.3 — API Security Monitoring 🌐 [Web Only]
 - [ ] **Discovery & Inventory**
     - [ ] Auto-discovery from proxies; Shadow API detection; Schema validation (OpenAPI)
 - [ ] **Threat Detection & Behavior**
@@ -1448,7 +1459,7 @@
     - [ ] Closed-loop: simulation → gap detection → rule generation → deployment
 - [ ] **Validation Report** (Technique-by-technique coverage maps)
 
-#### 24.5 — Unified Security Posture Score
+#### 24.5 — Unified Security Posture Score 🌐 [Web Only]
 - [ ] **Composite Scoring Engine**
     - [ ] Unified score (0-100) from Detection, Visibility, Response, Compliance, Exposure
     - [ ] Weighting by risk appetite; Historical trends; Peer benchmarking
@@ -1482,7 +1493,7 @@
 
 ### Phase 25: Advanced Specialized Domains
 
-#### 25.1 — Identity Threat Detection & Response (ITDR)
+#### 25.1 — Identity Threat Detection & Response (ITDR) 🌐 [Web Only]
 - [ ] **Active Directory Attack Detection**
     - [ ] DCSync detection (replication request from non-DC)
     - [ ] DCShadow detection (rogue DC registration)
@@ -1502,7 +1513,7 @@
     - [ ] Real-time identity attack timeline; Attack path map with risk scoring
     - [ ] Identity posture score with remediation recommendations
 
-#### 25.2 — AI/LLM Security
+#### 25.2 — AI/LLM Security 🏗️ [Hybrid/Both]
 - [ ] **Shadow AI Discovery**
     - [ ] Detect usage of unauthorized AI services from proxy/DNS/endpoint logs
     - [ ] Data classification of content sent to AI services (PII, source code)
@@ -1515,7 +1526,7 @@
 - [ ] **AI Security Dashboard** (`AISecurityMonitor.tsx`)
     - [ ] Shadow AI usage heatmap; Data leakage volume tracking; Injection attempt timeline
 
-#### 25.3 — External Attack Surface Management (EASM)
+#### 25.3 — External Attack Surface Management (EASM) 🌐 [Web Only]
 - [ ] **Internet-Facing Discovery**
     - [ ] DNS enumeration; Certificate Transparency log monitoring
     - [ ] Port scanning (Shodan/Censys integration); Web app fingerprinting
@@ -1527,7 +1538,7 @@
 - [ ] **EASM Dashboard** (`AttackSurface.tsx`)
     - [ ] Map of internet-facing assets with exposure scores; Discovery timeline
 
-#### 25.4 — Digital Risk Protection (DRP)
+#### 25.4 — Digital Risk Protection (DRP) 🌐 [Web Only]
 - [ ] **Credential & Brand Monitoring**
     - [ ] Dark web & paste site monitoring; Leaked credential matching
     - [ ] Typosquat & Lookalike domain registration alerting
@@ -1539,7 +1550,7 @@
 - [ ] **DRP Dashboard** (`DigitalRisk.tsx`)
     - [ ] Threat feed (leaks/impersonation/mentions); Takedown status tracker
 
-#### 25.5 — OT/ICS Security
+#### 25.5 — OT/ICS Security 🌐 [Web Only]
 - [ ] **OT Asset Discovery (Passive)**
     - [ ] Protocol-aware fingerprinting (Modbus, DNP3, IEC 61850, OPC-UA, etc.)
     - [ ] PLC/HMI/RTU identification; Purdue Model zone classification (Level 0-5)
@@ -1550,7 +1561,7 @@
 - [ ] **OT Dashboard** (`OTSecurity.tsx`)
     - [ ] Purdue Model network visualization; Process anomaly timeline
 
-#### 25.6 — Certificate Lifecycle Management (CLM)
+#### 25.6 — Certificate Lifecycle Management (CLM) 🌐 [Web Only]
 - [ ] **Certificate Inventory & Expiry**
     - [ ] Auto-discovery of all internal + external TLS certs; CT log monitoring
     - [ ] Ownership mapping; Expiry dashboard (90/60/30/7 days)
@@ -1580,10 +1591,10 @@
     - [ ] Process kill on detection; File quarantine (encrypted vault on endpoint)
     - [ ] Ransomware rollback: Volume Shadow Copy-based restoration (Windows)
     - [ ] Network micro-isolation: host-level firewall rule injection
-- [ ] **Prevention Dashboard** (`EndpointProtection.tsx`)
+- [ ] **Prevention Dashboard** (`EndpointProtection.tsx`) 🌐 [Web Only]
     - [ ] Blocked events timeline; Prevention vs. detection ratio; False prevention rate
 
-#### 26.2 — SaaS Security Posture Management (SSPM)
+#### 26.2 — SaaS Security Posture Management (SSPM) 🌐 [Web Only]
 - [ ] **SaaS Configuration Audit**
     - [ ] Connectors: Salesforce, Slack, GitHub, Zoom, Google Workspace, M365
     - [ ] Audit: sharing rules, profile permissions, API access, session settings
@@ -1598,17 +1609,17 @@
     - [ ] Automated proof-of-exploit for known CVEs (non-destructive)
     - [ ] Credential validation: test if discovered/default credentials work
     - [ ] Network path validation: reachability vs. theoretical vulnerability
-- [ ] **Continuous Validation**
+- [ ] **Continuous Validation** 🌐 [Web Only]
     - [ ] Scheduled exposure scans; Re-validate after patch deployment
     - [ ] Immediate validation for new high-profile CVEs
-- [ ] **Exposure Report**
+- [ ] **Exposure Report** 🌐 [Web Only]
     - [ ] Exploitable vs. Theoretical vulnerability distinction; Proof of exploitation evidence
 
 ---
 
 ## Infrastructure: Missing Cross-Cutting Capabilities
 
-### Graph Storage Infrastructure
+### Graph Storage Infrastructure 🏗️ [Hybrid/Both]
 - [ ] **Embedded Graph Engine**
     - [ ] Adjacency list storage; Ad-hoc relationship mapping
     - [ ] Edge types: process→file, user→host, host→host, alert→entity
@@ -1647,7 +1658,7 @@
     - [ ] Storage exhaustion simulation (graceful degradation?)
     - [ ] Scheduled chaos runs in CI/staging
 
-### Digital Forensics Toolkit (Beyond Current Evidence Locker)
+### Digital Forensics Toolkit (Beyond Current Evidence Locker) 🏗️ [Hybrid/Both]
 - [ ] **Memory Forensics**
     - [ ] Volatility 3 integration (headless analysis)
     - [ ] Memory dump acquisition via agent (LiME for Linux, WinPmem for Windows)
@@ -1696,7 +1707,7 @@
 ## Final Audit: Operational, Commercial & Core Substrate
 
 ### Section 1: Product Experience & Accessibility (Cross-Cutting)
-- [ ] **1.1 — First-Run Experience / Onboarding Wizard**
+- [ ] **1.1 — First-Run Experience / Onboarding Wizard** 🏗️ [Hybrid/Both]
     - [ ] **Setup Wizard** (`SetupWizard.tsx` — shown on first login only)
         - [ ] Step 1: Admin account creation (username, password, MFA enrollment)
         - [ ] Step 2: Network configuration (listening ports, TLS cert selection)
@@ -1769,7 +1780,7 @@
         - [ ] Clear documentation and single-toggle opt-out
         - [ ] Privacy-safe telemetry (no PII, operational metrics only)
 
-- [ ] **1.5 — Upgrade & Version Migration Path**
+- [ ] **1.5 — Upgrade & Version Migration Path** 🏗️ [Hybrid/Both]
     - [ ] **Database Migration Framework**
         - [ ] Schema versioning with forward/rollback capabilities
         - [ ] Automatic migration with pre-migration backup

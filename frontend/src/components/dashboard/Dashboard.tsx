@@ -4,6 +4,7 @@ import { GetGlobalThreatStats, GetEventTrend } from '../../../wailsjs/go/service
 import { GetFleetTelemetry } from '../../../wailsjs/go/services/TelemetryService';
 import { useApp } from '@core/store';
 import { Sparkline } from '../ui/Sparkline';
+import { InceptionView } from './InceptionView';
 import '../../styles/dashboard.css';
 
 export const Dashboard: Component = () => {
@@ -12,6 +13,8 @@ export const Dashboard: Component = () => {
     const [fleetHealth, setFleetHealth] = createSignal<any[]>([]);
     const [loading, setLoading] = createSignal(true);
     let chartRef!: HTMLDivElement;
+
+    const isInception = () => state.hosts.length === 0;
 
     const loadData = async () => {
         setLoading(true);
@@ -110,93 +113,95 @@ export const Dashboard: Component = () => {
     };
 
     return (
-        <div class="ob-page page-enter">
-            {/* Header */}
-            <div class="dash-header">
-                <div>
-                    <h1 class="dash-title">Fleet Intelligence</h1>
-                    <p class="dash-subtitle">Global security orchestration & proactive threat telemetry</p>
+        <Show when={!isInception()} fallback={<InceptionView />}>
+            <div class="ob-page page-enter">
+                {/* Header */}
+                <div class="dash-header">
+                    <div>
+                        <h1 class="dash-title">Fleet Intelligence</h1>
+                        <p class="dash-subtitle">Global security orchestration & proactive threat telemetry</p>
+                    </div>
+                    <button class="ob-btn ob-btn-sm ob-btn-ghost" onClick={loadData}>↻ Refresh</button>
                 </div>
-                <button class="ob-btn ob-btn-sm ob-btn-ghost" onClick={loadData}>↻ Refresh</button>
-            </div>
 
-            {/* KPI Cards */}
-            <Show when={!loading()} fallback={
-                <div class="dash-kpi-grid">
-                    <For each={[1, 2, 3, 4]}>{() =>
-                        <div class="ob-card dash-kpi">
-                            <div class="ob-skeleton" style="width:80px;height:10px;margin-bottom:12px" />
-                            <div class="ob-skeleton" style="width:60px;height:28px;margin-bottom:8px" />
-                            <div class="ob-skeleton" style="width:100px;height:8px" />
-                        </div>
-                    }</For>
-                </div>
-            }>
-                <div class="dash-kpi-grid">
-                    <For each={kpis()}>
-                        {(kpi) => (
-                            <div class={`ob-card dash-kpi ${kpi.alert ? 'dash-kpi-alert' : ''}`}>
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                    <div>
-                                        <div class="dash-kpi-label">{kpi.label}</div>
-                                        <div class="dash-kpi-value">{kpi.value}</div>
-                                    </div>
-                                    {kpi.trend && <span class={kpi.trendBad ? 'dash-trend-bad' : 'dash-trend-good'}>{kpi.trend}</span>}
-                                </div>
-                                <Sparkline data={generateSparklineData(kpi.value as number)} color={kpi.alert ? '#e04040' : kpi.trendBad ? '#f58b00' : '#0099e0'} />
-                                <div class="dash-kpi-sub" style="margin-top: 8px;">
-                                    {kpi.sub}
-                                </div>
+                {/* KPI Cards */}
+                <Show when={!loading()} fallback={
+                    <div class="dash-kpi-grid">
+                        <For each={[1, 2, 3, 4]}>{() =>
+                            <div class="ob-card dash-kpi">
+                                <div class="ob-skeleton" style="width:80px;height:10px;margin-bottom:12px" />
+                                <div class="ob-skeleton" style="width:60px;height:28px;margin-bottom:8px" />
+                                <div class="ob-skeleton" style="width:100px;height:8px" />
                             </div>
-                        )}
-                    </For>
-                </div>
-            </Show>
+                        }</For>
+                    </div>
+                }>
+                    <div class="dash-kpi-grid">
+                        <For each={kpis()}>
+                            {(kpi) => (
+                                <div class={`ob-card dash-kpi ${kpi.alert ? 'dash-kpi-alert' : ''}`}>
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <div>
+                                            <div class="dash-kpi-label">{kpi.label}</div>
+                                            <div class="dash-kpi-value">{kpi.value}</div>
+                                        </div>
+                                        {kpi.trend && <span class={kpi.trendBad ? 'dash-trend-bad' : 'dash-trend-good'}>{kpi.trend}</span>}
+                                    </div>
+                                    <Sparkline data={generateSparklineData(kpi.value as number)} color={kpi.alert ? '#e04040' : kpi.trendBad ? '#f58b00' : '#0099e0'} />
+                                    <div class="dash-kpi-sub" style="margin-top: 8px;">
+                                        {kpi.sub}
+                                    </div>
+                                </div>
+                            )}
+                        </For>
+                    </div>
+                </Show>
 
-            {/* Main Grid — Chart + Heatmap */}
-            <div class="dash-main-grid">
-                <div class="ob-card dash-chart-card">
-                    <div class="dash-section-header">Anomaly Trend (7D)</div>
-                    <Show when={!loading()} fallback={
-                        <div class="ob-skeleton" style="width:100%;height:280px;border-radius:4px" />
-                    }>
-                        <div ref={chartRef} class="dash-chart" />
-                    </Show>
-                </div>
+                {/* Main Grid — Chart + Heatmap */}
+                <div class="dash-main-grid">
+                    <div class="ob-card dash-chart-card">
+                        <div class="dash-section-header">Anomaly Trend (7D)</div>
+                        <Show when={!loading()} fallback={
+                            <div class="ob-skeleton" style="width:100%;height:280px;border-radius:4px" />
+                        }>
+                            <div ref={chartRef} class="dash-chart" />
+                        </Show>
+                    </div>
 
-                <div class="ob-card dash-heatmap-card">
-                    <div class="dash-section-header">Fleet Health</div>
-                    <Show when={!loading()} fallback={
-                        <div class="ob-skeleton" style="width:100%;height:200px;border-radius:4px" />
-                    }>
-                        <div class="dash-heatmap-grid">
-                            <For each={state.hosts}>
-                                {(host) => {
-                                    const telemetry = fleetHealth().find(t => t.host_id === host.id);
-                                    const load = telemetry && telemetry.mem_total_mb > 0
-                                        ? (telemetry.cpu_usage + (telemetry.mem_used_mb / telemetry.mem_total_mb * 100)) / 2 : 0;
-                                    const color = load > 80 ? 'var(--status-offline)' : load > 50 ? 'var(--status-degraded)' : 'var(--status-online)';
-                                    return (
-                                        <div
-                                            class="dash-heatmap-cell"
-                                            style={`background:${color};opacity:${Math.max(0.2, load / 100)}`}
-                                            title={`${host.hostname}: ${load.toFixed(1)}%`}
-                                        />
-                                    );
-                                }}
-                            </For>
-                            <Show when={state.hosts.length === 0}>
-                                <div class="ob-empty-sm">No hosts detected</div>
-                            </Show>
-                        </div>
-                        <div class="dash-legend">
-                            <span class="dash-legend-item"><span class="dash-dot" style="background:var(--status-online)" /> Healthy</span>
-                            <span class="dash-legend-item"><span class="dash-dot" style="background:var(--status-degraded)" /> Busy</span>
-                            <span class="dash-legend-item"><span class="dash-dot" style="background:var(--status-offline)" /> Overload</span>
-                        </div>
-                    </Show>
+                    <div class="ob-card dash-heatmap-card">
+                        <div class="dash-section-header">Fleet Health</div>
+                        <Show when={!loading()} fallback={
+                            <div class="ob-skeleton" style="width:100%;height:200px;border-radius:4px" />
+                        }>
+                            <div class="dash-heatmap-grid">
+                                <For each={state.hosts}>
+                                    {(host) => {
+                                        const telemetry = fleetHealth().find(t => t.host_id === host.id);
+                                        const load = telemetry && telemetry.mem_total_mb > 0
+                                            ? (telemetry.cpu_usage + (telemetry.mem_used_mb / telemetry.mem_total_mb * 100)) / 2 : 0;
+                                        const color = load > 80 ? 'var(--status-offline)' : load > 50 ? 'var(--status-degraded)' : 'var(--status-online)';
+                                        return (
+                                            <div
+                                                class="dash-heatmap-cell"
+                                                style={`background:${color};opacity:${Math.max(0.2, load / 100)}`}
+                                                title={`${host.hostname}: ${load.toFixed(1)}%`}
+                                            />
+                                        );
+                                    }}
+                                </For>
+                                <Show when={state.hosts.length === 0}>
+                                    <div class="ob-empty-sm">No hosts detected</div>
+                                </Show>
+                            </div>
+                            <div class="dash-legend">
+                                <span class="dash-legend-item"><span class="dash-dot" style="background:var(--status-online)" /> Healthy</span>
+                                <span class="dash-legend-item"><span class="dash-dot" style="background:var(--status-degraded)" /> Busy</span>
+                                <span class="dash-legend-item"><span class="dash-dot" style="background:var(--status-offline)" /> Overload</span>
+                            </div>
+                        </Show>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Show>
     );
 };

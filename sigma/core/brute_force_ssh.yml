@@ -1,0 +1,19 @@
+title: SSH Brute Force Detection
+id: 5cb6c182-167d-419b-9c7b-7b0f7a0b5f1a
+description: Detects multiple failed SSH login attempts from a single source IP within a short timeframe.
+status: stable
+author: OBLIVRA Core
+level: high
+logsource:
+    category: authentication
+    service: sshd
+detection:
+    selection:
+        EventType: sshd
+        output_contains: 'Failed password'
+    timeframe: 5m
+    condition: selection
+falsepositives:
+tags:
+    - attack.credential-access
+    - attack.t1110.001

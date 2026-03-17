@@ -43,6 +43,7 @@ func EnsureDirectories() error {
 		p.ConfigDir(),
 		p.DataDir(),
 		p.LogDir(),
+		filepath.Join(p.DataDir(), "sigma"),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0700); err != nil {

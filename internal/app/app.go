@@ -109,6 +109,12 @@ func New() *App {
 		version: "0.1.0",
 	}
 
+	// Ensure platform-specific directories exist (Day Zero bootstrapping)
+	if err := platform.EnsureDirectories(); err != nil {
+		fmt.Printf("FATAL: Failed to create application directories: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Initialize logger once for the entire application lifecycle.
 	l, err := logger.New(logger.Config{
 		Level:      logger.InfoLevel,

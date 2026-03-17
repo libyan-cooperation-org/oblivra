@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -14,6 +16,8 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/notifications"
 	"github.com/kingknull/oblivrashell/internal/osquery"
+	"github.com/kingknull/oblivrashell/internal/platform"
+	"path/filepath"
 )
 
 const (
@@ -73,10 +77,15 @@ func (s *AlertingService) Start(ctx context.Context) error {
 	s.loadPersistedConfig()
 
 	// Load community Sigma rules from the user's sigma/ directory alongside builtin rules.
-	// Non-fatal — a missing sigma/ dir is fine, errors are logged only.
+	// We use the persistent data directory (e.g. %LOCALAPPDATA%/oblivra/data/sigma) 
+	// to ensure rules survive restarts and binary movements.
 	if s.evaluator != nil {
-		sigmaDir := "sigma" // resolved relative to the binary's working directory
+		sigmaDir := filepath.Join(platform.DataDir(), "sigma")
 		s.sigmaDir = sigmaDir
+
+		// Seeding phase: Copy core rules from the binary distribution to DataDir on first run
+		s.seedSigmaRules(sigmaDir)
+
 		if err := s.evaluator.LoadSigmaDirectory(sigmaDir); err != nil {
 			s.log.Warn("[SIGMA] Failed to load sigma directory: %v", err)
 		} else {
@@ -315,6 +324,55 @@ func (s *AlertingService) ReloadSigmaRules() int {
 		return len(s.evaluator.GetRules())
 	}
 	return 0
+}
+
+// seedSigmaRules copies foundational rules from the relative 'sigma/core' directory
+// to the persistent application data directory if the destination is empty.
+func (s *AlertingService) seedSigmaRules(destDir string) {
+	// Check if the destination already has rules
+	entries, err := os.ReadDir(destDir)
+	if err == nil && len(entries) > 0 {
+		return // Already seeded or user has added rules
+	}
+
+	// Source: looking for foundational rules bundled with the binary
+	srcDir := filepath.Join("sigma", "core")
+	srcEntries, err := os.ReadDir(srcDir)
+	if err != nil {
+		s.log.Warn("[SIGMA] Source core rules directory not found, skipping auto-seed: %v", err)
+		return
+	}
+
+	s.log.Info("[SIGMA] First run detected: Seeding %d core rules to %s", len(srcEntries), destDir)
+	for _, entry := range srcEntries {
+		if entry.IsDir() {
+			continue
+		}
+
+		srcPath := filepath.Join(srcDir, entry.Name())
+		destPath := filepath.Join(destDir, entry.Name())
+
+		if err := copyFile(srcPath, destPath); err != nil {
+			s.log.Warn("[SIGMA] Failed to seed rule %s: %v", entry.Name(), err)
+		}
+	}
+}
+
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
 
 func (s *AlertingService) scanGlobalThreatsLoop(ctx context.Context) {
