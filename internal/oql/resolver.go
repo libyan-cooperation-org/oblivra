@@ -185,6 +185,18 @@ func (r *SCIMResolver) resolveCmd(cmd Command) Command {
 			lc.AsField = &f
 		}
 		return &lc
+	case *PredictCommand:
+		pc := *c
+		pc.Field = r.Resolve(c.Field)
+		return &pc
+	case *AnomalyDetectionCommand:
+		adc := *c
+		f := make([]FieldRef, len(c.Fields))
+		for i, x := range c.Fields {
+			f[i] = r.Resolve(x)
+		}
+		adc.Fields = f
+		return &adc
 	default:
 		return cmd
 	}

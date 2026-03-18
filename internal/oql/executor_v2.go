@@ -51,6 +51,7 @@ type Executor struct {
 	Optim    *Optimizer
 	History  *QueryHistoryDB
 	Pool     *WorkerPool
+	Source   DataSource
 }
 
 // NewExecutor creates a fully wired OQL executor.
@@ -62,7 +63,12 @@ func NewExecutor() *Executor {
 		Optim:    &Optimizer{Resolver: r},
 		History:  NewQueryHistoryDB(),
 		Pool:     NewWorkerPool(8, 2),
+		Source:   &InMemSource{}, // Default to empty in-memory source
 	}
+}
+
+func (ex *Executor) SetSource(s DataSource) {
+	ex.Source = s
 }
 
 // Execute parses, type-checks, optimizes, and executes an OQL query.
@@ -102,6 +108,19 @@ func (ex *Executor) Execute(ctx context.Context, input string, data []Row, ectx 
 	if ectx != nil {
 		meta.QueryID = ectx.QueryID
 	}
+	// Fetch data if not provided
+	if data == nil && ex.Source != nil {
+		fetchProf := prof.BeginStage("FETCH", 1, "")
+		var err error
+		data, err = ex.Source.Fetch(ctx, optimized.Search, optimized.TimeRange)
+		if err != nil {
+			fetchProf.Finish()
+			return nil, fmt.Errorf("failed to fetch data: %w", err)
+		}
+		fetchProf.SetDetail("rows_fetched", len(data))
+		fetchProf.Finish()
+	}
+
 	rows, err := ex.executePipeline(ctx, optimized, data, prof, &meta)
 	if err != nil {
 		return nil, err
@@ -195,6 +214,10 @@ func (ex *Executor) executeCommand(ctx context.Context, cmd Command, rows []Row,
 		return ex.execChart(ctx, c, rows, prof)
 	case *MvExpandCommand:
 		return ex.execMvExpand(ctx, c, rows, prof)
+	case *PredictCommand:
+		return ex.execPredict(ctx, c, rows, prof)
+	case *AnomalyDetectionCommand:
+		return ex.execAnomalyDetection(ctx, c, rows, prof)
 	default:
 		return nil, fmt.Errorf("unsupported command: %s", cmd.CommandName())
 	}
@@ -1212,6 +1235,24 @@ func (ex *Executor) execMvExpand(_ context.Context, c *MvExpandCommand, rows []R
 		}
 	}
 	return out, nil
+}
+
+func (ex *Executor) execPredict(_ context.Context, c *PredictCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
+	for range rows {
+		prof.TrackRowIn()
+		prof.TrackRowOut()
+	}
+	// Future: Implement linear regression or ARIMA
+	return rows, nil
+}
+
+func (ex *Executor) execAnomalyDetection(_ context.Context, c *AnomalyDetectionCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
+	for range rows {
+		prof.TrackRowIn()
+		prof.TrackRowOut()
+	}
+	// Future: Implement IQR or Isolation Forest
+	return rows, nil
 }
 
 func typeErrorsToStrings(errs []TypeError) []string {

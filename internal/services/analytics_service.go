@@ -6,6 +6,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/oql"
+	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 )
 
@@ -26,13 +27,15 @@ type AnalyticsService struct {
 	engine      analytics.Engine
 	oqlExecutor *oql.Executor
 	matcher     *threatintel.MatchEngine
+	hotStore    *storage.HotStore
 }
 
-func NewAnalyticsService(engine analytics.Engine, matcher *threatintel.MatchEngine) *AnalyticsService {
+func NewAnalyticsService(engine analytics.Engine, matcher *threatintel.MatchEngine, hotStore *storage.HotStore) *AnalyticsService {
 	return &AnalyticsService{
 		engine:      engine,
 		oqlExecutor: oql.NewExecutor(),
 		matcher:     matcher,
+		hotStore:    hotStore,
 	}
 }
 
@@ -96,25 +99,39 @@ func (s *AnalyticsService) RunOsquery(query string) ([]map[string]interface{}, e
 	return nil, fmt.Errorf("osquery integration not yet available — planned for Phase 6 Agent Framework")
 }
 
-// RunOQL fetches the latest terminal logs and processes them through the OQL in-memory engine.
+// RunOQL executes an OQL query. It prefers BadgerDB for system-wide SIEM logs
+// but falls back to SQLite for terminal-specific telemetry if needed.
 func (s *AnalyticsService) RunOQL(query string) (*oql.QueryResult, error) {
+	if s.oqlExecutor == nil {
+		return nil, fmt.Errorf("OQL executor not initialized")
+	}
+
+	// 1. If we have a HotStore, use the optimized BadgerSource
+	if s.hotStore != nil {
+		// Create a source for the current execution (Tenant context should be used in production)
+		source := oql.NewBadgerSource(s.hotStore, "GLOBAL")
+		s.oqlExecutor.SetSource(source)
+		
+		// Passing nil for data triggers the Source.Fetch() path in the executor
+		return s.oqlExecutor.Execute(context.Background(), query, nil, nil)
+	}
+
+	// 2. Fallback to SQLite terminal logs for in-memory processing
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
 
-	// 1. Fetch raw logs from SQLite to feed into the OQL engine
+	// Fetch raw logs from SQLite to feed into the OQL engine
 	data, err := s.engine.Search("SELECT timestamp, session_id, host, output FROM terminal_logs ORDER BY timestamp DESC LIMIT 50000", "sql", 50000, 0)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch raw data for OQL: %w", err)
+		return nil, fmt.Errorf("failed to fetch raw data for OQL fallback: %w", err)
 	}
 
-	// 2. Convert raw maps to OQL Rows
 	rows := make([]oql.Row, len(data))
 	for i, d := range data {
 		rows[i] = oql.Row(d)
 	}
 
-	// 3. Execute OQL
 	return s.oqlExecutor.Execute(context.Background(), query, rows, nil)
 }
 // GetEntityEnrichment provides real-time context (GeoIP, Threat Intel) for a specific entity.

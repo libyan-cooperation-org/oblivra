@@ -39,6 +39,14 @@ func TestParse(t *testing.T) {
 			input: "source=logs | eval a=1, b=2, c=a+b",
 		},
 		{
+			name:  "predict",
+			input: "source=cpu | predict load future=10",
+		},
+		{
+			name:  "anomalydetection",
+			input: "source=traffic | anomalydetection method=iqr bytes, packets",
+		},
+		{
 			name:    "invalid syntax",
 			input:   "source=firewall |",
 			wantErr: true,

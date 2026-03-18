@@ -15,7 +15,16 @@ func Parse(input string, macros map[string]MacroDef) (*Query, error) {
 		return nil, err
 	}
 	p := &parser{tokens: tokens, macros: macros}
-	return p.parseQuery()
+	q, err := p.parseQuery()
+	if err != nil {
+		return nil, err
+	}
+	if p.peek().Type != TokEOF {
+		t := p.peek()
+		return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
+			Message: fmt.Sprintf("unexpected token %s", t.String())}
+	}
+	return q, nil
 }
 
 type parser struct {
@@ -74,11 +83,6 @@ func (p *parser) parseQuery() (*Query, error) {
 			return nil, err
 		}
 		q.Commands = append(q.Commands, cmd)
-	}
-	if p.peek().Type != TokEOF {
-		t := p.peek()
-		return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
-			Message: fmt.Sprintf("unexpected token %s", t.String())}
 	}
 	return q, nil
 }
@@ -193,9 +197,19 @@ func (p *parser) parsePrimary() (SearchExpr, error) {
 		t := p.advance()
 		return &FreeTextExpr{Text: t.Val}, nil
 	}
-	if p.peek().Type == TokNumber {
-		t := p.advance()
-		return &FreeTextExpr{Text: t.Val}, nil
+	if (p.peek().Type == TokLBracket) {
+		p.advance()
+		if p.peek().Type == TokIdent && strings.EqualFold(p.peek().Val, "search") {
+			p.advance()
+		}
+		sub, err := p.parseQuery()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(TokRBracket); err != nil {
+			return nil, err
+		}
+		return &SubqueryExpr{Query: sub}, nil
 	}
 	t := p.peek()
 	return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
@@ -347,6 +361,10 @@ func (p *parser) parseCommand() (Command, error) {
 		return p.parseChart()
 	case "mvexpand":
 		return p.parseMvExpand()
+	case "predict":
+		return p.parsePredict()
+	case "anomalydetection":
+		return p.parseAnomalyDetection()
 	default:
 		t := p.advance()
 		return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
@@ -958,6 +976,47 @@ func isCmpTok(t TokenType) bool {
 		return true
 	}
 	return false
+}
+
+func (p *parser) parsePredict() (Command, error) {
+	p.advance() // consume "predict"
+	if p.peek().Type != TokIdent {
+		return nil, &ParseError{Message: "expected field name for predict"}
+	}
+	field := p.advance()
+	cmd := &PredictCommand{Field: NewFieldRef(field.Val), Future: 5}
+	if p.matchIdent("future") {
+		if p.peek().Type == TokEq {
+			p.advance()
+		}
+		if p.peek().Type == TokNumber {
+			f, _ := strconv.Atoi(p.advance().Val)
+			cmd.Future = f
+		}
+	}
+	return cmd, nil
+}
+
+func (p *parser) parseAnomalyDetection() (Command, error) {
+	p.advance() // consume "anomalydetection"
+	cmd := &AnomalyDetectionCommand{Method: "iqr"}
+	for p.peek().Type == TokIdent {
+		if strings.EqualFold(p.peek().Val, "method") {
+			p.advance()
+			if p.peek().Type == TokEq {
+				p.advance()
+			}
+			if p.peek().Type == TokIdent {
+				cmd.Method = p.advance().Val
+			}
+			continue
+		}
+		cmd.Fields = append(cmd.Fields, NewFieldRef(p.advance().Val))
+		if p.peek().Type == TokComma {
+			p.advance()
+		}
+	}
+	return cmd, nil
 }
 
 func expandMacros(input string, macros map[string]MacroDef) string {

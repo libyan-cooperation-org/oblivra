@@ -63,6 +63,7 @@ type SecurityCluster struct {
 
 // SIEMCluster holds ingestion, detection, and alerting services.
 type SIEMCluster struct {
+	AnalyticsService *services.AnalyticsService
 	SIEMService      *services.SIEMService
 	IngestService    *services.IngestService
 	AlertingService  *services.AlertingService

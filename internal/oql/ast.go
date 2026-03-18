@@ -60,6 +60,7 @@ type FieldExistsExpr struct {
 	Field  FieldRef
 	Exists bool
 }
+type SubqueryExpr struct{ Query *Query }
 
 func (*AndExpr) searchExpr()         {}
 func (*OrExpr) searchExpr()          {}
@@ -67,6 +68,7 @@ func (*NotExpr) searchExpr()         {}
 func (*CompareExpr) searchExpr()     {}
 func (*FreeTextExpr) searchExpr()    {}
 func (*FieldExistsExpr) searchExpr() {}
+func (*SubqueryExpr) searchExpr() {}
 
 func (e *AndExpr) String() string         { return fmt.Sprintf("(%s AND %s)", e.Left, e.Right) }
 func (e *OrExpr) String() string          { return fmt.Sprintf("(%s OR %s)", e.Left, e.Right) }
@@ -74,6 +76,7 @@ func (e *NotExpr) String() string         { return fmt.Sprintf("NOT %s", e.Expr)
 func (e *CompareExpr) String() string     { return fmt.Sprintf("%s %s %s", e.Field, e.Op, e.Value) }
 func (e *FreeTextExpr) String() string    { return fmt.Sprintf("%q", e.Text) }
 func (e *FieldExistsExpr) String() string { return fmt.Sprintf("%s EXISTS=%v", e.Field, e.Exists) }
+func (e *SubqueryExpr) String() string    { return fmt.Sprintf("[ %s ]", e.Query) }
 
 type FieldRef struct {
 	Parts []string
@@ -239,6 +242,14 @@ type FillNullCommand struct {
 	Fields []FieldRef
 }
 type MvExpandCommand struct{ Field FieldRef }
+type PredictCommand struct {
+	Field  FieldRef
+	Future int
+}
+type AnomalyDetectionCommand struct {
+	Fields []FieldRef
+	Method string
+}
 
 func (*WhereCommand) command()       {}
 func (*StatsCommand) command()       {}
@@ -261,6 +272,8 @@ func (*RenameCommand) command()      {}
 func (*FieldsCommand) command()      {}
 func (*FillNullCommand) command()    {}
 func (*MvExpandCommand) command()    {}
+func (*PredictCommand) command()     {}
+func (*AnomalyDetectionCommand) command() {}
 
 func (*WhereCommand) CommandName() string       { return "where" }
 func (*StatsCommand) CommandName() string       { return "stats" }
@@ -283,6 +296,8 @@ func (*RenameCommand) CommandName() string      { return "rename" }
 func (*FieldsCommand) CommandName() string      { return "fields" }
 func (*FillNullCommand) CommandName() string    { return "fillnull" }
 func (*MvExpandCommand) CommandName() string    { return "mvexpand" }
+func (*PredictCommand) CommandName() string     { return "predict" }
+func (*AnomalyDetectionCommand) CommandName() string { return "anomalydetection" }
 
 // ── Eval Expressions ──────────────────────────────────────────────────────────
 
