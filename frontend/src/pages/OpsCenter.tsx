@@ -1,6 +1,7 @@
 import { Component, createSignal, For, Show } from 'solid-js';
 import { LogDetail } from '../components/analytics/LogDetail';
-import { SplunkDashboard } from './SplunkDashboard';
+import { OQLDashboard } from './OQLDashboard';
+import { FusionDashboard } from './FusionDashboard';
 import { SourcesPanel } from '../components/ops/SourcesPanel';
 import { SearchLogs, RunOsquery } from '../../wailsjs/go/services/AnalyticsService';
 import {
@@ -16,7 +17,7 @@ import { LiveTailPanel } from '../components/ops/LiveTailPanel';
 import { SyntheticMonitor } from '../components/ops/SyntheticMonitor';
 import '../styles/ops_center.css';
 
-type TabView = 'dashboard' | 'agents' | 'search' | 'sources' | 'tail' | 'synthetic' | 'alerts' | 'history';
+type TabView = 'dashboard' | 'agents' | 'fusion' | 'search' | 'sources' | 'tail' | 'synthetic' | 'alerts' | 'history';
 
 interface AlertHistoryEvent {
     timestamp: string;
@@ -178,7 +179,7 @@ export const OpsCenter: Component = () => {
                     </svg>
                     <span style={{ 'font-size': '11px', 'font-weight': '700', 'text-transform': 'uppercase', 'letter-spacing': '0.5px', color: 'var(--text-secondary)' }}>Ops Center</span>
                 </div>
-                {(['dashboard','agents','search','sources','tail','synthetic','alerts','history'] as TabView[]).map(t => (
+                {(['dashboard','agents','fusion','search','sources','tail','synthetic','alerts','history'] as TabView[]).map(t => (
                     <button
                         class={`ob-tab${activeTab() === t ? ' active' : ''}`}
                         onClick={() => { setActiveTab(t); if (t === 'alerts' || t === 'history') loadAlerts(); }}
@@ -206,7 +207,7 @@ export const OpsCenter: Component = () => {
                         <FleetDashboard />
                     </Show>
                     <Show when={dashboardMode() === 'analytics'}>
-                        <SplunkDashboard />
+                        <OQLDashboard />
                     </Show>
                 </div>
             </Show>
@@ -214,6 +215,11 @@ export const OpsCenter: Component = () => {
             {/* ===== AGENTS TAB ===== */}
             <Show when={activeTab() === 'agents'}>
                 <AgentConsole />
+            </Show>
+
+            {/* ===== FUSION TAB ===== */}
+            <Show when={activeTab() === 'fusion'}>
+                <FusionDashboard />
             </Show>
 
             {/* ===== SOURCES TAB ===== */}

@@ -132,6 +132,7 @@ func main() {
 			application.NetworkIsolatorService,
 			application.LedgerService,
 			application.DiagnosticsService,
+			application.FusionService,
 			// NOTE: MemorySecurity and DeterministicResponse are intentionally
 			// not exposed to the Wails frontend (no UI binding needed), but they ARE
 			// initialized and registered in the ServiceRegistry for internal lifecycle management.

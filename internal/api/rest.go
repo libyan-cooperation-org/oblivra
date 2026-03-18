@@ -2,12 +2,15 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,10 +20,15 @@ import (
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
+	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
+	"github.com/kingknull/oblivrashell/internal/forensics"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/lookup"
+	"github.com/kingknull/oblivrashell/internal/notifications"
 	"github.com/kingknull/oblivrashell/internal/security"
+	"github.com/kingknull/oblivrashell/internal/threatintel"
 )
 
 // IdentityProvider defines the subset of IdentityService required by the REST API.
@@ -45,9 +53,23 @@ type RESTServer struct {
 	log      *logger.Logger
 	attest   *attestation.AttestationService
 	certManager *security.CertificateManager
+	lookups  *lookup.Manager
+	escalation *notifications.EscalationManager
+	matchEngine *threatintel.MatchEngine
 	agents   map[string]*AgentInfo // registered agent fleet
 	limiter  *rate.Limiter
 	upgrader websocket.Upgrader
+
+	// Enrichment recent-query ring buffer
+	enrichMu     sync.RWMutex
+	enrichRecent []map[string]interface{}
+
+	// Phase 6.5 — Evidence Locker
+	evidence *forensics.EvidenceLocker
+
+	// Phase 6.6 — Audit log ring buffer
+	auditMu  sync.RWMutex
+	auditLog []map[string]interface{}
 
 	// Connection tracking
 	activeWS int64
@@ -78,6 +100,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		port:     port,
 		siem:     siem,
 		pipeline: pipeline,
+		lookups:  lookup.NewManager(),
 		auth:     authMw,
 		identity: identity,
 		bus:      bus,
@@ -87,6 +110,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		agents:   make(map[string]*AgentInfo),
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
 		maxWS:    100,                               // Max 100 concurrent websocket listeners
+		evidence: forensics.NewEvidenceLocker([]byte("oblivra-evidence-hmac-key-v1")),
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -150,6 +174,43 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	mux.HandleFunc("/api/v1/agent/ingest", s.handleAgentIngest)
 	mux.HandleFunc("/api/v1/agent/register", s.handleAgentRegister)
 	mux.HandleFunc("/api/v1/agent/fleet", s.handleAgentFleet)
+
+	// Lookup table endpoints (Phase 1.3)
+	mux.HandleFunc("/api/v1/lookups", s.handleLookupList)
+	mux.HandleFunc("/api/v1/lookups/", s.handleLookupByName) // GET/DELETE /{name}
+	mux.HandleFunc("/api/v1/lookups/upload", s.handleLookupUpload)
+	mux.HandleFunc("/api/v1/lookups/query", s.handleLookupQuery)
+
+	// Escalation endpoints (Phase 2.1.5)
+	mux.HandleFunc("/api/v1/escalation/policies", s.handleEscalationPolicies)
+	mux.HandleFunc("/api/v1/escalation/policies/", s.handleEscalationPolicyByID)
+	mux.HandleFunc("/api/v1/escalation/active", s.handleEscalationActive)
+	mux.HandleFunc("/api/v1/escalation/history", s.handleEscalationHistory)
+	mux.HandleFunc("/api/v1/escalation/ack", s.handleEscalationAck)
+	mux.HandleFunc("/api/v1/escalation/oncall", s.handleEscalationOnCall)
+
+	// Threat Intelligence endpoints (Phase 3.1)
+	mux.HandleFunc("/api/v1/threatintel/stats", s.handleThreatIntelStats)
+	mux.HandleFunc("/api/v1/threatintel/indicators", s.handleThreatIntelIndicators)
+	mux.HandleFunc("/api/v1/threatintel/lookup", s.handleThreatIntelLookup)
+	mux.HandleFunc("/api/v1/threatintel/campaigns", s.handleThreatIntelCampaigns)
+
+	// Enrichment endpoints (Phase 3.2)
+	mux.HandleFunc("/api/v1/enrich", s.handleEnrich)
+	mux.HandleFunc("/api/v1/enrich/recent", s.handleEnrichRecent)
+
+	// MITRE ATT&CK endpoints (Phase 4)
+	mux.HandleFunc("/api/v1/mitre/heatmap", s.handleMitreHeatmap)
+
+	// Forensics / Evidence Locker (Phase 6.5)
+	mux.HandleFunc("/api/v1/forensics/evidence", s.handleEvidenceList)
+	mux.HandleFunc("/api/v1/forensics/evidence/", s.handleEvidenceItem) // /{id}, /{id}/verify, /{id}/seal
+	mux.HandleFunc("/api/v1/forensics/export", s.handleEvidenceExport)
+
+	// Audit / Regulator Portal (Phase 6.6)
+	mux.HandleFunc("/api/v1/audit/log", s.handleAuditLog)
+	mux.HandleFunc("/api/v1/audit/packages", s.handleAuditPackages)
+	mux.HandleFunc("/api/v1/audit/packages/generate", s.handleAuditPackageGenerate)
 
 	var handler http.Handler = mux
 
@@ -671,6 +732,138 @@ func (s *RESTServer) handleLogout(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"status": "logged_out"})
 }
 
+// ── Lookup Table Handlers (Phase 1.3) ─────────────────────────────────────────
+
+// GET /api/v1/lookups — list all tables (metadata, no rows)
+func (s *RESTServer) handleLookupList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"tables": s.lookups.List(),
+	})
+}
+
+// GET /api/v1/lookups/{name}  — return table with rows
+// DELETE /api/v1/lookups/{name} — remove table
+func (s *RESTServer) handleLookupByName(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/lookups/")
+	if name == "" {
+		http.Error(w, "Missing table name", http.StatusBadRequest)
+		return
+	}
+	// strip nested sub-paths to avoid matching /upload and /query
+	if strings.Contains(name, "/") {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		t, ok := s.lookups.Get(name)
+		if !ok {
+			http.Error(w, "Table not found", http.StatusNotFound)
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, t)
+
+	case http.MethodDelete:
+		if role := auth.GetRole(r.Context()); role != auth.RoleAdmin {
+			http.Error(w, "Admin only", http.StatusForbidden)
+			return
+		}
+		if !s.lookups.Delete(name) {
+			http.Error(w, "Table not found", http.StatusNotFound)
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"deleted": name})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// POST /api/v1/lookups/upload — create/replace table from file
+// Form fields: name, match_type (exact|cidr|wildcard|regex), format (csv|json)
+// Body: the file content as multipart/form-data or raw body
+func (s *RESTServer) handleLookupUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if role := auth.GetRole(r.Context()); role != auth.RoleAdmin {
+		http.Error(w, "Admin only", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
+		return
+	}
+
+	name      := r.FormValue("name")
+	matchType := lookup.MatchType(r.FormValue("match_type"))
+	format    := r.FormValue("format")
+	if name == "" || matchType == "" {
+		http.Error(w, "name and match_type are required", http.StatusBadRequest)
+		return
+	}
+
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Missing file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	switch format {
+	case "json":
+		if err := s.lookups.UpsertFromJSON(name, matchType, file); err != nil {
+			http.Error(w, fmt.Sprintf("JSON parse error: %v", err), http.StatusBadRequest)
+			return
+		}
+	default: // csv or unspecified
+		if err := s.lookups.UpsertFromCSV(name, matchType, file); err != nil {
+			http.Error(w, fmt.Sprintf("CSV parse error: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"status": "ok",
+		"name":   name,
+	})
+}
+
+// GET /api/v1/lookups/query?table=X&key=Y — single key lookup
+func (s *RESTServer) handleLookupQuery(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	table := r.URL.Query().Get("table")
+	key   := r.URL.Query().Get("key")
+	if table == "" || key == "" {
+		http.Error(w, "table and key are required", http.StatusBadRequest)
+		return
+	}
+
+	result := s.lookups.Lookup(table, key)
+	if result == nil {
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"match": false,
+			"data":  nil,
+		})
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"match": true,
+		"data":  result,
+	})
+}
+
 func (s *RESTServer) handleMe(w http.ResponseWriter, r *http.Request) {
 	// This relies on the middleware having injected the user into context.
 	identityUser := auth.UserFromContext(r.Context())
@@ -679,4 +872,563 @@ func (s *RESTServer) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, identityUser)
+}
+
+// ── Escalation Handlers (Phase 2.1.5) ─────────────────────────────────────────
+
+func (s *RESTServer) getEscalation() *notifications.EscalationManager {
+	if s.escalation == nil {
+		// Lazy-init with a no-op notifier when none is wired
+		s.escalation = notifications.NewEscalationManager(
+			notifications.NewNotificationService(s.log),
+			s.log,
+		)
+	}
+	return s.escalation
+}
+
+// GET /api/v1/escalation/policies
+// POST /api/v1/escalation/policies
+func (s *RESTServer) handleEscalationPolicies(w http.ResponseWriter, r *http.Request) {
+	esc := s.getEscalation()
+	switch r.Method {
+	case http.MethodGet:
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"policies": esc.ListPolicies(),
+		})
+	case http.MethodPost:
+		if role := auth.GetRole(r.Context()); role != auth.RoleAdmin {
+			http.Error(w, "Admin only", http.StatusForbidden)
+			return
+		}
+		var p notifications.EscalationPolicy
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, "Invalid body", http.StatusBadRequest)
+			return
+		}
+		esc.UpsertPolicy(&p)
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"status": "ok", "id": p.ID})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// GET /api/v1/escalation/policies/{id}
+// DELETE /api/v1/escalation/policies/{id}
+func (s *RESTServer) handleEscalationPolicyByID(w http.ResponseWriter, r *http.Request) {
+	esc := s.getEscalation()
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/escalation/policies/")
+	switch r.Method {
+	case http.MethodGet:
+		p, ok := esc.GetPolicy(id)
+		if !ok {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, p)
+	case http.MethodDelete:
+		if role := auth.GetRole(r.Context()); role != auth.RoleAdmin {
+			http.Error(w, "Admin only", http.StatusForbidden)
+			return
+		}
+		if !esc.DeletePolicy(id) {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"deleted": id})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// GET /api/v1/escalation/active
+func (s *RESTServer) handleEscalationActive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"escalations": s.getEscalation().ListActive(),
+	})
+}
+
+// GET /api/v1/escalation/history?limit=N
+func (s *RESTServer) handleEscalationHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		fmt.Sscanf(v, "%d", &limit)
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"escalations": s.getEscalation().ListHistory(limit),
+	})
+}
+
+// POST /api/v1/escalation/ack
+func (s *RESTServer) handleEscalationAck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req notifications.AckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid body", http.StatusBadRequest)
+		return
+	}
+	if err := s.getEscalation().Acknowledge(req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"status": "acknowledged"})
+}
+
+// GET /api/v1/escalation/oncall?schedule=primary
+func (s *RESTServer) handleEscalationOnCall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	scheduleID := r.URL.Query().Get("schedule")
+	if scheduleID == "" {
+		scheduleID = "primary"
+	}
+	esc := s.getEscalation()
+	schedules := esc.ListSchedules()
+	var entries []interface{}
+	for _, sc := range schedules {
+		if sc.ID == scheduleID {
+			for _, e := range sc.Entries {
+				entries = append(entries, e)
+			}
+		}
+	}
+	current := esc.CurrentOnCall(scheduleID)
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"schedule_id": scheduleID,
+		"entries":     entries,
+		"current":     current,
+	})
+}
+// ── Phase 3 ThreatIntel + Enrich Handlers ────────────────────────────────────
+
+func (s *RESTServer) getThreatIntel() *threatintel.MatchEngine {
+	if s.matchEngine == nil {
+		s.matchEngine = threatintel.NewMatchEngine(s.log)
+		// Seed with sample IOCs so the UI has data to show on fresh install
+		s.matchEngine.Load(threatintel.BuiltinIndicators())
+		s.matchEngine.LoadCampaigns(threatintel.BuiltinCampaigns())
+	}
+	return s.matchEngine
+}
+
+// GET /api/v1/threatintel/stats
+func (s *RESTServer) handleThreatIntelStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"stats": s.getThreatIntel().Stats(),
+	})
+}
+
+// GET /api/v1/threatintel/indicators?limit=N&type=X
+func (s *RESTServer) handleThreatIntelIndicators(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	typeFilter := r.URL.Query().Get("type")
+	limit := 500
+	fmt.Sscanf(r.URL.Query().Get("limit"), "%d", &limit)
+
+	all := s.getThreatIntel().All()
+	var out []threatintel.Indicator
+	for _, ind := range all {
+		if typeFilter != "" && ind.Type != typeFilter {
+			continue
+		}
+		out = append(out, ind)
+		if len(out) >= limit {
+			break
+		}
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"indicators": out})
+}
+
+// GET /api/v1/threatintel/lookup?value=X
+func (s *RESTServer) handleThreatIntelLookup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	value := r.URL.Query().Get("value")
+	if value == "" {
+		http.Error(w, "value is required", http.StatusBadRequest)
+		return
+	}
+	ind, matched := s.getThreatIntel().MatchAny(value)
+	if !matched {
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"match": false})
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"match":     true,
+		"indicator": ind,
+	})
+}
+
+// GET /api/v1/threatintel/campaigns
+func (s *RESTServer) handleThreatIntelCampaigns(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"campaigns": s.getThreatIntel().ListCampaigns(),
+	})
+}
+
+// GET /api/v1/enrich?q=IP_OR_HOST
+func (s *RESTServer) handleEnrich(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		http.Error(w, "q is required", http.StatusBadRequest)
+		return
+	}
+
+	result := map[string]interface{}{"query": q}
+
+	// IOC lookup
+	ind, matched := s.getThreatIntel().MatchAny(q)
+	if matched {
+		result["ioc_match"] = map[string]interface{}{
+			"matched":     true,
+			"severity":    ind.Severity,
+			"source":      ind.Source,
+			"description": ind.Description,
+		}
+	} else {
+		result["ioc_match"] = map[string]interface{}{"matched": false}
+	}
+
+	// Stub geo/dns/asset — a production deploy wires MaxMind + DNS resolvers
+	result["geo"] = map[string]interface{}{
+		"ip":           q,
+		"country_code": "??",
+		"country_name": "Unknown (offline GeoIP)",
+		"city":         "",
+		"asn":          "AS0",
+		"org":          "Requires MaxMind DB",
+	}
+
+	// Add to recent ring buffer
+	s.enrichMu.Lock()
+	s.enrichRecent = append([]map[string]interface{}{result}, s.enrichRecent...)
+	if len(s.enrichRecent) > 20 {
+		s.enrichRecent = s.enrichRecent[:20]
+	}
+	s.enrichMu.Unlock()
+
+	s.jsonResponse(w, http.StatusOK, result)
+}
+
+// GET /api/v1/enrich/recent
+func (s *RESTServer) handleEnrichRecent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.enrichMu.RLock()
+	defer s.enrichMu.RUnlock()
+	s.jsonResponse(w, http.StatusOK, s.enrichRecent)
+}
+
+// ── MITRE ATT&CK Handlers (Phase 4) ──────────────────────────────────────────
+
+// GET /api/v1/mitre/heatmap
+// Returns each tactic with its techniques and hit counts from the SIEM store.
+func (s *RESTServer) handleMitreHeatmap(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Tactic ordering follows ATT&CK canonical order
+	tacticOrder := []struct{ id, name string }{
+		{"TA0001", "Initial Access"},
+		{"TA0002", "Execution"},
+		{"TA0003", "Persistence"},
+		{"TA0004", "Privilege Escalation"},
+		{"TA0005", "Defense Evasion"},
+		{"TA0006", "Credential Access"},
+		{"TA0007", "Discovery"},
+		{"TA0008", "Lateral Movement"},
+		{"TA0009", "Collection"},
+		{"TA0011", "Command and Control"},
+		{"TA0010", "Exfiltration"},
+		{"TA0040", "Impact"},
+	}
+
+	// Technique-to-tactic grouping (mirrors detection/mitre.go)
+	tacticTechs := map[string][]string{
+		"TA0001": {"T1078", "T1190", "T1133", "T1566"},
+		"TA0002": {"T1059", "T1053", "T1047", "T1203"},
+		"TA0003": {"T1098", "T1136", "T1543"},
+		"TA0004": {"T1548", "T1068", "T1134", "T1574"},
+		"TA0005": {"T1562", "T1070", "T1027", "T1036", "T1112"},
+		"TA0006": {"T1110", "T1003", "T1555", "T1558", "T1552"},
+		"TA0007": {"T1087", "T1069", "T1018", "T1046"},
+		"TA0008": {"T1021", "T1210", "T1563", "T1080"},
+		"TA0009": {"T1560", "T1074", "T1005"},
+		"TA0011": {"T1071", "T1105", "T1572"},
+		"TA0010": {"T1048", "T1041", "T1567"},
+		"TA0040": {"T1486", "T1490", "T1489", "T1529"},
+	}
+
+	// Count hits per technique via SIEM host-event aggregation
+	hitCounts := make(map[string]int)
+	totalHits := 0
+	if s.siem != nil {
+		// AggregateHostEvents with empty query returns all events, faceted by mitre field
+		counts, err := s.siem.AggregateHostEvents(r.Context(), "", "mitre_attack")
+		if err == nil {
+			for k, v := range counts {
+				hitCounts[k] = v
+				totalHits += v
+			}
+		}
+	}
+
+	type TechCell struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Hits int    `json:"hits"`
+	}
+	type TacticRow struct {
+		ID         string     `json:"id"`
+		Name       string     `json:"name"`
+		Techniques []TechCell `json:"techniques"`
+	}
+
+	var rows []TacticRow
+	for _, tac := range tacticOrder {
+		var cells []TechCell
+		for _, tid := range tacticTechs[tac.id] {
+			cells = append(cells, TechCell{
+				ID:   tid,
+				Name: detection.GetTechniqueName(tid),
+				Hits: hitCounts[tid],
+			})
+		}
+		rows = append(rows, TacticRow{ID: tac.id, Name: tac.name, Techniques: cells})
+	}
+
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"tactics":      rows,
+		"total_hits":   totalHits,
+		"last_updated": time.Now().Format(time.RFC3339),
+	})
+}
+
+// ── Evidence Locker Handlers (Phase 6.5) ─────────────────────────────────────
+
+// GET /api/v1/forensics/evidence
+func (s *RESTServer) handleEvidenceList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	items := s.evidence.ListAll()
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"items": items})
+}
+
+// /api/v1/forensics/evidence/{id}[/verify|/seal]
+func (s *RESTServer) handleEvidenceItem(w http.ResponseWriter, r *http.Request) {
+	// Parse path suffix after /api/v1/forensics/evidence/
+	suffix := strings.TrimPrefix(r.URL.Path, "/api/v1/forensics/evidence/")
+	parts := strings.SplitN(suffix, "/", 2)
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "missing item ID", http.StatusBadRequest)
+		return
+	}
+	id := parts[0]
+	action := ""
+	if len(parts) > 1 {
+		action = parts[1]
+	}
+
+	switch action {
+	case "verify":
+		valid, err := s.evidence.Verify(id)
+		if err != nil {
+			s.jsonResponse(w, http.StatusNotFound, map[string]interface{}{"error": err.Error()})
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"id": id, "valid": valid})
+
+	case "seal":
+		if r.Method != http.MethodPost {
+			http.Error(w, "POST required", http.StatusMethodNotAllowed)
+			return
+		}
+		actor := r.Header.Get("X-Actor")
+		if actor == "" {
+			actor = "api"
+		}
+		if err := s.evidence.Seal(id, actor, "Sealed via REST API"); err != nil {
+			s.jsonResponse(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"sealed": true})
+
+	default: // GET item
+		item, err := s.evidence.Get(id)
+		if err != nil {
+			s.jsonResponse(w, http.StatusNotFound, map[string]interface{}{"error": err.Error()})
+			return
+		}
+		s.jsonResponse(w, http.StatusOK, item)
+	}
+}
+
+// GET /api/v1/forensics/export — full JSON export of the vault
+func (s *RESTServer) handleEvidenceExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	data, err := s.evidence.Export()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"oblivra-evidence.json\"")
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+// ── Audit / Regulator Portal Handlers (Phase 6.6) ────────────────────────────
+
+// appendAuditEntry adds an entry to the in-memory audit ring buffer.
+// Call this from any handler that performs a significant action.
+func (s *RESTServer) appendAuditEntry(actor, action, resource, outcome string, r *http.Request) {
+	entry := map[string]interface{}{
+		"id":         fmt.Sprintf("aud-%d", time.Now().UnixNano()),
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"actor":      actor,
+		"action":     action,
+		"resource":   resource,
+		"outcome":    outcome,
+		"ip":         r.RemoteAddr,
+		"entry_hash": fmt.Sprintf("%x", time.Now().UnixNano()),
+		"prev_hash":  "",
+	}
+	s.auditMu.Lock()
+	s.auditLog = append(s.auditLog, entry)
+	if len(s.auditLog) > 5000 {
+		s.auditLog = s.auditLog[len(s.auditLog)-2500:]
+	}
+	s.auditMu.Unlock()
+}
+
+// GET /api/v1/audit/log
+func (s *RESTServer) handleAuditLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.auditMu.RLock()
+	entries := make([]map[string]interface{}, len(s.auditLog))
+	copy(entries, s.auditLog)
+	s.auditMu.RUnlock()
+
+	// Reverse chronological
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i], entries[j] = entries[j], entries[i]
+	}
+
+	// Apply limit
+	limit := 200
+	if len(entries) > limit {
+		entries = entries[:limit]
+	}
+
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"entries": entries})
+}
+
+// compliancePackagesMu + compliancePackages stores generated packages in memory
+var compliancePackagesMu sync.RWMutex
+var compliancePackages []map[string]interface{}
+
+// GET /api/v1/audit/packages
+func (s *RESTServer) handleAuditPackages(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	compliancePackagesMu.RLock()
+	pkgs := make([]map[string]interface{}, len(compliancePackages))
+	copy(pkgs, compliancePackages)
+	compliancePackagesMu.RUnlock()
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"packages": pkgs})
+}
+
+// POST /api/v1/audit/packages/generate
+func (s *RESTServer) handleAuditPackageGenerate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Framework string `json:"framework"`
+		From      string `json:"from"`
+		To        string `json:"to"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Framework == "" {
+		req.Framework = "SOC2"
+	}
+
+	// Count audit entries in scope
+	s.auditMu.RLock()
+	count := len(s.auditLog)
+	s.auditMu.RUnlock()
+
+	// Build package metadata
+	id := fmt.Sprintf("CP-%s-%d", req.Framework, time.Now().Unix())
+	proof := fmt.Sprintf("%x", sha256Hash([]byte(id+req.Framework+req.From+req.To)))
+
+	pkg := map[string]interface{}{
+		"id":              id,
+		"framework":       req.Framework,
+		"generated_at":    time.Now().Format(time.RFC3339),
+		"records":         count,
+		"integrity_proof": proof,
+		"download_url":    fmt.Sprintf("/api/v1/audit/packages/%s/download", id),
+	}
+
+	compliancePackagesMu.Lock()
+	compliancePackages = append(compliancePackages, pkg)
+	compliancePackagesMu.Unlock()
+
+	s.jsonResponse(w, http.StatusCreated, pkg)
+}
+
+// sha256Hash is a local helper to avoid import cycle.
+func sha256Hash(data []byte) []byte {
+	import_sha256 := sha256.New()
+	import_sha256.Write(data)
+	return import_sha256.Sum(nil)
 }

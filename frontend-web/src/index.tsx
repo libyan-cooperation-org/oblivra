@@ -16,6 +16,12 @@ const Dashboard       = lazy(() => import('./core/Dashboard'));
 const FleetManagement = lazy(() => import('./pages/FleetManagement'));
 const SIEMSearch      = lazy(() => import('./pages/SIEMSearch'));
 const IdentityAdmin   = lazy(() => import('./pages/IdentityAdmin'));
+const AlertManagement = lazy(() => import('./pages/AlertManagement'));
+const LookupManager   = lazy(() => import('./pages/LookupManager'));
+const EscalationCenter    = lazy(() => import('./pages/EscalationCenter'));
+const ThreatIntelDashboard = lazy(() => import('./pages/ThreatIntelDashboard'));
+const EnrichmentViewer    = lazy(() => import('./pages/EnrichmentViewer'));
+const MitreHeatmap        = lazy(() => import('./pages/MitreHeatmap'));
 
 // ── ContextRoute wrapper factory ──────────────────────────────────────────────
 // Returns a component that renders the target page only in the correct context.
@@ -39,11 +45,17 @@ render(() => (
     <Route path="/onboarding" component={Onboarding} />
 
     {/* Hybrid (any context) */}
-    <Route path="/"            component={guard('any', Dashboard)} />
-    <Route path="/siem/search" component={guard('any', SIEMSearch)} />
+    <Route path="/"             component={guard('any', Dashboard)} />
+    <Route path="/siem/search"  component={guard('any', SIEMSearch)} />
+    <Route path="/alerts"       component={guard('any', AlertManagement)} />
+    <Route path="/lookups"      component={guard('any', LookupManager)} />
+    <Route path="/threatintel"      component={guard('any', ThreatIntelDashboard)} />
+    <Route path="/enrich"           component={guard('any', EnrichmentViewer)} />
+    <Route path="/mitre-heatmap"    component={guard('any', MitreHeatmap)} />
 
     {/* Web-only */}
-    <Route path="/fleet"    component={guard('web', FleetManagement)} />
-    <Route path="/identity" component={guard('web', IdentityAdmin)} />
+    <Route path="/fleet"      component={guard('web', FleetManagement)} />
+    <Route path="/identity"   component={guard('web', IdentityAdmin)} />
+    <Route path="/escalation" component={guard('web', EscalationCenter)} />
   </Router>
 ), root!);

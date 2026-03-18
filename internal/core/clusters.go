@@ -5,6 +5,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/database"
+	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/enrich"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/graph"
@@ -72,6 +73,8 @@ type SIEMCluster struct {
 	UEBAService      *services.UEBAService
 	ForensicsService *services.ForensicsService
 	SourceManager    *logsources.SourceManager
+	FusionEngine     *detection.AttackFusionEngine
+	FusionService    *services.FusionService
 }
 
 // IntelCluster holds analytics, risk, and graph correlation services.

@@ -43,7 +43,7 @@ import { SOCWorkspace } from './components/soc/SOCWorkspace';
 import { LineageExplorer } from './pages/LineageExplorer';
 import { DecisionInspector } from './pages/DecisionInspector';
 import { OfflineUpdate } from './pages/OfflineUpdate';
-import { SplunkDashboard } from './pages/SplunkDashboard';
+import { OQLDashboard } from './pages/OQLDashboard';
 import { AIAssistantPage } from './pages/AIAssistantPage';
 import { TunnelsPage } from './pages/TunnelsPage';
 import { RecordingsPage } from './pages/RecordingsPage';
@@ -51,7 +51,8 @@ import { SnippetsPage } from './pages/SnippetsPage';
 import { NotesPage } from './pages/NotesPage';
 import { SyncPage } from './pages/SyncPage';
 import { MitreHeatmap } from './components/siem/MitreHeatmap';
-import { EntityInvestigationPage } from './pages/EntityInvestigationPage';
+import { EntityView } from './pages/EntityView';
+import { FusionDashboard } from './pages/FusionDashboard';
 import './styles/incident.css';
 import { RouteGuard } from './core/RouteGuard';
 
@@ -101,7 +102,7 @@ render(() => (
         <Route path="/lineage" component={LineageExplorer} />
         <Route path="/decisions" component={DecisionInspector} />
         <Route path="/offline-update" component={OfflineUpdate} />
-        <Route path="/analytics" component={SplunkDashboard} />
+        <Route path="/analytics" component={OQLDashboard} />
         <Route path="/ai-assistant" component={AIAssistantPage} />
         <Route path="/tunnels" component={() => <RouteGuard path="/tunnels"><TunnelsPage /></RouteGuard>} />
         <Route path="/recordings" component={() => <RouteGuard path="/recordings"><RecordingsPage /></RouteGuard>} />
@@ -109,6 +110,7 @@ render(() => (
         <Route path="/notes" component={() => <RouteGuard path="/notes"><NotesPage /></RouteGuard>} />
         <Route path="/sync" component={() => <RouteGuard path="/sync"><SyncPage /></RouteGuard>} />
         <Route path="/mitre-heatmap" component={MitreHeatmap} />
-        <Route path="/entity/:type/:id" component={EntityInvestigationPage} />
+        <Route path="/fusion" component={FusionDashboard} />
+        <Route path="/entity/:type/:id" component={EntityView} />
     </HashRouter>
 ), root);

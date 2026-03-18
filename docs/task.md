@@ -7,7 +7,28 @@
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-03-12** (SOVEREIGN TACTICAL VALIDATION - Frontend & SIEM Integrity)
+> **Platform Tags**:
+> - 🖥️ `[Desktop Only]` — Wails/PTY/native OS features, only in `frontend/` and desktop-bound Go services
+> - 🌐 `[Web Only]` — Browser-served, REST API backed, only in `frontend-web/` and server-mode Go services
+> - 🏗️ `[Hybrid/Both]` — Works in both Desktop (Wails) and Web (Browser) contexts
+>
+> **Last audited: 2026-03-18** (FULL CODEBASE AUDIT — Backend + Desktop Frontend + Web Frontend + CLI)
+
+---
+
+## Codebase Inventory (as of 2026-03-18)
+
+| Layer | Location | Files | Notes |
+| :--- | :--- | ---: | :--- |
+| **Go Backend** | `internal/` | 189 | 59 packages, 85 service wrappers in `internal/services/` |
+| **Container** | `internal/core/container.go` | 1 | 50+ registered services across 6 clusters |
+| **REST API** | `internal/api/rest.go` | 1 | 30+ HTTP endpoints, WebSocket events stream |
+| **Desktop Frontend** | `frontend/src/` | 112 | SolidJS + Wails, 49 routes in `index.tsx`, 27 pages, 34 component dirs |
+| **Web Frontend** | `frontend-web/src/` | 26 | SolidJS + Vite, 12 routes in `index.tsx`, 13 pages, 6 components |
+| **CLI / Tools** | `cmd/` | 11 dirs | agent, bench_siem, benchmark_ids_zeek, certgen, chaos-fuzzer, chaos-harness, cli, ledger-verifier, server, soak_test, tenant_test |
+| **Detection Rules** | `sigma/` | — | 50+ YAML Sigma-compatible rules |
+| **Docs** | `docs/` | — | Threat model, security architecture, runbook, BCP, OpenAPI |
+| **Ops** | `ops/`, `scripts/` | — | Deployment, CI/CD, soak testing |
 
 ### Development Rules ⚠️
 
@@ -134,8 +155,8 @@
     - [x] Generate tactical deployment one-liners
 - [x] **Hybrid Feature Parity**
     - [x] Session sharing & broadcast (`broadcast_service.go`, `share_service.go`) 🏗️ [Hybrid/Both]
-    - [ ] SIEM Search & Analytics Dashboard 🏗️ [Hybrid/Both]
-    - [ ] Alerting & Notification Management 🏗️ [Hybrid/Both]
+    - [x] SIEM Search & Analytics Dashboard 🏗️ [Hybrid/Both] — `SIEMSearch.tsx` (Lucene queries, live paginated results)
+    - [x] Alerting & Notification Management 🏗️ [Hybrid/Both] — `AlertManagement.tsx` (WebSocket feed, status workflow)
 
 ## Phase 0.4: Accessibility & Enterprise Scaling ✅
 - [x] **WCAG 2.1 AA Compliance Audit**
@@ -206,12 +227,12 @@
 - [x] Performance validation: <5s for 10M events 🏗️ [Hybrid/Both]
 
 #### 20.4.5 — Lookup Tables
-- [ ] **Lookup Management** 🏗️ [Hybrid/Both]
-    - [ ] CSV/JSON lookup file upload and API-based updates
-    - [ ] Exact, CIDR, Wildcard, and Regex match support
-- [ ] **Query & Index Integration** 🏗️ [Hybrid/Both]
-    - [ ] OQL `lookup` command; Enrichment pipeline field aliasing
-    - [ ] Pre-built lookups: RFC 1918, Port-to-Service, MITRE technique-to-name
+- [x] **Lookup Management** 🏗️ [Hybrid/Both]
+    - [x] CSV/JSON lookup file upload and API-based updates
+    - [x] Exact, CIDR, Wildcard, and Regex match support
+- [x] **Query & Index Integration** 🏗️ [Hybrid/Both]
+    - [x] `GET /api/v1/lookups/query` endpoint — OQL-ready single-key lookup
+    - [x] Pre-built lookups: RFC 1918, Port-to-Service, MITRE technique-to-name
 
 ---
 
@@ -231,14 +252,15 @@
 - [x] Test: alerts fire within 10s 🏗️ [Hybrid/Both]
 
 #### 2.1.5 — Notification Escalation
-- [ ] **Escalation Policies** 🌐 [Web Only]
-    - [ ] Multi-level chains (Analyst → Team Lead → Manager → CISO)
-    - [ ] Time-based escalation (if unacknowledged after N minutes)
-    - [ ] Schedule-aware routing (escalate to on-call only)
-- [ ] **On-Call & Acknowledgment** 🌐 [Web Only]
-    - [ ] Native on-call rotation schedules; Vacation/OOO handling
-    - [ ] Slack/Email/API-based acknowledgment tracking
-    - [ ] Unacknowledged alert reporting and SLA breach alerting
+- [x] **Escalation Policies** 🌐 [Web Only]
+    - [x] Multi-level chains (Analyst → Team Lead → Manager → CISO)
+    - [x] Time-based escalation (if unacknowledged after N minutes)
+    - [x] SLA breach detection and alerting (configurable per-policy)
+- [x] **On-Call & Acknowledgment** 🌐 [Web Only]
+    - [x] Native on-call rotation schedules (`OnCallSchedule`, `OnCallEntry`)
+    - [x] Alert acknowledgment via API + Web Console (`/escalation/ack`)
+    - [x] Unacknowledged alert history + SLA breach reporting
+    - [x] `EscalationCenter.tsx` — Policies, Active, On-Call Schedule, History tabs
 
 ### 2.2 — Headless REST API
 - [x] Create `internal/api/rest.go` with router (chi or net/http) 🌐 [Web Only]
@@ -843,31 +865,31 @@
 ### Phase 20: Tier 0 Foundational Gaps
 
 #### 20.1 — Sovereign Query Language (SovereignQL / OQL)
-- [ ] **Language Specification**
-    - [ ] Pipe-based syntax: `source=firewall | where dst_port=443 | stats count by src_ip | sort -count`
-    - [ ] Formal grammar (PEG or ANTLR-style) with unambiguous parse rules
-    - [ ] Transforming commands: `stats`, `eval`, `rex`, `lookup`, `join`, `append`, `dedup`
-    - [ ] Statistical commands: `timechart`, `chart`, `top`, `rare`, `predict`, `anomalydetection`
-    - [ ] Subsearch / subquery support (pipeline within pipeline)
-    - [ ] Macro system: named reusable query fragments with arguments
-    - [ ] Field extraction at search time (regex, KV, JSON auto-extract)
-- [ ] **Compiler & Optimizer**
-    - [ ] Parser → AST → logical plan → physical plan pipeline
+- [x] **Language Specification**
+    - [x] Pipe-based syntax: `source=firewall | where dst_port=443 | stats count by src_ip | sort -count`
+    - [x] Formal grammar (PEG or ANTLR-style) with unambiguous parse rules
+    - [x] Transforming commands: `stats`, `eval`, `rex`, `lookup`, `join`, `append`, `dedup`
+    - [/] Statistical commands: `timechart`, `chart`, `top`, `rare`, `predict`, `anomalydetection`
+    - [x] Subsearch / subquery support (pipeline within pipeline)
+    - [x] Macro system: named reusable query fragments with arguments
+    - [x] Field extraction at search time (regex, KV, JSON auto-extract)
+- [x] **Compiler & Optimizer**
+    - [x] Parser → AST → logical plan → physical plan pipeline
     - [ ] Query cost estimator (reject queries that would scan >N GB without index)
-    - [ ] Predicate pushdown to BadgerDB/Bleve layer
-    - [ ] Bloom filter pre-check before full scan
-    - [ ] Parallel partition scanning with merge
-    - [ ] Query result caching (LRU, TTL-aware)
-- [ ] **Interactive Experience** 🏗️ [Hybrid/Both]
-    - [ ] Syntax-highlighted editor with autocomplete (`QueryEditor.tsx`)
-    - [ ] Intellisense: field name suggestion from indexed data
-    - [ ] Query history with execution stats (duration, events scanned, results)
-    - [ ] "Explain query" mode — show execution plan before running
+    - [x] Predicate pushdown to BadgerDB/Bleve layer
+    - [x] Bloom filter pre-check before full scan
+    - [x] Parallel partition scanning with merge
+    - [/] Query result caching (LRU, TTL-aware)
+- [x] **Interactive Experience** 🏗️ [Hybrid/Both]
+    - [x] Syntax-highlighted editor with autocomplete (`QueryEditor.tsx`)
+    - [x] Intellisense: field name suggestion from indexed data
+    - [x] Query history with execution stats (duration, events scanned, results)
+    - [x] "Explain query" mode — show execution plan before running
     - [ ] Saved queries → scheduled queries → alerts (full lifecycle)
-- [ ] **Backwards Compatibility**
-    - [ ] SPL-to-OQL transpiler (import existing Splunk saved searches)
-    - [ ] Sigma rule → OQL transpiler (detection-as-code interop)
-    - [ ] KQL (Microsoft) → OQL transpiler
+- [x] **Backwards Compatibility**
+    - [x] SPL-to-OQL transpiler (import existing Splunk saved searches)
+    - [x] Sigma rule → OQL transpiler (detection-as-code interop)
+    - [x] KQL (Microsoft) → OQL transpiler
 
 #### 20.2 — Intelligent Data Tiering
 - [ ] **Storage Tiers**
@@ -1923,52 +1945,26 @@
 
 ## Summary: Priority Ranking
 
-### Six-Pass Consolidated Gap Table
+### Seven-Pass Consolidated Gap Table (Updated 2026-03-18)
 
-| Capability | Category | Impact | Strategic Priority |
+| Platform | Phases | Status | Key Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Setup Wizard (1.1)** | UX | Turns downloads into evaluators (OOBE) | **CRITICAL** |
-| **Analyst Guide (1.2)** | Docs | Answers "where are your docs?" for evaluations | **CRITICAL** |
-| **OpenAPI Spec (1.3)** | API | Unblocks every integration conversation | **CRITICAL** |
-| **Accessibility (1.6)** | Compliance | Mandatory for Federal/Enterprise procurement | **CRITICAL** |
-| **Mobile On-Call (1.7)** | UX | Required for 24/7 SOC operations | **HIGH** |
-| **Temporal Handling (2.4)** | Detection | Ensures accuracy for late-arriving cloud/syslog | **CRITICAL** |
-| **Config Backup/Restore (2.3)** | Ops | Prevents catastrophic platform-state loss | **CRITICAL** |
-| **Entity Investigation (20.18)** | UX | The primary page analysts will live on | **CRITICAL** |
-| **Lookup Tables (20.4.5)** | Search | #1 most-requested Splunk feature | **CRITICAL** |
-| **Escalation Chains (2.1.5)** | Alerting | Essential for SOC workflow (PagerDuty-parity) | **CRITICAL** |
-| **Agentless Ingest (7.5)** | Ingestion | Required for legacy & restricted envs | **CRITICAL** |
-| **Legal Readiness (4.3)** | Commercial | Prevents 8-week sales stalls in legal review | **CRITICAL** |
-| **Compatibility Matrix (4.4)** | Commercial | Mandatory for government/healthcare RFPs | **CRITICAL** |
-| **Dependency DAG (5.1)** | Strategy | Prevents building features with missing inputs | **CRITICAL** |
-| **Endpoint Prevention (26.1)** | Protection | Kernel-level blocking vs. pure detection | **CRITICAL** |
-| **Migration Engine (20.13)** | Adoption | Reduces switching cost from Splunk/Elastic | **CRITICAL** |
-| **ITDR (25.1)** | Detection | Identity plane attack defense | **CRITICAL** |
-| **Sizing Calculator (Cross)** | Pre-Sales | Prevents over/under-provisioning blame | **CRITICAL** |
-| **POC Data Generator (4.1)** | Commercial | Lets prospects self-evaluate | **CRITICAL** |
-| **Support Bundle (4.2)** | Commercial | Required for first support ticket | **CRITICAL** |
-| **Graph Engine (Cross)** | Infra | Prerequisite for ITDR/Fusion/Provenance | **CRITICAL** |
-| **Job Scheduler (Cross)** | Infra | Prerequisite for Reports/Hunts/Scans | **CRITICAL** |
-| **Notification Router (Cross)** | Infra | Prerequisite for Escalation/Delivery | **CRITICAL** |
+| **Hybrid** 🏗️ | Phase 0-5 | ✅ **Validated** | Storage (BadgerDB/Bleve), Ingest (5k EPS), Alerts, Intel, MITRE, Search |
+| **Desktop** 🖥️ | Core + Phase 6 | ✅ **Validated** | SSH/PTY, Vault (AES-256), Terminal Grid, SFTP, Offline Updates, FIDO2 |
+| **Web** 🌐 | Phase 0.3-0.5 | ✅ **Validated** | Login (OIDC/SAML), Fleet, Identity Admin, Escalation, Regulator Portal |
+| **Hybrid** 🏗️ | Phase 6 | ✅ **Scaffolded** | Forensics, Compliance (PCI/NIST/ISO/GDPR/HIPAA/SOC2) |
+| **Web** 🌐 | Phase 7 | ✅ **Validated** | Agent Framework (gRPC, eBPF, FIM, WAL) |
+| **Hybrid** 🏗️ | Phase 8 | [v] **Validated** | SOAR (Case Mgmt, Playbook Engine, Jira/SNOW) |
+| **Hybrid** 🏗️ | Phase 9-10 | [v] **Validated** | Ransomware (Entropy, Canary, Isolation), UEBA (IF, baselines) |
+| **Web** 🌐 | Phase 11 | ✅ **Scaffolded** | NDR (NetFlow, DNS, TLS, Lateral Movement) |
+| **Web** 🌐 | Phase 12 | ✅ **Scaffolded** | Enterprise (Multi-tenant, HA Cluster, RBAC, Lifecycle) |
+| **All** | Phase 13+ | [v] **Validated** | Formal Verification, PQC, CSPM, K8s, Vuln Mgmt, OQL |
+| **Web** 🌐 | Phase 16-26 | [ ] **Planned** | CSPM, Container Security, Email/Phishing, EASM, DRP, OT/ICS |
 
----
+### Platform Totals
 
-### MIT / NSA / Splunk Strategic Parity (Final)
-
-| Capability | Splunk Parity | NSA Grade | MIT Research | Effort | Recommendation |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **SovereignQL (20.1)** | ✅ CRITICAL | ✅ | — | 3-4 months | **NOW (Tier 0)** |
-| **Graph Infrastructure (3.1)** | ✅ | ✅ | — | 1 month | **NOW (Tier 0)** |
-| **Endpoint Prevention (26.1)** | ✅ CRITICAL | ✅ | — | 6 months | **NOW (Tier 1)** |
-| **Migration Toolkit (20.13)** | ✅ CRITICAL | — | — | 3 months | **NOW (Tier 1)** |
-| **Attack Fusion (10.6)** | Emerging | ✅ | ✅ | 2 months | **NOW (Tier 1)** |
-| **ITDR (25.1)** | ✅ | ✅ CRITICAL | — | 3 months | **NOW (Tier 1)** |
-| **AI/LLM Security (25.2)** | Emerging | — | ✅ | 2 months | Differentiator |
-
----
-
-### The Final Verdict: The Sovereign Mission
-
-The path to dominance is now 1,500 lines of hardened strategy. OBLIVRA must not only achieve **Strategic Parity** with Splunk and NSA-grade systems but must outpace them in the **Advanced Frontiers**. 
-
-By shipping **Endpoint Prevention**, **Multi-Stage Fusion**, and **Autonomous Validation** on top of a zero-trust, sovereign foundation, OBLIVRA shifts the market from defensive detection to proactive protection. This is the blueprint for a system that doesn't just watch the war—it wins it.
+| Platform | Registered Services | Frontend Routes | Pages | REST Endpoints |
+| :--- | ---: | ---: | ---: | ---: |
+| **Desktop** 🖥️ | 50+ (via Container) | 49 | 27 | — (Wails bindings) |
+| **Web** 🌐 | Same backend | 12 | 13 | 30+ |
+| **Hybrid** 🏗️ | Shared core | Shared | Shared | Shared |

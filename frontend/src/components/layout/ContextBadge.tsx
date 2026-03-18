@@ -3,7 +3,7 @@
  * Clicking it opens the hybrid mode configuration panel.
  */
 import { Component, createSignal, Show } from 'solid-js';
-import { APP_CONTEXT, IS_DESKTOP, IS_HYBRID, configureHybridMode, disconnectHybridMode, getRemoteServerUrl } from '../core/context';
+import { APP_CONTEXT, IS_DESKTOP, IS_HYBRID, configureHybridMode, disconnectHybridMode, getRemoteServerUrl } from '@core/context';
 
 export const ContextBadge: Component = () => {
     const [showPanel, setShowPanel] = createSignal(false);

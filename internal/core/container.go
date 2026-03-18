@@ -208,12 +208,14 @@ func (c *Container) initSIEM(_ context.Context) error {
 	c.SIEM.SourceManager = logsources.NewSourceManager(c.Log)
 	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
 	c.SIEM.AgentService = services.NewAgentService(nil, c.Log)
+	c.SIEM.FusionEngine = detection.NewAttackFusionEngine(c.Infra.Bus, c.Log)
+	c.SIEM.FusionService = services.NewFusionService(c.SIEM.FusionEngine, c.Infra.Bus, c.Log)
 
 	return nil
 }
 
 func (c *Container) initIntel(_ context.Context) error {
-	c.Intel.AnalyticsService = services.NewAnalyticsService(c.Infra.AnalyticsEngine)
+	c.Intel.AnalyticsService = services.NewAnalyticsService(c.Infra.AnalyticsEngine, c.Infra.MatchEngine)
 	c.Intel.TemporalService = services.NewTemporalService(nil, c.Infra.Bus, c.Log)
 	c.Intel.GraphEngine = graph.NewGraphEngine(c.Infra.Bus, c.Log)
 	c.Intel.GraphService = services.NewGraphService(c.Intel.GraphEngine, c.Log)
@@ -338,6 +340,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.SIEM.ForensicsService)
 	c.mustRegister(c.SIEM.LogSourceService)
 	c.mustRegister(c.SIEM.AgentService)
+	c.mustRegister(c.SIEM.FusionService)
 
 	// Product
 	c.mustRegister(c.Product.HostService)
