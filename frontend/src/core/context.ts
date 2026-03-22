@@ -160,6 +160,52 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
         availability: 'browser',
         unavailableReason: 'Credential intelligence requires the server-side threat intel feeds.',
     },
+    // ── Phase 2-11 Web routes ─────────────────────────────────────────────
+    { path: '/siem-search',            availability: 'both' },
+    { path: '/threat-intel-dashboard', availability: 'both' },
+    { path: '/enrichment',             availability: 'both' },
+    { path: '/alert-management',       availability: 'both' },
+    { path: '/license',                availability: 'both' },
+    {
+        path: '/fleet-management',
+        availability: 'browser',
+        unavailableReason: 'Fleet management requires the server backend to receive agent registrations.',
+    },
+    {
+        path: '/escalation',
+        availability: 'browser',
+        unavailableReason: 'Escalation center requires the multi-analyst server backend.',
+    },
+    {
+        path: '/playbook-builder',
+        availability: 'browser',
+        unavailableReason: 'Playbook builder requires the server-side orchestration engine.',
+    },
+    {
+        path: '/ueba-overview',
+        availability: 'browser',
+        unavailableReason: 'UEBA overview requires the server-side behavioral analytics engine.',
+    },
+    {
+        path: '/ndr-overview',
+        availability: 'browser',
+        unavailableReason: 'NDR overview requires the server-side flow collection engine.',
+    },
+    {
+        path: '/remote-forensics',
+        availability: 'browser',
+        unavailableReason: 'Remote forensics requires a server backend with agent evidence storage.',
+    },
+    {
+        path: '/ransomware-ui',
+        availability: 'browser',
+        unavailableReason: 'Centralized ransomware defense requires the server backend.',
+    },
+    {
+        path: '/identity-admin',
+        availability: 'browser',
+        unavailableReason: 'Identity administration requires OIDC/SAML server configuration.',
+    },
 ];
 
 /**

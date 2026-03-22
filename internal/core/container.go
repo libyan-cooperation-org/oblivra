@@ -40,6 +40,13 @@ import (
 	"github.com/kingknull/oblivrashell/internal/workspace"
 )
 
+// licensePubKey is the Ed25519 public key (hex) injected at build time:
+//
+//	go build -ldflags "-X github.com/kingknull/oblivrashell/internal/core.licensePubKey=<hex>"
+//
+// Empty string = Community mode (dev builds).
+var licensePubKey string
+
 // Container holds all application dependencies and core services, grouped into logical clusters.
 type Container struct {
 	Log      *logger.Logger
@@ -302,6 +309,18 @@ func (c *Container) initPlatform() error {
 		c.SIEM.IngestService.Pipeline().SetDiagnosticsUpdater(c.Platform.DiagnosticsService)
 	}
 
+	// LicensingService — pubKeyHex injected at build time via ldflags.
+	// In dev/community builds the key is empty; the manager defaults to Community tier.
+	if c.Product.SettingsService != nil {
+		c.Platform.LicensingService = services.NewLicensingService(
+			licensePubKey, // var declared in main.go via -ldflags
+			c.Infra.Bus,
+			c.Log,
+			func(k string) (string, error) { return c.Product.SettingsService.Get(k) },
+			func(k, v string) error { return c.Product.SettingsService.Set(k, v) },
+		)
+	}
+
 	return nil
 }
 
@@ -379,6 +398,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Platform.ObservabilityService)
 	c.mustRegister(c.Platform.DiagnosticsService)
 	c.mustRegister(c.Platform.APIService)
+	c.mustRegister(c.Platform.LicensingService)
 
 	// Intel
 	c.mustRegister(c.Intel.AnalyticsService)

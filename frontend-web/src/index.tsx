@@ -22,6 +22,10 @@ const EscalationCenter    = lazy(() => import('./pages/EscalationCenter'));
 const ThreatIntelDashboard = lazy(() => import('./pages/ThreatIntelDashboard'));
 const EnrichmentViewer    = lazy(() => import('./pages/EnrichmentViewer'));
 const MitreHeatmap        = lazy(() => import('./pages/MitreHeatmap'));
+const PlaybookBuilder     = lazy(() => import('./pages/PlaybookBuilder'));
+const UEBADashboard       = lazy(() => import('./pages/UEBADashboard'));
+const NDRDashboard        = lazy(() => import('./pages/NDRDashboard'));
+const RansomwareCenter    = lazy(() => import('./pages/RansomwareCenter'));
 
 // ── ContextRoute wrapper factory ──────────────────────────────────────────────
 // Returns a component that renders the target page only in the correct context.
@@ -56,6 +60,10 @@ render(() => (
     {/* Web-only */}
     <Route path="/fleet"      component={guard('web', FleetManagement)} />
     <Route path="/identity"   component={guard('web', IdentityAdmin)} />
-    <Route path="/escalation" component={guard('web', EscalationCenter)} />
+    <Route path="/escalation"       component={guard('web', EscalationCenter)} />
+    <Route path="/playbooks"         component={guard('any', PlaybookBuilder)} />
+    <Route path="/ueba"              component={guard('any', UEBADashboard)} />
+    <Route path="/ndr"               component={guard('any', NDRDashboard)} />
+    <Route path="/ransomware"        component={guard('any', RansomwareCenter)} />
   </Router>
 ), root!);

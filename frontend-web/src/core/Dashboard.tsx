@@ -18,12 +18,24 @@ export default function Dashboard() {
   const [isPaletteOpen, setIsPaletteOpen] = createSignal(false);
   const [isWarRoomMode, setIsWarRoomMode] = createSignal(false);
 
+  const nav = (path: string) => () => { window.location.href = path; };
+
   const paletteActions: PaletteAction[] = [
-    { id: 'war-room', label: 'Toggle War Room Mode', description: 'Switch to high-density tactical view', icon: '⚔️', shortcut: 'W', action: () => setIsWarRoomMode(!isWarRoomMode()) },
-    { id: 'onboard', label: 'Fleet Onboarding', description: 'Deploy new agents', icon: '🖥️', shortcut: 'G O', action: () => window.location.href = '/onboarding' },
-    { id: 'siem', label: 'SIEM Explorer', description: 'Search event substrate', icon: '🛡️', shortcut: 'G S', action: () => {} },
-    { id: 'vault', label: 'Vault Access', description: 'Manage enterprise secrets', icon: '🔐', action: () => {} },
-    { id: 'logout', label: 'Terminate Session', description: 'Securely exit OBLIVRA', icon: '🔌', shortcut: 'ALT+X', action: handleLogout },
+    { id: 'war-room',    label: 'Toggle War Room Mode',      description: 'High-density tactical view',             icon: '⚔️',  shortcut: 'W',     action: () => setIsWarRoomMode(!isWarRoomMode()) },
+    { id: 'onboard',    label: 'Fleet Onboarding',           description: 'Deploy new agents',                      icon: '🖥️',  shortcut: 'G O',   action: nav('/onboarding') },
+    { id: 'fleet',      label: 'Fleet Management',           description: 'Agent status and bulk config',            icon: '🛰️',  action: nav('/fleet') },
+    { id: 'siem',       label: 'SIEM Search',                description: 'Search the event substrate',             icon: '🛡️',  shortcut: 'G S',   action: nav('/siem/search') },
+    { id: 'alerts',     label: 'Alert Management',           description: 'Triage and manage alerts',                icon: '🚨',  action: nav('/alerts') },
+    { id: 'escalation', label: 'Escalation Center',          description: 'Escalation policies and on-call',        icon: '⚡',  action: nav('/escalation') },
+    { id: 'playbooks',  label: 'Playbook Builder',           description: 'Build and execute SOAR playbooks',       icon: '🔧',  action: nav('/playbooks') },
+    { id: 'identity',   label: 'Identity Administration',    description: 'Users, roles, and federated SSO',        icon: '👥',  action: nav('/identity') },
+    { id: 'threatintel',label: 'Threat Intelligence',        description: 'IOC browser and campaign correlation',   icon: '🔴',  action: nav('/threatintel') },
+    { id: 'enrich',     label: 'Enrichment Viewer',          description: 'GeoIP, DNS, asset mapping',               icon: '🔬',  action: nav('/enrich') },
+    { id: 'ueba',       label: 'UEBA Dashboard',             description: 'Entity behavior and risk scoring',       icon: '🧠',  action: nav('/ueba') },
+    { id: 'ndr',        label: 'NDR Dashboard',              description: 'Network flows and lateral movement',     icon: '🌐',  action: nav('/ndr') },
+    { id: 'ransomware', label: 'Ransomware Defense',         description: 'Fleet-wide ransomware protection',       icon: '🦠',  action: nav('/ransomware') },
+    { id: 'mitre',      label: 'MITRE ATT&CK Heatmap',       description: 'Technique coverage visualization',       icon: '📊',  action: nav('/mitre-heatmap') },
+    { id: 'logout',     label: 'Terminate Session',          description: 'Securely exit OBLIVRA',                  icon: '🔌',  shortcut: 'ALT+X', action: handleLogout },
   ];
 
   const handleGlobalKey = (e: KeyboardEvent) => {

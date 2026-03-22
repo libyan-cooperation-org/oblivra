@@ -290,10 +290,10 @@
 ### 🔵 Tier 3: Strategic (Revenue-dependent — build when customers require)
 
 #### Licensing & Monetization
-- [ ] Feature flag framework (tier-based gating)
-- [ ] Offline license activation (hardware-bound)
-- [ ] Per-agent metering + usage tracking
-- [ ] License enforcement middleware
+- [x] Feature flag framework (tier-based gating) (`internal/licensing/license.go` — 48 features, 4 tiers, cumulative grant)
+- [x] Offline license activation (hardware-bound) (`internal/licensing/` — Ed25519 signed tokens, offline-first verification, no network call)
+- [x] Per-agent metering + usage tracking (`internal/services/licensing_service.go` — `RegisterAgent`, `UnregisterAgent`, `ActiveAgentCount`, seat-limit enforcement)
+- [x] License enforcement middleware (`internal/services/licensing_service.go` + `RequireFeature` guard + `LicensingService` Wails binding + `/license` UI page)
 
 #### Advanced Isolation
 - [ ] Vault process isolation (separate signing key service)
@@ -698,5 +698,5 @@
 - [ ] FIPS 140-3 / ISO 27001 / SOC 2 certification program documentation
 - [ ] Per-agent metering and billing hooks
 - [ ] mTLS between all internal service boundaries
-- [ ] Feature flag framework (tier-based capability gating)
-- [ ] Offline hardware-bound license activation
+- [x] Feature flag framework (tier-based capability gating) — see Tier 3 section above
+- [x] Offline hardware-bound license activation — see Tier 3 section above

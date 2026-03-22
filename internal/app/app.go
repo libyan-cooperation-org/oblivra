@@ -89,6 +89,7 @@ type App struct {
 	DataLifecycleService  *services.DataLifecycleService
 	DiagnosticsService    *services.DiagnosticsService
 	FusionService         *services.FusionService
+	LicensingService      *services.LicensingService
 }
 
 // New creates a new App instance with placeholder service structs.
@@ -214,6 +215,7 @@ func New() *App {
 	a.DataLifecycleService = a.container.Platform.DataLifecycleService
 	a.DiagnosticsService = a.container.Platform.DiagnosticsService
 	a.FusionService = a.container.SIEM.FusionService
+	a.LicensingService = a.container.Platform.LicensingService
 
 	return a
 }

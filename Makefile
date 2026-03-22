@@ -2,9 +2,11 @@
 
 default: build
 
+# Set LICENSE_PUB_KEY env var to inject Ed25519 public key (hex) for commercial builds.
+# Leave unset for Community/dev builds — manager defaults to Community tier.
 build:
 	@echo "Building Wails GUI App..."
-	wails build
+	wails build -ldflags "-X github.com/kingknull/oblivrashell/internal/core.licensePubKey=$(LICENSE_PUB_KEY)"
 
 build-headless:
 	@echo "Building Headless CLI/Server..."

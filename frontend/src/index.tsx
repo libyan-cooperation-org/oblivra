@@ -53,6 +53,19 @@ import { SyncPage } from './pages/SyncPage';
 import { MitreHeatmap } from './components/siem/MitreHeatmap';
 import { EntityView } from './pages/EntityView';
 import { FusionDashboard } from './pages/FusionDashboard';
+import { LicensePage } from './pages/LicensePage';
+import { FleetManagement } from './components/fleet/FleetManagement';
+import { ThreatIntelDashboard } from './components/intelligence/ThreatIntelDashboard';
+import { EnrichmentViewer } from './components/intelligence/EnrichmentViewer';
+import { AlertManagement } from './components/siem/AlertManagement';
+import { EscalationCenter } from './components/incident/EscalationCenter';
+import { PlaybookEngineUI } from './components/incident/PlaybookEngineUI';
+import { UEBAOverview } from './components/analytics/UEBAOverview';
+import { NDROverview } from './components/intelligence/NDROverview';
+import { RemoteForensics } from './components/forensics/RemoteForensics';
+import { RansomwareUI } from './components/security/RansomwareUI';
+import { IdentityAdmin } from './components/auth/IdentityAdmin';
+import { SIEMSearch } from './components/siem/SIEMSearch';
 import './styles/incident.css';
 import { RouteGuard } from './core/RouteGuard';
 
@@ -112,5 +125,18 @@ render(() => (
         <Route path="/mitre-heatmap" component={MitreHeatmap} />
         <Route path="/fusion" component={FusionDashboard} />
         <Route path="/entity/:type/:id" component={EntityView} />
+        <Route path="/license" component={LicensePage} />
+        <Route path="/fleet-management" component={FleetManagement} />
+        <Route path="/threat-intel-dashboard" component={ThreatIntelDashboard} />
+        <Route path="/enrichment" component={EnrichmentViewer} />
+        <Route path="/alert-management" component={AlertManagement} />
+        <Route path="/escalation" component={EscalationCenter} />
+        <Route path="/playbook-builder" component={PlaybookEngineUI} />
+        <Route path="/ueba-overview" component={UEBAOverview} />
+        <Route path="/ndr-overview" component={NDROverview} />
+        <Route path="/remote-forensics" component={RemoteForensics} />
+        <Route path="/ransomware-ui" component={RansomwareUI} />
+        <Route path="/identity-admin" component={IdentityAdmin} />
+        <Route path="/siem-search" component={SIEMSearch} />
     </HashRouter>
 ), root);

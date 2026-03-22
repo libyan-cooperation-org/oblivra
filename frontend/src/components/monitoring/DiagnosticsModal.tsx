@@ -174,7 +174,7 @@ export const DiagnosticsModal: Component<DiagnosticsModalProps> = (props) => {
 
                 {/* Body */}
                 <div style={{ flex: '1', 'overflow-y': 'auto', padding: '14px 16px' }}>
-                    <Show when={!snap()} fallback={
+                    <Show when={snap()} fallback={
                         <div style={{ color: 'var(--text-muted)', 'font-size': '12px', 'text-align': 'center', padding: '24px 0' }}>
                             Loading…
                         </div>

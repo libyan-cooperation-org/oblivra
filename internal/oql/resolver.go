@@ -79,6 +79,9 @@ func (r *SCIMResolver) loadCore() {
 	r.addAlias("ppid", "process.parent_process.pid", 1)
 	r.addAlias("file_path", "file.path", 1)
 	r.addAlias("file_name", "file.name", 1)
+	r.addAlias("source_ip", "src.ip.address", 1)
+	r.addAlias("host_id", "metadata.source.host_id", 1)
+	r.addAlias("event_type", "metadata.event.type", 1)
 	r.addAlias("sha256", "file.hashes.sha256", 1)
 	r.addAlias("md5", "file.hashes.md5", 1)
 
@@ -97,6 +100,8 @@ func (r *SCIMResolver) loadCore() {
 	r.FieldMeta["file.hashes.sha256"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Endpoint"}
 	r.FieldMeta["metadata.source.name"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Base"}
 	r.FieldMeta["metadata.source.type"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Base"}
+	r.FieldMeta["metadata.source.host_id"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Base"}
+	r.FieldMeta["metadata.event.type"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Base"}
 	r.FieldMeta["metadata.event_id"] = FieldMeta{Type: FieldNumber, Indexed: true, DataModel: "Base"}
 }
 

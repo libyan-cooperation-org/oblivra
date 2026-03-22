@@ -1,4 +1,5 @@
 import { Component, createSignal, For, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { RunOQL } from '../../wailsjs/go/services/AnalyticsService';
 import { Card, Button, Badge } from '../components/ui/TacticalComponents';
 import { QueryEditor } from '../components/oql/QueryEditor';
@@ -25,6 +26,7 @@ export namespace oql {
 }
 
 export const OQLDashboard: Component = () => {
+    const navigate = useNavigate();
     const [query, setQuery] = createSignal<string>("* | stats count() by host | sort -count");
     const [results, setResults] = createSignal<oql.Row[]>([]);
     const [meta, setMeta] = createSignal<oql.QueryMeta | null>(null);
@@ -164,9 +166,25 @@ export const OQLDashboard: Component = () => {
                                                 {(col) => {
                                                     const val = row[col];
                                                     const displayVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                                                    
+                                                    // Entity Linking Logic
+                                                    const isIP = (col.toLowerCase().includes('ip') || col.toLowerCase().includes('addr')) && /^(?:\d{1,3}\.){3}\d{1,3}$/.test(displayVal);
+                                                    const isHost = (col.toLowerCase().includes('host') || col.toLowerCase().includes('device')) && displayVal.length > 3;
+
                                                     return (
                                                         <td style="padding: 6px 12px; color: var(--text-primary); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-right: 1px solid var(--border-primary);">
-                                                            {displayVal}
+                                                            <Show when={isIP || isHost} fallback={displayVal}>
+                                                                <a 
+                                                                    href={`/entity/${isIP ? 'ip' : 'host'}/${displayVal}`}
+                                                                    style="color: var(--accent-primary); text-decoration: none; border-bottom: 1px dashed rgba(0, 170, 255, 0.3);"
+                                                                    onClick={(ev) => {
+                                                                        ev.preventDefault();
+                                                                        navigate(`/entity/${isIP ? 'ip' : 'host'}/${displayVal}`);
+                                                                    }}
+                                                                >
+                                                                    {displayVal}
+                                                                </a>
+                                                            </Show>
                                                         </td>
                                                     );
                                                 }}

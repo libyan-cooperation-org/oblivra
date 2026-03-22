@@ -10,6 +10,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/oql"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 )
@@ -27,6 +28,7 @@ type SIEMService struct {
 	bus         *eventbus.Bus
 	log         *logger.Logger
 	lastRiskCheck *sync.Map
+	oqlExecutor   *oql.Executor
 }
 
 func (s *SIEMService) Name() string { return "siem-service" }
@@ -49,6 +51,7 @@ func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai 
 		bus:           bus,
 		log:           log.WithPrefix("siem"),
 		lastRiskCheck: &sync.Map{},
+		oqlExecutor:   oql.NewExecutor(),
 	}
 }
 
@@ -228,6 +231,44 @@ func (s *SIEMService) AnalyzeEvent(rawLog string) (*AIResponse, error) {
 	s.log.Info("Analyzing event via AI...")
 	prompt := "Analyze this security log and explain any potential threats and suggests a fix:\n\n" + rawLog
 	return s.ai.ExplainError(prompt) // ExplainError is close enough for general log analysis
+}
+
+// ExecuteOQL parses and executes a Sovereign Query Language string
+func (s *SIEMService) ExecuteOQL(query string) (*oql.QueryResult, error) {
+	s.log.Info("Executing OQL: %s", query)
+	
+	// We need a DataSource for the executor.
+	// We'll use a bridge that queries our repo.
+	// For now, we'll try to find if we can use BadgerSource if repo is Badger-backed.
+	// But according to internal/database/siem.go, it's SQL-backed (likely SQLite).
+	
+	// If it's SQL-backed, we might need a SQLSource for OQL.
+	// Let's check if SQLSource exists.
+	
+	// For MVP, we'll use the InMemSource but populated with recent events from the repo.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	events, err := s.repo.SearchHostEvents(ctx, "", 1000) // Get last 1000 events to query against
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch events for OQL: %w", err)
+	}
+
+	// Convert database.HostEvent to oql.Row
+	rows := make([]oql.Row, len(events))
+	for i, e := range events {
+		rows[i] = oql.Row{
+			"id":         e.ID,
+			"host_id":    e.HostID,
+			"timestamp":  e.Timestamp,
+			"event_type": e.EventType,
+			"source_ip":  e.SourceIP,
+			"user":       e.User,
+			"raw_log":    e.RawLog,
+		}
+	}
+
+	return s.oqlExecutor.Execute(ctx, query, rows, nil)
 }
 
 func (s *SIEMService) suggestRemediation(hostID, sessionID, threatType string) {

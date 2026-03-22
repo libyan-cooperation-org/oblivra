@@ -147,4 +147,5 @@ type PlatformCluster struct {
 	ResourceMonitor      *services.ResourceMonitor
 	DiagnosticsService   *services.DiagnosticsService
 	APIService           *services.APIService
+	LicensingService     *services.LicensingService
 }

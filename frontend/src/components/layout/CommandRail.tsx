@@ -17,7 +17,10 @@ type NavTab = AppState['activeNavTab'] | 'temporal' | 'lineage' | 'decisions' | 
     | 'soc' | 'agents' | 'ueba' | 'threat-hunter' | 'ndr' | 'purple-team' | 'graph'
     | 'war-mode' | 'forensics' | 'identity' | 'response' | 'ransomware' | 'credentials'
     | 'executive' | 'simulation' | 'data-destruction' | 'risk' | 'governance' | 'features'
-    | 'recordings' | 'snippets' | 'notes' | 'sync' | 'tunnels' | 'ai-assistant' | 'mitre-heatmap';
+    | 'recordings' | 'snippets' | 'notes' | 'sync' | 'tunnels' | 'ai-assistant' | 'mitre-heatmap'
+    | 'fleet-management' | 'threat-intel-dashboard' | 'enrichment' | 'alert-management'
+    | 'escalation' | 'playbook-builder' | 'ueba-overview' | 'ndr-overview'
+    | 'remote-forensics' | 'ransomware-ui' | 'identity-admin' | 'siem-search' | 'license';
 
 /** Which deployment contexts show this nav item */
 type NavContext = 'both' | 'desktop' | 'browser';
@@ -75,6 +78,20 @@ const routeMap: Record<string, string> = {
     settings: '/workspace', recordings: '/recordings', snippets: '/snippets',
     notes: '/notes', sync: '/sync', tunnels: '/tunnels',
     'ai-assistant': '/ai-assistant', 'mitre-heatmap': '/mitre-heatmap',
+    // Web-specific routes (Phase 2-11)
+    'fleet-management':       '/fleet-management',
+    'threat-intel-dashboard': '/threat-intel-dashboard',
+    'enrichment':             '/enrichment',
+    'alert-management':       '/alert-management',
+    'escalation':             '/escalation',
+    'playbook-builder':       '/playbook-builder',
+    'ueba-overview':          '/ueba-overview',
+    'ndr-overview':           '/ndr-overview',
+    'remote-forensics':       '/remote-forensics',
+    'ransomware-ui':          '/ransomware-ui',
+    'identity-admin':         '/identity-admin',
+    'siem-search':            '/siem-search',
+    'license':                '/license',
 };
 
 // ── Nav item type ─────────────────────────────────────────────────────────────
@@ -243,52 +260,65 @@ export const CommandRail: Component = () => {
     // ── Nav items with full context classification ────────────────────────────
 
     const observe: PrimaryItem[] = [
-        { id: 'dashboard',      icon: Icons.Dashboard,  label: 'Dash' },
-        { id: 'siem',           icon: Icons.SIEM,       label: 'SIEM' },
-        { id: 'alerts',         icon: Icons.Alerts,     label: 'Alerts',
+        { id: 'dashboard',           icon: Icons.Dashboard,  label: 'Dash' },
+        { id: 'siem',                icon: Icons.SIEM,       label: 'SIEM' },
+        { id: 'siem-search',         icon: Icons.Hunter,     label: 'Search',   context: 'browser' },
+        { id: 'alerts',              icon: Icons.Alerts,     label: 'Alerts',
           badge: () => state.notifications.filter((n: any) => n.type === 'error').length,
           urgent: true },
-        { id: 'recordings',     icon: Icons.Recordings, label: 'Recs',     context: 'desktop' },
-        { id: 'topology',       icon: Icons.Topology,   label: 'Net' },
-        { id: 'mitre-heatmap',  icon: Icons.Mitre,      label: 'Mitre' },
-        { id: 'health',         icon: Icons.Health,     label: 'Health' },
+        { id: 'alert-management',    icon: Icons.Alerts,     label: 'AlertMgr', context: 'browser' },
+        { id: 'recordings',          icon: Icons.Recordings, label: 'Recs',     context: 'desktop' },
+        { id: 'topology',            icon: Icons.Topology,   label: 'Net' },
+        { id: 'mitre-heatmap',       icon: Icons.Mitre,      label: 'Mitre' },
+        { id: 'health',              icon: Icons.Health,     label: 'Health' },
     ];
 
     const operate: PrimaryItem[] = [
-        { id: 'terminal',       icon: Icons.Terminal,   label: 'Shell',    context: 'desktop' },
-        { id: 'tunnels',        icon: Icons.Tunnels,    label: 'Tunnels',  context: 'desktop' },
-        { id: 'hosts',          icon: Icons.Hosts,      label: 'Hosts' },
-        { id: 'agents',         icon: Icons.Agents,     label: 'Agents',   context: 'browser' },
-        { id: 'ops',            icon: Icons.Ops,        label: 'Ops' },
-        { id: 'soc',            icon: Icons.SOC,        label: 'SOC',      context: 'browser' },
-        { id: 'snippets',       icon: Icons.Snippets,   label: 'Snips',    context: 'desktop' },
-        { id: 'notes',          icon: Icons.Notes,      label: 'Notes',    context: 'desktop' },
-        { id: 'ai-assistant',   icon: Icons.AI,         label: 'AI Shell' },
-        { id: 'response',       icon: Icons.Response,   label: 'SOAR' },
+        { id: 'terminal',            icon: Icons.Terminal,   label: 'Shell',    context: 'desktop' },
+        { id: 'tunnels',             icon: Icons.Tunnels,    label: 'Tunnels',  context: 'desktop' },
+        { id: 'hosts',               icon: Icons.Hosts,      label: 'Hosts' },
+        { id: 'agents',              icon: Icons.Agents,     label: 'Agents',   context: 'browser' },
+        { id: 'fleet-management',    icon: Icons.Agents,     label: 'Fleet',    context: 'browser' },
+        { id: 'ops',                 icon: Icons.Ops,        label: 'Ops' },
+        { id: 'soc',                 icon: Icons.SOC,        label: 'SOC',      context: 'browser' },
+        { id: 'escalation',          icon: Icons.Response,   label: 'Escalate', context: 'browser' },
+        { id: 'playbook-builder',    icon: Icons.Purple,     label: 'Playbooks',context: 'browser' },
+        { id: 'snippets',            icon: Icons.Snippets,   label: 'Snips',    context: 'desktop' },
+        { id: 'notes',               icon: Icons.Notes,      label: 'Notes',    context: 'desktop' },
+        { id: 'ai-assistant',        icon: Icons.AI,         label: 'AI Shell' },
+        { id: 'response',            icon: Icons.Response,   label: 'SOAR' },
     ];
 
     const intel: PrimaryItem[] = [
-        { id: 'ueba',           icon: Icons.UEBA,       label: 'UEBA' },
-        { id: 'threat-hunter',  icon: Icons.Hunter,     label: 'Hunt' },
-        { id: 'ndr',            icon: Icons.NDR,        label: 'NDR' },
-        { id: 'purple-team',    icon: Icons.Purple,     label: 'Purple' },
-        { id: 'graph',          icon: Icons.Graph,      label: 'Graph' },
+        { id: 'ueba',                icon: Icons.UEBA,       label: 'UEBA' },
+        { id: 'ueba-overview',       icon: Icons.UEBA,       label: 'UEBA Web', context: 'browser' },
+        { id: 'threat-hunter',       icon: Icons.Hunter,     label: 'Hunt' },
+        { id: 'threat-intel-dashboard', icon: Icons.Security, label: 'TI Dash', context: 'browser' },
+        { id: 'enrichment',          icon: Icons.Forensics,  label: 'Enrich',   context: 'browser' },
+        { id: 'ndr',                 icon: Icons.NDR,        label: 'NDR' },
+        { id: 'ndr-overview',        icon: Icons.NDR,        label: 'NDR Web',  context: 'browser' },
+        { id: 'purple-team',         icon: Icons.Purple,     label: 'Purple' },
+        { id: 'graph',               icon: Icons.Graph,      label: 'Graph' },
     ];
 
     const govern: PrimaryItem[] = [
-        { id: 'compliance',     icon: Icons.Compliance, label: 'Comply' },
-        { id: 'vault',          icon: Icons.Vault,      label: 'Vault' },
-        { id: 'identity',       icon: Icons.Identity,   label: 'Users',    context: 'browser' },
-        { id: 'security',       icon: Icons.Security,   label: 'Trust' },
-        { id: 'forensics',      icon: Icons.Forensics,  label: 'Forensics' },
-        { id: 'war-mode',       icon: Icons.War,        label: 'WarMode' },
+        { id: 'compliance',          icon: Icons.Compliance, label: 'Comply' },
+        { id: 'vault',               icon: Icons.Vault,      label: 'Vault' },
+        { id: 'identity',            icon: Icons.Identity,   label: 'Users',    context: 'browser' },
+        { id: 'identity-admin',      icon: Icons.Identity,   label: 'IdAdmin',  context: 'browser' },
+        { id: 'security',            icon: Icons.Security,   label: 'Trust' },
+        { id: 'forensics',           icon: Icons.Forensics,  label: 'Forensics' },
+        { id: 'remote-forensics',    icon: Icons.Forensics,  label: 'RemForen', context: 'browser' },
+        { id: 'ransomware-ui',       icon: Icons.War,        label: 'Ransom',   context: 'browser' },
+        { id: 'war-mode',            icon: Icons.War,        label: 'WarMode' },
     ];
 
     const system: PrimaryItem[] = [
-        { id: 'executive',      icon: Icons.Executive,  label: 'Exec' },
-        { id: 'plugins',        icon: Icons.Plugins,    label: 'Plugins' },
-        { id: 'sync',           icon: Icons.Sync,       label: 'Sync',     context: 'desktop' },
-        { id: 'settings',       icon: Icons.Settings,   label: 'Config' },
+        { id: 'executive',           icon: Icons.Executive,  label: 'Exec' },
+        { id: 'plugins',             icon: Icons.Plugins,    label: 'Plugins' },
+        { id: 'sync',                icon: Icons.Sync,       label: 'Sync',     context: 'desktop' },
+        { id: 'license',             icon: Icons.Vault,      label: 'License' },
+        { id: 'settings',            icon: Icons.Settings,   label: 'Config' },
     ];
 
     // Filter items by context visibility — removes items not relevant at all
