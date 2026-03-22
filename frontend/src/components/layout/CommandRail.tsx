@@ -1,4 +1,4 @@
-import { Component, Show, For, createSignal, createMemo } from 'solid-js';
+import { Component, Show, For, createSignal } from 'solid-js';
 import { useApp, AppState } from '@core/store';
 import { useNavigate } from '@solidjs/router';
 import { usePanelManager, cascadePos } from './PanelManager';
@@ -22,7 +22,6 @@ type NavTab = AppState['activeNavTab'] | 'temporal' | 'lineage' | 'decisions' | 
     | 'escalation' | 'playbook-builder' | 'ueba-overview' | 'ndr-overview'
     | 'remote-forensics' | 'ransomware-ui' | 'identity-admin' | 'siem-search' | 'license';
 
-/** Which deployment contexts show this nav item */
 type NavContext = 'both' | 'desktop' | 'browser';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -40,7 +39,6 @@ const Icons = {
     Snippets:   () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
     Recordings: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>,
     Notes:      () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
-    Team:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
     Sync:       () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
     Plugins:    () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
     Health:     () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
@@ -65,47 +63,73 @@ const Icons = {
 
 // ── Route map ─────────────────────────────────────────────────────────────────
 const routeMap: Record<string, string> = {
-    dashboard: '/dashboard', siem: '/siem', alerts: '/alerts', topology: '/topology',
-    health: '/monitoring', terminal: '/terminal', hosts: '/hosts', agents: '/agents',
-    ops: '/ops', soc: '/soc', response: '/response',
-    ueba: '/ueba', 'threat-hunter': '/threat-hunter', ndr: '/ndr',
-    'purple-team': '/purple-team', graph: '/graph', ransomware: '/ransomware',
-    simulation: '/simulation', compliance: '/compliance', vault: '/vault',
-    identity: '/identity', 'war-mode': '/war-mode', forensics: '/forensics',
-    security: '/trust', team: '/team', temporal: '/temporal-integrity',
-    lineage: '/lineage', decisions: '/decisions', ledger: '/ledger',
-    replay: '/response-replay', plugins: '/plugins', executive: '/executive',
-    settings: '/workspace', recordings: '/recordings', snippets: '/snippets',
-    notes: '/notes', sync: '/sync', tunnels: '/tunnels',
-    'ai-assistant': '/ai-assistant', 'mitre-heatmap': '/mitre-heatmap',
-    // Web-specific routes (Phase 2-11)
-    'fleet-management':       '/fleet-management',
-    'threat-intel-dashboard': '/threat-intel-dashboard',
-    'enrichment':             '/enrichment',
-    'alert-management':       '/alert-management',
-    'escalation':             '/escalation',
-    'playbook-builder':       '/playbook-builder',
-    'ueba-overview':          '/ueba-overview',
-    'ndr-overview':           '/ndr-overview',
-    'remote-forensics':       '/remote-forensics',
-    'ransomware-ui':          '/ransomware-ui',
-    'identity-admin':         '/identity-admin',
-    'siem-search':            '/siem-search',
-    'license':                '/license',
+    // Both contexts
+    dashboard:              '/dashboard',
+    siem:                   '/siem',
+    alerts:                 '/alerts',
+    'alert-management':     '/alert-management',
+    'siem-search':          '/siem-search',
+    topology:               '/topology',
+    health:                 '/monitoring',
+    ops:                    '/ops',
+    response:               '/response',
+    escalation:             '/escalation',
+    'playbook-builder':     '/playbook-builder',
+    ueba:                   '/ueba',
+    'ueba-overview':        '/ueba-overview',
+    'threat-hunter':        '/threat-hunter',
+    'threat-intel-dashboard':'/threat-intel-dashboard',
+    enrichment:             '/enrichment',
+    ndr:                    '/ndr',
+    'ndr-overview':         '/ndr-overview',
+    'purple-team':          '/purple-team',
+    graph:                  '/graph',
+    ransomware:             '/ransomware',
+    'ransomware-ui':        '/ransomware-ui',
+    simulation:             '/simulation',
+    compliance:             '/compliance',
+    vault:                  '/vault',
+    'war-mode':             '/war-mode',
+    forensics:              '/forensics',
+    'remote-forensics':     '/remote-forensics',
+    security:               '/trust',
+    temporal:               '/temporal-integrity',
+    lineage:                '/lineage',
+    decisions:              '/decisions',
+    ledger:                 '/ledger',
+    replay:                 '/response-replay',
+    plugins:                '/plugins',
+    executive:              '/executive',
+    settings:               '/workspace',
+    'ai-assistant':         '/ai-assistant',
+    'mitre-heatmap':        '/mitre-heatmap',
+    license:                '/license',
+    team:                   '/team',
+    // Desktop-only
+    hosts:                  '/hosts',
+    terminal:               '/terminal',
+    tunnels:                '/tunnels',
+    recordings:             '/recordings',
+    snippets:               '/snippets',
+    notes:                  '/notes',
+    sync:                   '/sync',
+    // Browser-only
+    agents:                 '/agents',
+    'fleet-management':     '/fleet-management',
+    identity:               '/identity',
+    'identity-admin':       '/identity-admin',
+    soc:                    '/soc',
 };
 
-// ── Nav item type ─────────────────────────────────────────────────────────────
 type PrimaryItem = {
     id: NavTab;
     icon: () => any;
     label: string;
     badge?: () => number;
     urgent?: boolean;
-    /** Which contexts show this item — default 'both' */
     context?: NavContext;
 };
 
-// Returns true if this item should appear in the current context
 function isItemVisible(item: PrimaryItem): boolean {
     const ctx = item.context ?? 'both';
     if (ctx === 'both') return true;
@@ -114,7 +138,6 @@ function isItemVisible(item: PrimaryItem): boolean {
     return true;
 }
 
-// ── Audit flyout items ────────────────────────────────────────────────────────
 const auditItems: { id: NavTab; label: string }[] = [
     { id: 'temporal',  label: 'Temporal Integrity' },
     { id: 'lineage',   label: 'Data Lineage' },
@@ -123,42 +146,29 @@ const auditItems: { id: NavTab; label: string }[] = [
     { id: 'replay',    label: 'Response Replay' },
 ];
 
-// ── NavButton ─────────────────────────────────────────────────────────────────
 const NavButton: Component<{
-    item: PrimaryItem;
-    active: boolean;
-    onClick: () => void;
-    onCtrlClick?: () => void;
+    item: PrimaryItem; active: boolean;
+    onClick: () => void; onCtrlClick?: () => void;
 }> = (props) => {
     const badge = props.item.badge?.() ?? 0;
     const route = routeMap[props.item.id as string];
     const available = route ? isRouteAvailable(route) : true;
-
-    // Items unavailable in this context render as locked/dimmed — they still
-    // show so the user knows the feature exists, just not in this mode.
     const lockedTitle = available
-        ? `${props.item.label}  (Ctrl+Click → open as panel)`
+        ? `${props.item.label}  (Ctrl+Click → panel)`
         : `${props.item.label} — not available in ${IS_BROWSER ? 'browser' : 'desktop'} mode`;
-
     return (
         <button
             title={lockedTitle}
             onClick={(e) => {
-                if (!available) return; // swallow click on locked items
+                if (!available) return;
                 if (e.ctrlKey || e.metaKey) { e.preventDefault(); props.onCtrlClick?.(); }
-                else { props.onClick(); }
+                else props.onClick();
             }}
             class={`cr-nav-btn${props.active ? ' cr-nav-btn--active' : ''}${!available ? ' cr-nav-btn--locked' : ''}`}
-            style={{ cursor: available ? 'pointer' : 'not-allowed' }}
         >
-            <div class="cr-nav-icon">
-                <props.item.icon />
-            </div>
+            <div class="cr-nav-icon"><props.item.icon /></div>
             <span class="cr-nav-label">{props.item.label}</span>
-            <Show when={!available}>
-                {/* Lock pip — context-restricted */}
-                <span class="cr-nav-lock" aria-hidden="true">⊘</span>
-            </Show>
+            <Show when={!available}><span class="cr-nav-lock">⊘</span></Show>
             <Show when={badge > 0 && available}>
                 <div class={`cr-nav-badge${props.item.urgent ? ' cr-nav-badge--urgent' : ''}`}>
                     {badge > 99 ? '99+' : badge}
@@ -168,12 +178,10 @@ const NavButton: Component<{
     );
 };
 
-// ── Section divider ───────────────────────────────────────────────────────────
 const SectionDivider: Component<{ label: string }> = (props) => (
     <div class="cr-divider"><span class="cr-divider-label">{props.label}</span></div>
 );
 
-// ── Audit flyout ──────────────────────────────────────────────────────────────
 const AuditFlyout: Component<{
     active: boolean; currentTab: string;
     onSelect: (id: NavTab) => void; onClose: () => void;
@@ -182,10 +190,8 @@ const AuditFlyout: Component<{
         <div class="cr-flyout-header">AUDIT TRAIL</div>
         <For each={auditItems}>
             {(item) => (
-                <button
-                    onClick={() => { props.onSelect(item.id); props.onClose(); }}
-                    class={`cr-flyout-item${props.currentTab === item.id ? ' cr-flyout-item--active' : ''}`}
-                >
+                <button onClick={() => { props.onSelect(item.id); props.onClose(); }}
+                    class={`cr-flyout-item${props.currentTab === item.id ? ' cr-flyout-item--active' : ''}`}>
                     {item.label}
                 </button>
             )}
@@ -193,7 +199,6 @@ const AuditFlyout: Component<{
     </div>
 );
 
-// ── CommandRail ───────────────────────────────────────────────────────────────
 export const CommandRail: Component = () => {
     const [state, actions] = useApp();
     const navigate = useNavigate();
@@ -211,36 +216,45 @@ export const CommandRail: Component = () => {
         dashboard:       () => import('../dashboard/Dashboard'),
         siem:            () => import('../siem/SIEMPanel'),
         alerts:          () => import('../siem/AlertDashboard'),
+        'alert-management': () => import('../siem/AlertManagement'),
+        'siem-search':   () => import('../siem/SIEMSearch'),
         topology:        () => import('../intelligence/NetworkMap'),
         health:          () => import('../monitoring/HealthPanel'),
         terminal:        () => import('../terminal/TerminalLayout'),
         hosts:           () => import('../sidebar/HostTree'),
         agents:          () => import('../fleet/AgentConsole'),
+        'fleet-management': () => import('../fleet/FleetManagement'),
         ops:             () => import('../ops/LiveTailPanel'),
         soc:             () => import('../soc/SOCWorkspace'),
         response:        () => import('../incident/CommandCenter'),
+        escalation:      () => import('../incident/EscalationCenter'),
+        'playbook-builder': () => import('../incident/PlaybookEngineUI'),
         ueba:            () => import('../intelligence/UEBAPanel'),
+        'ueba-overview': () => import('../analytics/UEBAOverview'),
         'threat-hunter': () => import('../security/ThreatHunter'),
+        'threat-intel-dashboard': () => import('../intelligence/ThreatIntelDashboard'),
+        enrichment:      () => import('../intelligence/EnrichmentViewer'),
         ndr:             () => import('../intelligence/NetworkMap'),
+        'ndr-overview':  () => import('../intelligence/NDROverview'),
         'purple-team':   () => import('../../pages/PurpleTeam'),
         graph:           () => import('../intelligence/ThreatGraph'),
         compliance:      () => import('../compliance/CompliancePanel'),
         vault:           () => import('../vault/VaultManager'),
         identity:        () => import('../settings/UsersPanel'),
+        'identity-admin':() => import('../auth/IdentityAdmin'),
         security:        () => import('../security/SecurityPanel'),
         forensics:       () => import('../security/ForensicView'),
+        'remote-forensics': () => import('../forensics/RemoteForensics'),
+        'ransomware-ui': () => import('../security/RansomwareUI'),
         'war-mode':      () => import('../../pages/WarMode'),
         executive:       () => import('../../pages/ExecutiveDashboard'),
         plugins:         () => import('../plugins/PluginPanel'),
         settings:        () => import('../settings/SettingsManager'),
-        workspaces:      () => import('../workspace/WorkspacePanel'),
         temporal:        () => import('../../pages/TemporalIntegrity'),
         lineage:         () => import('../../pages/LineageExplorer'),
         decisions:       () => import('../../pages/DecisionInspector'),
         ledger:          () => import('../../pages/EvidenceLedger'),
         replay:          () => import('../../pages/ResponseReplay'),
-        fleet:           () => import('../fleet/FleetDashboard'),
-        incidents:       () => import('../incident/CommandCenter'),
     };
 
     const openAsPanel = (id: NavTab, label: string) => {
@@ -260,205 +274,105 @@ export const CommandRail: Component = () => {
     // ── Nav items with full context classification ────────────────────────────
 
     const observe: PrimaryItem[] = [
-        { id: 'dashboard',           icon: Icons.Dashboard,  label: 'Dash' },
-        { id: 'siem',                icon: Icons.SIEM,       label: 'SIEM' },
-        { id: 'siem-search',         icon: Icons.Hunter,     label: 'Search',   context: 'browser' },
-        { id: 'alerts',              icon: Icons.Alerts,     label: 'Alerts',
-          badge: () => state.notifications.filter((n: any) => n.type === 'error').length,
-          urgent: true },
-        { id: 'alert-management',    icon: Icons.Alerts,     label: 'AlertMgr', context: 'browser' },
-        { id: 'recordings',          icon: Icons.Recordings, label: 'Recs',     context: 'desktop' },
-        { id: 'topology',            icon: Icons.Topology,   label: 'Net' },
-        { id: 'mitre-heatmap',       icon: Icons.Mitre,      label: 'Mitre' },
-        { id: 'health',              icon: Icons.Health,     label: 'Health' },
+        { id: 'dashboard',         icon: Icons.Dashboard,  label: 'Dash' },
+        { id: 'siem',              icon: Icons.SIEM,       label: 'SIEM' },
+        { id: 'siem-search',       icon: Icons.Hunter,     label: 'Search',    context: 'browser' },
+        { id: 'alerts',            icon: Icons.Alerts,     label: 'Alerts',
+          badge: () => state.notifications.filter((n: any) => n.type === 'error').length, urgent: true },
+        { id: 'alert-management',  icon: Icons.Alerts,     label: 'AlertMgr',  context: 'browser' },
+        { id: 'recordings',        icon: Icons.Recordings, label: 'Recs',      context: 'desktop' },
+        { id: 'topology',          icon: Icons.Topology,   label: 'Net' },
+        { id: 'mitre-heatmap',     icon: Icons.Mitre,      label: 'Mitre' },
+        { id: 'health',            icon: Icons.Health,     label: 'Health' },
     ];
 
     const operate: PrimaryItem[] = [
-        { id: 'terminal',            icon: Icons.Terminal,   label: 'Shell',    context: 'desktop' },
-        { id: 'tunnels',             icon: Icons.Tunnels,    label: 'Tunnels',  context: 'desktop' },
-        { id: 'hosts',               icon: Icons.Hosts,      label: 'Hosts' },
-        { id: 'agents',              icon: Icons.Agents,     label: 'Agents',   context: 'browser' },
-        { id: 'fleet-management',    icon: Icons.Agents,     label: 'Fleet',    context: 'browser' },
-        { id: 'ops',                 icon: Icons.Ops,        label: 'Ops' },
-        { id: 'soc',                 icon: Icons.SOC,        label: 'SOC',      context: 'browser' },
-        { id: 'escalation',          icon: Icons.Response,   label: 'Escalate', context: 'browser' },
-        { id: 'playbook-builder',    icon: Icons.Purple,     label: 'Playbooks',context: 'browser' },
-        { id: 'snippets',            icon: Icons.Snippets,   label: 'Snips',    context: 'desktop' },
-        { id: 'notes',               icon: Icons.Notes,      label: 'Notes',    context: 'desktop' },
-        { id: 'ai-assistant',        icon: Icons.AI,         label: 'AI Shell' },
-        { id: 'response',            icon: Icons.Response,   label: 'SOAR' },
+        { id: 'terminal',          icon: Icons.Terminal,   label: 'Shell',     context: 'desktop' },
+        { id: 'tunnels',           icon: Icons.Tunnels,    label: 'Tunnels',   context: 'desktop' },
+        { id: 'hosts',             icon: Icons.Hosts,      label: 'Hosts' },
+        { id: 'agents',            icon: Icons.Agents,     label: 'Agents',    context: 'browser' },
+        { id: 'fleet-management',  icon: Icons.Agents,     label: 'Fleet',     context: 'browser' },
+        { id: 'ops',               icon: Icons.Ops,        label: 'Ops' },
+        { id: 'soc',               icon: Icons.SOC,        label: 'SOC',       context: 'browser' },
+        { id: 'escalation',        icon: Icons.Response,   label: 'Escalate',  context: 'browser' },
+        { id: 'playbook-builder',  icon: Icons.Purple,     label: 'Playbooks', context: 'browser' },
+        { id: 'snippets',          icon: Icons.Snippets,   label: 'Snips',     context: 'desktop' },
+        { id: 'notes',             icon: Icons.Notes,      label: 'Notes',     context: 'desktop' },
+        { id: 'ai-assistant',      icon: Icons.AI,         label: 'AI Shell' },
+        { id: 'response',          icon: Icons.Response,   label: 'SOAR' },
     ];
 
     const intel: PrimaryItem[] = [
-        { id: 'ueba',                icon: Icons.UEBA,       label: 'UEBA' },
-        { id: 'ueba-overview',       icon: Icons.UEBA,       label: 'UEBA Web', context: 'browser' },
-        { id: 'threat-hunter',       icon: Icons.Hunter,     label: 'Hunt' },
-        { id: 'threat-intel-dashboard', icon: Icons.Security, label: 'TI Dash', context: 'browser' },
-        { id: 'enrichment',          icon: Icons.Forensics,  label: 'Enrich',   context: 'browser' },
-        { id: 'ndr',                 icon: Icons.NDR,        label: 'NDR' },
-        { id: 'ndr-overview',        icon: Icons.NDR,        label: 'NDR Web',  context: 'browser' },
-        { id: 'purple-team',         icon: Icons.Purple,     label: 'Purple' },
-        { id: 'graph',               icon: Icons.Graph,      label: 'Graph' },
+        { id: 'ueba',              icon: Icons.UEBA,       label: 'UEBA' },
+        { id: 'ueba-overview',     icon: Icons.UEBA,       label: 'UEBA+',     context: 'browser' },
+        { id: 'threat-hunter',     icon: Icons.Hunter,     label: 'Hunt' },
+        { id: 'threat-intel-dashboard', icon: Icons.Security, label: 'TI',     context: 'browser' },
+        { id: 'enrichment',        icon: Icons.Forensics,  label: 'Enrich',    context: 'browser' },
+        { id: 'ndr',               icon: Icons.NDR,        label: 'NDR' },
+        { id: 'ndr-overview',      icon: Icons.NDR,        label: 'NDR+',      context: 'browser' },
+        { id: 'purple-team',       icon: Icons.Purple,     label: 'Purple' },
+        { id: 'graph',             icon: Icons.Graph,      label: 'Graph' },
     ];
 
     const govern: PrimaryItem[] = [
-        { id: 'compliance',          icon: Icons.Compliance, label: 'Comply' },
-        { id: 'vault',               icon: Icons.Vault,      label: 'Vault' },
-        { id: 'identity',            icon: Icons.Identity,   label: 'Users',    context: 'browser' },
-        { id: 'identity-admin',      icon: Icons.Identity,   label: 'IdAdmin',  context: 'browser' },
-        { id: 'security',            icon: Icons.Security,   label: 'Trust' },
-        { id: 'forensics',           icon: Icons.Forensics,  label: 'Forensics' },
-        { id: 'remote-forensics',    icon: Icons.Forensics,  label: 'RemForen', context: 'browser' },
-        { id: 'ransomware-ui',       icon: Icons.War,        label: 'Ransom',   context: 'browser' },
-        { id: 'war-mode',            icon: Icons.War,        label: 'WarMode' },
+        { id: 'compliance',        icon: Icons.Compliance, label: 'Comply' },
+        { id: 'vault',             icon: Icons.Vault,      label: 'Vault' },
+        { id: 'identity',          icon: Icons.Identity,   label: 'Users',     context: 'browser' },
+        { id: 'identity-admin',    icon: Icons.Identity,   label: 'IdAdmin',   context: 'browser' },
+        { id: 'security',          icon: Icons.Security,   label: 'Trust' },
+        { id: 'forensics',         icon: Icons.Forensics,  label: 'Forensics' },
+        { id: 'remote-forensics',  icon: Icons.Forensics,  label: 'RemForen',  context: 'browser' },
+        { id: 'ransomware',        icon: Icons.War,        label: 'Ransom' },
+        { id: 'ransomware-ui',     icon: Icons.War,        label: 'RansomW',   context: 'browser' },
+        { id: 'war-mode',          icon: Icons.War,        label: 'WarMode' },
     ];
 
     const system: PrimaryItem[] = [
-        { id: 'executive',           icon: Icons.Executive,  label: 'Exec' },
-        { id: 'plugins',             icon: Icons.Plugins,    label: 'Plugins' },
-        { id: 'sync',                icon: Icons.Sync,       label: 'Sync',     context: 'desktop' },
-        { id: 'license',             icon: Icons.Vault,      label: 'License' },
-        { id: 'settings',            icon: Icons.Settings,   label: 'Config' },
+        { id: 'executive',         icon: Icons.Executive,  label: 'Exec' },
+        { id: 'plugins',           icon: Icons.Plugins,    label: 'Plugins' },
+        { id: 'sync',              icon: Icons.Sync,       label: 'Sync',      context: 'desktop' },
+        { id: 'license',           icon: Icons.Vault,      label: 'License' },
+        { id: 'settings',          icon: Icons.Settings,   label: 'Config' },
     ];
 
-    // Filter items by context visibility — removes items not relevant at all
-    // (currently we show all with lock indicator, but filter can be toggled)
-    const visibleItems = (items: PrimaryItem[]) =>
-        items.filter(item => isItemVisible(item));
+    const visibleItems = (items: PrimaryItem[]) => items.filter(isItemVisible);
 
     return (
         <>
             <style>{`
-                .cr-rail {
-                    width: 64px; min-width: 64px; height: 100%;
-                    background: var(--surface-1);
-                    border-right: 1px solid var(--border-primary);
-                    display: flex; flex-direction: column;
-                    z-index: 1000; overflow-y: auto; overflow-x: hidden;
-                }
-                .cr-rail::-webkit-scrollbar { width: 0; }
-
-                .cr-logo {
-                    height: 48px; display: flex; align-items: center;
-                    justify-content: center;
-                    border-bottom: 1px solid var(--border-primary);
-                    flex-shrink: 0; background: var(--surface-1);
-                }
-
-                .cr-nav-btn {
-                    position: relative; background: transparent; border: none;
-                    color: var(--text-muted); width: 100%; padding: 8px 0 6px 0;
-                    cursor: pointer; display: flex; flex-direction: column;
-                    align-items: center; gap: 3px;
-                    transition: color var(--transition-fast), background var(--transition-fast);
-                    border-radius: 0;
-                }
-                .cr-nav-btn:hover:not(.cr-nav-btn--locked) {
-                    color: var(--text-secondary);
-                    background: rgba(87,139,255,0.06);
-                }
-                .cr-nav-btn--active {
-                    color: var(--accent-primary) !important;
-                    background: rgba(87,139,255,0.12) !important;
-                }
-                .cr-nav-btn--active::before {
-                    content: ''; position: absolute; left: 0; top: 20%; bottom: 20%;
-                    width: 3px; background: var(--accent-primary);
-                    border-radius: 0 3px 3px 0;
-                }
-                /* Locked / context-restricted items */
-                .cr-nav-btn--locked {
-                    opacity: 0.28;
-                    cursor: not-allowed !important;
-                }
-                .cr-nav-btn--locked:hover { background: transparent !important; }
-
-                .cr-nav-icon { width: 18px; height: 18px; transition: opacity var(--transition-fast); }
-                .cr-nav-btn:not(.cr-nav-btn--active) .cr-nav-icon { opacity: 0.5; }
-                .cr-nav-btn--active .cr-nav-icon { opacity: 1; filter: drop-shadow(0 0 6px rgba(87,139,255,0.4)); }
-
-                .cr-nav-label {
-                    font-family: var(--font-ui); font-size: 9px; font-weight: 500;
-                    text-transform: uppercase; letter-spacing: 0.3px; line-height: 1;
-                }
-                .cr-nav-btn--active .cr-nav-label { font-weight: 700; }
-
-                /* Lock pip on context-restricted buttons */
-                .cr-nav-lock {
-                    position: absolute; top: 3px; right: 4px;
-                    font-size: 7px; color: var(--text-muted); opacity: 0.7;
-                    line-height: 1;
-                }
-
-                .cr-nav-badge {
-                    position: absolute; top: 4px; right: 6px;
-                    background: var(--accent-primary); color: var(--surface-0);
-                    font-family: var(--font-mono); font-size: 7px; font-weight: 800;
-                    padding: 1px 4px; line-height: 1.2; min-width: 14px;
-                    text-align: center; border-radius: 8px;
-                }
-                .cr-nav-badge--urgent { background: var(--alert-critical); }
-
-                .cr-divider {
-                    display: flex; align-items: center; justify-content: center;
-                    padding: 8px 4px 3px 4px; margin-top: 2px;
-                }
-                .cr-divider-label {
-                    font-family: var(--font-mono); font-size: 6.5px; font-weight: 700;
-                    color: var(--text-muted); opacity: 0.35;
-                    letter-spacing: 1px; text-transform: uppercase;
-                }
-
-                .cr-audit-btn {
-                    position: relative; background: transparent; border: none;
-                    color: var(--text-muted); width: 100%; padding: 8px 0 6px 0;
-                    cursor: pointer; display: flex; flex-direction: column;
-                    align-items: center; gap: 3px; transition: all var(--transition-fast);
-                }
-                .cr-audit-btn:hover {
-                    color: var(--text-secondary); background: rgba(87,139,255,0.06);
-                }
-                .cr-audit-btn--active {
-                    color: var(--accent-primary) !important;
-                    background: rgba(87,139,255,0.12) !important;
-                }
-                .cr-audit-btn--active::before {
-                    content: ''; position: absolute; left: 0; top: 20%; bottom: 20%;
-                    width: 3px; background: var(--accent-primary); border-radius: 0 3px 3px 0;
-                }
-                .cr-audit-icon { width: 18px; height: 18px; opacity: 0.5; }
-                .cr-audit-btn--active .cr-audit-icon { opacity: 1; }
-                .cr-audit-label {
-                    font-family: var(--font-ui); font-size: 9px; font-weight: 500;
-                    text-transform: uppercase; letter-spacing: 0.3px; line-height: 1;
-                }
-
-                .cr-flyout {
-                    position: fixed; left: 65px; background: var(--surface-2);
-                    border: 1px solid var(--border-secondary);
-                    border-radius: var(--radius-md); z-index: 2000;
-                    min-width: 192px; padding: 4px; box-shadow: var(--shadow-lg);
-                }
-                .cr-flyout-header {
-                    font-family: var(--font-mono); font-size: 9px; font-weight: 800;
-                    color: var(--text-muted); padding: 8px 10px 6px 10px;
-                    letter-spacing: 1px; text-transform: uppercase;
-                    border-bottom: 1px solid var(--border-primary); margin-bottom: 4px;
-                }
-                .cr-flyout-item {
-                    display: block; width: 100%; background: transparent; border: none;
-                    border-radius: var(--radius-sm); color: var(--text-secondary);
-                    padding: 7px 10px; text-align: left; font-family: var(--font-ui);
-                    font-size: 12px; cursor: pointer; transition: all var(--transition-fast);
-                }
-                .cr-flyout-item:hover { background: var(--surface-3); color: var(--text-primary); }
-                .cr-flyout-item--active {
-                    background: rgba(87,139,255,0.12); color: var(--accent-primary); font-weight: 600;
-                }
+                .cr-rail { width:64px;min-width:64px;height:100%;background:var(--surface-1);border-right:1px solid var(--border-primary);display:flex;flex-direction:column;z-index:1000;overflow-y:auto;overflow-x:hidden; }
+                .cr-rail::-webkit-scrollbar{width:0}
+                .cr-logo{height:48px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border-primary);flex-shrink:0;background:var(--surface-1)}
+                .cr-nav-btn{position:relative;background:transparent;border:none;color:var(--text-muted);width:100%;padding:8px 0 6px 0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:color var(--transition-fast),background var(--transition-fast);border-radius:0}
+                .cr-nav-btn:hover:not(.cr-nav-btn--locked){color:var(--text-secondary);background:rgba(87,139,255,.06)}
+                .cr-nav-btn--active{color:var(--accent-primary)!important;background:rgba(87,139,255,.12)!important}
+                .cr-nav-btn--active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;background:var(--accent-primary);border-radius:0 3px 3px 0}
+                .cr-nav-btn--locked{opacity:.28;cursor:not-allowed!important;pointer-events:none}
+                .cr-nav-icon{width:18px;height:18px;transition:opacity var(--transition-fast)}
+                .cr-nav-btn:not(.cr-nav-btn--active) .cr-nav-icon{opacity:.5}
+                .cr-nav-btn--active .cr-nav-icon{opacity:1;filter:drop-shadow(0 0 6px rgba(87,139,255,.4))}
+                .cr-nav-label{font-family:var(--font-ui);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.3px;line-height:1}
+                .cr-nav-btn--active .cr-nav-label{font-weight:700}
+                .cr-nav-lock{position:absolute;top:3px;right:4px;font-size:7px;color:var(--text-muted);opacity:.7;line-height:1}
+                .cr-nav-badge{position:absolute;top:4px;right:6px;background:var(--accent-primary);color:var(--surface-0);font-family:var(--font-mono);font-size:7px;font-weight:800;padding:1px 4px;line-height:1.2;min-width:14px;text-align:center;border-radius:8px}
+                .cr-nav-badge--urgent{background:var(--alert-critical)}
+                .cr-divider{display:flex;align-items:center;justify-content:center;padding:8px 4px 3px 4px;margin-top:2px}
+                .cr-divider-label{font-family:var(--font-mono);font-size:6.5px;font-weight:700;color:var(--text-muted);opacity:.35;letter-spacing:1px;text-transform:uppercase}
+                .cr-audit-btn{position:relative;background:transparent;border:none;color:var(--text-muted);width:100%;padding:8px 0 6px 0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:all var(--transition-fast)}
+                .cr-audit-btn:hover{color:var(--text-secondary);background:rgba(87,139,255,.06)}
+                .cr-audit-btn--active{color:var(--accent-primary)!important;background:rgba(87,139,255,.12)!important}
+                .cr-audit-btn--active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:3px;background:var(--accent-primary);border-radius:0 3px 3px 0}
+                .cr-audit-icon{width:18px;height:18px;opacity:.5}
+                .cr-audit-btn--active .cr-audit-icon{opacity:1}
+                .cr-audit-label{font-family:var(--font-ui);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.3px;line-height:1}
+                .cr-flyout{position:fixed;left:65px;background:var(--surface-2);border:1px solid var(--border-secondary);border-radius:var(--radius-md);z-index:2000;min-width:192px;padding:4px;box-shadow:var(--shadow-lg)}
+                .cr-flyout-header{font-family:var(--font-mono);font-size:9px;font-weight:800;color:var(--text-muted);padding:8px 10px 6px 10px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border-primary);margin-bottom:4px}
+                .cr-flyout-item{display:block;width:100%;background:transparent;border:none;border-radius:var(--radius-sm);color:var(--text-secondary);padding:7px 10px;text-align:left;font-family:var(--font-ui);font-size:12px;cursor:pointer;transition:all var(--transition-fast)}
+                .cr-flyout-item:hover{background:var(--surface-3);color:var(--text-primary)}
+                .cr-flyout-item--active{background:rgba(87,139,255,.12);color:var(--accent-primary);font-weight:600}
             `}</style>
 
             <nav class="cr-rail">
-                {/* Logo */}
                 <div class="cr-logo">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                         <path d="M12 2L4 6.5v11L12 22l8-4.5v-11L12 2z" stroke="var(--accent-primary)" stroke-width="1.5" fill="none"/>
@@ -467,74 +381,45 @@ export const CommandRail: Component = () => {
                     </svg>
                 </div>
 
-                {/* OBSERVE */}
                 <SectionDivider label="OBS" />
                 <For each={visibleItems(observe)}>
-                    {(item) => (
-                        <NavButton item={item} active={state.activeNavTab === item.id}
-                            onClick={() => go(item.id)}
-                            onCtrlClick={() => openAsPanel(item.id, item.label)} />
-                    )}
+                    {(item) => <NavButton item={item} active={state.activeNavTab === item.id} onClick={() => go(item.id)} onCtrlClick={() => openAsPanel(item.id, item.label)} />}
                 </For>
 
-                {/* OPERATE */}
                 <SectionDivider label="OPS" />
                 <For each={visibleItems(operate)}>
-                    {(item) => (
-                        <NavButton item={item} active={state.activeNavTab === item.id}
-                            onClick={() => go(item.id)}
-                            onCtrlClick={() => openAsPanel(item.id, item.label)} />
-                    )}
+                    {(item) => <NavButton item={item} active={state.activeNavTab === item.id} onClick={() => go(item.id)} onCtrlClick={() => openAsPanel(item.id, item.label)} />}
                 </For>
 
-                {/* INTEL */}
                 <SectionDivider label="INTEL" />
                 <For each={visibleItems(intel)}>
-                    {(item) => (
-                        <NavButton item={item} active={state.activeNavTab === item.id}
-                            onClick={() => go(item.id)}
-                            onCtrlClick={() => openAsPanel(item.id, item.label)} />
-                    )}
+                    {(item) => <NavButton item={item} active={state.activeNavTab === item.id} onClick={() => go(item.id)} onCtrlClick={() => openAsPanel(item.id, item.label)} />}
                 </For>
 
-                {/* GOVERN */}
                 <SectionDivider label="GOV" />
                 <For each={visibleItems(govern)}>
-                    {(item) => (
-                        <NavButton item={item} active={state.activeNavTab === item.id}
-                            onClick={() => go(item.id)}
-                            onCtrlClick={() => openAsPanel(item.id, item.label)} />
-                    )}
+                    {(item) => <NavButton item={item} active={state.activeNavTab === item.id} onClick={() => go(item.id)} onCtrlClick={() => openAsPanel(item.id, item.label)} />}
                 </For>
 
-                {/* AUDIT */}
                 <button
                     title="Audit Trail"
                     class={`cr-audit-btn${auditActive() ? ' cr-audit-btn--active' : ''}`}
-                    onMouseEnter={(e) => {
-                        setFlyoutTop(e.currentTarget.getBoundingClientRect().top);
-                        setAuditOpen(true);
-                    }}
+                    onMouseEnter={(e) => { setFlyoutTop(e.currentTarget.getBoundingClientRect().top); setAuditOpen(true); }}
                 >
                     <div class="cr-audit-icon"><Icons.Audit /></div>
                     <span class="cr-audit-label">Audit</span>
                 </button>
                 <Show when={auditOpen()}>
                     <div style={{ position: 'fixed', left: '65px', top: `${flyoutTop()}px`, 'z-index': 2000 }}>
-                        <AuditFlyout active={auditActive()} currentTab={state.activeNavTab as string}
-                            onSelect={go} onClose={() => setAuditOpen(false)} />
+                        <AuditFlyout active={auditActive()} currentTab={state.activeNavTab as string} onSelect={go} onClose={() => setAuditOpen(false)} />
                     </div>
                 </Show>
 
                 <div style={{ flex: 1 }} />
 
-                {/* SYSTEM */}
                 <SectionDivider label="SYS" />
                 <For each={visibleItems(system)}>
-                    {(item) => (
-                        <NavButton item={item} active={state.activeNavTab === item.id}
-                            onClick={() => go(item.id)} />
-                    )}
+                    {(item) => <NavButton item={item} active={state.activeNavTab === item.id} onClick={() => go(item.id)} />}
                 </For>
                 <div style={{ height: '8px' }} />
             </nav>

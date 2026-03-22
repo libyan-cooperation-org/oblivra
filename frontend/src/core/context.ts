@@ -1,43 +1,25 @@
 /**
  * OBLIVRA — Phase 0.5: Desktop vs Browser Context
  *
- * This module is the single source of truth for which deployment
- * context the frontend is running in:
+ * Single source of truth for deployment context detection.
  *
- *   DESKTOP  → Wails native binary (direct PTY, OS keychain, local FS)
- *   BROWSER  → Served from OBLIVRA server (SOC collaboration, fleet mgmt)
- *   HYBRID   → Desktop binary connected to a remote OBLIVRA server
- *
- * Every routing decision, feature gate, and service registration
- * flows from this one constant.
+ *   DESKTOP → Wails native binary (direct PTY, OS keychain, local FS)
+ *   BROWSER → Served from OBLIVRA server (SOC, fleet management)
+ *   HYBRID  → Desktop binary connected to a remote OBLIVRA server
  */
 
 // ── Context detection ──────────────────────────────────────────────────────
 
-/**
- * Wails injects `window.__WAILS__` into every Wails-hosted WebView.
- * A plain browser (Chrome, Firefox, Safari) never has this property.
- */
 export type AppContext = 'desktop' | 'browser' | 'hybrid';
 
 function detectContext(): AppContext {
     const isWails = !!(window as any).__WAILS__ || !!(window as any).runtime;
-
     if (!isWails) return 'browser';
-
-    // Hybrid: desktop binary but a remote server URL has been configured.
-    // The server URL is written to localStorage by the Settings page when
-    // the operator enters a remote OBLIVRA server address.
     const remoteServer = localStorage.getItem('oblivra:remote_server');
     if (remoteServer && remoteServer.trim() !== '') return 'hybrid';
-
     return 'desktop';
 }
 
-/**
- * Stable at module load time — does not change during the session.
- * Import this instead of calling detectContext() repeatedly.
- */
 export const APP_CONTEXT: AppContext = detectContext();
 
 export const IS_DESKTOP = APP_CONTEXT === 'desktop';
@@ -46,62 +28,77 @@ export const IS_HYBRID   = APP_CONTEXT === 'hybrid';
 
 // ── Route availability matrix ─────────────────────────────────────────────
 
-/**
- * Defines which deployment contexts each route is available in.
- *
- *   desktop  → Wails binary only (requires local PTY / OS keychain)
- *   browser  → Remote server only (requires multi-user backend)
- *   both     → Available everywhere
- */
 export type RouteAvailability = 'desktop' | 'browser' | 'both';
 
 export interface RouteConfig {
     path: string;
     availability: RouteAvailability;
-    /** Human-readable reason shown if user tries to access unavailable route */
     unavailableReason?: string;
 }
 
 export const ROUTE_AVAILABILITY: RouteConfig[] = [
-    // ── Available everywhere ──────────────────────────────────────────────
-    { path: '/dashboard',         availability: 'both' },
-    { path: '/siem',              availability: 'both' },
-    { path: '/alerts',            availability: 'both' },
-    { path: '/compliance',        availability: 'both' },
-    { path: '/governance',        availability: 'both' },
-    { path: '/vault',             availability: 'both' },
-    { path: '/executive',         availability: 'both' },
-    { path: '/monitoring',        availability: 'both' },
-    { path: '/forensics',         availability: 'both' },
-    { path: '/ledger',            availability: 'both' },
-    { path: '/mitre-heatmap',     availability: 'both' },
-    { path: '/purple-team',       availability: 'both' },
-    { path: '/threat-hunter',     availability: 'both' },
-    { path: '/ueba',              availability: 'both' },
-    { path: '/ndr',               availability: 'both' },
-    { path: '/graph',             availability: 'both' },
-    { path: '/response',          availability: 'both' },
-    { path: '/ransomware',        availability: 'both' },
-    { path: '/trust',             availability: 'both' },
-    { path: '/ops',               availability: 'both' },
-    { path: '/topology',          availability: 'both' },
-    { path: '/ai-assistant',      availability: 'both' },
-    { path: '/settings',          availability: 'both' },
-    { path: '/workspace',         availability: 'both' },
-    { path: '/analytics',         availability: 'both' },
-    { path: '/war-mode',          availability: 'both' },
-    { path: '/data-destruction',  availability: 'both' },
-    { path: '/temporal-integrity',availability: 'both' },
-    { path: '/lineage',           availability: 'both' },
-    { path: '/decisions',         availability: 'both' },
-    { path: '/simulation',        availability: 'both' },
-    { path: '/response-replay',   availability: 'both' },
+
+    // ── Available in all contexts ─────────────────────────────────────────
+    { path: '/dashboard',              availability: 'both' },
+    { path: '/siem',                   availability: 'both' },
+    { path: '/alerts',                 availability: 'both' },
+    { path: '/alert-management',       availability: 'both' },
+    { path: '/siem-search',            availability: 'both' },
+    { path: '/mitre-heatmap',          availability: 'both' },
+    { path: '/compliance',             availability: 'both' },
+    { path: '/governance',             availability: 'both' },
+    { path: '/features',               availability: 'both' },
+    { path: '/risk',                   availability: 'both' },
+    { path: '/vault',                  availability: 'both' },
+    { path: '/executive',              availability: 'both' },
+    { path: '/monitoring',             availability: 'both' },
+    { path: '/forensics',              availability: 'both' },
+    { path: '/remote-forensics',       availability: 'both' },
+    { path: '/ledger',                 availability: 'both' },
+    { path: '/ueba',                   availability: 'both' },
+    { path: '/ueba-overview',          availability: 'both' },
+    { path: '/ndr',                    availability: 'both' },
+    { path: '/ndr-overview',           availability: 'both' },
+    { path: '/graph',                  availability: 'both' },
+    { path: '/threat-hunter',          availability: 'both' },
+    { path: '/threat-intel',           availability: 'both' },
+    { path: '/threat-intel-dashboard', availability: 'both' },
+    { path: '/enrichment',             availability: 'both' },
+    { path: '/credentials',            availability: 'both' },
+    { path: '/purple-team',            availability: 'both' },
+    { path: '/response',               availability: 'both' },
+    { path: '/escalation',             availability: 'both' },
+    { path: '/playbook-builder',       availability: 'both' },
+    { path: '/ransomware',             availability: 'both' },
+    { path: '/ransomware-ui',          availability: 'both' },
+    { path: '/trust',                  availability: 'both' },
+    { path: '/ops',                    availability: 'both' },
+    { path: '/topology',               availability: 'both' },
+    { path: '/ai-assistant',           availability: 'both' },
+    { path: '/workspace',              availability: 'both' },
+    { path: '/workspaces',             availability: 'both' },
+    { path: '/settings',               availability: 'both' },
+    { path: '/analytics',              availability: 'both' },
+    { path: '/fusion',                 availability: 'both' },
+    { path: '/war-mode',               availability: 'both' },
+    { path: '/data-destruction',       availability: 'both' },
+    { path: '/temporal-integrity',     availability: 'both' },
+    { path: '/lineage',                availability: 'both' },
+    { path: '/decisions',              availability: 'both' },
+    { path: '/simulation',             availability: 'both' },
+    { path: '/response-replay',        availability: 'both' },
+    { path: '/entity',                 availability: 'both' },
+    { path: '/license',                availability: 'both' },
+    { path: '/team',                   availability: 'both' },
+    { path: '/hosts',                  availability: 'both' },
+    { path: '/soc',                    availability: 'both' },
+    { path: '/plugins',                availability: 'both' },
 
     // ── Desktop-only ──────────────────────────────────────────────────────
     {
         path: '/terminal',
         availability: 'desktop',
-        unavailableReason: 'Local PTY terminal requires the desktop binary. In browser mode, connect to hosts via the Fleet page.',
+        unavailableReason: 'Local PTY terminal requires the desktop binary. In browser mode, use the Fleet page to connect to hosts.',
     },
     {
         path: '/tunnels',
@@ -136,9 +133,19 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
 
     // ── Browser/Server-only ───────────────────────────────────────────────
     {
+        path: '/agents',
+        availability: 'browser',
+        unavailableReason: 'Agent fleet management requires the server backend to receive agent registrations.',
+    },
+    {
         path: '/fleet',
         availability: 'browser',
-        unavailableReason: 'Fleet management requires the OBLIVRA server backend. Launch the server and connect via browser.',
+        unavailableReason: 'Fleet management requires the OBLIVRA server backend.',
+    },
+    {
+        path: '/fleet-management',
+        availability: 'browser',
+        unavailableReason: 'Centralized fleet management requires the server backend.',
     },
     {
         path: '/identity',
@@ -146,76 +153,17 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
         unavailableReason: 'User & role administration requires the server backend with OIDC/SAML configured.',
     },
     {
-        path: '/agents',
-        availability: 'browser',
-        unavailableReason: 'Agent fleet management requires the server backend to receive agent registrations.',
-    },
-    {
-        path: '/soc',
-        availability: 'browser',
-        unavailableReason: 'The SOC workspace requires multi-analyst server mode.',
-    },
-    {
-        path: '/credentials',
-        availability: 'browser',
-        unavailableReason: 'Credential intelligence requires the server-side threat intel feeds.',
-    },
-    // ── Phase 2-11 Web routes ─────────────────────────────────────────────
-    { path: '/siem-search',            availability: 'both' },
-    { path: '/threat-intel-dashboard', availability: 'both' },
-    { path: '/enrichment',             availability: 'both' },
-    { path: '/alert-management',       availability: 'both' },
-    { path: '/license',                availability: 'both' },
-    {
-        path: '/fleet-management',
-        availability: 'browser',
-        unavailableReason: 'Fleet management requires the server backend to receive agent registrations.',
-    },
-    {
-        path: '/escalation',
-        availability: 'browser',
-        unavailableReason: 'Escalation center requires the multi-analyst server backend.',
-    },
-    {
-        path: '/playbook-builder',
-        availability: 'browser',
-        unavailableReason: 'Playbook builder requires the server-side orchestration engine.',
-    },
-    {
-        path: '/ueba-overview',
-        availability: 'browser',
-        unavailableReason: 'UEBA overview requires the server-side behavioral analytics engine.',
-    },
-    {
-        path: '/ndr-overview',
-        availability: 'browser',
-        unavailableReason: 'NDR overview requires the server-side flow collection engine.',
-    },
-    {
-        path: '/remote-forensics',
-        availability: 'browser',
-        unavailableReason: 'Remote forensics requires a server backend with agent evidence storage.',
-    },
-    {
-        path: '/ransomware-ui',
-        availability: 'browser',
-        unavailableReason: 'Centralized ransomware defense requires the server backend.',
-    },
-    {
         path: '/identity-admin',
         availability: 'browser',
-        unavailableReason: 'Identity administration requires OIDC/SAML server configuration.',
+        unavailableReason: 'Enterprise identity administration (OIDC/SAML/LDAP) requires the server backend.',
     },
 ];
 
-/**
- * Returns true if the given path is accessible in the current context.
- * Checks exact match and prefix match (for nested routes like /siem/search).
- */
+// ── Helpers ───────────────────────────────────────────────────────────────
+
 export function isRouteAvailable(path: string): boolean {
     const config = findRouteConfig(path);
-    if (!config) return true; // unknown routes are allowed by default
-
+    if (!config) return true;
     switch (config.availability) {
         case 'both':    return true;
         case 'desktop': return IS_DESKTOP || IS_HYBRID;
@@ -224,9 +172,6 @@ export function isRouteAvailable(path: string): boolean {
     }
 }
 
-/**
- * Returns the human-readable reason a route is unavailable, or null if available.
- */
 export function routeUnavailableReason(path: string): string | null {
     if (isRouteAvailable(path)) return null;
     const config = findRouteConfig(path);
@@ -234,83 +179,56 @@ export function routeUnavailableReason(path: string): string | null {
 }
 
 function findRouteConfig(path: string): RouteConfig | undefined {
-    // Exact match first
     const exact = ROUTE_AVAILABILITY.find(r => r.path === path);
     if (exact) return exact;
-    // Prefix match for nested routes (/siem/search → /siem)
     return ROUTE_AVAILABILITY.find(r => path.startsWith(r.path + '/'));
 }
 
-// ── Service registration modes ─────────────────────────────────────────────
+// ── Service capabilities ──────────────────────────────────────────────────
 
-/**
- * Describes which backend capabilities are available in this context.
- * Used by UI components to decide whether to show/hide features.
- */
 export interface ServiceCapabilities {
-    /** Local PTY terminal — requires Wails + OS pty */
-    localTerminal: boolean;
-    /** OS keychain (Windows Credential Manager / macOS Keychain) */
-    osKeychain: boolean;
-    /** Direct SFTP to/from local filesystem */
-    localSftp: boolean;
-    /** Multi-user authentication (OIDC, SAML, MFA) */
-    enterpriseAuth: boolean;
-    /** Fleet agent management (mass push, registration) */
-    agentFleet: boolean;
-    /** Raft cluster coordination */
-    clustering: boolean;
-    /** Multi-analyst SOC collaboration */
+    localTerminal:    boolean;
+    osKeychain:       boolean;
+    localSftp:        boolean;
+    enterpriseAuth:   boolean;
+    agentFleet:       boolean;
+    clustering:       boolean;
     socCollaboration: boolean;
-    /** Remote OBLIVRA server connected (hybrid mode) */
-    remoteServer: boolean;
-    remoteServerUrl: string | null;
+    remoteServer:     boolean;
+    remoteServerUrl:  string | null;
 }
 
 export function getServiceCapabilities(): ServiceCapabilities {
     const remoteUrl = localStorage.getItem('oblivra:remote_server') ?? null;
-
     return {
-        localTerminal:   IS_DESKTOP || IS_HYBRID,
-        osKeychain:      IS_DESKTOP,
-        localSftp:       IS_DESKTOP || IS_HYBRID,
-        enterpriseAuth:  IS_BROWSER || IS_HYBRID,
-        agentFleet:      IS_BROWSER || IS_HYBRID,
-        clustering:      IS_BROWSER || IS_HYBRID,
-        socCollaboration:IS_BROWSER || IS_HYBRID,
-        remoteServer:    IS_HYBRID,
-        remoteServerUrl: IS_HYBRID ? remoteUrl : null,
+        localTerminal:    IS_DESKTOP || IS_HYBRID,
+        osKeychain:       IS_DESKTOP,
+        localSftp:        IS_DESKTOP || IS_HYBRID,
+        enterpriseAuth:   IS_BROWSER || IS_HYBRID,
+        agentFleet:       IS_BROWSER || IS_HYBRID,
+        clustering:       IS_BROWSER || IS_HYBRID,
+        socCollaboration: IS_BROWSER || IS_HYBRID,
+        remoteServer:     IS_HYBRID,
+        remoteServerUrl:  IS_HYBRID ? remoteUrl : null,
     };
 }
 
-// ── Hybrid mode helpers ────────────────────────────────────────────────────
+// ── Hybrid mode ───────────────────────────────────────────────────────────
 
-/**
- * Configure hybrid mode by pointing the desktop binary at a remote server.
- * Call this from the Settings page when the operator enters a server URL.
- * Requires a page reload to take effect (context is detected at module load).
- */
 export function configureHybridMode(serverUrl: string): void {
     if (!IS_DESKTOP) {
-        console.warn('[context] configureHybridMode() called in non-desktop context, ignoring');
+        console.warn('[context] configureHybridMode() called in non-desktop context');
         return;
     }
     localStorage.setItem('oblivra:remote_server', serverUrl.trim());
-    // Reload so APP_CONTEXT is re-detected
     window.location.reload();
 }
 
-/**
- * Disconnect from the remote server and return to pure desktop mode.
- */
 export function disconnectHybridMode(): void {
     localStorage.removeItem('oblivra:remote_server');
     window.location.reload();
 }
 
-/**
- * Returns the remote server base URL for hybrid API calls, or null.
- */
 export function getRemoteServerUrl(): string | null {
     if (!IS_HYBRID) return null;
     return localStorage.getItem('oblivra:remote_server');

@@ -1,13 +1,18 @@
 # OBLIVRA — Master Task Tracker
 
-> Cross-referenced with existing sovereign codebase.
 > **Status Tiers**:
 > - `[s]` = **Scaffolded** (Code exists, compiles, architectural proof)
 > - `[v]` = **Validated** (Tested under load, unit tests pass, functionally correct)
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-03-16** (SOVEREIGN SECURITY AUDIT — 31 Findings + Commercial Capabilities Sprint)
+> **Last audited: 2026-03-22** — Phase 0.5 Desktop/Browser Context Split
+>
+> **Companion files** (not this file's concern):
+> - [`ROADMAP.md`](ROADMAP.md) — Phases 16–26 (CSPM, K8s, vuln mgmt, etc.)
+> - [`RESEARCH.md`](RESEARCH.md) — Phase 13 (DARPA/NSA-grade research)
+> - [`BUSINESS.md`](BUSINESS.md) — Phase 14 (certifications, legal, GTM)
+> - [`FUTURE.md`](FUTURE.md) — Cross-cutting (chaos engineering, deception, i18n)
 
 ### Development Rules ⚠️
 
@@ -95,9 +100,9 @@
 
 ---
 
-## Phase 1: Core Storage + Ingestion + Search (Months 1–4)
+## Phase 1: Core Storage + Ingestion + Search ✅
 
-### Phase 1: Storage Layer
+### 1.1 — Storage Layer
 - [x] Integrate BadgerDB (replaces SQLite for high-velocity logs/indices)
 - [x] Integrate Bleve (pure-Go Lucene alternative for log full-text search)
 - [x] Integrate Parquet Archival (native go instead of duckdb CLI wrapper)
@@ -128,7 +133,7 @@
 
 ---
 
-## Phase 2: Alerting + REST API (Months 4–6)
+## Phase 2: Alerting + REST API ✅
 
 ### 2.1 — Alerting Hardening
 - [x] Implement YAML detection rule loader (`internal/detection/rules/`)
@@ -170,7 +175,7 @@
 
 ---
 
-## Phase 3: Threat Intel + Enrichment (Months 7–10)
+## Phase 3: Threat Intel + Enrichment ✅
 
 ### 3.1 — Threat Intelligence Enrichment
 - [x] Build **STIX/TAXII Client** (`internal/threatintel/taxii.go`)
@@ -205,7 +210,6 @@
 - [v] Validate: <5% false positives, 30+ ATT&CK techniques
 
 ### 4.5 — Hardening Sprint (Tech-Debt Resolution) ✅
-
 - [x] Refactor `SIEMPanel.tsx` into decoupled sub-components (Navigation, Pages)
 - [x] Implement Bounded Queue buffering on `eventbus.Bus`
 - [x] SIEM Database Query Timeouts (10s contexts on badger/SQLite)
@@ -218,7 +222,7 @@
 
 ---
 
-## Phase 5: Limits, Leaks & Lifecycles (Months 13–15)
+## Phase 5: Limits, Leaks & Lifecycles ✅
 
 - [x] Implement LRU/TTL bounded memory for `internal/detection/correlation.go`
 - [x] Implement asynchronous value log GC for BadgerDB
@@ -246,19 +250,15 @@
 
 ---
 
-## Sovereign Meta-Layer — Infrastructure-Grade Capabilities
+## Sovereign Meta-Layer ✅
 
-> These are not features — they are the meta-capabilities that transform OBLIVRA
-> from a product into sovereign-grade infrastructure. Organized by priority.
+### 🔴 Tier 1: Immediate Documents
+- [x] **Formal Threat Model (STRIDE)** (`docs/threat_model.md`)
+- [x] **Security Architecture Document** (`docs/security_architecture.md`)
+- [x] **Operational Runbook** (`docs/ops_runbook.md`)
+- [x] **Business Continuity Plan** (`docs/bcp.md`)
 
-### 🔴 Tier 1: Immediate (Documents — no code, blocks auditors)
-
-- [x] **Formal Threat Model (STRIDE)** — Attack surface map, data flow diagrams, trust boundaries, insider threat assumptions, supply-chain threat analysis (`docs/threat_model.md`)
-- [x] **Security Architecture Document** — Service → trust level → isolation boundary mapping. What's in-process, what's at-rest-encrypted, what crosses network (`docs/security_architecture.md`)
-- [x] **Operational Runbook** — What happens when OBLIVRA itself has an incident. Escalation, containment, recovery (`docs/ops_runbook.md`)
-- [x] **Business Continuity Plan** — RPO/RTO targets, backup strategy, failover procedures (`docs/bcp.md`)
-
-### 🟡 Tier 2: Near-Term (Code — high value, moderate effort)
+### 🟡 Tier 2: Near-Term Code
 
 #### Supply Chain Security
 - [x] SBOM auto-generation (`syft` or `cyclonedx-gomod` in GHA workflow)
@@ -287,11 +287,11 @@
 - [x] Audit log of audit log access (meta-audit)
 - [x] Executive compliance dashboard (`ComplianceCenter.tsx`) — Governance tab with real-time scoring
 
-### 🔵 Tier 3: Strategic (Revenue-dependent — build when customers require)
+### 🔵 Tier 3: Strategic
 
 #### Licensing & Monetization
-- [x] Feature flag framework (tier-based gating) (`internal/licensing/license.go` — 48 features, 4 tiers, cumulative grant)
-- [x] Offline license activation (hardware-bound) (`internal/licensing/` — Ed25519 signed tokens, offline-first verification, no network call)
+- [x] Feature flag framework — 48 features, 4 tiers, cumulative grant (`internal/licensing/license.go`)
+- [x] Offline license activation — Ed25519 signed tokens, offline-first verification, no network call
 - [x] Per-agent metering + usage tracking (`internal/services/licensing_service.go` — `RegisterAgent`, `UnregisterAgent`, `ActiveAgentCount`, seat-limit enforcement)
 - [x] License enforcement middleware (`internal/services/licensing_service.go` + `RequireFeature` guard + `LicensingService` Wails binding + `/license` UI page)
 
@@ -301,26 +301,15 @@
 - [ ] mTLS between internal service boundaries (if split to micro-services)
 - [ ] Service-level privilege separation design doc
 
-#### AI Governance (Pre-UEBA — Phase 10 prerequisite)
-- [x] Implement Sovereign Tactical UI Overhaul (Phase 1: Foundation)
-    - [x] Redefine core design tokens in `variables.css` (Remove glass, sharp radii)
-    - [x] Overhaul `global.css` (Brutalist geometry, edge-to-edge layout)
-    - [x] Refactor `CommandRail.tsx` (Side-rail command interface)
-    - [x] Restructure `AppLayout.tsx` (Flush tactical hierarchy)
-- [x] Refactor tactical dashboards (Phase 2: Components)
-    - [x] `Dashboard.tsx` (KPI grids and data density)
-    - [x] `FleetDashboard.tsx` (Tactical node management)
-    - [x] `SIEMPanel.tsx` (High-density event forensic view)
-    - [x] `AlertDashboard.tsx` (Mission-critical alert escalation)
+#### AI Governance (Pre-UEBA)
+- [x] Sovereign Tactical UI Overhaul — design tokens, `global.css`, `CommandRail.tsx`, `AppLayout.tsx`
+- [x] Tactical dashboards refactor — `Dashboard.tsx`, `FleetDashboard.tsx`, `SIEMPanel.tsx`, `AlertDashboard.tsx`
 - [x] System-wide Prop Type & Accessibility Audit
 - [x] Agent Hardening: PII Redaction
 - [x] Agent Hardening: Goroutine Leak Audits
-- [x] Architecture Boundary Enforcement (tests/architecture_test.go)
-- [x] Model explainability layer
-- [x] Bias logging and auditability
-- [x] False positive audit trail
-- [x] Training dataset isolation
-- [x] Offline retraining pipeline
+- [x] Architecture Boundary Enforcement (`tests/architecture_test.go`)
+- [x] Model explainability layer, bias logging, false positive audit trail
+- [x] Training dataset isolation, offline retraining pipeline
 
 #### Red Team / Validation Engine
 - [x] Built-in attack simulator (MITRE ATT&CK technique replay)
@@ -336,10 +325,7 @@
 
 ---
 
-## Tier 1-4 Hardening Gates (Cross-Cutting — Phase 7+)
-
-> These are critical hardening gates that must be passed before any phase is considered complete.
-> They represent a shift from feature-centric development to security-first engineering.
+## Tier 1-4 Hardening Gates ✅
 
 ### 🔴 Tier 1: Foundational Security (Automated, Pre-Merge)
 - [x] **Static Analysis (SAST)**: `golangci-lint` with security linters (gosec, errcheck, staticcheck)
@@ -374,7 +360,7 @@
 
 ---
 
-## Phase 7: Agent Framework (Months 22–27)
+## Phase 7: Agent Framework ✅
 - [v] Agent binary scaffold (`cmd/agent/main.go`)
 - [v] File tailing collector
 - [v] Windows Event Log streaming collector
@@ -418,8 +404,7 @@
 
 ---
 
-## Phase 11: NDR (Months 52–57)
-
+## Phase 11: NDR ✅
 - [x] NetFlow/IPFIX collector
 - [x] DNS log analysis engine — detecting DGA and DNS tunneling
 - [x] TLS metadata extraction — identifying JA3/JA3S fingerprints (no decryption)
@@ -433,8 +418,7 @@
 
 ---
 
-## Phase 12: Enterprise (Months 58–63)
-
+## Phase 12: Enterprise ✅
 - [x] Multi-tenancy with data partitioning
 - [x] HA clustering (Raft consensus) — `internal/cluster/`, `cluster_service.go`
 - [x] Advanced RBAC & Identity Integration
@@ -453,83 +437,75 @@
 
 ---
 
-## Year 5+: Expansion (Months 64+)
+## Phase 13: Research Milestones ✅ (Partial)
+> Full research roadmap in [`RESEARCH.md`](RESEARCH.md)
 
-### Phase 13: Elite Research & Academic Rigor (DARPA/NSA Grade)
-- [x] **Formal Verification Extension** (beyond Raft)
-    - [x] Model `DeterministicExecutionService` safety invariants (`internal/decision/deterministic_model.tla` — 5 invariants: Determinism, NoHashCollision, Immutability, ReplayConsistency, AllRecordsWellTyped; liveness: EventualExecution)
-    - [x] Model detection rule engine execution paths (`internal/detection/rules_model.tla` — NoSpuriousAlerts + WindowStateInvariant; cfg hardened with WORKERS 4)
-- [x] **Massive Dataset Validation**
-    - [v] Design benchmark harness for external datasets
-    - [x] Benchmark datasets expanded (`test/datasets/` — cic_ids_2017.json, zeek_traces.json, benchmark_1.json all enriched with event_type fields, realistic payloads, true/false positives for precision/recall scoring)
-    - [x] `contains()` helper bug fixed in `harness.go` (was prefix/suffix only — now full substring scan)
-    - [x] **Benchmark against CIC-IDS-2017 & Zeek traces** (datasets instrumented, runner wired in `cmd/benchmark_ids_zeek/`)
-- [v] **Strategic Research Publications** (Drafted internal whitepapers)
+- [x] Model `DeterministicExecutionService` safety invariants (`internal/decision/deterministic_model.tla` — 5 invariants, liveness: EventualExecution)
+- [x] Model detection rule engine execution paths (`internal/detection/rules_model.tla` — NoSpuriousAlerts + WindowStateInvariant; cfg hardened with WORKERS 4)
+- [x] Benchmark datasets expanded (`test/datasets/` — cic_ids_2017.json, zeek_traces.json, benchmark_1.json)
+- [x] `contains()` helper bug fixed in `harness.go` (was prefix/suffix only — now full substring scan)
+- [x] Benchmark against CIC-IDS-2017 & Zeek traces (runner wired in `cmd/benchmark_ids_zeek/`)
+- [v] Strategic Research Publications (Drafted internal whitepapers)
 
-### Phase 14: Expansion & Sovereignty
-- [ ] Certified Analyst program
-- [ ] Certified Engineer program
-- [ ] Certified Forensic Investigator program
-- [ ] Labs + CTFs + video tutorials
+---
 
-### Phase 15: Sovereignty ✅
-- [x] Zero Internet dependency audit (Completed in zero_internet_audit.md)
-- [x] **Implement Offline Update Bundle support** (Added ApplyOfflineUpdate to updater.go)
+## Phase 15: Sovereignty ✅
+- [x] Zero Internet dependency audit (`zero_internet_audit.md`)
+- [x] Offline Update Bundle support (`ApplyOfflineUpdate` in `updater.go`)
 - [x] Signature verification enforcement (`internal/updater/signature.go` — ed25519, ldflags key injection)
-- [x] Offline update bundle integrity validation (`internal/updater/signature.go` — VerifiedUpdater.ApplyVerifiedOfflineBundle)
-- [x] Update downgrade protection (`internal/updater/signature.go` — DowngradeProtector, semver-aware version lock)
+- [x] Offline update bundle integrity validation (`internal/updater/signature.go` — `VerifiedUpdater.ApplyVerifiedOfflineBundle`)
+- [x] Update downgrade protection (`internal/updater/signature.go` — `DowngradeProtector`, semver-aware version lock)
 
 ---
 
 ## Phase 16: Full Security Audit — 31 Findings ✅
 
-> Senior-engineer level security audit conducted 2026-03-12 through 2026-03-16.
-> All 31 findings resolved. Codebase hardened to commercial SIEM grade.
+> Senior-engineer level security audit conducted 2026-03-12 through 2026-03-16. All 31 findings resolved.
 
 ### 🔴 Critical — All Resolved
-- [x] **#1** — Plaintext passwords stripped from Host DTO at scan time (`database/hosts.go` — `Password json:"-"`, `HasPassword bool`, `GetEncryptedPassword()` for connect-time only decryption)
-- [x] **#2** — Hardcoded `S@nad2026!` staging credentials removed from `host_service.go` `ImportGPayStaging()` — hosts now imported with empty passwords; credentials added via vault UI
-- [x] **#3** — `ShellSanitizer.IsSafe()` regex syntax error fixed (unclosed backtick); full regex-based destructive pattern matching via `destructivePatterns []*regexp.Regexp`; Unicode whitespace normalization prevents bypass
-- [x] **#4** — Plugin sandbox goroutine leak fixed: `cancel()` stored in `LuaSandbox.cancelCtx`, called on `Stop()`, releasing timeout goroutine immediately
-- [x] **#22** — Frontend never receives plaintext passwords; `host.Password` always `""` in DTO; `HasPassword bool` used for UI display decisions
+- [x] **#1** — Plaintext passwords stripped from Host DTO (`database/hosts.go` — `Password json:"-"`, `HasPassword bool`, `GetEncryptedPassword()`)
+- [x] **#2** — Hardcoded `S@nad2026!` staging credentials removed from `host_service.go`
+- [x] **#3** — `ShellSanitizer.IsSafe()` regex syntax error fixed; Unicode whitespace normalization prevents bypass
+- [x] **#4** — Plugin sandbox goroutine leak fixed: `cancel()` stored in `LuaSandbox.cancelCtx`, called on `Stop()`
+- [x] **#22** — Frontend never receives plaintext passwords; `HasPassword bool` used for UI display decisions
 
 ### 🟡 High — All Resolved
-- [x] **#5** — REST server fails hard when `certManager == nil`; no plaintext HTTP fallback; `ListenAndServeTLS` only
-- [x] **#6** — Multiexec `executeOnHost()` no longer falls back to `host.Password` (always empty); returns job error if vault locked or credential not found
-- [x] **#7** — `defer vault.ZeroSlice()` inside `PasswordHealthAudit()` loop moved into IIFE; memory zeroed per-iteration not at function return
-- [x] **#8** — `GeneratePassword()` modulo bias eliminated; uses `rand.Int(rand.Reader, big.NewInt(int64(len(chars))))` with `math/big` rejection sampling
-- [x] **#9** — WebSocket `CheckOrigin` changed from `return true` to origin allowlist (same-host + localhost + wails://wails); `SubscribeWithID`/`Unsubscribe` added to eventbus; subscription explicitly cleaned up on client disconnect
-- [x] **#10** — `isValid()` early return removed; scans all keys unconditionally with `subtle.ConstantTimeCompare`; no timing side-channel on key index
+- [x] **#5** — REST server fails hard when `certManager == nil`; no plaintext HTTP fallback
+- [x] **#6** — Multiexec `executeOnHost()` no longer falls back to `host.Password`
+- [x] **#7** — `defer vault.ZeroSlice()` inside `PasswordHealthAudit()` loop moved into IIFE; memory zeroed per-iteration
+- [x] **#8** — `GeneratePassword()` modulo bias eliminated; uses `rand.Int(rand.Reader, big.NewInt(...))` rejection sampling
+- [x] **#9** — WebSocket `CheckOrigin` changed to origin allowlist; `SubscribeWithID`/`Unsubscribe` added to eventbus
+- [x] **#10** — `isValid()` scans all keys unconditionally with `subtle.ConstantTimeCompare`; no timing side-channel
 - [x] **#11** — `/debug/attestation` endpoint now requires `RoleAdmin`; returns 403 for agent/analyst keys
 - [x] **#12** — TLS minimum version bumped from `tls.VersionTLS12` → `tls.VersionTLS13` for all agent channels
-- [x] **#13** — Argon2 memory adaptive based on system RAM: 128 MB (≥8 GB), 64 MB/OWASP (≥1 GB), 32 MB (≥512 MB), 8 MB fallback
+- [x] **#13** — Argon2 memory adaptive based on system RAM (128 MB / 64 MB / 32 MB / 8 MB fallback)
 - [x] **#23** — `EvidenceLedger.tsx` raw `window.go` usage removed; `LedgerService` bound via Wails in `main.go`
-- [x] **#24** — `setPassword("")` called immediately after `Unlock()` and `UnlockWithHardware()` in `VaultManager.tsx`; password signal cleared from JS heap on success
-- [x] **#25** — Strict CSP added to `wails.json`: `script-src 'self'`, `object-src 'none'`, `frame-src 'none'`, `base-uri 'self'`; prevents any injected script from calling `window.go.*` bindings
-- [x] **#26** — xterm.js `allowProposedApi: false` set in `Terminal.tsx`; blocks OSC 52 clipboard write from malicious SSH servers
+- [x] **#24** — `setPassword("")` called immediately after `Unlock()` and `UnlockWithHardware()` in `VaultManager.tsx`
+- [x] **#25** — Strict CSP added to `wails.json`: `script-src 'self'`, `object-src 'none'`, `frame-src 'none'`
+- [x] **#26** — xterm.js `allowProposedApi: false`; blocks OSC 52 clipboard write from malicious SSH servers
 
 ### 🟠 Medium — All Resolved
-- [x] **#14** — `NuclearDestruction()` first overwrite pass uses `crypto/rand` bytes (`crand.Read`); second pass zeros; removes trivially recoverable zero-init pattern
-- [x] **#15** — `DeployKey()` uses SFTP client to append `authorized_keys` directly; base64 pipeline fallback avoids shell injection from pubKey content
-- [x] **#16** — Multiexec `s.jobs` map capped at 100 entries via `pruneJobs()` (oldest-first eviction by `StartedAt`); prevents unbounded memory growth
+- [x] **#14** — `NuclearDestruction()` first overwrite pass uses `crypto/rand`; removes trivially recoverable zero-init pattern
+- [x] **#15** — `DeployKey()` uses SFTP client to append `authorized_keys` directly; avoids shell injection
+- [x] **#16** — Multiexec `s.jobs` map capped at 100 entries via `pruneJobs()` (oldest-first eviction)
 - [x] **#17** — Search `limit` parameter capped at 1000 in `rest.go`; `const maxSearchLimit = 1000`
-- [x] **#18** — RBAC context key unified: single `UserContextKey contextKey` typed constant; `ContextWithUser`/`UserFromContext`/`GetRole` all use it; old string key `"user"` eliminated
-- [x] **#27** — Poll interval in `store.tsx` cleared on `vault:locked` event; `subscribe('vault:locked', () => clearInterval(poll))` prevents accumulation across lock/unlock cycles
-- [x] **#28** — `routeMap` in `CommandRail.tsx` populated: `recordings`, `snippets`, `notes`, `sync`, `tunnels`, `ai-assistant`, `mitre-heatmap` all mapped to correct routes
-- [x] **#29** — Drawer allowlist in `AppLayout.tsx` verified complete; all drawer-tab entries (`recordings`, `tunnels`, `snippets`, `notes`, `sync`, `ai-assistant`, `mitre-heatmap`) present
-- [x] **#30** — REST API rate limited at 20 req/s burst 50; Wails bridge per-method debounce deferred to Phase 17
+- [x] **#18** — RBAC context key unified: single `UserContextKey contextKey` typed constant; old string key `"user"` eliminated
+- [x] **#27** — Poll interval in `store.tsx` cleared on `vault:locked` event; prevents accumulation across lock/unlock cycles
+- [x] **#28** — `routeMap` in `CommandRail.tsx` populated for all nav entries
+- [x] **#29** — Drawer allowlist in `AppLayout.tsx` verified complete
+- [x] **#30** — REST API rate limited at 20 req/s burst 50
 
 ### 🔵 Low — All Resolved
 - [x] **#19** — External CDN link removed from docs endpoint; `handleDocs` returns 403 in all builds
 - [x] **#20** — `GetFavorites()` uses `r.db.Conn()` (respects vault-lock guard) instead of `r.db.DB()` direct bypass
-- [x] **#21** — Credential count timing side-channel accepted as acceptable risk (low severity, no fix required)
-- [x] **#31** — `initBridge()` wrapped in `try/catch` with `ErrorScreen` fallback in `App.tsx`; no unhandled rejection on bridge failure
+- [x] **#21** — Credential count timing side-channel accepted as acceptable risk (low severity)
+- [x] **#31** — `initBridge()` wrapped in `try/catch` with `ErrorScreen` fallback in `App.tsx`
 
-### Eventbus improvements (audit-driven)
+### EventBus improvements (audit-driven)
 - [x] `SubscribeWithID(eventType, handler) uint64` — returns subscription ID for targeted cleanup
 - [x] `Unsubscribe(id uint64)` — closes worker goroutine's `cancel` channel, removes from handler slice
 - [x] `newSubscription()` uses `atomic.AddUint64(&b.nextSubID, 1)` (per-Bus counter, not global)
-- [x] `subscription` struct: `id uint64` + `cancel chan struct{}` fields added; worker selects on `s.cancel` for clean shutdown
+- [x] `subscription` struct: `id uint64` + `cancel chan struct{}` fields added
 
 ---
 
@@ -540,87 +516,58 @@
 - [x] Field modifiers: `|contains`, `|startswith`, `|endswith`, `|re:`, `|all` (RE2-safe approximation)
 - [x] Keyword list detection → `output_contains` regex with OR alternatives
 - [x] MITRE ATT&CK tag extraction: tactic slugs → TA codes (14 tactics mapped), technique IDs → `T####` / `T####.###`
-- [x] `logsource` → `EventType` mapping for 15+ source types: Windows Security/System/PowerShell, Linux syslog, AWS CloudTrail, Azure, GCP, sshd, sudo, process_creation, network_connection, dns_query, file_event, registry_event, authentication
+- [x] `logsource` → `EventType` mapping for 15+ source types
 - [x] Timeframe parsing: `15m`, `1h`, `30s`, `2d` → `window_sec` integer
 - [x] `inferGroupBy`: network/SSH rules auto-group by `source_ip`; auth/logon rules group by `user` + `source_ip`
 - [x] Duplicate detection on hot-reload (skips already-loaded rule IDs)
 - [x] `LoadSigmaFile(path string)` and `LoadSigmaDirectory(dir string)` added to `RuleEngine`
 - [x] Auto-loading from `sigma/` directory on `AlertingService.Start()` — non-fatal if missing
 - [x] Deprecated rules skipped with informational log; experimental rules allowed
-- [x] Unit tests: `sigma_test.go` — 6 test cases (Mimikatz, SSH keywords, deprecated skip, missing title, missing condition, timeframe parsing, MITRE tag parsing)
-- [x] Fuzz test: `sigma_fuzz_test.go` — `FuzzSigmaTranspile` with 7-entry seed corpus; ensures no panics on arbitrary YAML
+- [x] Unit tests: `sigma_test.go` — 6 test cases
+- [x] Fuzz test: `sigma_fuzz_test.go` — `FuzzSigmaTranspile` with 7-entry seed corpus
 
 ### OpenTelemetry Tracing (`internal/monitoring/otel.go`)
-- [x] `InitTracing()` — global `TracerProvider`; stdout exporter (dev) / OTLP via `OTEL_EXPORTER_OTLP_ENDPOINT` (prod → Jaeger, Grafana Tempo, etc.)
+- [x] `InitTracing()` — global `TracerProvider`; stdout exporter (dev) / OTLP via `OTEL_EXPORTER_OTLP_ENDPOINT`
 - [x] Adaptive sampler: 100% in `OBLIVRA_ENV=development|test`, 10% `TraceIDRatioBased` in production
-- [x] `Tracer(name string) trace.Tracer` — named tracer from global provider (prefixed `oblivra/<name>`)
-- [x] `StartSpan(ctx, pkg, operation, ...attrs)` — uniform span creation helper
-- [x] `RecordError(span, err)` — marks span failed, records error, sets `codes.Error`
-- [x] Typed attribute constructors: `HostAttr`, `SessionAttr`, `RuleAttr`, `TenantAttr`, `SeverityAttr`
-- [x] `RecordDetectionMatch` — increments `detections_total{severity}` counter + emits OTel span
-- [x] `RecordSSHConnect` — increments SSH counters + latency histogram + OTel span per connection
-- [x] `RecordVaultUnlock` — increments vault counters + OTel span per unlock attempt
-- [x] `RegisterDetectionMetrics` — registers Prometheus counters/gauges: `detections_total`, `detection_rules_loaded`, `detection_rules_sigma`, `detection_sigma_transpile_errors`, `detection_event_processing_ms` histogram
-- [x] `OblivraMetricsHandler` — Prometheus exposition bridge; mounts at `/metrics`
-- [x] OTel SDK, stdout exporter, semconv/v1.26.0 added to `go.mod` direct dependencies
+- [x] `StartSpan`, `RecordError`, typed attribute constructors (`HostAttr`, `SessionAttr`, `RuleAttr`, etc.)
+- [x] `RecordDetectionMatch`, `RecordSSHConnect`, `RecordVaultUnlock` — increments counters + emits spans
+- [x] `RegisterDetectionMetrics` — Prometheus counters/gauges/histograms for detection pipeline
+- [x] `OblivraMetricsHandler` — Prometheus exposition bridge at `/metrics`
 - [x] Trace output file configurable via `OTEL_TRACE_FILE` env var
 
 ### Supply Chain & SBOM (`.github/workflows/`)
-
-#### CI (`ci.yml`)
-- [x] Multi-OS test matrix: Linux + Windows
-- [x] `go vet ./...` on every push/PR
-- [x] `go test -race -timeout 120s ./...`
-- [x] 10-second fuzz runs for `FuzzAutoparse` and `FuzzSigmaTranspile` in CI
-- [x] Architecture boundary tests (`./internal/architecture/...`)
-- [x] SBOM generated via `anchore/sbom-action` on every PR (SPDX JSON format)
-- [x] Grype vulnerability scan on every PR; SARIF uploaded to GitHub Security tab
-- [x] Vulnerability scan non-blocking (warns only, does not fail PRs)
-
-#### Release (`release.yml`)
-- [x] Triggered on `v*.*.*` tags + manual `workflow_dispatch` with version input
-- [x] Cross-platform build matrix: Linux amd64/arm64, Windows amd64, macOS amd64/arm64
-- [x] Version/commit/build-date stamped via `-ldflags` + `-trimpath` for reproducible builds
-- [x] SBOM generated in two formats: SPDX JSON + CycloneDX JSON via `anchore/syft`
-- [x] SHA256 checksums file (`SHA256SUMS.txt`) covering all binaries + SBOMs
-- [x] Cosign keyless OIDC signing — no private key stored anywhere; identity bound to workflow run URL
-- [x] SLSA provenance attestation of SBOM via `cosign attest-blob --type spdxjson`
-- [x] GitHub Release created automatically with copy-pasteable cosign verification instructions for end users
-- [x] Pre-release detection: tags containing `-` (e.g. `v1.0.0-beta`) automatically marked as pre-release
-- [x] Changelog extraction from `CHANGELOG.md` included in release body
+- [x] CI: multi-OS matrix (Linux + Windows), `go test -race`, fuzz runs, SBOM on every PR, Grype SARIF upload
+- [x] Release: cross-platform builds (Linux amd64/arm64, Windows amd64, macOS amd64/arm64), `-ldflags -trimpath`
+- [x] SBOM in SPDX JSON + CycloneDX JSON, SHA256 checksums, Cosign keyless signing, SLSA provenance
+- [x] GitHub Release auto-created with cosign verification instructions; pre-release tag detection
 
 ---
 
 ## Phase 18: Loose Ends Closed ✅
 
-- [x] **AI Assistant** — fully wired (page, route `/ai-assistant`, Wails binding, `AIService` started). Rebuilt UI: live Ollama status badge (green/red), offline banner with exact setup commands (`ollama serve` / `ollama pull llama3`), three mode buttons (Chat / Explain Error / Generate Command), auto-expanding textarea, proper error bubbles with distinct styling. `services.AIResponse` and `services.Message` added to `models.ts` so TypeScript compiles cleanly.
-- [x] **MitreHeatmap** — fully wired (component, route `/mitre-heatmap`, `GetDetectionRules` + `GetAlertHistory` on `AlertingService`). Fixed compile error: Sigma loader was calling `s.evaluator.GetRuleEngine().LoadSigmaDirectory()` — `Evaluator` embeds `*RuleEngine` directly so methods are promoted; corrected to `s.evaluator.LoadSigmaDirectory()` and `s.evaluator.GetRules()`.
-- [x] **OTel → Grafana Tempo pipeline** — `docker-compose.yml` extended with Prometheus, Grafana Tempo, and Grafana. `InitTracing()` wired into `ObservabilityService.Start()` (non-fatal path); `otelShutdown()` called in `Stop()` to flush spans before exit. `RegisterDetectionMetrics()` called at startup to pre-register all detection counters.
-- [x] **`ops/` config directory** — all support files created:
-  - `ops/prometheus.yml` — scrapes `sovereign-server:8080/metrics`, `sovereign-server:6060/debug/metrics`, Prometheus itself, Grafana
-  - `ops/tempo.yml` — OTLP gRPC (4317) + HTTP (4318), 14-day retention, metrics-generator → Prometheus remote write
-  - `ops/grafana/provisioning/datasources/datasources.yml` — auto-provisions Prometheus + Tempo datasources with exemplar correlation
-  - `ops/grafana/provisioning/dashboards/dashboard.yml` — dashboard provider config
-  - `ops/grafana/provisioning/dashboards/oblivra.json` — pre-built dashboard: 6 stat panels (goroutines, heap, active sessions, vault failures, rules loaded, Sigma rules), detection rate timeseries by severity, detection mix donut, SSH success/fail bar chart, SSH p95 latency, Tempo traces panel
+- [x] **AI Assistant** — fully wired (`/ai-assistant`, Ollama status badge, 3 modes, `AIResponse`/`Message` in `models.ts`)
+- [x] **MitreHeatmap** — fully wired (`/mitre-heatmap`, `GetDetectionRules` + `GetAlertHistory` on `AlertingService`)
+- [x] **OTel → Grafana Tempo pipeline** — `docker-compose.yml` extended with Prometheus, Grafana Tempo, Grafana
+- [x] **`ops/` config directory** — `prometheus.yml`, `tempo.yml`, Grafana datasources + pre-built dashboard (6 stat panels, detection timeseries, SSH charts, Tempo traces panel)
 
 ---
 
-## Phase 19: Completed ✅
+## Phase 19: v1.1.0 ✅
 
-- [x] **README.md** — fully rewritten: accurate stack (Wails v2, SolidJS, BadgerDB, Bleve, Sigma), architecture diagram, build instructions, data locations, cosign verification commands
+- [x] **README.md** — fully rewritten with accurate stack, architecture diagram, build instructions
 - [x] **CHANGELOG.md v1.1.0** — complete entry covering all phases 11–19
 - [x] **Diagnostics Modal** — `DiagnosticsModal.tsx`: live ingest EPS + buffer bar, goroutines, heap, GC, event bus drops, query P99, health grade. Wired to status bar `● A` badge click.
 - [x] **Sigma hot-reload** — `fsnotify v1.8.0` watcher on `sigma/` with 500ms debounce, `ReloadSigmaRules()` Wails method, `sigma:rules_reloaded` event emitted
 - [x] **Unlock bug — all three root causes fixed**:
   - `HasKeychainEntry()` added to vault interface + implementation — auto-unlock goroutine now skips if no keychain entry
-  - `VaultUnlock.tsx` calls `UnlockWithPassword()` instead of `Unlock(passphrase, [], remember)` — no longer routes through hardware key path
+  - `VaultUnlock.tsx` calls `UnlockWithPassword()` instead of hardware key path
   - 50-iteration `IsUnlocked` polling loop replaced with single check + event subscription
 
 ---
 
-## Phase 20: Completed ✅
+## Phase 20: Detection & Docs Expansion ✅
 
-- [x] **Detection content** — 30 new high-value detection rules (82 total):
+- [x] **Detection content** — 82 total rules (30 new):
   - Windows: LOLBin, PowerShell encoded, shadow copy deletion, LSASS dump, WMI lateral, registry run key, Defender tamper, pass-the-hash, DCSync, golden ticket, scheduled task lateral, remote service install
   - Linux: rootkit indicator, LD_PRELOAD hijack, Docker escape, unsigned kernel module, SSH key added
   - Cloud: AWS root console login, IAM privilege escalation, S3 mass exfil, Azure impossible travel
@@ -629,74 +576,86 @@
   - Insider threat: large data export, off-hours privileged access
   - OT/ICS: Modbus anomaly
 - [x] **Test suite expansion**:
-  - `detection_engine_test.go` — 18 tests: each builtin rule, deduplication, threshold aggregation, CIDR matching, Sigma transpiler, rule loading
-  - `vault_service_test.go` — 12 tests: setup/unlock, wrong password, empty slice normalization, CRUD, locked access guard, health audit, password generator uniqueness, HasKeychainEntry
-  - `ingest/pipeline_unit_test.go` — queue/process, buffer drop, metrics, stop cleanly, benchmark throughput, benchmark AutoParse
+  - `detection_engine_test.go` — 18 tests: each builtin rule, dedup, threshold aggregation, CIDR matching, Sigma transpiler, rule loading
+  - `vault_service_test.go` — 12 tests: setup/unlock, wrong password, CRUD, locked access guard, health audit, password generator uniqueness, HasKeychainEntry
+  - `ingest/pipeline_unit_test.go` — queue/process, buffer drop, metrics, stop cleanly, benchmark throughput
   - `tests/smoke_test.go` — expanded with alerting, Sigma, diagnostics, observability, IngestService metrics subtests
   - `AlertingService.GetEvaluator()` accessor added for test introspection
-- [x] **Operator documentation** (5 guides):
-  - `docs/operator/quickstart.md` — prerequisites, build, first launch, data locations, adding hosts, ingestion, detection verification, notifications, observability stack, keyboard shortcuts
-  - `docs/operator/detection-authoring.md` — rule format, threshold/sequence types, condition fields, EventType reference, MITRE mapping, examples
-  - `docs/operator/sigma-rules.md` — what Sigma is, installation, supported constructs, severity mapping, hot-reload, filtering, troubleshooting
-  - `docs/operator/alerting-config.md` — SMTP/Gmail/O365, Telegram bot setup, Twilio SMS+WhatsApp, Slack/Discord/Teams webhooks, regex triggers, alert history, suppression
-  - `docs/operator/api-reference.md` — ingest, search, hosts, alerts, compliance, health, metrics, pprof, error codes, rate limiting, syslog config
+- [x] **Operator documentation** (5 guides in `docs/operator/`):
+  - `quickstart.md` — prerequisites, build, first launch, data locations, adding hosts, ingestion, detection verification, notifications, observability stack, keyboard shortcuts
+  - `detection-authoring.md` — rule format, threshold/sequence types, condition fields, EventType reference, MITRE mapping, examples
+  - `sigma-rules.md` — what Sigma is, installation, supported constructs, severity mapping, hot-reload, filtering, troubleshooting
+  - `alerting-config.md` — SMTP/Gmail/O365, Telegram, Twilio SMS+WhatsApp, Slack/Discord/Teams webhooks, regex triggers, suppression
+  - `api-reference.md` — ingest, search, hosts, alerts, compliance, health, metrics, pprof, error codes, rate limiting, syslog config
 
 ---
 
-## Phase 21: Completed ✅
+## Phase 21: Architectural Scaling ✅
 
-### 7 Architectural Scaling Upgrades (ChatGPT assessment)
-
-- [x] **Upgrade 1: Partitioned Event Pipeline** — `internal/ingest/partitioned_pipeline.go`
+- [x] **Partitioned Event Pipeline** — `internal/ingest/partitioned_pipeline.go`
   - 8 shards, FNV-1a hash on HostID/SourceIP for consistent routing
   - Each shard runs independent worker pool + adaptive controller
   - Correlation state stays CPU-local; no cross-shard mutex
   - Aggregates metrics across all shards for diagnostics
-- [x] **Upgrade 2: Write-Ahead Log** — `internal/storage/wal.go` (already existed + verified)
-  - CRC32 per record, corruption detection, 50ms fsync window
-  - Replay on startup, checkpoint after successful drain
-  - 10MB payload guard prevents OOM from corrupt WAL
-- [x] **Upgrade 3: Hot/Cold Storage** — BadgerDB hot store (already) + Parquet cold (backlog)
-  - Architecture validated: BadgerDB handles 7–30 day hot tier correctly
-  - Parquet cold tier remains in Phase 22 backlog
-- [x] **Upgrade 4: Streaming Enrichment LRU Cache** — `internal/enrich/cache.go` + `geoip.go` rewritten
+- [x] **Write-Ahead Log** — `internal/storage/wal.go` (CRC32 per record, 50ms fsync window, 10MB guard, replay on startup)
+- [x] **Streaming Enrichment LRU Cache** — `internal/enrich/cache.go` + `geoip.go` rewritten
   - 50,000 IP cache, 10-minute TTL, insertion-order LRU eviction
   - RWMutex: concurrent reads never block each other
-  - Cache miss hits mmdb files; hit returns in-memory instantly
   - ~95% reduction in mmdb disk reads at typical enterprise IP diversity
-- [x] **Upgrade 5: Detection Rule DAG / Route Index** — `internal/detection/rule_router.go`
+- [x] **Detection Rule Route Index** — `internal/detection/rule_router.go`
   - `RouteIndex`: EventType → []Rule inverted index built at load time
   - `ProcessEvent` now evaluates only candidate rules for the event's type
-  - Wildcard bucket for rules without EventType constraint (always evaluated)
-  - `RebuildRouteIndex()` called on every hot-reload to stay fresh
-  - Estimated 13× speedup at 100 rules; scales linearly with rule count
-- [x] **Upgrade 6: Query Execution Limits** — `internal/database/query_planner.go`
-  - `QueryPlanner` with `DefaultQueryLimits` (1M rows, 10s, 10k results)
-  - `HeavyQueryLimits` for scheduled reports (50M rows, 60s)
+  - `RebuildRouteIndex()` called on every hot-reload; estimated 13× speedup at 100 rules
+- [x] **Query Execution Limits** — `internal/database/query_planner.go`
+  - `DefaultQueryLimits` (1M rows, 10s, 10k results); `HeavyQueryLimits` (50M rows, 60s)
   - `Plan()` estimates cost from time range, mode, and query pattern
   - `Validate()` rejects expensive queries before they touch the store
   - `BoundedContext()` wraps queries with execution timeout
-- [x] **Upgrade 7: Bounded Worker Pools** — `internal/platform/worker_pool.go`
-  - `WorkerPool` with configurable size, job queue (workers×10)
-  - Backpressure: `Submit` blocks when queue full; `TrySubmit` returns false
-  - Panic recovery per worker — one bad job can't kill the pool
+- [x] **Bounded Worker Pools** — `internal/platform/worker_pool.go`
+  - Configurable size, job queue (workers×10), backpressure, panic-safe per-worker recovery
   - `NewWorkerPoolDefaults(name)` sizes at NumCPU×2
-
-### Repo Hygiene
 - [x] `.gitignore` updated: `*.map`, `*.canonical`, `*.structure`, `build/`, `bin/`, `dist/`, lockfiles
 - [ ] **REQUIRED**: Run `git rm -r --cached frontend/node_modules` to purge 10k files from git tracking
 
 ---
 
-## Phase 22: Backlog
+## Phase 0.5: Desktop vs Browser Context Split ✅ (2026-03-22)
 
-- [ ] Wails RPC bridge per-method rate limiting (debounce on sensitive methods like `NuclearDestruction`, `Unlock`)
-- [ ] DAG-based streaming processing engine (Phase 8 carry-over)
-- [ ] Sigma `count by` aggregate functions (requires stateful transpiler extension)
-- [ ] Cloud log connectors: AWS CloudTrail direct pull, Sysmon, Zeek, Suricata, Okta, Azure Monitor
-- [ ] ClickHouse storage backend option for petabyte-scale SIEM workloads
-- [ ] FIPS 140-3 / ISO 27001 / SOC 2 certification program documentation
-- [ ] Per-agent metering and billing hooks
-- [ ] mTLS between all internal service boundaries
-- [x] Feature flag framework (tier-based capability gating) — see Tier 3 section above
-- [x] Offline hardware-bound license activation — see Tier 3 section above
+- [x] `frontend/src/core/context.ts` — `APP_CONTEXT` detection (`desktop`/`browser`/`hybrid`) at module load from `window.__WAILS__` + `localStorage:oblivra:remote_server`
+- [x] `IS_DESKTOP`, `IS_BROWSER`, `IS_HYBRID` boolean exports
+- [x] `isRouteAvailable(path)`, `routeUnavailableReason(path)`, `getServiceCapabilities()`
+- [x] `configureHybridMode(url)`, `disconnectHybridMode()` — writes to localStorage, triggers page reload
+- [x] `RouteGuard` component (`frontend/src/core/RouteGuard.tsx`) — wraps routes, shows `UnavailableScreen` with context hint
+- [x] `ContextBadge` (`frontend/src/components/layout/ContextBadge.tsx`) — status bar pill (DESKTOP/HYBRID/BROWSER), click opens server connection panel with URL input, Connect/Disconnect
+- [x] `bridge.ts` — resolves immediately in browser mode; Wails events only wired when runtime present; `emitLocal()` for testing
+- [x] `CommandRail.tsx` — full context classification on all nav items; `visibleItems()` filter; locked items show `⊘` at 22% opacity with `pointer-events: none`
+- [x] `DrawerPanel.tsx` — all desktop-only drawers wrapped in `<Show when={IS_DESKTOP || IS_HYBRID}>` with `ContextLockedDrawer` fallback
+- [x] `AppLayout.tsx` — `isDrawerVisible()` replaces hardcoded tab allowlist; `DRAWER_TABS_DESKTOP`, `DRAWER_TABS_BROWSER`, `DRAWER_TABS_BOTH` arrays
+- [x] `index.tsx` — `DesktopOrBrowser()` context switcher on `/ueba`, `/ndr`, `/forensics`, `/ransomware`; all Phase 2–11 web components fully routed; browser-only routes get `RouteGuard` wrappers
+- [x] Route availability matrix: 60+ routes classified:
+  - **desktop-only**: `/terminal`, `/tunnels`, `/recordings`, `/snippets`, `/notes`, `/sync`, `/offline-update`
+  - **browser-only**: `/agents`, `/fleet-management`, `/identity`, `/identity-admin`
+  - **both**: everything else
+- [x] `docs/architecture/desktop_vs_browser.md` — context detection spec, route matrix, service capabilities, hybrid mode design
+
+---
+
+## Phase 22: Active Backlog
+
+### 🔴 Must-Do (Unblock users)
+- [ ] **Wails RPC bridge rate limiting** — per-method debounce on destructive methods (`NuclearDestruction`, `Unlock`, `DeleteHost`); prevents accidental double-fire
+- [ ] **Purge node_modules from git** — run `git rm -r --cached frontend/node_modules`; 10k tracked files are killing clone time and CI
+- [ ] **Entity Investigation Pages** — `EntityView.tsx` is scaffolded but data is sparse; wire full: UEBA profile, risk score, recent alerts, related incidents, enrichment context
+- [ ] **Setup Wizard** — `SetupWizard.tsx`, 6-step first-run flow (admin account → network config → log sources → alert channels → detection packs → first search); blank dashboard on install is the #1 onboarding drop-off
+
+### 🟡 High Value (Next Sprint)
+- [ ] **Risk-Based Alerting scaffolding** — `RiskService` exists; wire: each detection match increments entity risk score, temporal decay ticker, threshold fires incident
+- [ ] **Sigma `count by` aggregate functions** — stateful transpiler extension; required for frequency rules counting distinct values (e.g. >5 failed logins from different IPs)
+- [ ] **Parquet cold tier** — complete hot/cold split; BadgerDB hot (0–30 days), Parquet cold (30–365 days); query planner already has `HeavyQueryLimits`, needs cold store writer + transparent merge
+
+### 🔵 When Ready
+- [ ] **Cloud log connectors** — AWS CloudTrail direct pull, Sysmon, Zeek, Suricata, Okta, Azure Monitor
+- [ ] **ClickHouse storage backend** — optional petabyte-scale swap for BadgerDB
+- [ ] **DAG-based streaming engine** — Phase 8 carry-over; replaces current synchronous pipeline
+- [ ] **mTLS between all internal service boundaries** — when splitting to microservices becomes real
+- [ ] **FIPS 140-3 / ISO 27001 / SOC 2 certification program documentation** (see also [`BUSINESS.md`](BUSINESS.md))
