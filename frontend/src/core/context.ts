@@ -76,7 +76,6 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     { path: '/topology',               availability: 'both' },
     { path: '/ai-assistant',           availability: 'both' },
     { path: '/workspace',              availability: 'both' },
-    { path: '/workspaces',             availability: 'both' },
     { path: '/settings',               availability: 'both' },
     { path: '/analytics',              availability: 'both' },
     { path: '/fusion',                 availability: 'both' },
@@ -91,7 +90,6 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     { path: '/license',                availability: 'both' },
     { path: '/team',                   availability: 'both' },
     { path: '/hosts',                  availability: 'both' },
-    { path: '/soc',                    availability: 'both' },
     { path: '/plugins',                availability: 'both' },
 
     // ── Desktop-only ──────────────────────────────────────────────────────
@@ -132,6 +130,11 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     },
 
     // ── Browser/Server-only ───────────────────────────────────────────────
+    {
+        path: '/soc',
+        availability: 'browser',
+        unavailableReason: 'The SOC workspace requires multi-analyst server mode.',
+    },
     {
         path: '/agents',
         availability: 'browser',

@@ -1,7 +1,7 @@
 // RansomwareUI.tsx — Phase 9 Web: centralized ransomware status and remediation
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
 import * as SIEMService from '../../../wailsjs/go/services/SIEMService';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
+import { subscribe } from '../../core/bridge';
 
 export const RansomwareUI: Component = () => {
     const [alerts, setAlerts] = createSignal<any[]>([]);
@@ -9,8 +9,10 @@ export const RansomwareUI: Component = () => {
     const [loading, setLoading] = createSignal(true);
     const [liveAlert, setLiveAlert] = createSignal<string | null>(null);
 
+    let unsub: (() => void) | null = null;
+
     onMount(async () => {
-        EventsOn('ransomware:detection', (data: any) => {
+        unsub = subscribe('ransomware:detection', (data: any) => {
             setLiveAlert(`🚨 RANSOMWARE DETECTED on ${data?.host_id ?? 'unknown host'}: ${data?.type ?? 'entropy spike'}`);
             setTimeout(() => setLiveAlert(null), 10000);
         });
@@ -26,7 +28,7 @@ export const RansomwareUI: Component = () => {
         setLoading(false);
     });
 
-    onCleanup(() => EventsOff('ransomware:detection'));
+    onCleanup(() => unsub?.());
 
     const severityMap: Record<string, string> = { high: '#f85149', critical: '#f85149', medium: '#d29922', low: '#3fb950' };
 

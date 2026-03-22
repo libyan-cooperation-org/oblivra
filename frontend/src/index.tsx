@@ -87,10 +87,13 @@ const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found');
 
 // ── Context-switched route wrapper ────────────────────────────────────────────
-// One URL renders different components for desktop vs browser. Hybrid shows desktop variant.
-const DesktopOrBrowser = (deskComp: any, browserComp: any) => () => (
-    <Show when={IS_DESKTOP || IS_HYBRID} fallback={browserComp}>
-        {deskComp}
+// IMPORTANT: receives component constructors (not JSX elements) so SolidJS
+// only instantiates the active branch when the route is actually rendered.
+// Passing <Comp /> here would evaluate both at module load time outside any
+// reactive root, causing orphaned computations and memory leaks.
+const DesktopOrBrowser = (DeskComp: any, BrowserComp: any) => () => (
+    <Show when={IS_DESKTOP || IS_HYBRID} fallback={<BrowserComp />}>
+        <DeskComp />
     </Show>
 );
 
@@ -113,7 +116,6 @@ render(() => (
         <Route path="/plugins"            component={PluginManager} />
         <Route path="/risk"               component={ConfigRisk} />
         <Route path="/workspace"          component={SettingsManager} />
-        <Route path="/workspaces"         component={SOCWorkspace} />
         <Route path="/governance"         component={GovernanceDashboard} />
         <Route path="/features"           component={FeatureGovernance} />
         <Route path="/response"           component={CommandCenter} />
@@ -149,10 +151,10 @@ render(() => (
         {/*  /ndr       → NetworkMap (desktop)  | NDROverview (browser)    */}
         {/*  /forensics → EvidenceLocker (desk) | RemoteForensics (browser)*/}
         {/*  /ransomware→ Dashboard (desktop)   | RansomwareUI (browser)   */}
-        <Route path="/ueba"       component={DesktopOrBrowser(<UEBAPanel />,           <UEBAOverview />)} />
-        <Route path="/ndr"        component={DesktopOrBrowser(<NetworkMap />,           <NDROverview />)} />
-        <Route path="/forensics"  component={DesktopOrBrowser(<EvidenceLocker />,       <RemoteForensics />)} />
-        <Route path="/ransomware" component={DesktopOrBrowser(<RansomwareDashboard />,  <RansomwareUI />)} />
+        <Route path="/ueba"       component={DesktopOrBrowser(UEBAPanel,           UEBAOverview)} />
+        <Route path="/ndr"        component={DesktopOrBrowser(NetworkMap,           NDROverview)} />
+        <Route path="/forensics"  component={DesktopOrBrowser(EvidenceLocker,       RemoteForensics)} />
+        <Route path="/ransomware" component={DesktopOrBrowser(RansomwareDashboard,  RansomwareUI)} />
 
         {/* Aliases kept for deep-linking / legacy bookmarks */}
         <Route path="/ueba-overview"       component={UEBAOverview} />

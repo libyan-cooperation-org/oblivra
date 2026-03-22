@@ -294,7 +294,9 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		origin := r.Header.Get("Origin")
 		allowedOrigins := map[string]bool{
 			"http://localhost":        true,
-			"http://localhost:5173":   true, // Vite dev server
+			"http://localhost:3000":   true, // Vite dev server (default port)
+			"http://localhost:5173":   true, // Vite dev server (alternate port)
+			"http://localhost:8080":   true, // Server serving own frontend
 			"https://wails.localhost": true,
 			"wails://wails":           true,
 		}
