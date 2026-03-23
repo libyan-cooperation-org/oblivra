@@ -24,8 +24,8 @@ soak_server_stdout*
 
 # Dependencies
 node_modules/
-frontend/node_modules/
-frontend/dist/
+frontend-web/node_modules/
+frontend-web/dist/
 frontend/bun.lockb
 bun.lock
 package-lock.json

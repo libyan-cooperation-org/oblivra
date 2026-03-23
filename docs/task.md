@@ -377,7 +377,6 @@
 #### Advanced Isolation & Zero-Trust Architecture
 - [ ] Vault process isolation (separate signing key service)
 - [x] Memory zeroing guarantees on all crypto operations
-- [ ] **True Zero-Trust Internal Architecture** — SPIFFE-style service identity, enforced per-service RBAC, and compulsory mTLS between all internal boundaries
 - [ ] Service-level privilege separation design doc
 
 #### AI Governance
@@ -687,7 +686,7 @@
 
 ### 🔧 Immediate Hygiene
 
-- [ ] **Purge node_modules from git** — `git rm -r --cached frontend/node_modules`; 10k tracked files killing clone time and CI
+- [x] **Purge node_modules from git** — `git rm -r --ignore-unmatch --cached frontend-web/node_modules`; 10k tracked files killing clone time and CI (COMPLETED)
 - [ ] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
 - [ ] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports (partially fixed 2026-03-23)
 
@@ -769,16 +768,26 @@
 - [ ] **Security.txt** — `/.well-known/security.txt`: contact, PGP key, disclosure policy
 - [ ] **Human Trust Layer** — Establish public trust signals: security whitepaper publication, known vulnerability disclosure history, and third-party validation
 - [ ] **IaC Deployment** — Official Terraform Providers and Ansible Collections
-- [ ] **Configuration Versioning** — Git-friendly export/import and full rollback for platform state
-- [ ] **Temporal Event Handling** — Advanced logic for late-arriving events and out-of-order logs
+- [ ] Configuration Versioning — Git-friendly export/import and full rollback for platform state
+- [ ] Temporal Event Handling — Advanced logic for late-arriving events and out-of-order logs
 
 ---
 
-### 🔵 Deferred (Not Until 22.1–22.5 Are Complete)
+### 22.6 — The Reality Check (Gemini Critique Fixes)
+
+- [ ] **Fix Architectural "Ghost" Sharding** — Asynchronous Work-Stealing model for rules, plus Regex Circuit Breakers to prevent DoS.
+- [ ] **True Zero-Trust Internal Architecture** — SPIFFE-style service identity, enforced per-service RBAC, and compulsory mTLS between all internal boundaries. (Promoted from Strategic)
+- [ ] **The "Design Partner" Pilot** — Stop building infrastructure. Recruit an external Red Team/SOC Analyst to battle-test the SIEM UI with actual LOLBins.
+- [ ] **Dark-Site Leak Eradication (Backend)** — The frontend is 100% sovereign (0 leaks found in SolidJS). However, `internal/sync/engine.go` hardcodes `https://sync.oblivrashell.dev` and `internal/updater` hardcodes GitHub. These must be configurable or removed.
+- [ ] **Critical Gaps Remediation** — Implement Backpressure UI degradation, Heuristic jumpstarts for UEBA, and Kernel Anti-Tamper (Dead Man's Switch).
+
+---
+
+### 🔵 Deferred (Not Until 22.1–22.6 Are Complete)
 - [ ] Cloud log connectors (AWS CloudTrail, Okta, Azure Monitor) — `ROADMAP.md`
 - [ ] ClickHouse storage backend — `ROADMAP.md`
 - [ ] DAG-based streaming engine — `ROADMAP.md`
-- [ ] mTLS between all internal service boundaries — `ROADMAP.md`
+- [x] mTLS between all internal service boundaries — *Promoted to Phase 22.6*
 - [ ] FIPS 140-3 / ISO 27001 / SOC 2 certification programs — `BUSINESS.md`
 - [ ] **ITDR (Identity Threat Detection) (25.1)** — AD attack detection and path analysis — `ROADMAP.md`
 - [ ] **AI/LLM Security** — Monitoring for prompt injection and shadow AI usage — `ROADMAP.md`
