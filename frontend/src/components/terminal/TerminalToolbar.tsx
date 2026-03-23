@@ -1,7 +1,5 @@
 import { Component, createSignal, Show, For, onCleanup } from 'solid-js';
-import { ListCredentials } from '../../../wailsjs/go/services/VaultService';
-// @ts-ignore
-import { PushCredential, SendInput } from '../../../wailsjs/go/services/SSHService';
+import { IS_BROWSER } from '@core/context';
 
 interface TerminalToolbarProps {
     sessionId: string;
@@ -43,39 +41,38 @@ export const TerminalToolbar: Component<TerminalToolbarProps> = (props) => {
     };
 
     const loadCredentials = async () => {
-        if (loadingVault()) return; // Prevent race conditions on multiple clicks
-        
+        if (loadingVault() || IS_BROWSER) return;
         setLoadingVault(true);
         try {
-            const creds = await ListCredentials("");
-            const filtered = creds.filter((c: any) =>
-                ['password', 'token', 'api_key', 'key'].includes(c.type)
-            );
-            setCredentials(filtered);
+            const { ListCredentials } = await import('../../../wailsjs/go/services/VaultService');
+            const creds = await ListCredentials('');
+            setCredentials(creds.filter((c: any) => ['password', 'token', 'api_key', 'key'].includes(c.type)));
         } catch (e) {
-            console.error("[TOOLBAR] Failed to load credentials:", e);
-            props.onError?.("Failed to load vault credentials.");
-        } finally {
-            setLoadingVault(false);
-        }
+            console.error('[TOOLBAR] Failed to load credentials:', e);
+            props.onError?.('Failed to load vault credentials.');
+        } finally { setLoadingVault(false); }
     };
 
     const handleInject = async (credId: string) => {
+        if (IS_BROWSER) return;
         try {
+            const { PushCredential } = await import('../../../wailsjs/go/services/SSHService') as any;
             await PushCredential(props.sessionId, credId);
             setActiveMenu('none');
         } catch (e) {
-            console.error("[TOOLBAR] Injection failed:", e);
-            props.onError?.("Failed to inject credential.");
+            console.error('[TOOLBAR] Injection failed:', e);
+            props.onError?.('Failed to inject credential.');
         }
     };
 
     const sendSignal = async (signal: string) => {
+        if (IS_BROWSER) return;
         try {
+            const { SendInput } = await import('../../../wailsjs/go/services/SSHService');
             await SendInput(props.sessionId, signal);
         } catch (e) {
-            console.error("[TOOLBAR] Signal failed:", e);
-            props.onError?.("Failed to send terminal signal.");
+            console.error('[TOOLBAR] Signal failed:', e);
+            props.onError?.('Failed to send terminal signal.');
         }
     };
 

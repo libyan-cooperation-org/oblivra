@@ -1,23 +1,18 @@
 import { Component, createSignal } from 'solid-js';
-import { ClearDatabase } from '../../../wailsjs/go/services/SettingsService';
+import { IS_BROWSER } from '@core/context';
 
 export const DataDestructionTab: Component = () => {
     const [confirmText, setConfirmText] = createSignal('');
 
     const handleWipe = async () => {
-        if (confirmText() !== 'DESTROY') {
-            alert('You must type DESTROY to confirm.');
-            return;
-        }
-        if (confirm('CRITICAL WARNING: This completely wipes all local configurations, hosts, and data. Proceed?')) {
-            try {
-                await ClearDatabase();
-                alert('Data destruction complete. Reloading...');
-                window.location.reload();
-            } catch (err) {
-                alert('Destruction failed: ' + err);
-            }
-        }
+        if (confirmText() !== 'DESTROY') { alert('You must type DESTROY to confirm.'); return; }
+        if (IS_BROWSER || !confirm('CRITICAL WARNING: This completely wipes all local configurations, hosts, and data. Proceed?')) return;
+        try {
+            const { ClearDatabase } = await import('../../../wailsjs/go/services/SettingsService');
+            await ClearDatabase();
+            alert('Data destruction complete. Reloading...');
+            window.location.reload();
+        } catch (err) { alert('Destruction failed: ' + err); }
     };
 
     return (

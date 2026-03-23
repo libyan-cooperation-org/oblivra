@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
-import { GetFleetTelemetry } from '../../../wailsjs/go/services/TelemetryService';
+import { IS_BROWSER } from '@core/context';
 import { monitoring } from '../../../wailsjs/go/models';
 import '../../styles/heatmap.css';
 
@@ -9,17 +9,13 @@ const FleetHeatmap: Component = () => {
     const [loading, setLoading] = createSignal(true);
 
     const fetchTelemetry = async () => {
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
+            const { GetFleetTelemetry } = await import('../../../wailsjs/go/services/TelemetryService');
             const data = await GetFleetTelemetry();
-            if (data) {
-                setFleetData(data);
-                setLastUpdate(new Date());
-            }
-        } catch (err) {
-            console.error('Failed to fetch fleet telemetry:', err);
-        } finally {
-            setLoading(false);
-        }
+            if (data) { setFleetData(data); setLastUpdate(new Date()); }
+        } catch (err) { console.error('Failed to fetch fleet telemetry:', err); }
+        finally { setLoading(false); }
     };
 
     onMount(() => {

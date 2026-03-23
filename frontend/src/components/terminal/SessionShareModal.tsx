@@ -1,5 +1,5 @@
 import { Component, createSignal, Show, onMount, onCleanup, For } from 'solid-js';
-import { CreateShare, GetSharesBySession, RevokeShare, GetViewers } from '../../../wailsjs/go/services/ShareService';
+import { IS_BROWSER } from '@core/context';
 
 export const SessionShareModal: Component<{ sessionId: string; hostLabel: string; onClose: () => void }> = (props) => {
     const [mode, setMode] = createSignal<string>('observe');
@@ -12,27 +12,24 @@ export const SessionShareModal: Component<{ sessionId: string; hostLabel: string
     const [error, setError] = createSignal<string | null>(null);
 
     const checkExisting = async () => {
+        if (IS_BROWSER) return;
         try {
+            const { GetSharesBySession } = await import('../../../wailsjs/go/services/ShareService');
             const shares = await GetSharesBySession(props.sessionId);
             if (shares && shares.length > 0) {
-                const active = shares[0]; // Take first active for now
+                const active = shares[0];
                 setActiveShareId(active.id);
-                // We reconstruct the URL for display if we had it, or just show ID
                 setShareUrl(`sovereign://${active.id}`);
             }
-        } catch (err) {
-            console.error("Failed to check existing shares:", err);
-        }
+        } catch (err) { console.error('Failed to check existing shares:', err); }
     };
 
     const pollViewers = async () => {
-        if (!activeShareId()) return;
+        if (!activeShareId() || IS_BROWSER) return;
         try {
-            const v = await GetViewers(activeShareId()!);
-            setViewers(v || []);
-        } catch (err) {
-            console.error("Failed to poll viewers:", err);
-        }
+            const { GetViewers } = await import('../../../wailsjs/go/services/ShareService');
+            setViewers(await GetViewers(activeShareId()!) || []);
+        } catch (err) { console.error('Failed to poll viewers:', err); }
     };
 
     let pollInterval: any;
@@ -47,43 +44,29 @@ export const SessionShareModal: Component<{ sessionId: string; hostLabel: string
     });
 
     const handleCreate = async () => {
-        setLoading(true);
-        setError(null);
+        if (IS_BROWSER) return;
+        setLoading(true); setError(null);
         try {
+            const { CreateShare } = await import('../../../wailsjs/go/services/ShareService');
             const backendMode = mode() === 'collaborate' ? 'read_write' : 'observe';
-            const url = await CreateShare(
-                props.sessionId,
-                props.hostLabel,
-                backendMode,
-                "admin", // TODO: real user ID
-                expires(),
-                maxViewers()
-            );
+            const url = await CreateShare(props.sessionId, props.hostLabel, backendMode, 'admin', expires(), maxViewers());
             setShareUrl(url);
-            // Extract ID from URL sovereign://<id>?...
             const id = url.split('://')[1]?.split('?')[0];
             if (id) setActiveShareId(id);
-        } catch (err) {
-            setError(String(err));
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { setError(String(err)); }
+        finally { setLoading(false); }
     };
 
     const handleRevoke = async () => {
-        if (!activeShareId()) return;
+        if (!activeShareId() || IS_BROWSER) return;
         setLoading(true);
         try {
+            const { RevokeShare } = await import('../../../wailsjs/go/services/ShareService');
             await RevokeShare(activeShareId()!);
-            setShareUrl(null);
-            setActiveShareId(null);
-            setViewers([]);
-            alert("Session share revoked.");
-        } catch (err) {
-            setError(String(err));
-        } finally {
-            setLoading(false);
-        }
+            setShareUrl(null); setActiveShareId(null); setViewers([]);
+            alert('Session share revoked.');
+        } catch (err) { setError(String(err)); }
+        finally { setLoading(false); }
     };
 
     const handleCopy = () => {

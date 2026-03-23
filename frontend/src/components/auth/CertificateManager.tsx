@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { SSHListCertificates } from '../../../wailsjs/go/services/SecurityService';
+import { IS_BROWSER } from '@core/context';
 import { ssh } from '../../../wailsjs/go/models';
 
 export const CertificateManager: Component = () => {
@@ -8,16 +8,13 @@ export const CertificateManager: Component = () => {
     const [error, setError] = createSignal<string | null>(null);
 
     const loadCerts = async () => {
-        setLoading(true);
-        setError(null);
+        setLoading(true); setError(null);
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
-            const data = await SSHListCertificates();
-            setCerts(data || []);
-        } catch (err) {
-            setError(String(err));
-        } finally {
-            setLoading(false);
-        }
+            const { SSHListCertificates } = await import('../../../wailsjs/go/services/SecurityService');
+            setCerts(await SSHListCertificates() || []);
+        } catch (err) { setError(String(err)); }
+        finally { setLoading(false); }
     };
 
     onMount(() => {

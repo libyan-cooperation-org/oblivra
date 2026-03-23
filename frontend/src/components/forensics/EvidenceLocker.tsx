@@ -1,6 +1,6 @@
 import { Component, createSignal, For, Show, createResource, onCleanup, createEffect } from 'solid-js';
-import * as Forensics from '../../../wailsjs/go/services/ForensicsService';
-import { EventsOn } from '../../../wailsjs/runtime/runtime';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 import { ForensicView } from '../security/ForensicView';
 
 // Evidence Locker — Chain-of-Custody Forensics UI
@@ -10,20 +10,25 @@ export const EvidenceLocker: Component = () => {
     const [showForensics, setShowForensics] = createSignal(false);
 
     // Backend resources
-    const [evidence, { refetch: refetchEvidence }] = createResource(() => Forensics.ListEvidence(""));
-    const [chainEntries, { refetch: refetchChain }] = createResource(selectedItem, (id) => Forensics.GetChainOfCustody(id));
+    const [evidence, { refetch: refetchEvidence }] = createResource(async () => {
+        if (IS_BROWSER) return [];
+        const { ListEvidence } = await import('../../../wailsjs/go/services/ForensicsService');
+        return ListEvidence('');
+    });
+    const [chainEntries, { refetch: refetchChain }] = createResource(selectedItem, async (id) => {
+        if (IS_BROWSER || !id) return [];
+        const { GetChainOfCustody } = await import('../../../wailsjs/go/services/ForensicsService');
+        return GetChainOfCustody(id);
+    });
 
     // Listen for new evidence events to auto-refresh
     createEffect(() => {
-        const off1 = EventsOn('forensics:collected', () => refetchEvidence());
-        const off2 = EventsOn('forensics:sealed', () => {
+        const off1 = subscribe('forensics:collected', () => refetchEvidence());
+        const off2 = subscribe('forensics:sealed', () => {
             refetchEvidence();
             if (selectedItem()) refetchChain();
         });
-        onCleanup(() => {
-            off1();
-            off2();
-        });
+        onCleanup(() => { off1(); off2(); });
     });
 
     const typeIcon = (type: string) => {
@@ -39,16 +44,13 @@ export const EvidenceLocker: Component = () => {
     };
 
     const handleVerify = async (id: string) => {
+        if (IS_BROWSER) return;
         try {
-            const result = await Forensics.VerifyEvidence(id);
-            if (result.valid) {
-                alert(`✅ Integrity Verified: Chain for ${id} is cryptographically sound.`);
-            } else {
-                alert(`❌ INTEGRITY BREACH: Chain for ${id} has been tampered with!`);
-            }
-        } catch (e) {
-            console.error(e);
-        }
+            const { VerifyEvidence } = await import('../../../wailsjs/go/services/ForensicsService');
+            const result = await VerifyEvidence(id);
+            if (result.valid) alert(`✅ Integrity Verified: Chain for ${id} is cryptographically sound.`);
+            else alert(`❌ INTEGRITY BREACH: Chain for ${id} has been tampered with!`);
+        } catch (e) { console.error(e); }
     };
 
     return (

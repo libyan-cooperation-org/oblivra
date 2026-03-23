@@ -1,16 +1,7 @@
 import { Component, Show, For, createSignal, onMount } from 'solid-js';
 import { useApp } from '@core/store';
+import { IS_BROWSER } from '@core/context';
 import { TerminalView } from './Terminal';
-import {
-    Disconnect,
-    SendInput as SendSSHInput,
-    Resize as ResizeSSH,
-} from '../../../wailsjs/go/services/SSHService';
-import {
-    SendInput as SendLocalInput,
-    Resize as ResizeLocal,
-    CloseSession,
-} from '../../../wailsjs/go/services/LocalService';
 
 export const TerminalLayout: Component = () => {
     const [state, actions] = useApp();
@@ -29,26 +20,41 @@ export const TerminalLayout: Component = () => {
 
     const closeTab = async (session: any, e: MouseEvent) => {
         e.stopPropagation();
-        try {
-            if (isLocal(session)) await CloseSession(session.id);
-            else await Disconnect(session.id);
-        } catch (_) {}
+        if (!IS_BROWSER) {
+            try {
+                if (isLocal(session)) {
+                    const { CloseSession } = await import('../../../wailsjs/go/services/LocalService');
+                    await CloseSession(session.id);
+                } else {
+                    const { Disconnect } = await import('../../../wailsjs/go/services/SSHService');
+                    await Disconnect(session.id);
+                }
+            } catch (_) {}
+        }
         actions.removeSession(session.id);
     };
 
     const sendData = (session: any, data: string) => {
-        // UTF-8 safe base64
+        if (IS_BROWSER) return;
         const encoded = btoa(unescape(encodeURIComponent(data)));
         if (isLocal(session)) {
-            SendLocalInput(session.id, encoded).catch(() => {});
+            import('../../../wailsjs/go/services/LocalService')
+                .then(m => m.SendInput(session.id, encoded)).catch(() => {});
         } else {
-            SendSSHInput(session.id, encoded).catch(() => {});
+            import('../../../wailsjs/go/services/SSHService')
+                .then(m => m.SendInput(session.id, encoded)).catch(() => {});
         }
     };
 
     const sendResize = (session: any, cols: number, rows: number) => {
-        if (isLocal(session)) ResizeLocal(session.id, cols, rows).catch(() => {});
-        else ResizeSSH(session.id, cols, rows).catch(() => {});
+        if (IS_BROWSER) return;
+        if (isLocal(session)) {
+            import('../../../wailsjs/go/services/LocalService')
+                .then(m => m.Resize(session.id, cols, rows)).catch(() => {});
+        } else {
+            import('../../../wailsjs/go/services/SSHService')
+                .then(m => m.Resize(session.id, cols, rows)).catch(() => {});
+        }
     };
 
     return (

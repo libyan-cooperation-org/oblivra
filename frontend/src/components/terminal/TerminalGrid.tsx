@@ -4,7 +4,8 @@ import { TerminalView } from './Terminal';
 import { FileBrowser } from './FileBrowser';
 import { TerminalToolbar } from './TerminalToolbar';
 import { SessionShareModal } from './SessionShareModal';
-import { GetTotalViewers } from '../../../wailsjs/go/services/ShareService';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 import '../../styles/splitpane.css';
 
 // Tree structure for pane layout
@@ -38,7 +39,7 @@ export const TerminalGrid: Component<TerminalGridProps> = (props) => {
 
     onMount(() => {
         // Listen for system command outputs
-        const unsubscribe = (window as any).Wails.EventsOn("session.system_output", (data: any) => {
+        const unsubscribe = subscribe('session.system_output', (data: any) => {
             const { sessionId, content } = data;
             setSystemMessages(prev => {
                 const msgs = prev[sessionId] || [];
@@ -65,26 +66,19 @@ export const TerminalGrid: Component<TerminalGridProps> = (props) => {
 
     // Poll for viewer counts
     const pollViewers = async () => {
+        if (IS_BROWSER) return;
         const counts: Record<string, number> = {};
         const findSessions = (node: PaneNode) => {
-            if (node.type === 'terminal' && node.sessionId) {
-                counts[node.sessionId] = 0;
-            }
-            if (node.children) {
-                findSessions(node.children[0]);
-                findSessions(node.children[1]);
-            }
+            if (node.type === 'terminal' && node.sessionId) counts[node.sessionId] = 0;
+            if (node.children) { findSessions(node.children[0]); findSessions(node.children[1]); }
         };
         findSessions(props.layout);
-
-        for (const sid of Object.keys(counts)) {
-            try {
-                const count = await GetTotalViewers(sid);
-                counts[sid] = count;
-            } catch (e) {
-                console.error("Failed to fetch viewers for", sid, e);
+        try {
+            const { GetTotalViewers } = await import('../../../wailsjs/go/services/ShareService');
+            for (const sid of Object.keys(counts)) {
+                counts[sid] = await GetTotalViewers(sid).catch(() => 0);
             }
-        }
+        } catch { /* ignore */ }
         setViewerCounts(counts);
     };
 

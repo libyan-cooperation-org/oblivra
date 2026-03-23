@@ -1,8 +1,6 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { CertificateManager } from '../auth/CertificateManager';
-// Wails bindings
-import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
-import { CheckForUpdate, ApplyUpdate } from '../../../wailsjs/go/services/UpdaterService';
+import { IS_BROWSER } from '@core/context';
 import { AttestationTab } from './AttestationTab';
 import { TemporalTab } from './TemporalTab';
 import { DataDestructionTab } from './DataDestructionTab';
@@ -34,32 +32,29 @@ export const SettingsManager: Component = () => {
     const [checkingUpdate, setCheckingUpdate] = createSignal(false);
 
     const loadObservability = async () => {
+        if (IS_BROWSER) return;
         try {
-            const h = await GetAllHealth();
-            setHealth((h || {}) as Record<string, HealthInfo>);
-        } catch (err) {
-            console.error('Failed to load observability data:', err);
-        }
+            const { GetAllHealth } = await import('../../../wailsjs/go/services/HealthService');
+            setHealth((await GetAllHealth() || {}) as Record<string, HealthInfo>);
+        } catch (err) { console.error('Failed to load observability data:', err); }
     };
 
     const handleCheckUpdate = async () => {
+        if (IS_BROWSER) return;
         setCheckingUpdate(true);
         try {
-            const info = await CheckForUpdate();
-            setUpdateInfo(info);
-        } catch (err) {
-            console.error('Failed update check', err);
-        } finally {
-            setCheckingUpdate(false);
-        }
+            const { CheckForUpdate } = await import('../../../wailsjs/go/services/UpdaterService');
+            setUpdateInfo(await CheckForUpdate());
+        } catch (err) { console.error('Failed update check', err); }
+        finally { setCheckingUpdate(false); }
     };
 
     const handleApplyUpdate = async () => {
+        if (IS_BROWSER) return;
         try {
+            const { ApplyUpdate } = await import('../../../wailsjs/go/services/UpdaterService');
             await ApplyUpdate();
-        } catch (err) {
-            console.error('Failed to apply update', err);
-        }
+        } catch (err) { console.error('Failed to apply update', err); }
     };
 
 

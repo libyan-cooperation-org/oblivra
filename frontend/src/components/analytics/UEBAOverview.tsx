@@ -1,6 +1,6 @@
 // UEBAOverview.tsx — Phase 10 Web: entity analytics and risk visualization
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import * as UEBAService from '../../../wailsjs/go/services/UEBAService';
+import { IS_BROWSER } from '@core/context';
 
 export const UEBAOverview: Component = () => {
     const [profiles, setProfiles] = createSignal<any[]>([]);
@@ -10,9 +10,10 @@ export const UEBAOverview: Component = () => {
     const [filter, setFilter] = createSignal('');
 
     onMount(async () => {
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
-            const data = await (UEBAService as any).GetProfiles();
-            setProfiles(data ?? []);
+            const { GetProfiles } = await import('../../../wailsjs/go/services/UEBAService');
+            setProfiles(await (GetProfiles as any)() ?? []);
         } catch { setProfiles([]); }
         setLoading(false);
     });

@@ -688,7 +688,7 @@
 
 - [x] **Purge node_modules from git** — `git rm -r --ignore-unmatch --cached frontend-web/node_modules`; 10k tracked files killing clone time and CI (COMPLETED)
 - [ ] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
-- [ ] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports (partially fixed 2026-03-23)
+- [x] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards + dynamic `import()` on all 45 Wails-importing files. Build: `✓ 673 modules, 7.06s`. (COMPLETED 2026-03-23)
 
 ---
 
@@ -783,7 +783,20 @@
 
 ---
 
-### 🔵 Deferred (Not Until 22.1–22.6 Are Complete)
+### 22.7 — The "Nation-State" Threat Model (Extreme Hardening)
+
+> **Context**: Standard enterprise security controls are insufficient for a Sovereign SIEM. Assume the attacker has root on 30% of your fleet, hypervisor introspection, and compromised one of your SIEM admins.
+
+- [ ] **Kernel-Level Anti-Tamper (eBPF Keepalive)** — The Linux agent must enforce `PR_SET_DUMPABLE=0`, `mlockall`, and send cryptographic heartbeats. If the process is sent SIGKILL by root, the server must trip a "Dead Man's Switch" critical alert.
+- [ ] **Cryptographic Log Provenance (TPM/Secure Enclave)** — mTLS only proves connection origin. Every event batch must be cryptographically signed by the originating asset's hardware root of trust. Reject unsigned batches to prevent "Poisoned Well" log forging by a compromised root user.
+- [ ] **Secure Memory Allocation (`memguard`)** — Go's GC leaves decrypted PII, passwords, and tokens in RAM until overwritten, vulnerable to `/proc/kcore` extraction or hypervisor snapshots. Sensitive event buffers must be stored in locked memory enclaves and zeroed instantly upon GC bypass.
+- [ ] **WORM Storage & M-of-N Authorization** — Prevent "God Mode" admin tampering. Destructive SIEM actions (purging logs, deleting tenants) MUST require cryptographic multi-party authorization (e.g., 2 out of 3 senior admins approve via FIDO2 token within 15 minutes).
+- [ ] **Hermetic Builds & Dependency Firewall** — Generating an SBOM is passive. Enforce `-mod=vendor` for all builds. No new third-party dependency can be merged without a manual cryptographic hash verification of the upstream source (SLSA Level 4). 
+- [ ] **Dynamic EPS Quotas** — Auto-quarantine flooded agents to a "sin bin" shard to prevent ingestion starvation.
+
+---
+
+### 🔵 Deferred (Not Until 22.1–22.7 Are Complete)
 - [ ] Cloud log connectors (AWS CloudTrail, Okta, Azure Monitor) — `ROADMAP.md`
 - [ ] ClickHouse storage backend — `ROADMAP.md`
 - [ ] DAG-based streaming engine — `ROADMAP.md`

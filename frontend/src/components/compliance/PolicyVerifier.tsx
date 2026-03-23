@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetRuleVerifications } from '../../../wailsjs/go/services/AlertingService';
+import { IS_BROWSER } from '@core/context';
 import { detection } from '../../../wailsjs/go/models';
 
 export const PolicyVerifier: Component = () => {
@@ -11,14 +11,12 @@ export const PolicyVerifier: Component = () => {
     });
 
     const loadVerdicts = async () => {
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
-            const results = await GetRuleVerifications();
-            setVerdicts(results || []);
-        } catch (error) {
-            console.error("Failed to load rule verifications", error);
-        } finally {
-            setLoading(false);
-        }
+            const { GetRuleVerifications } = await import('../../../wailsjs/go/services/AlertingService');
+            setVerdicts(await GetRuleVerifications() || []);
+        } catch (error) { console.error('Failed to load rule verifications', error); }
+        finally { setLoading(false); }
     };
 
     return (

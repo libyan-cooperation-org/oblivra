@@ -1,12 +1,5 @@
 import { Component, createSignal, onMount, For, Show, createResource } from 'solid-js';
-import {
-    GenerateReport,
-    ListReports,
-    ListCompliancePacks,
-    EvaluatePack,
-    ExportReportPDF
-} from '../../../wailsjs/go/services/ComplianceService';
-import { GetBiasLogs } from '../../../wailsjs/go/services/GovernanceService';
+import { IS_BROWSER } from '@core/context';
 import { compliance } from '../../../wailsjs/go/models';
 import { EmptyState } from '../ui/EmptyState';
 import { PolicyVerifier } from './PolicyVerifier';
@@ -22,69 +15,61 @@ export const ComplianceCenter: Component = () => {
     const [reportType, setReportType] = createSignal('soc2');
 
     // Governance State
-    const [packs] = createResource(ListCompliancePacks);
+    const [packs] = createResource(async () => {
+        if (IS_BROWSER) return [];
+        const { ListCompliancePacks } = await import('../../../wailsjs/go/services/ComplianceService');
+        return ListCompliancePacks();
+    });
     const [evalResults, setEvalResults] = createSignal<Record<string, compliance.PackResult>>({});
-    // evaluating is unused, removing
     const [biasLogs, { refetch: refetchBiasLogs }] = createResource(async () => {
+        if (IS_BROWSER) return [];
         try {
+            const { GetBiasLogs } = await import('../../../wailsjs/go/services/GovernanceService');
             return await GetBiasLogs();
-        } catch (e) {
-            return [];
-        }
+        } catch { return []; }
     });
 
     const loadReports = async () => {
         setLoading(true);
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
+            const { ListReports } = await import('../../../wailsjs/go/services/ComplianceService');
             const res = await ListReports();
             setReports(res || []);
-            if (res && res.length > 0 && !selectedReport()) {
-                setSelectedReport(res[0]);
-            }
-        } catch (err) {
-            console.error("Failed to list reports:", err);
-        } finally {
-            setLoading(false);
-        }
+            if (res && res.length > 0 && !selectedReport()) setSelectedReport(res[0]);
+        } catch (err) { console.error('Failed to list reports:', err); }
+        finally { setLoading(false); }
     };
 
     const handleGenerate = async () => {
+        if (IS_BROWSER) return;
         setGenerating(true);
         try {
+            const { GenerateReport } = await import('../../../wailsjs/go/services/ComplianceService');
             const end = Math.floor(Date.now() / 1000);
             const start = end - (30 * 24 * 60 * 60);
             const report = await GenerateReport(reportType(), start, end);
-            if (report) {
-                setReports([report, ...reports()]);
-                setSelectedReport(report);
-            }
-        } catch (err) {
-            console.error("Report generation failed:", err);
-        } finally {
-            setGenerating(false);
-        }
+            if (report) { setReports([report, ...reports()]); setSelectedReport(report); }
+        } catch (err) { console.error('Report generation failed:', err); }
+        finally { setGenerating(false); }
     };
 
     const handleEvaluate = async (packId: string) => {
+        if (IS_BROWSER) return;
         try {
-            const result = await EvaluatePack(packId);
-            setEvalResults(prev => ({ ...prev, [packId]: result }));
-        } catch (err) {
-            console.error(`Evaluation failed for ${packId}:`, err);
-        } finally {
-            // setEvaluating(null);
-        }
+            const { EvaluatePack } = await import('../../../wailsjs/go/services/ComplianceService');
+            setEvalResults(prev => ({ ...prev, [packId]: await EvaluatePack(packId) }));
+        } catch (err) { console.error(`Evaluation failed for ${packId}:`, err); }
     };
 
     const handleExportPDF = async (report: compliance.ComplianceReport) => {
+        if (IS_BROWSER) return;
         try {
+            const { ExportReportPDF } = await import('../../../wailsjs/go/services/ComplianceService');
             const start = Math.floor(new Date(report.period_start.toString()).getTime() / 1000);
             const end = Math.floor(new Date(report.period_end.toString()).getTime() / 1000);
-            const path = await ExportReportPDF(report.type, start, end);
-            alert(`Report exported to: ${path}`);
-        } catch (err) {
-            console.error("PDF export failed:", err);
-        }
+            alert(`Report exported to: ${await ExportReportPDF(report.type, start, end)}`);
+        } catch (err) { console.error('PDF export failed:', err); }
     };
 
     onMount(() => {

@@ -1,6 +1,6 @@
 // PlaybookEngineUI.tsx — Phase 8 Web: visual automation builder
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import * as PlaybookService from '../../../wailsjs/go/services/PlaybookService';
+import { IS_BROWSER } from '@core/context';
 
 interface Step {
     id: string;
@@ -25,9 +25,10 @@ export const PlaybookEngineUI: Component = () => {
     const [dragging, setDragging] = createSignal<number | null>(null);
 
     onMount(async () => {
+        if (IS_BROWSER) return;
         try {
-            const actions = await (PlaybookService as any).ListAvailableActions();
-            setAvailableActions(actions ?? []);
+            const { ListAvailableActions } = await import('../../../wailsjs/go/services/PlaybookService') as any;
+            setAvailableActions(await ListAvailableActions() ?? []);
         } catch { }
     });
 
@@ -62,8 +63,8 @@ export const PlaybookEngineUI: Component = () => {
         setResult('');
         try {
             const playbookID = name() || 'custom-playbook';
-            // RunPlaybook(ctx, playbookID, incidentID)
-            await (PlaybookService as any).RunPlaybook('', playbookID, targetIncident());
+            const { RunPlaybook } = await import('../../../wailsjs/go/services/PlaybookService') as any;
+            await RunPlaybook('', playbookID, targetIncident());
             setResult(`✓ Playbook "${playbookID}" executed against incident ${targetIncident()}`);
         } catch (e: any) {
             setResult('✗ ' + (e?.message ?? e));

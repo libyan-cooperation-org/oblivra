@@ -1,16 +1,7 @@
 import { Component, createSignal, createEffect, For, Show, onCleanup } from 'solid-js';
-import {
-    ListDirectory,
-    Mkdir,
-    Rename,
-    Remove,
-    Download,
-    Upload,
-    ReadFile,
-    WriteFile,
-} from '../../../wailsjs/go/services/FileService';
 import { services } from '../../../wailsjs/go/models';
 import { useApp } from '../../core/store';
+import { IS_BROWSER } from '@core/context';
 import { FolderDiff } from './FolderDiff';
 import '../../styles/filebrowser.css';
 
@@ -36,15 +27,16 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
         return session?.hostId === 'local';
     };
 
+    const fs = () => import('../../../wailsjs/go/services/FileService');
     const provider = {
-        list: (path: string) => ListDirectory(props.sessionId, path),
-        mkdir: (path: string) => Mkdir(props.sessionId, path),
-        rename: (old: string, next: string) => Rename(props.sessionId, old, next),
-        remove: (path: string) => Remove(props.sessionId, path),
-        download: (sessionId: string, path: string, dest: string, size: number) => Download(sessionId, path, dest, size),
-        upload: (sessionId: string, local: string, dest: string) => Upload(sessionId, local, dest),
-        readFile: (path: string) => ReadFile(props.sessionId, path),
-        writeFile: (path: string, content: string) => WriteFile(props.sessionId, path, content),
+        list:      (path: string) => fs().then(m => m.ListDirectory(props.sessionId, path)),
+        mkdir:     (path: string) => fs().then(m => m.Mkdir(props.sessionId, path)),
+        rename:    (old: string, next: string) => fs().then(m => m.Rename(props.sessionId, old, next)),
+        remove:    (path: string) => fs().then(m => m.Remove(props.sessionId, path)),
+        download:  (sid: string, path: string, dest: string, size: number) => fs().then(m => m.Download(sid, path, dest, size)),
+        upload:    (sid: string, local: string, dest: string) => fs().then(m => m.Upload(sid, local, dest)),
+        readFile:  (path: string) => fs().then(m => m.ReadFile(props.sessionId, path)),
+        writeFile: (path: string, content: string) => fs().then(m => m.WriteFile(props.sessionId, path, content)),
     };
 
     const loadDirectory = async (path: string) => {
@@ -83,10 +75,11 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
     };
 
     const handleDownload = async (item: services.FileInfo) => {
-        if (item.is_dir) return;
+        if (item.is_dir || IS_BROWSER) return;
         try {
-            // @ts-ignore
-            const localPath = await window.runtime.SaveFileDialog({
+            const rt = (window as any).runtime;
+            if (!rt) return;
+            const localPath = await rt.SaveFileDialog({
                 Title: `Save ${item.name}`,
                 DefaultFilename: item.name
             });
@@ -114,11 +107,11 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
     };
 
     const handleUpload = async () => {
+        if (IS_BROWSER) return;
         try {
-            // @ts-ignore
-            const filePaths = await window.runtime.OpenFileDialog({
-                Title: 'Select File to Upload'
-            });
+            const rt = (window as any).runtime;
+            if (!rt) return;
+            const filePaths = await rt.OpenFileDialog({ Title: 'Select File to Upload' });
             if (!filePaths || (Array.isArray(filePaths) && filePaths.length === 0)) return;
 
             const localPath = Array.isArray(filePaths) ? filePaths[0] : filePaths;
@@ -245,6 +238,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
     const onDrop = async (e: DragEvent) => {
         e.preventDefault();
         setIsOver(false);
+        if (IS_BROWSER) return;
         const rawData = e.dataTransfer?.getData('application/oblivra-file');
         if (!rawData) return;
 
@@ -269,6 +263,7 @@ export const FileBrowser: Component<FileBrowserProps> = (props) => {
                     size: source.size || 0
                 });
             } else if (!source.isLocal && isLocal()) {
+                const { Download } = await import('../../../wailsjs/go/services/FileService');
                 const jobID = await Download(source.sessionId, source.path, destPath, source.size || 0);
                 actions.notify(`Starting download: ${source.name}`, 'info');
                 actions.updateTransfer({

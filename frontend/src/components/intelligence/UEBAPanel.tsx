@@ -1,7 +1,6 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { EventsOn } from '../../../wailsjs/runtime/runtime';
-import * as UEBAService from '../../../wailsjs/go/services/UEBAService';
-import * as GovernanceService from '../../../wailsjs/go/services/GovernanceService';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 import { ueba } from '../../../wailsjs/go/models';
 
 export const UEBAPanel: Component = () => {
@@ -10,22 +9,19 @@ export const UEBAPanel: Component = () => {
     const [anomalies, setAnomalies] = createSignal<any[]>([]);
 
     onMount(async () => {
-        // Initial load
-        const initial = await UEBAService.GetProfiles();
-        setProfiles(initial || []);
+        if (IS_BROWSER) return;
+        const { GetProfiles } = await import('../../../wailsjs/go/services/UEBAService');
+        setProfiles(await GetProfiles() || []);
 
-        // Listen for real-time anomalies
-        EventsOn('siem:anomaly', (data: any) => {
-            console.log('UEBA Anomaly Detected:', data);
+        subscribe('siem:anomaly', (data: any) => {
             setAnomalies(prev => [data, ...prev].slice(0, 50));
-            // Refresh profiles on anomaly
-            UEBAService.GetProfiles().then(setProfiles);
+            import('../../../wailsjs/go/services/UEBAService')
+                .then(m => m.GetProfiles()).then(p => setProfiles(p || []));
         });
 
-        // Periodic refresh
         const interval = setInterval(async () => {
-            const updated = await UEBAService.GetProfiles();
-            setProfiles(updated || []);
+            const { GetProfiles: gp } = await import('../../../wailsjs/go/services/UEBAService');
+            setProfiles(await gp() || []);
         }, 10000);
 
         return () => clearInterval(interval);
@@ -149,7 +145,7 @@ export const UEBAPanel: Component = () => {
                                                         )}
                                                     </For>
                                                 </div>
-                                                <button class="fp-button" onClick={() => GovernanceService.MarkFalsePositive(anomaly.entity_id, "User observation", anomaly.evidence)}>
+                                                <button class="fp-button" onClick={() => { if (!IS_BROWSER) import('../../../wailsjs/go/services/GovernanceService').then(m => m.MarkFalsePositive(anomaly.entity_id, 'User observation', anomaly.evidence)); }}>
                                                     MARK FALSE POSITIVE
                                                 </button>
                                             </div>

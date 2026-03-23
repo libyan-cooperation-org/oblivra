@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetLiveTraffic } from '../../../wailsjs/go/services/NDRService';
+import { IS_BROWSER } from '@core/context';
 
 interface Flow {
     timestamp: string;
@@ -18,7 +18,9 @@ export const NetworkMap: Component = () => {
     const [anomalies, setAnomalies] = createSignal<any[]>([]);
 
     onMount(async () => {
+        if (IS_BROWSER) return;
         try {
+            const { GetLiveTraffic } = await import('../../../wailsjs/go/services/NDRService');
             const data = await GetLiveTraffic();
             setFlows(data || []);
 

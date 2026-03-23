@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/services/IncidentService';
+import { IS_BROWSER } from '@core/context';
 import { database } from '../../../wailsjs/go/models';
 import { PlaybookBuilder } from './PlaybookBuilder';
 
@@ -9,26 +9,23 @@ export const CommandCenter: Component = () => {
     const [loading, setLoading] = createSignal(true);
 
     onMount(async () => {
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
-            const list = await ListIncidents(null as any, "", "", 50);
-            setIncidents(list || []);
-        } catch (err) {
-            console.error("Failed to load incidents:", err);
-        } finally {
-            setLoading(false);
-        }
+            const { ListIncidents } = await import('../../../wailsjs/go/services/IncidentService');
+            setIncidents(await ListIncidents(null as any, '', '', 50) || []);
+        } catch (err) { console.error('Failed to load incidents:', err); }
+        finally { setLoading(false); }
     });
 
     const selectedIncident = () => incidents().find(i => i.id === selectedId());
 
     const handleUpdateStatus = async (id: string, status: string) => {
+        if (IS_BROWSER) return;
         try {
-            await UpdateIncidentStatus(null as any, id, status, "Manual update from Command Center");
-            const updated = await ListIncidents(null as any, "", "", 50);
-            setIncidents(updated || []);
-        } catch (err) {
-            console.error("Failed to update status:", err);
-        }
+            const { ListIncidents, UpdateIncidentStatus } = await import('../../../wailsjs/go/services/IncidentService');
+            await UpdateIncidentStatus(null as any, id, status, 'Manual update from Command Center');
+            setIncidents(await ListIncidents(null as any, '', '', 50) || []);
+        } catch (err) { console.error('Failed to update status:', err); }
     };
 
     return (
