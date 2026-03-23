@@ -57,6 +57,7 @@ type RESTServer struct {
 	escalation *notifications.EscalationManager
 	matchEngine *threatintel.MatchEngine
 	agents   map[string]*AgentInfo // registered agent fleet
+	agentsMu sync.RWMutex           // protects agents map
 	limiter  *rate.Limiter
 	upgrader websocket.Upgrader
 
@@ -211,6 +212,47 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	mux.HandleFunc("/api/v1/audit/log", s.handleAuditLog)
 	mux.HandleFunc("/api/v1/audit/packages", s.handleAuditPackages)
 	mux.HandleFunc("/api/v1/audit/packages/generate", s.handleAuditPackageGenerate)
+
+	// User/Role management endpoints (Phase 12)
+	mux.HandleFunc("/api/v1/users", s.handleUsers)
+	mux.HandleFunc("/api/v1/roles", s.handleRoles)
+
+	// UEBA endpoints (Phase 10)
+	mux.HandleFunc("/api/v1/ueba/profiles", s.handleUEBAProfiles)
+	mux.HandleFunc("/api/v1/ueba/anomalies", s.handleUEBAAnomalies)
+	mux.HandleFunc("/api/v1/ueba/stats", s.handleUEBAStats)
+
+	// NDR endpoints (Phase 11)
+	mux.HandleFunc("/api/v1/ndr/flows", s.handleNDRFlows)
+	mux.HandleFunc("/api/v1/ndr/alerts", s.handleNDRAlerts)
+	mux.HandleFunc("/api/v1/ndr/protocols", s.handleNDRProtocols)
+
+	// Ransomware endpoints (Phase 9)
+	mux.HandleFunc("/api/v1/ransomware/events", s.handleRansomwareEvents)
+	mux.HandleFunc("/api/v1/ransomware/hosts", s.handleRansomwareHosts)
+	mux.HandleFunc("/api/v1/ransomware/stats", s.handleRansomwareStats)
+	mux.HandleFunc("/api/v1/ransomware/isolate", s.handleRansomwareIsolate)
+
+	// Playbook endpoints (Phase 8)
+	mux.HandleFunc("/api/v1/playbooks", s.handlePlaybooks)
+	mux.HandleFunc("/api/v1/playbooks/actions", s.handlePlaybookActions)
+	mux.HandleFunc("/api/v1/playbooks/run", s.handlePlaybookRun)
+	mux.HandleFunc("/api/v1/playbooks/metrics", s.handlePlaybookMetrics)
+
+	// Agent endpoints (fleet management)
+	mux.HandleFunc("/api/v1/agents", s.handleAgentsList)
+
+	// Fusion Engine endpoints (Phase 10.6)
+	mux.HandleFunc("/api/v1/fusion/campaigns", s.handleFusionCampaigns)
+	mux.HandleFunc("/api/v1/fusion/campaigns/", s.handleFusionCampaignDetail)
+
+	// Peer Analytics endpoints (Phase 10.5)
+	mux.HandleFunc("/api/v1/ueba/peer-groups", s.handlePeerGroups)
+	mux.HandleFunc("/api/v1/ueba/peer-deviations", s.handlePeerDeviations)
+
+	// Agentless collectors status (Phase 7.5)
+	mux.HandleFunc("/api/v1/agentless/status", s.handleAgentlessStatus)
+	mux.HandleFunc("/api/v1/agentless/collectors", s.handleAgentlessCollectors)
 
 	var handler http.Handler = mux
 

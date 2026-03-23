@@ -241,3 +241,56 @@ func TestParseSigmaMitreTags(t *testing.T) {
 		t.Errorf("expected T1003.001 in techniques: %v", techniques)
 	}
 }
+
+func TestTranspileSigma_CountBy(t *testing.T) {
+	yaml := []byte(`
+title: Brute Force Detection
+id: bf-001
+level: high
+logsource:
+  category: authentication
+detection:
+  selection:
+    EventType: 'failed_login'
+  condition: selection | count() by SourceIp > 5
+timeframe: 5m
+`)
+	rule, err := TranspileSigma(yaml)
+	if err != nil {
+		t.Fatalf("TranspileSigma: %v", err)
+	}
+	if rule.Type != FrequencyRule {
+		t.Errorf("expected FrequencyRule, got %v", rule.Type)
+	}
+	if rule.Threshold != 5 {
+		t.Errorf("expected threshold 5, got %d", rule.Threshold)
+	}
+	if len(rule.GroupBy) == 0 || rule.GroupBy[0] != "source_ip" {
+		t.Errorf("expected GroupBy=[source_ip], got %v", rule.GroupBy)
+	}
+}
+
+func TestTranspileSigma_CountByNoField(t *testing.T) {
+	yaml := []byte(`
+title: Mass File Rename
+id: mfr-001
+level: critical
+logsource:
+  category: file_event
+detection:
+  selection:
+    EventType: 'mass_rename'
+  condition: selection | count() > 100
+timeframe: 1m
+`)
+	rule, err := TranspileSigma(yaml)
+	if err != nil {
+		t.Fatalf("TranspileSigma: %v", err)
+	}
+	if rule.Type != FrequencyRule {
+		t.Errorf("expected FrequencyRule, got %v", rule.Type)
+	}
+	if rule.Threshold != 100 {
+		t.Errorf("expected threshold 100, got %d", rule.Threshold)
+	}
+}

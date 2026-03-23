@@ -68,10 +68,12 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 
 	// Update agent last-seen from the host field
 	if providedHost != "" {
+		s.agentsMu.Lock()
 		if agent, ok := s.agents[providedHost]; ok {
 			agent.LastSeen = time.Now().Format(time.RFC3339)
 			agent.Status = "online"
 		}
+		s.agentsMu.Unlock()
 	}
 
 	// Forward events to SIEM store
@@ -128,6 +130,7 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	s.agentsMu.Lock()
 	s.agents[reg.Hostname] = &AgentInfo{
 		ID:         reg.ID,
 		Hostname:   reg.Hostname,
@@ -138,6 +141,7 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		LastSeen:   time.Now().Format(time.RFC3339),
 		Status:     "online",
 	}
+	s.agentsMu.Unlock()
 
 	s.log.Info("[Agent] Registered agent %s (%s/%s) v%s with collectors: %v",
 		reg.Hostname, reg.OS, reg.Arch, reg.Version, reg.Collectors)
@@ -165,6 +169,7 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark agents as degraded/offline based on last_seen
+	s.agentsMu.Lock()
 	now := time.Now()
 	for _, agent := range s.agents {
 		ts, _ := time.Parse(time.RFC3339, agent.LastSeen)
@@ -178,11 +183,11 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 			agent.Status = "offline"
 		}
 	}
-
 	fleet := make([]*AgentInfo, 0, len(s.agents))
 	for _, agent := range s.agents {
 		fleet = append(fleet, agent)
 	}
+	s.agentsMu.Unlock()
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"total":  len(fleet),

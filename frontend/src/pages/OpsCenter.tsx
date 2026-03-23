@@ -3,11 +3,7 @@ import { LogDetail } from '../components/analytics/LogDetail';
 import { OQLDashboard } from './OQLDashboard';
 import { FusionDashboard } from './FusionDashboard';
 import { SourcesPanel } from '../components/ops/SourcesPanel';
-import { SearchLogs, RunOsquery } from '../../wailsjs/go/services/AnalyticsService';
-import {
-    GetOsqueryTemplates, GetTriggers, AddTrigger, RemoveTrigger,
-    GetAlertHistory, UpdateNotificationConfig, GetNotificationConfig, TestNotification
-} from '../../wailsjs/go/services/AlertingService';
+import { IS_BROWSER } from '../core/context';
 import { FleetDashboard } from '../components/fleet/FleetDashboard';
 import { AgentConsole } from '../components/fleet/AgentConsole';
 import { analytics, notifications, osquery } from '../../wailsjs/go/models';
@@ -60,19 +56,18 @@ export const OpsCenter: Component = () => {
     const [dashboardMode, setDashboardMode] = createSignal<'telemetry' | 'analytics'>('telemetry');
 
     const loadTemplates = async () => {
+        if (IS_BROWSER) return;
         try {
-            const t = await GetOsqueryTemplates();
-            setTemplates(t || []);
+            const { GetOsqueryTemplates } = await import('../../wailsjs/go/services/AlertingService');
+            setTemplates(await GetOsqueryTemplates() || []);
         } catch { /* ignore */ }
     };
 
     const loadAlerts = async () => {
+        if (IS_BROWSER) return;
         try {
-            const [trigs, history, config] = await Promise.all([
-                GetTriggers(),
-                GetAlertHistory(),
-                GetNotificationConfig()
-            ]);
+            const { GetTriggers, GetAlertHistory, GetNotificationConfig } = await import('../../wailsjs/go/services/AlertingService');
+            const [trigs, history, config] = await Promise.all([GetTriggers(), GetAlertHistory(), GetNotificationConfig()]);
             setTriggers(trigs || []);
             setAlertHistory((history as unknown as AlertHistoryEvent[]) || []);
             setNotifConfig(config || {});
@@ -87,29 +82,22 @@ export const OpsCenter: Component = () => {
     };
 
     const runSearch = async (isLoadMore = false) => {
-        if (!isLoadMore) {
-            setOffset(0);
-        }
-        setLoading(true);
-        setError(null);
+        if (!isLoadMore) setOffset(0);
+        setLoading(true); setError(null);
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
+            const { SearchLogs, RunOsquery } = await import('../../wailsjs/go/services/AnalyticsService');
             if (mode() === 'osquery') {
-                const res = await RunOsquery(query());
-                setResults(res || []);
+                setResults(await RunOsquery(query()) || []);
             } else {
                 const res = await SearchLogs(query(), mode(), limit(), offset());
-                if (isLoadMore) {
-                    setResults(prev => [...prev, ...(res || [])]);
-                } else {
-                    setResults(res || []);
-                }
+                if (isLoadMore) setResults(prev => [...prev, ...(res || [])]);
+                else setResults(res || []);
             }
         } catch (err: unknown) {
             setError(err instanceof Error ? (err as Error).message : String(err));
             if (!isLoadMore) setResults([]);
-        } finally {
-            setLoading(false);
-        }
+        } finally { setLoading(false); }
     };
 
     const addFilter = (key: string, value: string, operator: '=' | '!=') => {
@@ -126,25 +114,21 @@ export const OpsCenter: Component = () => {
     };
 
     const handleAddTrigger = async () => {
-        if (!newTriggerName() || !newTriggerPattern()) return;
+        if (!newTriggerName() || !newTriggerPattern() || IS_BROWSER) return;
         const id = 'custom-' + Date.now();
         try {
+            const { AddTrigger } = await import('../../wailsjs/go/services/AlertingService');
             await AddTrigger(id, newTriggerName(), newTriggerPattern(), newTriggerSeverity());
-            setNewTriggerName('');
-            setNewTriggerPattern('');
-            loadAlerts();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? (e as Error).message : String(e));
-        }
+            setNewTriggerName(''); setNewTriggerPattern(''); loadAlerts();
+        } catch (e: unknown) { setError(e instanceof Error ? (e as Error).message : String(e)); }
     };
 
     const handleRemoveTrigger = async (id: string) => {
+        if (IS_BROWSER) return;
         try {
-            await RemoveTrigger(id);
-            loadAlerts();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? (e as Error).message : String(e));
-        }
+            const { RemoveTrigger } = await import('../../wailsjs/go/services/AlertingService');
+            await RemoveTrigger(id); loadAlerts();
+        } catch (e: unknown) { setError(e instanceof Error ? (e as Error).message : String(e)); }
     };
 
     const updateCfg = (key: keyof notifications.NotificationConfig, value: string | number | boolean) => {
@@ -153,20 +137,20 @@ export const OpsCenter: Component = () => {
     };
 
     const saveNotifConfig = async () => {
+        if (IS_BROWSER) return;
         try {
+            const { UpdateNotificationConfig } = await import('../../wailsjs/go/services/AlertingService');
             await UpdateNotificationConfig(notifConfig() as notifications.NotificationConfig);
             setConfigDirty(false);
-        } catch (e: unknown) {
-            setError(e instanceof Error ? (e as Error).message : String(e));
-        }
+        } catch (e: unknown) { setError(e instanceof Error ? (e as Error).message : String(e)); }
     };
 
     const testNotif = async () => {
+        if (IS_BROWSER) return;
         try {
+            const { TestNotification } = await import('../../wailsjs/go/services/AlertingService');
             await TestNotification();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? (e as Error).message : String(e));
-        }
+        } catch (e: unknown) { setError(e instanceof Error ? (e as Error).message : String(e)); }
     };
 
     return (

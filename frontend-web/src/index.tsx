@@ -26,6 +26,11 @@ const PlaybookBuilder     = lazy(() => import('./pages/PlaybookBuilder'));
 const UEBADashboard       = lazy(() => import('./pages/UEBADashboard'));
 const NDRDashboard        = lazy(() => import('./pages/NDRDashboard'));
 const RansomwareCenter    = lazy(() => import('./pages/RansomwareCenter'));
+const RegulatorPortal     = lazy(() => import('./pages/RegulatorPortal'));
+const EvidenceVault       = lazy(() => import('./pages/EvidenceVault'));
+const PlaybookMetrics     = lazy(() => import('./pages/PlaybookMetrics'));
+const PeerAnalytics       = lazy(() => import('./pages/PeerAnalytics'));
+const FusionDashboard     = lazy(() => import('./pages/FusionDashboard'));
 
 // ── ContextRoute wrapper factory ──────────────────────────────────────────────
 // Returns a component that renders the target page only in the correct context.
@@ -65,5 +70,10 @@ render(() => (
     <Route path="/ueba"              component={guard('any', UEBADashboard)} />
     <Route path="/ndr"               component={guard('any', NDRDashboard)} />
     <Route path="/ransomware"        component={guard('any', RansomwareCenter)} />
+    <Route path="/regulator"          component={guard('web', RegulatorPortal)} />
+    <Route path="/evidence"           component={guard('any', EvidenceVault)} />
+    <Route path="/playbook-metrics"   component={guard('any', PlaybookMetrics)} />
+    <Route path="/peer-analytics"     component={guard('any', PeerAnalytics)} />
+    <Route path="/fusion"             component={guard('any', FusionDashboard)} />
   </Router>
 ), root!);

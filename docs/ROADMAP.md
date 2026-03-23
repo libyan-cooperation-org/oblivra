@@ -1,17 +1,32 @@
 # OBLIVRA — LONG-TERM ROADMAP
 
-## Phase 12: Enterprise Depth (Scale & Cluster)
-- [ ] **Clustered Ingestion (Load Balancing)**:
-    - [ ] `IngestProxy` (Nginx/Envoy based) for incoming syslog/agent/HTTP traffic
-    - [ ] Shared state via `etcd` or `consul` for configuration syncing
-- [ ] **Distributed Query Header**:
-    - [ ] Federated search across multiple BadgerDB instances
-- [ ] **Storage Lifecycle Policy Manager**:
-    - [ ] Auto-move buckets from Hot (SSD) to Cold (HDD/S3) storage after N days
-- [ ] **Multi-Tenant Authorization (RBAC Hardening)**:
-    - [ ] Scoped query visibility (User A can only see logs from Source X)
-- [ ] **High Availability (HA) Control Plane**:
-    - [ ] Database replication (streaming) for non-event data (cases, users, vault)
+Phase 12: Enterprise (Months 58–63)
+
+    Multi-tenancy with data partitioning 🌐 [Web Only]
+    HA clustering (Raft consensus) — internal/cluster/, cluster_service.go 🌐 [Web Only]
+    Advanced RBAC & Identity Integration
+        User & Role database models (internal/database/users.go, migration v12) 🌐 [Web Only]
+        OIDC/OAuth2 provider (internal/auth/oidc.go) 🌐 [Web Only]
+        SAML 2.0 Service Provider (internal/auth/saml.go) 🌐 [Web Only]
+        TOTP MFA module (internal/auth/mfa.go) 🌐 [Web Only]
+        Granular RBAC engine (internal/auth/rbac.go) 🌐 [Web Only]
+        IdentityService — user CRUD, local login, MFA, RBAC checking (identity_service.go) 🌐 [Web Only]
+    Managed Security Service Provider (MSSP) Mode 🌐 [Web Only]
+        Multi-tenant SOC view (single pane across all tenants)
+        Per-tenant SLA tracking and reporting
+        Tenant onboarding automation
+        White-label UI capability
+    Data Sovereignty Controls 🌐 [Web Only]
+        Per-tenant data residency enforcement
+        Cross-border data transfer logging and controls
+        Configurable data processing locations
+        Frontend Users & Roles admin panel (UsersPanel.tsx) 🌐 [Web Only]
+        Identity route wired (/identity) 🌐 [Web Only]
+    Data lifecycle management — lifecycle_service.go (7 retention policies, legal hold, 6h purge loop) 🌐 [Web Only]
+    Executive dashboards — ExecutiveDashboard.tsx (KPIs, posture, retention table, compliance badges) 🌐 [Web Only]
+    Credential Vault → full Password Manager — PasswordVault.tsx, GeneratePassword(), /vault route 🏗️ [Hybrid/Both]
+    Validate: 50+ tenants, 99.9% uptime — 60 tenants, 6000 ops, zero leaks, 100% uptime 🌐 [Web Only]
+
 
 ## Phase 16: Cloud Security Posture Management (CSPM)
 - [ ] Cloud Asset Inventory: AWS (IAM, EC2, S3, Lambda, RDS, VPC), Azure (Entra ID, VMs, Storage, AKS), GCP (IAM, GCE, GCS, GKE)
@@ -29,23 +44,50 @@
     - [ ] Drift detection from baseline
     - [ ] Remediation playbook integration (auto-fix misconfigs)
 
-### Phase 17: Container & Kubernetes Security
-- [ ] **Runtime Protection**
-    - [ ] Container image vulnerability scanning (Trivy/Grype integration)
-    - [ ] Kubernetes audit log ingestion + detection rules
-    - [ ] Pod security policy / admission controller violations
-    - [ ] Runtime anomaly detection: unexpected process in container
-    - [ ] Container escape detection (nsenter, mount namespace breakout)
-- [ ] **Kubernetes-Native Deployment**
-    - [ ] Helm chart for OBLIVRA server
-    - [ ] DaemonSet manifest for agent deployment
-    - [ ] Kubernetes RBAC integration (map K8s ServiceAccounts to OBLIVRA roles)
-    - [ ] CRD for detection rules (GitOps-native rule management)
-- [ ] **Service Mesh Observability**
-    - [ ] Envoy/Istio access log ingestion
-    - [ ] East-west traffic anomaly detection
-    - [ ] mTLS certificate audit
+Phase 16: Cloud Security Posture Management (CSPM)
 
+    Cloud Asset Inventory
+        AWS: IAM, EC2, S3, Lambda, RDS, VPC enumeration via SDK
+        Azure: Entra ID, VMs, Storage, AKS via SDK
+        GCP: IAM, GCE, GCS, GKE via SDK
+        Unified asset model: cloud resources alongside on-prem hosts
+    Misconfiguration Detection
+        S3 public bucket detection
+        IAM policy overprivilege analysis (unused permissions)
+        Security group / NSG rule audit (0.0.0.0/0 ingress)
+        Encryption-at-rest verification for storage/databases
+        MFA enforcement audit for all identity providers
+    Cloud Compliance Mapping
+        CIS Benchmarks for AWS/Azure/GCP (automated scoring)
+        Map findings to existing compliance packs (PCI, NIST, ISO)
+        Cloud-specific compliance reports
+    Cloud Threat Detection
+        CloudTrail/Activity Log/Audit Log anomaly detection
+        Impossible travel detection for cloud console access
+        Privilege escalation path detection in IAM
+        Resource hijacking detection (cryptomining, bot enrollment)
+    Cloud Security Dashboard (CloudPosture.tsx)
+        Multi-cloud posture score
+        Drift detection from baseline
+        Remediation playbook integration (auto-fix misconfigs)
+
+Phase 17: Container & Kubernetes Security
+
+    Runtime Protection
+        Container image vulnerability scanning (Trivy/Grype integration)
+        Kubernetes audit log ingestion + detection rules
+        Pod security policy / admission controller violations
+        Runtime anomaly detection: unexpected process in container
+        Container escape detection (nsenter, mount namespace breakout)
+    Kubernetes-Native Deployment
+        Helm chart for OBLIVRA server
+        DaemonSet manifest for agent deployment
+        Kubernetes RBAC integration (map K8s ServiceAccounts to OBLIVRA roles)
+        CRD for detection rules (GitOps-native rule management)
+    Service Mesh Observability
+        Envoy/Istio access log ingestion
+        East-west traffic anomaly detection
+        mTLS certificate audit
 ### Phase 18: Vulnerability Management Integration
 - [ ] **Scanner Integration**
     - [ ] Ingest Nessus/Qualys/Rapid7 scan results (XML/JSON)

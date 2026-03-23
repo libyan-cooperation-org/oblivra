@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount } from 'solid-js';
-import { UnlockWithPassword, ResetVault, IsUnlocked } from '../../../wailsjs/go/services/VaultService';
+import { IS_BROWSER } from '@core/context';
 
 interface VaultUnlockProps {
     onUnlock: () => void;
@@ -14,6 +14,8 @@ export const VaultUnlock: Component<VaultUnlockProps> = (props) => {
     // If vault is already unlocked (e.g. auto-unlock completed before we mounted),
     // skip the login screen entirely.
     onMount(async () => {
+        if (IS_BROWSER) return;
+        const { IsUnlocked } = await import('../../../wailsjs/go/services/VaultService');
         const already = await IsUnlocked();
         if (already) props.onUnlock();
     });
@@ -23,35 +25,32 @@ export const VaultUnlock: Component<VaultUnlockProps> = (props) => {
 
     const handleUnlock = async (e: Event) => {
         e.preventDefault();
-        if (loading()) return;
-        setLoading(true);
-        setError(null);
+        if (loading() || IS_BROWSER) return;
+        setLoading(true); setError(null);
         try {
+            const { UnlockWithPassword } = await import('../../../wailsjs/go/services/VaultService');
             await UnlockWithPassword(passphrase(), remember());
             props.onUnlock();
         } catch (err: unknown) {
-            // Show the actual backend error message so the user knows what failed
             const msg = err instanceof Error ? err.message : String(err);
             setError(msg || 'Incorrect passphrase or vault error');
         } finally {
-            setPassphrase(''); // SECURITY: Zero out sensitive data from memory
+            setPassphrase(''); // SECURITY: Zero out from JS heap
             setLoading(false);
         }
     };
 
     const handleReset = async () => {
-        if (resetConfirm() !== 'RESET') return;
+        if (resetConfirm() !== 'RESET' || IS_BROWSER) return;
         setResetting(true);
         try {
+            const { ResetVault } = await import('../../../wailsjs/go/services/VaultService');
             await ResetVault();
-            // Reload the app — VaultGuard will now show VaultSetup
             window.location.reload();
         } catch (err) {
             setError(`Reset failed: ${err}`);
             setShowReset(false);
-        } finally {
-            setResetting(false);
-        }
+        } finally { setResetting(false); }
     };
 
     return (

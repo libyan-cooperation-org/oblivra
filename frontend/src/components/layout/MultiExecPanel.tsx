@@ -1,7 +1,7 @@
 import { Component, For, Show, createSignal, onMount } from 'solid-js';
 import { useApp } from '@core/store';
-import { Execute, GetRecentJobs, CheckSafety, SetMaxConcurrency } from '../../../wailsjs/go/services/MultiExecService';
-import { EventsOn } from '../../../wailsjs/runtime/runtime';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 import { services } from '../../../wailsjs/go/models';
 
 export const MultiExecPanel: Component = () => {
@@ -18,10 +18,11 @@ export const MultiExecPanel: Component = () => {
     const [concurrency, setConcurrency] = createSignal(5);
 
     onMount(async () => {
-        const jobs = await GetRecentJobs(5);
-        setRecentJobs(jobs || []);
+        if (IS_BROWSER) return;
+        const { GetRecentJobs } = await import('../../../wailsjs/go/services/MultiExecService');
+        setRecentJobs(await GetRecentJobs(5) || []);
 
-        EventsOn('multiexec.progress', (data: { job_id: string, index: number, status: string, output?: string }) => {
+        subscribe('multiexec.progress', (data: { job_id: string, index: number, status: string, output?: string }) => {
             const current = activeJob();
             if (current && data.job_id === current.id && current.results) {
                 const next = { ...current, results: [...current.results] };
@@ -31,11 +32,13 @@ export const MultiExecPanel: Component = () => {
             }
         });
 
-        EventsOn('multiexec.completed', (data: ActiveJob) => {
+        subscribe('multiexec.completed', (data: ActiveJob) => {
             if (activeJob() && data.id === activeJob()!.id) {
                 setActiveJob(data);
                 setExecuting(false);
-                GetRecentJobs(5).then(setRecentJobs);
+                import('../../../wailsjs/go/services/MultiExecService')
+                    .then(m => m.GetRecentJobs(5))
+                    .then(setRecentJobs);
             }
         });
     });
@@ -53,41 +56,34 @@ export const MultiExecPanel: Component = () => {
     };
 
     const handleRun = async () => {
-        if (!command() || selectedHosts().size === 0) return;
-
+        if (!command() || selectedHosts().size === 0 || IS_BROWSER) return;
+        const { CheckSafety } = await import('../../../wailsjs/go/services/MultiExecService');
         const res = await CheckSafety(command());
         setSafetyResult(res);
-
-        if (res.is_destructive) {
-            setShowSafetyModal(true);
-        } else {
-            await runExecution();
-        }
+        if (res.is_destructive) setShowSafetyModal(true);
+        else await runExecution();
     };
 
     const runExecution = async () => {
         setExecuting(true);
         try {
+            const { Execute } = await import('../../../wailsjs/go/services/MultiExecService');
             const jobId = await Execute(command(), Array.from(selectedHosts()), 60);
             setActiveJob({
-                id: jobId,
-                command: command(),
-                status: 'running',
+                id: jobId, command: command(), status: 'running',
                 results: Array.from(selectedHosts()).map(id => ({
                     host_id: id,
                     host_label: state.hosts.find(h => h.id === id)?.label || 'Unknown',
                     status: 'pending'
                 }))
             });
-        } catch (err) {
-            console.error(err);
-            setExecuting(false);
-        }
+        } catch (err) { console.error(err); setExecuting(false); }
     };
 
     const handleConcurrencyChange = (val: number) => {
         setConcurrency(val);
-        SetMaxConcurrency(val);
+        if (!IS_BROWSER) import('../../../wailsjs/go/services/MultiExecService')
+            .then(m => m.SetMaxConcurrency(val));
     };
 
     return (

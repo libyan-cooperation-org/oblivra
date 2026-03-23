@@ -193,44 +193,44 @@ Phase 0.5: Architectural Hardening (Desktop vs. Browser) ✅
 Phase 1: Core Storage + Ingestion + Search (Months 1–4)
 Phase 1: Storage Layer
 
-    Integrate BadgerDB (replaces SQLite for high-velocity logs/indices) 🏗️ [Hybrid/Both]
-    Integrate Bleve (pure-Go Lucene alternative for log full-text search) 🏗️ [Hybrid/Both]
-    Integrate Parquet Archival (native go instead of duckdb CLI wrapper) 🏗️ [Hybrid/Both]
-    Implement robust Syslog (RFC 5424/3164) ingestion pipeline 🌐 [Web Only]
-    Implement crash-safe Write-Ahead Log (WAL) prior to search indexing 🏗️ [Hybrid/Both]
-    Write storage adapter interfaces (swap SQLite → Bleve/BadgerDB without breaking existing) 🏗️ [Hybrid/Both]
-    Migrate existing SIEM queries to Bleve + BadgerDB 🏗️ [Hybrid/Both]
+    [v] Integrate BadgerDB (replaces SQLite for high-velocity logs/indices) 🏗️ [Hybrid/Both]
+    [s] Integrate Bleve (pure-Go Lucene alternative for log full-text search) 🏗️ [Hybrid/Both]
+    [s] Integrate Parquet Archival (native go instead of duckdb CLI wrapper) 🏗️ [Hybrid/Both]
+    [v] Implement robust Syslog (RFC 5424/3164) ingestion pipeline 🌐 [Web Only]
+    [v] Implement crash-safe Write-Ahead Log (WAL) prior to search indexing 🏗️ [Hybrid/Both]
+    [s] Write storage adapter interfaces (swap SQLite → Bleve/BadgerDB without breaking existing) 🏗️ [Hybrid/Both]
+    [s] Migrate existing SIEM queries to Bleve + BadgerDB 🏗️ [Hybrid/Both]
     Benchmark: 10M event search <5s 🏗️ [Hybrid/Both]
 
 1.2 — Ingestion Pipeline
 
-    Build Syslog listener (RFC 5424/3164) with TLS (internal/ingest/syslog.go)
-    Build JSON parser (internal/ingest/parsers.go → ParseJSON())
-    Build CEF parser (internal/ingest/parsers.go → ParseCEF())
-    Build LEEF parser (internal/ingest/parsers.go → ParseLEEF())
-    Implement schema-on-read normalization
-    Implement backpressure + rate limiting (internal/ingest/pipeline.go)
-    Create IngestService in internal/app/ to wire pipeline + bus
+    [s] Build Syslog listener (RFC 5424/3164) with TLS (internal/ingest/syslog.go)
+    [s] Build JSON parser (internal/ingest/parsers.go → ParseJSON())
+    [s] Build CEF parser (internal/ingest/parsers.go → ParseCEF())
+    [s] Build LEEF parser (internal/ingest/parsers.go → ParseLEEF())
+    [s] Implement schema-on-read normalization
+    [s] Implement backpressure + rate limiting (internal/ingest/pipeline.go)
+    [s] Create IngestService in internal/app/ to wire pipeline + bus
     [v] HARDENING GATE: 72h sustained soak test at 5,000 EPS (Validated [v] - Script prepared)
     [v] Ingestion pipeline validated via 180k event burst (18,000+ EPS peak)
     [v] Test: 10,000 EPS sustained (Validated [v])
 
 1.3 — Search & Query
 
-    Build Lucene-style query parser (extend transpiler.go/Bleve) 🏗️ [Hybrid/Both]
-    Implement field-level indexing via Bleve field mappings 🏗️ [Hybrid/Both]
-    Add aggregation support (facets, group-by, histograms) 🏗️ [Hybrid/Both]
-    Implement saved searches (DB model + API + UI) 🏗️ [Hybrid/Both]
+    [s] Build Lucene-style query parser (extend transpiler.go/Bleve) 🏗️ [Hybrid/Both]
+    [s] Implement field-level indexing via Bleve field mappings 🏗️ [Hybrid/Both]
+    [s] Add aggregation support (facets, group-by, histograms) 🏗️ [Hybrid/Both]
+    [s] Implement saved searches (DB model + API + UI) 🏗️ [Hybrid/Both]
     Performance validation: <5s for 10M events 🏗️ [Hybrid/Both]
 
 20.4.5 — Lookup Tables
 
-    Lookup Management 🏗️ [Hybrid/Both]
-        CSV/JSON lookup file upload and API-based updates
-        Exact, CIDR, Wildcard, and Regex match support
-    Query & Index Integration 🏗️ [Hybrid/Both]
-        GET /api/v1/lookups/query endpoint — OQL-ready single-key lookup
-        Pre-built lookups: RFC 1918, Port-to-Service, MITRE technique-to-name
+    [s] Lookup Management 🏗️ [Hybrid/Both]
+        [s] CSV/JSON lookup file upload and API-based updates
+        [s] Exact, CIDR, Wildcard, and Regex match support
+    [s] Query & Index Integration 🏗️ [Hybrid/Both]
+        [s] GET /api/v1/lookups/query endpoint — OQL-ready single-key lookup
+        [s] Pre-built lookups: RFC 1918, Port-to-Service, MITRE technique-to-name
 
 Phase 2: Alerting + REST API (Months 4–6)
 2.1 — Alerting Hardening
@@ -344,17 +344,17 @@ Phase 5: Limits, Leaks & Lifecycles (Months 13–15)
 
 Phase 6: Forensics & Compliance ✅
 
-    Merkle tree immutable logging (internal/integrity/merkle.go)
-    Evidence locker with chain of custody (internal/forensics/evidence.go)
-    Enhanced FIM with baseline diffing
-    PCI-DSS compliance pack (YAML)
-    NIST compliance pack
-    ISO 27001 compliance pack
-    GDPR compliance pack
-    Additional compliance packs (HIPAA + SOC2 Type II)
-    PDF/HTML reporting engine (enhance internal/compliance/report.go)
-    Forensics service Wails integration (internal/app/forensics_service.go)
-    Compliance evaluator engine (internal/compliance/evaluator.go)
+    [s] Merkle tree immutable logging (internal/integrity/merkle.go)
+    [s] Evidence locker with chain of custody (internal/forensics/evidence.go)
+    [s] Enhanced FIM with baseline diffing
+    [s] PCI-DSS compliance pack (YAML)
+    [s] NIST compliance pack
+    [s] ISO 27001 compliance pack
+    [s] GDPR compliance pack
+    [s] Additional compliance packs (HIPAA + SOC2 Type II)
+    [s] PDF/HTML reporting engine (enhance internal/compliance/report.go)
+    [s] Forensics service Wails integration (internal/app/forensics_service.go)
+    [s] Compliance evaluator engine (internal/compliance/evaluator.go)
     6.5 — Legal-Grade Digital Evidence (Court Admissible) 🏗️ [Hybrid/Both]
         RFC 3161 Timestamping: Integration with trusted TSA; Batch submission for cost-efficiency
         Chain of Custody Formalization: NIST SP 800-86 compliant handling; Two-person integrity
@@ -396,27 +396,27 @@ Self-Observability
 
 Disaster & War-Mode Architecture
 
-    Air-gap replication node mode (receive-only, no outbound network)
-    Offline update bundles (USB-deployable signed archives)
-    Kill-switch safe-mode (read-only, no ingestion, forensic-only access)
+    [s] Air-gap replication node mode (receive-only, no outbound network)
+    [s] Offline update bundles (USB-deployable signed archives)
+    [s] Kill-switch safe-mode (read-only, no ingestion, forensic-only access)
     Encrypted snapshot export/import
     Cold backup restore automation + validation
 
 Governance Layer
 
-    Data retention policy engine (configurable per data type)
-    Legal hold mode (prevent deletion/purge of specified date ranges)
-    Data destruction workflow (cryptographic wipe + audit trail)
+    [s] Data retention policy engine (configurable per data type)
+    [s] Legal hold mode (prevent deletion/purge of specified date ranges)
+    [s] Data destruction workflow (cryptographic wipe + audit trail)
     Audit log of audit log access (meta-audit)
-    Executive compliance dashboard (ComplianceCenter.tsx) — Governance tab with real-time scoring.
+    [s] Executive compliance dashboard (ComplianceCenter.tsx) — Governance tab with real-time scoring.
 
 🔵 Tier 3: Strategic (Revenue-dependent — build when customers require)
 Licensing & Monetization
 
-    Feature flag framework (tier-based gating)
-    Offline license activation (hardware-bound)
-    Per-agent metering + usage tracking
-    License enforcement middleware
+    [s] Feature flag framework (tier-based gating)
+    [s] Offline license activation (hardware-bound)
+    [s] Per-agent metering + usage tracking
+    [s] License enforcement middleware
 
 Advanced Isolation
 
@@ -449,10 +449,10 @@ AI Governance (Pre-UEBA — Phase 10 prerequisite)
 
 Red Team / Validation Engine
 
-    Built-in attack simulator (MITRE ATT&CK technique replay)
-    Detection coverage score + technique gap report
-    Continuous detection validation (scheduled self-test)
-    Purple team dashboard (PurpleTeam.tsx)
+    [s] Built-in attack simulator (MITRE ATT&CK technique replay)
+    [s] Detection coverage score + technique gap report
+    [s] Continuous detection validation (scheduled self-test)
+    [s] Purple team dashboard (PurpleTeam.tsx)
 
 Certification Readiness
 

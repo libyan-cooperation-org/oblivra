@@ -1,8 +1,6 @@
 import { Component, createSignal, createResource, For, Show } from 'solid-js';
-import * as AnalyticsService from '../../../wailsjs/go/services/AnalyticsService';
 import { ForensicView } from './ForensicView';
-import * as UEBAService from '../../../wailsjs/go/services/UEBAService';
-import * as IncidentService from '../../../wailsjs/go/services/IncidentService';
+import { IS_BROWSER } from '@core/context';
 import { ueba } from '../../../wailsjs/go/models';
 
 interface EntityProfile extends ueba.EntityProfile { }
@@ -16,30 +14,28 @@ export const ThreatHunter: Component = () => {
 
     // Fetch profiles from UEBA
     const [profiles, { refetch }] = createResource<EntityProfile[]>(async () => {
-        if (!UEBAService) return [];
-        return await UEBAService.GetProfiles();
+        if (IS_BROWSER) return [];
+        const { GetProfiles } = await import('../../../wailsjs/go/services/UEBAService');
+        return await GetProfiles();
     });
 
     const handleSearch = async (e: Event) => {
         e.preventDefault();
+        if (IS_BROWSER) return;
         setIsHunting(true);
         try {
-            const results = await (AnalyticsService as any).SearchLogs(searchQuery(), 'lucene', 50, 0);
-            setSearchResults(results);
+            const { SearchLogs } = await import('../../../wailsjs/go/services/AnalyticsService');
+            setSearchResults(await (SearchLogs as any)(searchQuery(), 'lucene', 50, 0));
         } catch (err) {
             console.error('Hunting search failed:', err);
-        } finally {
-            setIsHunting(false);
-        }
+        } finally { setIsHunting(false); }
     };
 
     const createCase = async (entity: EntityProfile) => {
-        if (!IncidentService) return;
-        const confirmed = confirm(`Create formal incident case for ${entity.id}?`);
-        if (!confirmed) return;
-
+        if (IS_BROWSER || !confirm(`Create formal incident case for ${entity.id}?`)) return;
         try {
-            await IncidentService.Upsert({} as any, {
+            const { Upsert } = await import('../../../wailsjs/go/services/IncidentService');
+            await (Upsert as any)({} as any, {
                 title: `Behavorial Anomaly: ${entity.id}`,
                 description: `High risk score (${(entity.risk_score * 100).toFixed(0)}%) detected via ${entity.type} profiling. Peer Group: ${entity.peer_group_id}`,
                 severity: entity.risk_score > 0.8 ? 'Critical' : 'High',
@@ -50,9 +46,7 @@ export const ThreatHunter: Component = () => {
                 mitre_tactics: ['Initial Access', 'Persistence'],
             } as any);
             alert('Incident case created successfully.');
-        } catch (err) {
-            console.error('Failed to create case:', err);
-        }
+        } catch (err) { console.error('Failed to create case:', err); }
     };
 
 

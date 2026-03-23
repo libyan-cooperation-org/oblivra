@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { Create, List, Delete, ExecuteSnippet, ExtractVariables } from '../../../wailsjs/go/services/SnippetService';
+import { IS_BROWSER } from '@core/context';
 
 export const SnippetVault: Component = () => {
     const [state] = useApp();
@@ -19,42 +19,32 @@ export const SnippetVault: Component = () => {
     const [autoSudo, setAutoSudo] = createSignal(false);
 
     const loadSnippets = async () => {
+        if (IS_BROWSER) return;
         try {
-            const result = await List();
-            setSnippets(result || []);
-        } catch (err) {
-            console.error("Failed to load snippets", err);
-        }
+            const { List } = await import('../../../wailsjs/go/services/SnippetService');
+            setSnippets(await List() || []);
+        } catch (err) { console.error('Failed to load snippets', err); }
     };
 
-    createEffect(() => loadSnippets());
+    createEffect(() => { loadSnippets(); });
 
     const handleSave = async () => {
-        if (!title() || !command()) return;
-
+        if (!title() || !command() || IS_BROWSER) return;
         try {
-            // Parse out {{variables}} recursively using the backend engine API
+            const { ExtractVariables, Create } = await import('../../../wailsjs/go/services/SnippetService');
             const extractedVars = await ExtractVariables(command());
-
             await Create(title(), command(), description(), [], extractedVars || []);
-            setIsCreating(false);
-            setTitle('');
-            setCommand('');
-            setDescription('');
+            setIsCreating(false); setTitle(''); setCommand(''); setDescription('');
             loadSnippets();
-        } catch (err) {
-            console.error("Snippet save failed", err);
-        }
+        } catch (err) { console.error('Snippet save failed', err); }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Delete this snippet?")) return;
+        if (IS_BROWSER || !confirm('Delete this snippet?')) return;
         try {
-            await Delete(id);
-            loadSnippets();
-        } catch (err) {
-            console.error("Delete failed", err);
-        }
+            const { Delete } = await import('../../../wailsjs/go/services/SnippetService');
+            await Delete(id); loadSnippets();
+        } catch (err) { console.error('Delete failed', err); }
     };
 
     const promptExecution = async (snippet: any) => {
@@ -76,12 +66,14 @@ export const SnippetVault: Component = () => {
     };
 
     const runConfirmedSnippet = async (id: string, vars: Record<string, string>) => {
+        if (IS_BROWSER) return;
         try {
+            const { ExecuteSnippet } = await import('../../../wailsjs/go/services/SnippetService');
             await ExecuteSnippet(id, state.activeSessionId!, vars, autoSudo());
             setRunningSnippetId(null);
         } catch (err) {
-            console.error("Snippet execution failed", err);
-            alert("Execution failed. See console.");
+            console.error('Snippet execution failed', err);
+            alert('Execution failed. See console.');
         }
     };
 

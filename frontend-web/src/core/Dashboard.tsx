@@ -35,6 +35,12 @@ export default function Dashboard() {
     { id: 'ndr',        label: 'NDR Dashboard',              description: 'Network flows and lateral movement',     icon: '🌐',  action: nav('/ndr') },
     { id: 'ransomware', label: 'Ransomware Defense',         description: 'Fleet-wide ransomware protection',       icon: '🦠',  action: nav('/ransomware') },
     { id: 'mitre',      label: 'MITRE ATT&CK Heatmap',       description: 'Technique coverage visualization',       icon: '📊',  action: nav('/mitre-heatmap') },
+    { id: 'evidence',   label: 'Evidence Vault',             description: 'Legal-grade chain of custody',           icon: '🔍',  action: nav('/evidence') },
+    { id: 'regulator',  label: 'Regulator Portal',           description: 'Audit export and compliance packages',   icon: '📄',  action: nav('/regulator') },
+    { id: 'lookups',       label: 'Lookup Tables',               description: 'CIDR/Exact/Regex enrichment tables',     icon: '🗒️',  action: nav('/lookups') },
+    { id: 'pb-metrics',  label: 'Playbook Metrics',            description: 'MTTR, success rates, bottlenecks',       icon: '📊',  action: nav('/playbook-metrics') },
+    { id: 'peer',        label: 'Peer Analytics',              description: 'Behavioral peer group outliers',          icon: '🧠',  action: nav('/peer-analytics') },
+    { id: 'fusion',      label: 'Fusion Engine',               description: 'Kill chain and campaign clustering',      icon: '🔗',  action: nav('/fusion') },
     { id: 'logout',     label: 'Terminate Session',          description: 'Securely exit OBLIVRA',                  icon: '🔌',  shortcut: 'ALT+X', action: handleLogout },
   ];
 

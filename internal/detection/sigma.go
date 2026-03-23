@@ -17,7 +17,6 @@ package detection
 //
 // Not yet supported (skipped / best-effort):
 //   - Near/within operators
-//   - Aggregate functions (count by, sum by)
 //   - Multi-document correlated rules (related:)
 
 import (
@@ -134,7 +133,19 @@ func TranspileSigma(data []byte) (*Rule, error) {
 		rule.WindowSec = 3600 // Default 1h to pass mathematical bounding check
 	}
 	rule.Conditions = conditions
-	rule.GroupBy = inferSigmaGroupBy(sigma)
+
+	// 22.3: promote to FrequencyRule if the condition contains a count-by aggregate
+	if groupBy, thresh, ok := parseCountByCondition(sigma.Detection.Condition); ok {
+		rule.Type = FrequencyRule
+		rule.Threshold = thresh
+		if len(groupBy) > 0 {
+			rule.GroupBy = groupBy
+		} else {
+			rule.GroupBy = inferSigmaGroupBy(sigma)
+		}
+	} else {
+		rule.GroupBy = inferSigmaGroupBy(sigma)
+	}
 
 	return rule, nil
 }
@@ -425,6 +436,44 @@ func sigmaLogsourceToEventType(ls SigmaLogSource) string {
 		return "gcp_log"
 	}
 	return ""
+}
+
+// ── Count-by aggregate support (22.3) ──────────────────────────────────────
+//
+// Handles Sigma aggregate functions such as:
+//   condition: selection | count() > 5
+//   condition: selection | count(DestinationPort) by SourceIp > 3
+//   condition: selection | count by ComputerName > 10
+
+// countByRE matches:  ... | count(FIELD) by GROUPBY > THRESHOLD
+//                     ... | count() > THRESHOLD
+//                     ... | count by GROUPBY > THRESHOLD
+var countByRE = regexp.MustCompile(
+	`\|\s*count\s*(?:\(([^)]*)\))?\s*(?:by\s+(\S+))?\s*([><=!]+)\s*(\d+)`,
+)
+
+// parseCountByCondition detects and extracts a Sigma count-by aggregate expression.
+// Returns (groupBy, threshold, found).
+// If found is true the rule should be promoted to FrequencyRule.
+func parseCountByCondition(condition string) (groupBy []string, threshold int, found bool) {
+	m := countByRE.FindStringSubmatch(strings.ToLower(condition))
+	if m == nil {
+		return nil, 0, false
+	}
+	// m[1] = count field (ignored — we just count events)
+	// m[2] = group-by field
+	// m[3] = comparator (>)
+	// m[4] = threshold value
+	fmt.Sscanf(m[4], "%d", &threshold)
+	if threshold == 0 {
+		threshold = 1
+	}
+	groupField := strings.TrimSpace(m[2])
+	if groupField != "" {
+		// Map Sigma field names to Oblivra field names
+		groupBy = []string{sigmaFieldToOblivra(groupField)}
+	}
+	return groupBy, threshold, true
 }
 
 // inferSigmaGroupBy derives grouping keys from the logsource / condition context.

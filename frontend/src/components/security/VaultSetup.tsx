@@ -1,8 +1,5 @@
 import { Component, createSignal, For } from 'solid-js';
-import {
-    SetupVault, // @ts-ignore
-    SetupVaultWithTPM
-} from '../../../wailsjs/go/services/VaultService';
+import { IS_BROWSER } from '@core/context';
 
 interface VaultSetupProps {
     onComplete: () => void;
@@ -40,11 +37,12 @@ export const VaultSetup: Component<VaultSetupProps> = (props) => {
 
     const handleSetup = async (e: Event) => {
         e.preventDefault();
-        if (passphrase() !== confirm()) { setError("Passphrases do not match"); return; }
-        if (passphrase().length < 8) { setError("Passphrase must be at least 8 characters"); return; }
-
+        if (passphrase() !== confirm()) { setError('Passphrases do not match'); return; }
+        if (passphrase().length < 8) { setError('Passphrase must be at least 8 characters'); return; }
+        if (IS_BROWSER) return;
         setLoading(true); setError(null);
         try {
+            const { SetupVault, SetupVaultWithTPM } = await import('../../../wailsjs/go/services/VaultService') as any;
             if (useTPM()) {
                 await SetupVaultWithTPM(passphrase(), pcr());
             } else {

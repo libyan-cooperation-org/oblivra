@@ -2,7 +2,7 @@ import { Component, onMount, onCleanup, createEffect } from 'solid-js';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
+import { subscribe } from '@core/bridge';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalProps {
@@ -91,7 +91,7 @@ export const TerminalView: Component<TerminalProps> = (props) => {
         terminal.onResize(({ cols, rows }) => props.onResize?.(cols, rows));
 
         // Local PTY output
-        EventsOn(`terminal-output-${props.sessionId}`, (data: string) => {
+        const unsubPty = subscribe(`terminal-output-${props.sessionId}`, (data: string) => {
             if (!terminal || typeof data !== 'string') return;
             try {
                 const bin = atob(data);
@@ -102,7 +102,7 @@ export const TerminalView: Component<TerminalProps> = (props) => {
         });
 
         // SSH session output
-        EventsOn(`session.output.${props.sessionId}`, (data: string) => {
+        const unsubSsh = subscribe(`session.output.${props.sessionId}`, (data: string) => {
             if (!terminal || typeof data !== 'string') return;
             try {
                 const bin = atob(data);
@@ -111,6 +111,7 @@ export const TerminalView: Component<TerminalProps> = (props) => {
                 terminal.write(bytes);
             } catch { terminal.write(data); }
         });
+        onCleanup(() => { unsubPty(); unsubSsh(); });
 
         // Watch container for size changes
         resizeObserver = new ResizeObserver(() => {
