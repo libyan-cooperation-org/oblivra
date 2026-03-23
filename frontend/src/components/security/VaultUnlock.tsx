@@ -1,5 +1,6 @@
 import { Component, createSignal, onMount } from 'solid-js';
 import { IS_BROWSER } from '@core/context';
+import { guardedUnlock, isRateLimitError } from '@core/bridge';
 
 interface VaultUnlockProps {
     onUnlock: () => void;
@@ -28,12 +29,15 @@ export const VaultUnlock: Component<VaultUnlockProps> = (props) => {
         if (loading() || IS_BROWSER) return;
         setLoading(true); setError(null);
         try {
-            const { UnlockWithPassword } = await import('../../../wailsjs/go/services/VaultService');
-            await UnlockWithPassword(passphrase(), remember());
+            await guardedUnlock(passphrase(), remember());
             props.onUnlock();
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            setError(msg || 'Incorrect passphrase or vault error');
+            if (isRateLimitError(err)) {
+                setError(err.message); // 'Too fast — please wait Ns'
+            } else {
+                const msg = err instanceof Error ? err.message : String(err);
+                setError(msg || 'Incorrect passphrase or vault error');
+            }
         } finally {
             setPassphrase(''); // SECURITY: Zero out from JS heap
             setLoading(false);

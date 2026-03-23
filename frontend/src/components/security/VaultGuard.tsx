@@ -1,5 +1,4 @@
 import { Component, createSignal, onMount, JSX, Show } from 'solid-js';
-import { IsSetup, IsUnlocked } from '../../../wailsjs/go/services/VaultService';
 import { useApp } from '../../core/store';
 import { IS_BROWSER } from '../../core/context';
 import { VaultSetup } from './VaultSetup';
@@ -26,6 +25,7 @@ export const VaultGuard: Component<VaultGuardProps> = (props) => {
 
     const checkState = async () => {
         try {
+            const { IsSetup, IsUnlocked } = await import('../../../wailsjs/go/services/VaultService');
             const [isSetup, isUnlocked] = await Promise.all([IsSetup(), IsUnlocked()]);
             setSetup(isSetup);
             actions.setVaultUnlocked(isUnlocked);

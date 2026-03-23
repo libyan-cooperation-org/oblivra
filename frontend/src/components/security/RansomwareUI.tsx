@@ -1,7 +1,7 @@
 // RansomwareUI.tsx — Phase 9 Web: centralized ransomware status and remediation
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
-import * as SIEMService from '../../../wailsjs/go/services/SIEMService';
 import { subscribe } from '../../core/bridge';
+import { IS_BROWSER } from '../../core/context';
 
 export const RansomwareUI: Component = () => {
     const [alerts, setAlerts] = createSignal<any[]>([]);
@@ -17,14 +17,17 @@ export const RansomwareUI: Component = () => {
             setTimeout(() => setLiveAlert(null), 10000);
         });
 
-        try {
-            const [hostEvents, globalStats] = await Promise.all([
-                (SIEMService as any).SearchHostEvents('ransomware entropy canary', 50),
-                (SIEMService as any).GetGlobalThreatStats(),
-            ]);
-            setAlerts(hostEvents ?? []);
-            setStats(globalStats);
-        } catch { }
+        if (!IS_BROWSER) {
+            try {
+                const { SearchHostEvents, GetGlobalThreatStats } = await import('../../../wailsjs/go/services/SIEMService') as any;
+                const [hostEvents, globalStats] = await Promise.all([
+                    SearchHostEvents('ransomware entropy canary', 50),
+                    GetGlobalThreatStats(),
+                ]);
+                setAlerts(hostEvents ?? []);
+                setStats(globalStats);
+            } catch { }
+        }
         setLoading(false);
     });
 

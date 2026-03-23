@@ -1,5 +1,6 @@
 import { Component, createSignal } from 'solid-js';
 import { IS_BROWSER } from '@core/context';
+import { guardedNuclearDestruction, isRateLimitError } from '@core/bridge';
 
 export const DataDestructionTab: Component = () => {
     const [confirmText, setConfirmText] = createSignal('');
@@ -8,11 +9,13 @@ export const DataDestructionTab: Component = () => {
         if (confirmText() !== 'DESTROY') { alert('You must type DESTROY to confirm.'); return; }
         if (IS_BROWSER || !confirm('CRITICAL WARNING: This completely wipes all local configurations, hosts, and data. Proceed?')) return;
         try {
-            const { ClearDatabase } = await import('../../../wailsjs/go/services/SettingsService');
-            await ClearDatabase();
+            await guardedNuclearDestruction();
             alert('Data destruction complete. Reloading...');
             window.location.reload();
-        } catch (err) { alert('Destruction failed: ' + err); }
+        } catch (err) {
+            if (isRateLimitError(err)) alert(err.message); // 'Too fast — please wait 30s'
+            else alert('Destruction failed: ' + err);
+        }
     };
 
     return (

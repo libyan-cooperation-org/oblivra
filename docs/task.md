@@ -687,7 +687,7 @@
 ### 🔧 Immediate Hygiene
 
 - [x] **Purge node_modules from git** — `git rm -r --ignore-unmatch --cached frontend-web/node_modules`; 10k tracked files killing clone time and CI (COMPLETED)
-- [ ] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
+- [x] **Wails RPC bridge rate limiting** — `rpcGuard()` in `bridge.ts`; `guardedUnlock` (3s), `guardedDeleteHost` (2s/host), `guardedNuclearDestruction` (30s); in-flight deduplication prevents concurrent duplicate calls (COMPLETED 2026-03-23)
 - [x] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards + dynamic `import()` on all 45 Wails-importing files. Build: `✓ 673 modules, 7.06s`. (COMPLETED 2026-03-23)
 
 ---
