@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { GetAlertHistory, GetDetectionRules } from '../../../wailsjs/go/services/AlertingService';
+import { IS_BROWSER } from '@core/context';
 
 const TACTICS = [
     { id: "TA0001", name: "Initial Access" },
@@ -23,11 +23,11 @@ export const MitreHeatmap: Component = () => {
 
     const fetchData = async () => {
         setLoading(true);
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
-            const fetchedRules = await GetDetectionRules();
-            const fetchedAlerts = await GetAlertHistory();
-            setRules(fetchedRules || []);
-            setAlerts(fetchedAlerts || []);
+            const { GetDetectionRules, GetAlertHistory } = await import('../../../wailsjs/go/services/AlertingService');
+            setRules(await GetDetectionRules() || []);
+            setAlerts(await GetAlertHistory() || []);
         } catch (e) {
             console.error('Failed to load MITRE data:', e);
         } finally {

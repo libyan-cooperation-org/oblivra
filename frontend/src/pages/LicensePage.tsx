@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import * as LicensingService from '../../wailsjs/go/services/LicensingService';
+import { IS_BROWSER } from '@core/context';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,11 +101,10 @@ export const LicensePage: Component = () => {
     const [success, setSuccess] = createSignal('');
 
     const refresh = async () => {
+        if (IS_BROWSER) return;
         try {
-            const [s, fm] = await Promise.all([
-                (LicensingService as any).GetLicenseStatus(),
-                (LicensingService as any).GetFeatureMap(),
-            ]);
+            const LS = await import('../../wailsjs/go/services/LicensingService');
+            const [s, fm] = await Promise.all([(LS as any).GetLicenseStatus(), (LS as any).GetFeatureMap()]);
             setStatus(s);
             setFeatureMap(fm || {});
         } catch (e) {
@@ -116,15 +115,12 @@ export const LicensePage: Component = () => {
     onMount(refresh);
 
     const activate = async () => {
-        if (!token().trim()) {
-            setError('Please paste your license token.');
-            return;
-        }
-        setActivating(true);
-        setError('');
-        setSuccess('');
+        if (!token().trim()) { setError('Please paste your license token.'); return; }
+        if (IS_BROWSER) return;
+        setActivating(true); setError(''); setSuccess('');
         try {
-            await (LicensingService as any).ActivateLicense(token().trim());
+            const LS = await import('../../wailsjs/go/services/LicensingService');
+            await (LS as any).ActivateLicense(token().trim());
             setSuccess('License activated successfully.');
             setToken('');
             await refresh();
@@ -136,10 +132,11 @@ export const LicensePage: Component = () => {
     };
 
     const deactivate = async () => {
-        setError('');
-        setSuccess('');
+        if (IS_BROWSER) return;
+        setError(''); setSuccess('');
         try {
-            await (LicensingService as any).DeactivateLicense();
+            const LS = await import('../../wailsjs/go/services/LicensingService');
+            await (LS as any).DeactivateLicense();
             setSuccess('License removed — reverted to Community tier.');
             await refresh();
         } catch (e: any) {

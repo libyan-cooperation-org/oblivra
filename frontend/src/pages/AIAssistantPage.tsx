@@ -1,5 +1,5 @@
 import { Component, createSignal, For, onMount, Show } from 'solid-js';
-import { GetChatHistory, SendMessage, ExplainError, GenerateCommand } from '../../wailsjs/go/services/AIService';
+import { IS_BROWSER } from '@core/context';
 
 interface Message {
     role: 'user' | 'assistant' | 'system' | 'error';
@@ -22,8 +22,9 @@ export const AIAssistantPage: Component = () => {
     };
 
     const checkOllamaStatus = async () => {
+        if (IS_BROWSER) { setOllamaStatus('offline'); return; }
         try {
-            // Send a minimal probe — if it returns we're online, if it throws we're offline
+            const { SendMessage } = await import('../../wailsjs/go/services/AIService');
             await SendMessage('ping');
             setOllamaStatus('online');
         } catch {
@@ -32,13 +33,15 @@ export const AIAssistantPage: Component = () => {
     };
 
     onMount(async () => {
-        try {
-            const history = await GetChatHistory();
-            // Filter out the system prompt from display
-            const displayHistory = (history || []).filter((m: Message) => m.role !== 'system');
-            setMessages(displayHistory);
-        } catch (e) {
-            console.error('Failed to load chat history:', e);
+        if (!IS_BROWSER) {
+            try {
+                const { GetChatHistory } = await import('../../wailsjs/go/services/AIService');
+                const history = await GetChatHistory();
+                const displayHistory = (history || []).filter((m: Message) => m.role !== 'system');
+                setMessages(displayHistory);
+            } catch (e) {
+                console.error('Failed to load chat history:', e);
+            }
         }
         await checkOllamaStatus();
         scrollToBottom();
@@ -58,15 +61,17 @@ export const AIAssistantPage: Component = () => {
         setLoading(true);
 
         try {
+            if (IS_BROWSER) throw new Error('AI assistant requires the desktop binary with Ollama.');
             let responseText = '';
+            const AI = await import('../../wailsjs/go/services/AIService');
             if (mode() === 'explain') {
-                const r = await ExplainError(text);
+                const r = await AI.ExplainError(text);
                 responseText = r.Text;
             } else if (mode() === 'generate') {
-                const r = await GenerateCommand(text);
+                const r = await AI.GenerateCommand(text);
                 responseText = r.Text;
             } else {
-                responseText = await SendMessage(text);
+                responseText = await AI.SendMessage(text);
             }
 
             setOllamaStatus('online');

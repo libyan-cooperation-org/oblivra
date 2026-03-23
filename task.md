@@ -640,22 +640,102 @@
 
 ---
 
-## Phase 22: Active Backlog
+## Phase 22: Productization (The Strategic Pivot)
 
-### 🔴 Must-Do (Unblock users)
-- [ ] **Wails RPC bridge rate limiting** — per-method debounce on destructive methods (`NuclearDestruction`, `Unlock`, `DeleteHost`); prevents accidental double-fire
-- [ ] **Purge node_modules from git** — run `git rm -r --cached frontend/node_modules`; 10k tracked files are killing clone time and CI
-- [ ] **Entity Investigation Pages** — `EntityView.tsx` is scaffolded but data is sparse; wire full: UEBA profile, risk score, recent alerts, related incidents, enrichment context
-- [ ] **Setup Wizard** — `SetupWizard.tsx`, 6-step first-run flow (admin account → network config → log sources → alert channels → detection packs → first search); blank dashboard on install is the #1 onboarding drop-off
+> **Context**: OBLIVRA has SIEM + EDR + SOAR + UEBA + NDR + hybrid desktop/web. Feature parity with early Splunk/CrowdStrike is real.
+> The platform does not die from missing features. It dies from missing **reliability guarantees**, **multi-tenant isolation**, **cost controls**, **detection ecosystem**, and **institutional trust**.
+> **This phase adds zero new features. Every item below converts engineering into a product.**
+> See [`STRATEGY.md`](STRATEGY.md) for the full strategic rationale.
 
-### 🟡 High Value (Next Sprint)
-- [ ] **Risk-Based Alerting scaffolding** — `RiskService` exists; wire: each detection match increments entity risk score, temporal decay ticker, threshold fires incident
-- [ ] **Sigma `count by` aggregate functions** — stateful transpiler extension; required for frequency rules counting distinct values (e.g. >5 failed logins from different IPs)
-- [ ] **Parquet cold tier** — complete hot/cold split; BadgerDB hot (0–30 days), Parquet cold (30–365 days); query planner already has `HeavyQueryLimits`, needs cold store writer + transparent merge
+---
 
-### 🔵 When Ready
-- [ ] **Cloud log connectors** — AWS CloudTrail direct pull, Sysmon, Zeek, Suricata, Okta, Azure Monitor
-- [ ] **ClickHouse storage backend** — optional petabyte-scale swap for BadgerDB
-- [ ] **DAG-based streaming engine** — Phase 8 carry-over; replaces current synchronous pipeline
-- [ ] **mTLS between all internal service boundaries** — when splitting to microservices becomes real
-- [ ] **FIPS 140-3 / ISO 27001 / SOC 2 certification program documentation** (see also [`BUSINESS.md`](BUSINESS.md))
+### 🔧 Immediate Hygiene (Do This Week)
+- [ ] **Purge node_modules from git** — `git rm -r --cached frontend/node_modules`; 10k tracked files killing clone time and CI
+- [ ] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`; prevents accidental double-fire on destructive ops
+- [ ] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports so web mode loads without `window.go undefined` (partially fixed 2026-03-23)
+
+---
+
+### 22.1 — Reliability Engineering
+> Gap: One crash = reputation destroyed. Nothing here validates that OBLIVRA survives real failure conditions.
+
+- [ ] **Chaos test harness** — `cmd/chaos/main.go`: kill agent mid-stream (verify WAL replay), corrupt BadgerDB VLog (verify recovery), OOM-kill the server process (verify clean restart), clock skew ±5min (verify time-based correlation survives)
+- [ ] **Agent reconnect guarantee** — agents must resume without data loss after server restart; currently unvalidated at >1000 events in-flight
+- [ ] **BadgerDB corruption recovery** — test: truncate VLog mid-write → verify `OpenReadOnly` fallback, snapshot export, clean re-init
+- [ ] **Graceful degradation under overload** — at 3× rated EPS: ingest backpressures, detection degrades gracefully, UI shows `DEGRADED` banner; no silent data loss
+- [ ] **Automated soak regression** — GHA workflow: 30-minute 5,000 EPS soak on every release tag; fail if EPS drops >10% or drops increase
+- [ ] **Node failure simulation** — kill Raft leader mid-election; verify cluster recovers and no events are double-processed
+
+---
+
+### 22.2 — Multi-Tenant Isolation
+> Gap: Current architecture has shared BadgerDB keyspace, shared Bleve index, shared correlation state. A query from Tenant A can touch Tenant B's data.
+
+- [ ] **Tenant-prefixed BadgerDB keyspace** — all keys: `tenant:{id}:events:{ts}:{uuid}`; enforce in `SIEMStore.Write()` and all scan paths; reject keys without tenant prefix
+- [ ] **Bleve index per tenant** — one Bleve index per tenant ID; `IndexManager` multiplexes; cross-tenant queries structurally impossible
+- [ ] **Correlation state isolation** — `correlation.go` LRU keyed on `tenantID+ruleID+groupKey`; no cross-tenant state leakage
+- [ ] **Per-tenant encryption keys** — derive per-tenant AES-256 key from master key + tenant HMAC; rotate without re-keying all tenants
+- [ ] **Query sandbox enforcement** — OQL planner rejects queries without `TenantID` predicate; `HeavyQueryLimits` applied per-tenant, not globally
+- [ ] **Tenant provisioning API** — `POST /api/v1/admin/tenants` creates keyspace, index, encryption key atomically; idempotent
+- [ ] **Tenant deletion audit trail** — cryptographic wipe + immutable deletion record; satisfies GDPR right-to-erasure
+- [ ] **50-tenant isolation test** — automated test: 50 tenants, 1000 events each, cross-tenant search returns 0 results; currently passing for data volume but not structurally enforced
+
+---
+
+### 22.3 — Cost & Performance Layer
+> Gap: eBPF + DPI + UEBA + TI enrichment at scale is expensive. No cost visibility means the first large customer burns through budget silently.
+
+- [ ] **Ingestion rate limiting per tenant** — configurable EPS ceiling per tenant; excess events are dropped with counter increment, not silently; UI shows utilization bar
+- [ ] **Hot/Warm/Cold tiered storage** — complete the `QueryPlanner` hot/cold split:
+  - Hot: BadgerDB (0–30 days, NVMe, instant)
+  - Warm: Parquet on local disk (30–180 days, compressed, <5s query)
+  - Cold: Object storage / S3-compatible (180d+, configurable, async)
+  - `QueryPlanner.Plan()` routes to correct tier transparently
+- [ ] **Query cost estimation** — before executing: estimate rows scanned × field complexity × time range → reject if cost > tenant limit; expose estimate in UI before run
+- [ ] **Enrichment budget** — GeoIP + DNS enrichment capped at N lookups/sec/tenant; excess events tagged `enrichment:skipped`; budget visible in diagnostics
+- [ ] **Storage usage dashboard** — per-tenant: events stored, index size, archive size, projected 30/90/365 day cost; drives upsell conversations
+- [ ] **Sigma `count by` aggregate functions** — stateful transpiler extension; required for frequency rules counting distinct values (>5 failed logins from different IPs)
+
+---
+
+### 22.4 — Detection Engineering Platform + Operator Mode
+> Gap 1: Having 82 rules is not a detection ecosystem. Splunk's moat is not features — it's the marketplace, versioning, and community that surrounds rules.
+> Gap 2: The individual capabilities (terminal, SIEM, enrichment, isolation, forensics) exist but are not wired as a single coherent flow. Without this, OBLIVRA is a collection of tools, not a product.
+
+**Operator Mode — The Killer Workflow (wire this first)**
+- [ ] **SSH → anomaly banner** — when a terminal session is active, SIEM events for that host surface as a non-intrusive status bar notification with OQL pre-filled; one keypress opens the filtered event panel
+- [ ] **Event row → enrichment pivot** — clicking any IP/host in SIEM results opens inline enrichment card (GeoIP, ASN, TI match, open ports) without leaving the view
+- [ ] **Host isolation from terminal context** — `Ctrl+Shift+I` on active SSH session opens isolation confirmation; fires network isolator playbook; shows isolation status in terminal titlebar
+- [ ] **One-click memory/process capture** — from any terminal session or host row: trigger forensic snapshot (process tree, open connections, FIM status), auto-seal with SHA-256, auto-add to active incident evidence
+- [ ] **Operator timeline** — unified chronological view of: terminal commands, SIEM events, enrichment lookups, playbook executions, evidence collected — all for the current investigation session
+
+**Detection Engineering**
+- [ ] **Rule versioning** — every rule has `version: semver`; `RuleEngine` tracks current + previous; rollback to last-known-good on detection regression
+- [ ] **Detection-as-code workflow** — rules in Git; PR-based deployment via `oblivra rules push --dry-run` (shadow mode, counts matches without firing alerts); merge → promote to production
+- [ ] **Rule test framework** — `oblivra rules test sigma/my_rule.yml --events test/fixtures/windows_logon.json`; assertion: expected matches, expected non-matches, performance budget
+- [ ] **MITRE coverage gap report** — auto-generate: which ATT&CK techniques have 0 rules, 1 rule, >1 rule; export as MITRE Navigator layer JSON
+- [ ] **Rule marketplace schema** — YAML bundle format: `rule + metadata + test fixtures + changelog`; import/export CLI; foundation for community sharing
+- [ ] **Risk-Based Alerting** — `RiskService` exists; wire: detection match → entity risk score increment → temporal decay ticker → composite score → incident threshold
+- [ ] **Entity Investigation Pages** — `EntityView.tsx` scaffolded; wire full: UEBA profile, risk score, alert history, enrichment context, MITRE technique timeline
+
+---
+
+### 22.5 — Trust & Legitimacy Layer
+> Gap: Enterprise buyers do not evaluate features. They evaluate: who audited this, is it compliant, can I trust the cryptography. None of this is visible today.
+
+- [ ] **Publish threat model** — `docs/threat_model.md` exists internally; publish redacted version at `oblivra.dev/security`; include: attack surface, trust boundaries, crypto design, known limitations
+- [ ] **Cryptographic transparency doc** — enumerate every algorithm in use: AES-256-GCM (vault), Ed25519 (signing), Argon2id (KDF), TLS 1.3 (transport); justify each choice; document key rotation procedures
+- [ ] **SOC 2 Type II evidence collection** — map existing audit log, access controls, encryption, availability metrics to SOC 2 control families; identify gaps; produce evidence package
+- [ ] **ISO 27001 gap analysis** — compare current security controls to Annex A; document deltas; produce remediation plan
+- [ ] **External penetration test preparation** — `docs/pentest_scope.md`: define scope, rules of engagement, excluded systems; budget and schedule first external engagement
+- [ ] **Setup Wizard** — 6-step first-run (`SetupWizard.tsx`): admin account → TLS cert → first log source → alert channel → detection pack selection → first search tutorial; blank dashboard on install is the #1 drop-off
+- [ ] **Security.txt** — `/.well-known/security.txt` on the web server: contact, PGP key, disclosure policy; signals maturity to security researchers
+
+---
+
+### 🔵 Deferred (Not Until 22.1–22.5 Are Complete)
+- [ ] Cloud log connectors (AWS CloudTrail, Okta, Azure Monitor) — `ROADMAP.md`
+- [ ] ClickHouse storage backend — `ROADMAP.md`
+- [ ] DAG-based streaming engine — `ROADMAP.md`
+- [ ] mTLS between all internal service boundaries — `ROADMAP.md`
+- [ ] FIPS 140-3 / ISO 27001 / SOC 2 certification programs — `BUSINESS.md`

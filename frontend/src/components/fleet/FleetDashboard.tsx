@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, onCleanup, For, Show } from 'solid-js';
-import { GetFleetTelemetry } from '../../../wailsjs/go/services/TelemetryService';
 import { useApp } from '@core/store';
+import { IS_BROWSER } from '@core/context';
 import { DashboardCard } from './DashboardCard';
 import FleetHeatmap from '../intelligence/FleetHeatmap';
 import { EmptyState } from '../ui/EmptyState';
@@ -13,17 +13,17 @@ export const FleetDashboard: Component = () => {
     const [loading, setLoading] = createSignal(true);
 
     const updateTelemetry = async () => {
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
+            const { GetFleetTelemetry } = await import('../../../wailsjs/go/services/TelemetryService');
             const data = await GetFleetTelemetry();
             if (data && data.length > 0) {
                 const newMap: Record<string, HostTelemetry> = {};
-                data.forEach((t: any) => {
-                    newMap[t.host_id] = t as HostTelemetry;
-                });
+                data.forEach((t: any) => { newMap[t.host_id] = t as HostTelemetry; });
                 setTelemetryMap(newMap);
             }
         } catch (err) {
-            console.error("Failed to fetch fleet telemetry:", err);
+            console.error('Failed to fetch fleet telemetry:', err);
         } finally {
             setLoading(false);
         }

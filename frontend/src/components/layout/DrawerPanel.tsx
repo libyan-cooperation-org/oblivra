@@ -18,8 +18,8 @@ import { MetricsPanel } from '../monitoring/MetricsPanel';
 import { UpdaterPanel } from '../updater/UpdaterPanel';
 import { WorkspacePanel } from '../workspace/WorkspacePanel';
 import { AddHostModal } from '../sidebar/AddHostModal';
-import { Delete } from '../../../wailsjs/go/services/HostService';
 import { database } from '../../../wailsjs/go/models';
+import { IS_BROWSER } from '@core/context';
 
 interface DrawerPanelProps {
     onAddHost?: () => void;
@@ -64,8 +64,9 @@ export const DrawerPanel: Component<DrawerPanelProps> = (props) => {
     };
 
     const handleDeleteHost = async (hostId: string) => {
-        if (!confirm('Delete this host? This cannot be undone.')) return;
+        if (IS_BROWSER || !confirm('Delete this host? This cannot be undone.')) return;
         try {
+            const { Delete } = await import('../../../wailsjs/go/services/HostService');
             await Delete(hostId);
             actions.removeHost(hostId);
         } catch (err) {

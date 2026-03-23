@@ -1,6 +1,6 @@
-import { Component, createSignal, onMount } from 'solid-js';
-import { WindowMinimise, WindowToggleMaximise, Quit, WindowIsMaximised } from '../../../wailsjs/runtime/runtime';
+import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useApp } from '@core/store';
+import { IS_BROWSER } from '@core/context';
 import { PanelLauncher } from './PanelLauncher';
 
 export const TitleBar: Component = () => {
@@ -16,7 +16,10 @@ export const TitleBar: Component = () => {
         actions.connectToHost(val);
     };
 
+    // Window controls are Wails-only — only poll in desktop/hybrid
     onMount(async () => {
+        if (IS_BROWSER) return;
+        const { WindowIsMaximised } = await import('../../../wailsjs/runtime/runtime');
         const checkMax = async () => {
             const max = await WindowIsMaximised();
             setIsMaximized(max);
@@ -190,12 +193,14 @@ export const TitleBar: Component = () => {
             `}</style>
 
             <header class="title-bar-v2">
-                {/* macOS traffic lights */}
-                <div class="tb-controls">
-                    <button class="tb-dot close"    onClick={() => Quit()}                   title="Close"    />
-                    <button class="tb-dot minimize" onClick={() => WindowMinimise()}          title="Minimize" />
-                    <button class="tb-dot maximize" onClick={() => WindowToggleMaximise()}    title={isMaximized() ? 'Restore' : 'Maximize'} />
-                </div>
+                {/* macOS traffic lights — only rendered in desktop mode */}
+                <Show when={!IS_BROWSER}>
+                    <div class="tb-controls">
+                        <button class="tb-dot close"    onClick={async () => { const r = await import('../../../wailsjs/runtime/runtime'); r.Quit(); }}                      title="Close"    />
+                        <button class="tb-dot minimize" onClick={async () => { const r = await import('../../../wailsjs/runtime/runtime'); r.WindowMinimise(); }}         title="Minimize" />
+                        <button class="tb-dot maximize" onClick={async () => { const r = await import('../../../wailsjs/runtime/runtime'); r.WindowToggleMaximise(); }}    title={isMaximized() ? 'Restore' : 'Maximize'} />
+                    </div>
+                </Show>
 
                 {/* Brand */}
                 <div class="tb-brand">

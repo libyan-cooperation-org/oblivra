@@ -1,7 +1,10 @@
 # OBLIVRA — Research Roadmap
 > **Audience**: Research team, academic partners, NSA/DARPA grant applications
-> **Prerequisite**: v1 must pass 72h soak + first paying customer before any of this starts
-> **Last reviewed**: 2026-03-22
+> **Status**: PARKED. None of this work starts until OBLIVRA has 10 active production users.
+> **Why**: See `STRATEGY.md`. Building post-quantum cryptography before product-market fit
+> is the canonical way to spend years on a platform nobody uses.
+> **Prerequisite**: 10 active daily users → 72h soak pass → first paying customer → then this.
+> **Last reviewed**: 2026-03-23 (Strategic Pivot — Operator Mode First)
 
 ---
 

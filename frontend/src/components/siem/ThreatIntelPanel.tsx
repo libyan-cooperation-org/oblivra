@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { GetThreatIntelStats, LoadOfflineIOCs } from '../../../wailsjs/go/services/SIEMService';
+import { IS_BROWSER } from '@core/context';
 import { EmptyState } from '../ui/EmptyState';
 import { showModal } from '../ui/ModalSystem';
 
@@ -10,11 +10,13 @@ export const ThreatIntelPanel: Component = () => {
     const [isLoading, setIsLoading] = createSignal(true);
 
     const fetchStats = async () => {
+        if (IS_BROWSER) { setIsLoading(false); return; }
         try {
+            const { GetThreatIntelStats } = await import('../../../wailsjs/go/services/SIEMService');
             const res = await GetThreatIntelStats();
             setStats(res || {});
         } catch (err) {
-            console.error("Failed to load TI stats:", err);
+            console.error('Failed to load TI stats:', err);
         } finally {
             setIsLoading(false);
         }
@@ -39,6 +41,7 @@ export const ThreatIntelPanel: Component = () => {
                         { type: 'ipv4-addr', value: '185.191.171.13', source: 'Manual Import', severity: 'critical', description: 'Known C2 Infrastructure' },
                         { type: 'domain-name', value: 'evil-updates.com', source: 'Manual Import', severity: 'high', description: 'Malware dropper domain' }
                     ];
+                    const { LoadOfflineIOCs } = await import('../../../wailsjs/go/services/SIEMService');
                     const loaded = await LoadOfflineIOCs(sampleIOCs as any);
                     showModal({ title: 'Success', message: `Loaded ${loaded} indicators into memory.`, onConfirm: async () => fetchStats(), onCancel: () => { }, cancelText: '' });
                 } catch (e) {

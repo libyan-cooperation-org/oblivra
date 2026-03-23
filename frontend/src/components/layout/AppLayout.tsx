@@ -13,7 +13,7 @@ import { ModalSystem } from '../ui/ModalSystem';
 import { useHotkeys } from '../../hooks/useHotkeys';
 import { TransferPanel } from '../terminal/TransferPanel';
 import { TransferDrawer } from '../terminal/TransferDrawer';
-import { GetActive } from '../../../wailsjs/go/services/WorkspaceService';
+import { IS_BROWSER } from '@core/context';
 import '../../styles/team.css';
 
 import '../../styles/dashboard.css';
@@ -46,14 +46,15 @@ export const AppLayout: Component<{ children?: JSX.Element }> = (props) => {
     const [showTransferDrawer, setShowTransferDrawer] = createSignal(false);
 
     onMount(async () => {
+        if (IS_BROWSER) return; // WorkspaceService is desktop-only
         try {
+            const { GetActive } = await import('../../../wailsjs/go/services/WorkspaceService');
             const ws = await GetActive();
             if (ws && ws.layout) {
                 if (ws.active_tab) actions.setActiveNavTab(ws.active_tab as any);
             }
-            // ListHosts import was removed, using window.go fallback or rely on store
         } catch (err) {
-            console.error("Failed to load workspace:", err);
+            console.error('Failed to load workspace:', err);
         }
     });
 

@@ -9,8 +9,7 @@ import {
     createEffect,
 } from 'solid-js';
 import { useApp } from '../../core/store';
-import { GenerateCommand } from '../../../wailsjs/go/services/AIService';
-import { List as ListSnippets } from '../../../wailsjs/go/services/SnippetService';
+import { IS_BROWSER } from '@core/context';
 import { JSX } from 'solid-js';
 import '../../styles/palette.css';
 
@@ -66,11 +65,13 @@ export const CommandPalette: Component<CommandPaletteProps> = (props) => {
     let listRef: HTMLDivElement | undefined;
 
     const loadSnippets = async () => {
+        if (IS_BROWSER) return; // SnippetService is vault-backed, desktop-only
         try {
+            const { List: ListSnippets } = await import('../../../wailsjs/go/services/SnippetService');
             const res = await ListSnippets();
             setSnippets(res || []);
         } catch (err) {
-            console.error("Failed to load snippets for palette:", err);
+            console.error('Failed to load snippets for palette:', err);
         }
     };
 
@@ -350,18 +351,18 @@ export const CommandPalette: Component<CommandPaletteProps> = (props) => {
                     icon: '✨',
                     category: 'ai' as ActionCategory,
                     action: async () => {
-                        if (aiSuggesting()) return;
-                        setAiSuggesting(true);
-                        try {
-                            const res = await GenerateCommand(cmdQuery);
-                            setAiResult(res.text);
-                            // We don't close here, we want the user to see/copy the command
-                        } catch (err: unknown) {
-                            setAiResult("Error: " + (err instanceof Error ? (err as Error).message : String(err)));
-                        } finally {
-                            setAiSuggesting(false);
+                            if (aiSuggesting() || IS_BROWSER) return;
+                            setAiSuggesting(true);
+                            try {
+                                const { GenerateCommand } = await import('../../../wailsjs/go/services/AIService');
+                                const res = await GenerateCommand(cmdQuery);
+                                setAiResult(res.text);
+                            } catch (err: unknown) {
+                                setAiResult('Error: ' + (err instanceof Error ? (err as Error).message : String(err)));
+                            } finally {
+                                setAiSuggesting(false);
+                            }
                         }
-                    }
                 }];
             }
 

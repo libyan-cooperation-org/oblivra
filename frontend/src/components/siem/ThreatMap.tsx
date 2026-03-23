@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, onMount } from 'solid-js';
 import * as echarts from 'echarts';
-import { GetFailedLoginsByHost, GetRiskScoreByHost } from '../../../wailsjs/go/services/SIEMService';
+import { IS_BROWSER } from '@core/context';
 
 export const ThreatMap: Component<{ hostId: string }> = (props) => {
     let chartRef!: HTMLDivElement;
@@ -11,7 +11,9 @@ export const ThreatMap: Component<{ hostId: string }> = (props) => {
 
     const loadData = async () => {
         setLoading(true);
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
+            const { GetFailedLoginsByHost, GetRiskScoreByHost } = await import('../../../wailsjs/go/services/SIEMService');
             const [data, score] = await Promise.all([
                 GetFailedLoginsByHost(props.hostId),
                 GetRiskScoreByHost(props.hostId)
@@ -20,7 +22,7 @@ export const ThreatMap: Component<{ hostId: string }> = (props) => {
             setRiskScore(score || 0);
             renderCharts(data || [], score || 0);
         } catch (err) {
-            console.error("Failed to load generic threat data", err);
+            console.error('Failed to load threat data:', err);
         } finally {
             setLoading(false);
         }

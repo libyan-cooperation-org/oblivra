@@ -1,8 +1,7 @@
 import { Component, createSignal, onMount, For, Show, onCleanup } from 'solid-js';
 import * as echarts from 'echarts';
-import { GetGlobalThreatStats, GetEventTrend } from '../../../wailsjs/go/services/SIEMService';
-import { GetFleetTelemetry } from '../../../wailsjs/go/services/TelemetryService';
 import { useApp } from '@core/store';
+import { IS_BROWSER } from '@core/context';
 import { Sparkline } from '../ui/Sparkline';
 import { InceptionView } from './InceptionView';
 import '../../styles/dashboard.css';
@@ -18,7 +17,10 @@ export const Dashboard: Component = () => {
 
     const loadData = async () => {
         setLoading(true);
+        if (IS_BROWSER) { setLoading(false); return; } // Wails services unavailable in browser
         try {
+            const { GetGlobalThreatStats, GetEventTrend } = await import('../../../wailsjs/go/services/SIEMService');
+            const { GetFleetTelemetry } = await import('../../../wailsjs/go/services/TelemetryService');
             const [s, t, f] = await Promise.all([
                 GetGlobalThreatStats(),
                 GetEventTrend(7),
@@ -28,7 +30,7 @@ export const Dashboard: Component = () => {
             setFleetHealth(f || []);
             renderTrendChart(t || []);
         } catch (err) {
-            console.error("Dashboard data load failed:", err);
+            console.error('Dashboard data load failed:', err);
         } finally {
             setLoading(false);
         }

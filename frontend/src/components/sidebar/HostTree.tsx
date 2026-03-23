@@ -1,8 +1,7 @@
 import { Component, For, Show, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { useApp } from '@core/store';
-import { DeployKey } from '../../../wailsjs/go/services/SSHService';
-import { WakeHost } from '../../../wailsjs/go/services/HostService';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 import { database } from '../../../wailsjs/go/models';
 
 type Host = database.Host;
@@ -21,15 +20,13 @@ export const HostTree: Component<HostTreeProps> = (props) => {
   const [groupBy, setGroupBy] = createSignal<'folder' | 'tags' | 'status'>('folder');
   const [hostHealth, setHostHealth] = createSignal<Record<string, boolean>>({});
 
+  let unsubHealth: (() => void) | undefined;
   onMount(() => {
-    EventsOn('host-health-update', (data: unknown) => {
+    unsubHealth = subscribe('host-health-update', (data: unknown) => {
       setHostHealth(data as Record<string, boolean>);
     });
   });
-
-  onCleanup(() => {
-    EventsOff('host-health-update');
-  });
+  onCleanup(() => unsubHealth?.());
 
   const toggleGroup = (name: string) => {
     setExpandedGroups(prev => {
@@ -228,14 +225,16 @@ export const HostTree: Component<HostTreeProps> = (props) => {
               📝 Run Snippet
             </div>
             <div class="menu-item" onClick={async () => {
+              if (IS_BROWSER) return;
               const hostId = menu().hostId;
-              const password = prompt("Enter SSH Password to deploy key:");
+              const password = prompt('Enter SSH Password to deploy key:');
               if (!password) return;
               try {
+                const { DeployKey } = await import('../../../wailsjs/go/services/SSHService');
                 await DeployKey(hostId, password);
-                alert("SSH Key deployed successfully! Host is now configured for keyed login.");
+                alert('SSH Key deployed successfully!');
               } catch (err) {
-                alert("Failed to deploy key: " + err);
+                alert('Failed to deploy key: ' + err);
               }
               setContextMenu(null);
             }}>
@@ -244,11 +243,13 @@ export const HostTree: Component<HostTreeProps> = (props) => {
 
             <Show when={state.hosts.find(h => h.id === menu().hostId)?.tags?.some(t => t.startsWith('mac:'))}>
               <div class="menu-item" onClick={async () => {
+                if (IS_BROWSER) return;
                 try {
+                  const { WakeHost } = await import('../../../wailsjs/go/services/HostService');
                   await WakeHost(menu().hostId);
-                  alert("WOL packet sent!");
+                  alert('WOL packet sent!');
                 } catch (err) {
-                  alert("Failed to wake host: " + err);
+                  alert('Failed to wake host: ' + err);
                 }
                 setContextMenu(null);
               }}>

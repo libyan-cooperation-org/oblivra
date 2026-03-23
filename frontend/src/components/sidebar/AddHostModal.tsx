@@ -1,7 +1,7 @@
 import { Component, createSignal, For } from 'solid-js';
 import { database } from '../../../wailsjs/go/models';
-import { Create, Update, ImportSSHConfig } from '../../../wailsjs/go/services/HostService';
 import { useApp } from '@core/store';
+import { IS_BROWSER } from '@core/context';
 import { z } from 'zod';
 
 const hostSchema = z.object({
@@ -74,6 +74,8 @@ export const AddHostModal: Component<{ host?: database.Host, onClose: () => void
                 jump_host_id: jumpHostId()
             });
 
+            if (IS_BROWSER) return;
+            const { Create, Update } = await import('../../../wailsjs/go/services/HostService');
             const savedHost = isEdit ? await Update(hostData) : await Create(hostData);
 
             if (isEdit) {
@@ -230,8 +232,10 @@ export const AddHostModal: Component<{ host?: database.Host, onClose: () => void
                         <button
                             class="action-btn"
                             onClick={async () => {
+                                if (IS_BROWSER) return;
                                 try {
                                     setSaving(true);
+                                    const { ImportSSHConfig } = await import('../../../wailsjs/go/services/HostService');
                                     const count = await ImportSSHConfig();
                                     alert(`Successfully imported ${count} hosts from ~/.ssh/config!`);
                                     props.onClose();

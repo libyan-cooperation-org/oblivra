@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { DiscoverAll as DiscoverNetwork } from '../../../wailsjs/go/services/DiscoveryService';
 import { discovery } from '../../../wailsjs/go/models';
 import { useApp } from '@core/store';
+import { IS_BROWSER } from '@core/context';
 
 export const SidebarHostList: Component = () => {
     const [state, actions] = useApp();
@@ -20,10 +20,11 @@ export const SidebarHostList: Component = () => {
     };
 
     const loadData = async () => {
+        if (IS_BROWSER) { setLoading(false); return; }
         setLoading(true);
         try {
-            const hosts = await DiscoverNetwork();
-            setNetworkHosts(hosts || []);
+            const { DiscoverAll } = await import('../../../wailsjs/go/services/DiscoveryService');
+            setNetworkHosts(await DiscoverAll() || []);
         } catch (err) {
             console.error('Failed to load discovery data:', err);
         } finally {
@@ -31,9 +32,7 @@ export const SidebarHostList: Component = () => {
         }
     };
 
-    onMount(() => {
-        loadData();
-    });
+    onMount(() => { loadData(); });
 
     const handleConnect = (host: discovery.DiscoveredHost) => {
         const id = host.address;

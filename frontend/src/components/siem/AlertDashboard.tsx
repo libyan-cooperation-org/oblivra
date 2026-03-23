@@ -1,5 +1,5 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
-import { ListIncidents, UpdateIncidentStatus } from '../../../wailsjs/go/services/AlertingService';
+import { IS_BROWSER } from '@core/context';
 import { database } from '../../../wailsjs/go/models';
 import { EmptyState } from '../ui/EmptyState';
 import '../../styles/siem.css';
@@ -13,7 +13,9 @@ export const AlertDashboard: Component = () => {
     const fetchIncidents = async () => {
         setLoading(true);
         setError(null);
+        if (IS_BROWSER) { setLoading(false); return; }
         try {
+            const { ListIncidents } = await import('../../../wailsjs/go/services/AlertingService');
             const res = await ListIncidents(statusFilter(), 100);
             setIncidents(res || []);
         } catch (err) {
@@ -28,11 +30,13 @@ export const AlertDashboard: Component = () => {
     });
 
     const handleStatusChange = async (id: string, newStatus: string) => {
+        if (IS_BROWSER) return;
         try {
-            await UpdateIncidentStatus(id, newStatus, "Status updated via Tactical Dashboard");
+            const { UpdateIncidentStatus } = await import('../../../wailsjs/go/services/AlertingService');
+            await UpdateIncidentStatus(id, newStatus, 'Status updated via Tactical Dashboard');
             fetchIncidents();
         } catch (err) {
-            console.error("Failed to update incident:", err);
+            console.error('Failed to update incident:', err);
             setError(String(err));
         }
     };

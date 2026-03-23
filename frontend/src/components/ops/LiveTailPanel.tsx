@@ -1,6 +1,6 @@
 import { Component, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
-import { StartTailing, StopTailing } from '../../../wailsjs/go/services/TailingService';
-import { GetActiveSessions } from '../../../wailsjs/go/services/SSHService';
+import { IS_BROWSER } from '@core/context';
+import { subscribe } from '@core/bridge';
 
 
 interface TailLog {
@@ -15,34 +15,36 @@ export const LiveTailPanel: Component = () => {
     const [sessions, setSessions] = createSignal<any[]>([]);
     const [activeTails, setActiveTails] = createSignal<Set<string>>(new Set());
 
+    let unsubTail: (() => void) | undefined;
+
     onMount(async () => {
+        if (IS_BROWSER) return;
+        const { GetActiveSessions } = await import('../../../wailsjs/go/services/SSHService');
         const sess = await GetActiveSessions();
         setSessions(sess || []);
 
-        // Listen for tail updates from Wails
-        if ((window as any).runtime) {
-            (window as any).runtime.EventsOn('tail:update', (data: any) => {
-                const decoded = atob(data.data);
-                const newLog: TailLog = {
-                    sessionID: data.session_id,
-                    hostLabel: data.host_label,
-                    data: decoded,
-                    timestamp: data.timestamp
-                };
-                setLogs(prev => [newLog, ...prev.slice(0, 499)]);
-            });
-        }
+        unsubTail = subscribe('tail:update', (data: any) => {
+            const decoded = atob(data.data);
+            setLogs(prev => [{
+                sessionID: data.session_id,
+                hostLabel: data.host_label,
+                data: decoded,
+                timestamp: data.timestamp
+            }, ...prev.slice(0, 499)]);
+        });
     });
 
-    onCleanup(() => {
-        if ((window as any).runtime) {
-            (window as any).runtime.EventsOff('tail:update');
+    onCleanup(async () => {
+        unsubTail?.();
+        if (!IS_BROWSER) {
+            const { StopTailing } = await import('../../../wailsjs/go/services/TailingService');
+            activeTails().forEach(id => StopTailing(id));
         }
-        // Cleanup all active tails on unmount
-        activeTails().forEach(id => StopTailing(id));
     });
 
     const toggleTail = async (sessionID: string) => {
+        if (IS_BROWSER) return;
+        const { StartTailing, StopTailing } = await import('../../../wailsjs/go/services/TailingService');
         const next = new Set(activeTails());
         if (next.has(sessionID)) {
             await StopTailing(sessionID);

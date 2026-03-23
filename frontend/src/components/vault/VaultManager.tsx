@@ -1,10 +1,5 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { GetTeamName, ListMembers, ListSecrets } from '../../../wailsjs/go/services/TeamService';
-import {
-    IsUnlocked, Unlock, ListCredentials, AddCredential,
-    DeleteCredential, GenerateEd25519Key, GetDecryptedCredential, UnlockWithHardware
-} from '../../../wailsjs/go/services/VaultService';
-import { YubiKeyDetect, YubiKeyDeriveVaultKey } from '../../../wailsjs/go/services/SecurityService';
+import { IS_BROWSER } from '@core/context';
 import { team, database } from '../../../wailsjs/go/models';
 import '../../styles/vault.css';
 
@@ -27,61 +22,52 @@ export const VaultManager: Component = () => {
     const [isGenerating, setIsGenerating] = createSignal(false);
 
     const loadData = async () => {
+        if (IS_BROWSER) return;
         try {
+            const { IsUnlocked, ListCredentials } = await import('../../../wailsjs/go/services/VaultService');
+            const { GetTeamName, ListMembers, ListSecrets } = await import('../../../wailsjs/go/services/TeamService');
             const isUn = await IsUnlocked();
             setUnlocked(isUn);
             if (!isUn) return;
-
-            const name = await GetTeamName();
-            setTeamName(name);
-            const mems = await ListMembers();
-            setMembers(mems || []);
-            const secs = await ListSecrets();
-            setSecrets(secs || []);
-            const creds = await ListCredentials("");
-            setCredentials(creds || []);
+            setTeamName(await GetTeamName());
+            setMembers(await ListMembers() || []);
+            setSecrets(await ListSecrets() || []);
+            setCredentials(await ListCredentials('') || []);
         } catch (e) {
-            console.error("Failed to load vault data", e);
+            console.error('Failed to load vault data', e);
         }
     };
 
     const handleAddCredential = async () => {
-        if (!newCredLabel() || !newCredData()) return;
+        if (!newCredLabel() || !newCredData() || IS_BROWSER) return;
         try {
+            const { AddCredential } = await import('../../../wailsjs/go/services/VaultService');
             await AddCredential(newCredLabel(), newCredType(), newCredData());
             resetForm();
             await loadData();
-        } catch (e) {
-            alert("Failed to add credential: " + e);
-        }
+        } catch (e) { alert('Failed to add credential: ' + e); }
     };
 
     const handleGenerateKey = async () => {
-        if (!newCredLabel()) {
-            alert("Please provide a label first");
-            return;
-        }
+        if (IS_BROWSER) return;
+        if (!newCredLabel()) { alert('Please provide a label first'); return; }
         setIsGenerating(true);
         try {
-            const pubKey = await GenerateEd25519Key(newCredLabel());
-            setGeneratedPubKey(pubKey);
+            const { GenerateEd25519Key } = await import('../../../wailsjs/go/services/VaultService');
+            setGeneratedPubKey(await GenerateEd25519Key(newCredLabel()));
             await loadData();
-        } catch (e) {
-            alert("Failed to generate key: " + e);
-        } finally {
-            setIsGenerating(false);
-        }
+        } catch (e) { alert('Failed to generate key: ' + e); }
+        finally { setIsGenerating(false); }
     };
 
     const handleViewCred = async (id: string) => {
+        if (IS_BROWSER) return;
         try {
             const cred = credentials().find(c => c.id === id);
             if (!cred) return;
-            const data = await GetDecryptedCredential(id);
-            setViewCred({ label: cred.label, data, type: cred.type });
-        } catch (e) {
-            alert("Failed to decrypt: " + e);
-        }
+            const { GetDecryptedCredential } = await import('../../../wailsjs/go/services/VaultService');
+            setViewCred({ label: cred.label, data: await GetDecryptedCredential(id), type: cred.type });
+        } catch (e) { alert('Failed to decrypt: ' + e); }
     };
 
     const resetForm = () => {
@@ -92,13 +78,12 @@ export const VaultManager: Component = () => {
     };
 
     const handleDeleteCredential = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this credential? This action is irreversible.")) return;
+        if (IS_BROWSER || !confirm('Are you sure you want to delete this credential?')) return;
         try {
+            const { DeleteCredential } = await import('../../../wailsjs/go/services/VaultService');
             await DeleteCredential(id);
             await loadData();
-        } catch (e) {
-            alert("Failed to delete: " + e);
-        }
+        } catch (e) { alert('Failed to delete: ' + e); }
     };
 
     const handleFileUpload = (e: Event) => {
@@ -113,39 +98,30 @@ export const VaultManager: Component = () => {
     };
 
     const handleUnlock = async () => {
+        if (IS_BROWSER) return;
         try {
+            const { Unlock } = await import('../../../wailsjs/go/services/VaultService');
             await Unlock(password(), [], false);
-            // SECURITY: Clear the password signal immediately after use so it
-            // doesn't linger in JS heap memory once the vault is unlocked.
-            setPassword("");
+            setPassword(''); // SECURITY: Zero password from JS heap immediately
             setUnlocked(true);
             await loadData();
-        } catch (e) {
-            alert("Failed to unlock: " + e);
-        }
+        } catch (e) { alert('Failed to unlock: ' + e); }
     };
 
     const handleHardwareUnlock = async () => {
-        if (!password()) {
-            alert("Please enter your master password first to perform hardware challenge derivation.");
-            return;
-        }
+        if (IS_BROWSER) return;
+        if (!password()) { alert('Please enter your master password first.'); return; }
         try {
+            const { YubiKeyDetect, YubiKeyDeriveVaultKey } = await import('../../../wailsjs/go/services/SecurityService');
+            const { UnlockWithHardware } = await import('../../../wailsjs/go/services/VaultService');
             const keys = await YubiKeyDetect();
-            if (!keys || keys.length === 0) {
-                alert("No YubiKey detected. Please insert your hardware key.");
-                return;
-            }
+            if (!keys || keys.length === 0) { alert('No YubiKey detected. Please insert your hardware key.'); return; }
             const hardwareKey = await YubiKeyDeriveVaultKey(keys[0].serial, password());
-            // hardwareKey is a byte array (Uint8Array/number[])
             await UnlockWithHardware(password(), Array.from(hardwareKey), false);
-            // SECURITY: Clear password signal immediately after hardware unlock
-            setPassword("");
+            setPassword(''); // SECURITY: Zero password from JS heap immediately
             setUnlocked(true);
             await loadData();
-        } catch (e) {
-            alert("Hardware unlock failed: " + e);
-        }
+        } catch (e) { alert('Hardware unlock failed: ' + e); }
     };
 
     const copyToClipboard = (text: string) => {

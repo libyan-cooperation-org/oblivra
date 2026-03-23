@@ -49,18 +49,17 @@ export const RecordingPanel: Component = () => {
     };
 
     const handleExport = async (id: string, hostLabel: string) => {
+        const rt = (window as any).runtime;
+        if (!rt) return; // Browser mode: no native file dialog
         try {
-            // @ts-ignore - Wails runtime
-            const filename = await window.runtime.SaveFileDialog({
+            const filename = await rt.SaveFileDialog({
                 Title: 'Export Audit Recording',
                 DefaultFilename: `${hostLabel || 'session'}_${id.substring(0, 8)}.cast`,
                 Filters: [{ Name: 'Asciinema Recording', Pattern: '*.cast' }]
             });
-
             if (filename) {
                 const { ExportRecording } = await import('../../../wailsjs/go/services/RecordingService');
                 await ExportRecording(id, filename);
-                console.log('Exported to:', filename);
             }
         } catch (e) {
             console.error('Export failed:', e);

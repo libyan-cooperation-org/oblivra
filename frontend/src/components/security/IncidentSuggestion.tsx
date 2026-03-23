@@ -1,6 +1,6 @@
 import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
-import { ExecuteSnippet } from '../../../wailsjs/go/services/SnippetService';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 
 interface Suggestion {
     host_id: string;
@@ -15,29 +15,30 @@ export const IncidentSuggestion: Component = () => {
     const [suggestion, setSuggestion] = createSignal<Suggestion | null>(null);
     const [executing, setExecuting] = createSignal(false);
 
+    let unsubSuggestion: (() => void) | undefined;
+
     onMount(() => {
-        EventsOn('security.suggestion', (data: Suggestion) => {
+        // subscribe() is a no-op in browser mode — suggestions only fire from desktop backend
+        unsubSuggestion = subscribe('security.suggestion', (data: Suggestion) => {
             setSuggestion(data);
-            // Auto-hide after 15 seconds if ignored
             setTimeout(() => setSuggestion(null), 15000);
         });
     });
 
-    onCleanup(() => {
-        EventsOff('security.suggestion');
-    });
+    onCleanup(() => unsubSuggestion?.());
 
     const handleExecute = async () => {
         const s = suggestion();
-        if (!s) return;
+        if (!s || IS_BROWSER) return;
 
         setExecuting(true);
         try {
+            const { ExecuteSnippet } = await import('../../../wailsjs/go/services/SnippetService');
             await ExecuteSnippet(s.snippet_id, s.session_id, {}, true);
             setSuggestion(null);
         } catch (err) {
-            console.error("Failed to execute suggestion:", err);
-            alert("Execution failed: " + err);
+            console.error('Failed to execute suggestion:', err);
+            alert('Execution failed: ' + err);
         } finally {
             setExecuting(false);
         }

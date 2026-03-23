@@ -1,7 +1,7 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useApp } from '@core/store';
-import { GetAllHealth } from '../../../wailsjs/go/services/HealthService';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
+import { IS_BROWSER } from '@core/context';
+import { subscribe } from '@core/bridge';
 import { usePanelManager } from './PanelManager';
 import { DiagnosticsModal } from '../monitoring/DiagnosticsModal';
 import { ContextBadge } from './ContextBadge';
@@ -17,12 +17,14 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
     const { openPanelCount } = usePanelManager();
 
     // Subscribe to diagnostics broadcast for live health grade in status bar
+    // subscribe() is a no-op in browser mode so this is safe everywhere
+    let unsubDiag: (() => void) | undefined;
     onMount(() => {
-        EventsOn('diagnostics:snapshot', (data: any) => {
+        unsubDiag = subscribe('diagnostics:snapshot', (data: any) => {
             if (data?.health_grade) setDiagGrade(data.health_grade);
         });
     });
-    onCleanup(() => EventsOff('diagnostics:snapshot'));
+    onCleanup(() => unsubDiag?.());
 
     const activeHost = createMemo(() => {
         if (!state.activeSessionId) return null;
@@ -45,10 +47,14 @@ export const StatusBar: Component<{ onToggleTransfers?: () => void }> = (props) 
     onMount(() => {
         const updateTimeAndHealth = async () => {
             setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-            try {
-                const h = await GetAllHealth();
-                setHealthMap(h || {});
-            } catch { /* ignore in statusbar */ }
+            // GetAllHealth is a Wails binding — only call it in desktop/hybrid mode
+            if (!IS_BROWSER) {
+                try {
+                    const { GetAllHealth } = await import('../../../wailsjs/go/services/HealthService');
+                    const h = await GetAllHealth();
+                    setHealthMap(h || {});
+                } catch { /* ignore in statusbar */ }
+            }
         };
         updateTimeAndHealth();
         timer = setInterval(updateTimeAndHealth, 30_000);

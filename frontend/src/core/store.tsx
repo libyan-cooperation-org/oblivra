@@ -6,11 +6,8 @@ import {
 } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { createStore } from 'solid-js/store';
-import { Connect } from '../../wailsjs/go/services/SSHService';
-import { StartLocalSession } from '../../wailsjs/go/services/LocalService';
-import { ListHosts } from '../../wailsjs/go/services/HostService';
-import { IsUnlocked } from '../../wailsjs/go/services/VaultService';
 import { subscribe } from './bridge';
+import { IS_BROWSER } from './context';
 import {
     Host,
     Session,
@@ -83,7 +80,9 @@ export const AppProvider: ParentComponent = (props) => {
     const navigate = useNavigate();
 
     const refreshHosts = async () => {
+        if (IS_BROWSER) return; // No Wails bindings in browser mode
         try {
+            const { ListHosts } = await import('../../wailsjs/go/services/HostService');
             const hosts = await ListHosts();
             setState('hosts', hosts || []);
         } catch (e) {
@@ -107,14 +106,17 @@ export const AppProvider: ParentComponent = (props) => {
             refreshHosts();
         });
 
-        // Initial state check — now safe because all listeners are already registered.
-        // The vault:unlocked event subscription above handles the async unlock case;
-        // we only need a single check here to catch vaults already unlocked before mount
-        // (e.g. when navigating between pages after initial unlock).
-        const unlocked = await IsUnlocked();
-        setState('vaultUnlocked', unlocked);
-        if (unlocked) {
-            await refreshHosts();
+        // Initial vault/host state — desktop only.
+        // In browser mode vault is not used; hosts come from the server API instead.
+        if (!IS_BROWSER) {
+            try {
+                const { IsUnlocked } = await import('../../wailsjs/go/services/VaultService');
+                const unlocked = await IsUnlocked();
+                setState('vaultUnlocked', unlocked);
+                if (unlocked) {
+                    await refreshHosts();
+                }
+            } catch (_) {}
         }
         // No polling needed — backend emits vault:unlocked via EventsEmit when unlock
         // succeeds, which the subscribe('vault:unlocked') handler above will catch.
@@ -202,42 +204,41 @@ export const AppProvider: ParentComponent = (props) => {
         refreshHosts,
 
         connectToHost: (hostId: string) => {
-            // First try direct ID match
-            let host = state.hosts.find(h => h.id === hostId);
-
-            // Fallback: If not found by ID, try finding by hostname or label (useful for Discovery sidebar)
-            if (!host) {
-                host = state.hosts.find(h => h.hostname === hostId || h.label === hostId);
-            }
-
-            if (!host) {
-                actions.notify(`Host not found in Fleet: ${hostId}. Please add it first.`, 'error');
+            if (IS_BROWSER) {
+                actions.notify('SSH connections require the desktop binary.', 'error');
                 return;
             }
-
+            let host = state.hosts.find(h => h.id === hostId);
+            if (!host) host = state.hosts.find(h => h.hostname === hostId || h.label === hostId);
+            if (!host) {
+                actions.notify(`Host not found: ${hostId}. Please add it first.`, 'error');
+                return;
+            }
             const targetId = host.id;
             setState('activeNavTab', 'terminal');
             navigate('/terminal');
-
             const existing = state.sessions.find(s => s.hostId === targetId && s.status === 'active');
-            if (existing) {
-                setState('activeSessionId', existing.id);
-                return;
-            }
-
-            Connect(targetId).catch((err: unknown) => {
-                console.error('SSH connect failed:', err);
-                const errorMsg = err instanceof Error ? err.message : String(err);
-                actions.notify(`Failed to connect to ${host?.label || targetId}`, 'error', errorMsg);
+            if (existing) { setState('activeSessionId', existing.id); return; }
+            import('../../wailsjs/go/services/SSHService').then(({ Connect }) => {
+                Connect(targetId).catch((err: unknown) => {
+                    const errorMsg = err instanceof Error ? err.message : String(err);
+                    actions.notify(`Failed to connect to ${host?.label || targetId}`, 'error', errorMsg);
+                });
             });
         },
 
         connectToLocal: () => {
+            if (IS_BROWSER) {
+                actions.notify('Local terminal requires the desktop binary.', 'error');
+                return;
+            }
             setState('activeNavTab', 'terminal');
             navigate('/terminal');
-            StartLocalSession().catch((err: unknown) => {
-                console.error('Local PTY start failed:', err);
-                actions.notify('Local shell failed to start', 'error', err instanceof Error ? (err as Error).message : String(err));
+            import('../../wailsjs/go/services/LocalService').then(({ StartLocalSession }) => {
+                StartLocalSession().catch((err: unknown) => {
+                    actions.notify('Local shell failed to start', 'error',
+                        err instanceof Error ? (err as Error).message : String(err));
+                });
             });
         },
         toggleFocusMode: () => setState('focusMode', (prev) => !prev),

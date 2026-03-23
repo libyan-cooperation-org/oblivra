@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
-import { GetSnapshot } from '../../../wailsjs/go/services/DiagnosticsService';
 import { monitoring } from '../../../wailsjs/go/models';
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
+import { subscribe } from '@core/bridge';
+import { IS_BROWSER } from '@core/context';
 
 interface DiagnosticsModalProps {
     onClose: () => void;
@@ -74,7 +74,10 @@ export const DiagnosticsModal: Component<DiagnosticsModalProps> = (props) => {
     let ageTimer: ReturnType<typeof setInterval>;
 
     const load = async () => {
+        // GetSnapshot is a Wails binding — only available in desktop/hybrid
+        if (IS_BROWSER) return;
         try {
+            const { GetSnapshot } = await import('../../../wailsjs/go/services/DiagnosticsService');
             const s = await GetSnapshot();
             setSnap(s);
             setAge(0);
@@ -89,8 +92,8 @@ export const DiagnosticsModal: Component<DiagnosticsModalProps> = (props) => {
         // Poll every 2s (matches the backend broadcast interval)
         const pollTimer = setInterval(load, 2000);
 
-        // Also listen for push events from backend broadcast
-        EventsOn('diagnostics:snapshot', (data: Snap) => {
+        // subscribe() is a no-op in browser mode — safe to call everywhere
+        const unsub = subscribe('diagnostics:snapshot', (data: Snap) => {
             setSnap(data);
             setAge(0);
         });
@@ -101,7 +104,7 @@ export const DiagnosticsModal: Component<DiagnosticsModalProps> = (props) => {
         onCleanup(() => {
             clearInterval(pollTimer);
             clearInterval(ageTimer);
-            EventsOff('diagnostics:snapshot');
+            unsub();
         });
     });
 
