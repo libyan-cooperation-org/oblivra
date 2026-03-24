@@ -94,3 +94,13 @@ func GetTechniqueName(techniqueID string) string {
 	}
 	return "Unknown Technique"
 }
+
+// GetAllTechniques returns a copy of the full MITRE ATT&CK technique map (ID → name).
+// Used by GenerateMITREGapReport to enumerate all known techniques.
+func GetAllTechniques() map[string]string {
+	copy := make(map[string]string, len(Techniques))
+	for k, v := range Techniques {
+		copy[k] = v
+	}
+	return copy
+}

@@ -58,7 +58,8 @@ export const ComplianceCenter: Component = () => {
         if (IS_BROWSER) return;
         try {
             const { EvaluatePack } = await import('../../../wailsjs/go/services/ComplianceService');
-            setEvalResults(prev => ({ ...prev, [packId]: await EvaluatePack(packId) }));
+             const result = await EvaluatePack(packId);
+             setEvalResults(prev => ({ ...prev, [packId]: result }));
         } catch (err) { console.error(`Evaluation failed for ${packId}:`, err); }
     };
 

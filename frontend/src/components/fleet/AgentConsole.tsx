@@ -23,6 +23,13 @@ export const AgentConsole: Component = () => {
         onCleanup(() => clearInterval(interval));
     });
 
+    const statusColor = (status?: string) => {
+       if (status === 'online') return '#238636';
+       if (status === 'degraded') return '#d29922';
+       if (status === 'isolated') return '#f85149';
+       return '#da3633';
+    };
+
     return (
         <div class="agent-console">
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -47,11 +54,11 @@ export const AgentConsole: Component = () => {
                 </Show>
 
                 <For each={agents()}>
-                    {(agent) => (
+                    {(agent: any) => (
                         <div class="agent-card" style="background: var(--bg-surface); border: 1px solid var(--border-primary); border-radius: 4px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
-                                    <span style={`width: 8px; height: 8px; border-radius: 50%; background: ${agent.status === 'online' ? '#238636' : '#da3633'}`}></span>
+                                <h4 style="margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text-primary);">
+                                    <span style={`width: 8px; height: 8px; border-radius: 50%; background: ${statusColor(agent.status)}`}></span>
                                     {agent.hostname}
                                 </h4>
                                 <span style="font-size: 11px; font-family: var(--font-mono); background: var(--bg-primary); padding: 4px 6px; border-radius: 4px; color: var(--text-secondary); border: 1px solid var(--border-secondary);">
@@ -62,20 +69,30 @@ export const AgentConsole: Component = () => {
                             <div style="font-size: 12px; display: flex; flex-direction: column; gap: 6px; font-family: var(--font-mono); padding: 8px; background: var(--bg-primary); border-radius: 4px;">
                                 <div style="display: flex; justify-content: space-between;">
                                     <span style="color: var(--text-secondary);">ID</span>
-                                    <span>{agent.id}</span>
+                                    <span style="color: var(--text-primary);">{agent.id}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: var(--text-secondary);">IP</span>
-                                    <span>{agent.remote_address}</span>
+                                    <span style="color: var(--text-secondary);">Platform</span>
+                                    <span style="color: var(--text-primary); text-transform: uppercase;">
+                                       <span style="background:var(--bg-secondary); padding:2px 4px; border-radius:2px; margin-right:4px;">{agent.os}</span>
+                                       <span style="background:var(--bg-secondary); padding:2px 4px; border-radius:2px;">{agent.arch}</span>
+                                    </span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: var(--text-secondary);">Seen</span>
-                                    <span>{new Date(agent.last_seen).toLocaleTimeString()}</span>
+                                    <span style="color: var(--text-secondary);">Last Seen</span>
+                                    <span style="color: var(--text-primary);">{new Date(agent.last_seen).toLocaleTimeString()}</span>
                                 </div>
+                            </div>
+                            
+                            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                               <For each={agent.collectors || []}>
+                                  {c => <span style="background:rgba(87,139,255,0.1); border:1px solid rgba(87,139,255,0.3); padding:2px 6px; border-radius:12px; font-size:10px; font-family:var(--font-mono); color:var(--accent-primary);">{c}</span>}
+                               </For>
                             </div>
 
                             <div style="margin-top: 8px; border-top: 1px solid var(--border-primary); padding-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
-                                <button class="ops-btn-sm" style="background: var(--bg-primary); border: 1px solid var(--border-secondary); color: var(--text-secondary);">Drop Auth</button>
+                                <button class="ops-btn-sm" style="background: var(--bg-primary); border: 1px solid var(--border-secondary); color: var(--text-secondary);">Push Config</button>
+                                <button class="ops-btn-sm" style="background: var(--bg-primary); border: 1px solid var(--border-secondary); color: var(--alert-medium);">Drop Auth</button>
                             </div>
                         </div>
                     )}

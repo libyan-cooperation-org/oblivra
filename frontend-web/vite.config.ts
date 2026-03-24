@@ -10,6 +10,13 @@ export default defineConfig({
   plugins: [solidPlugin()],
   server: {
     port: 3000,
+    proxy: {
+      '/api/v1': {
+        target: 'https://localhost:8080',
+        secure: false,
+        changeOrigin: true
+      }
+    }
   },
   build: {
     target: 'esnext',

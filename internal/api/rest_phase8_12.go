@@ -228,8 +228,17 @@ func (s *RESTServer) handleUEBAAnomalies(w http.ResponseWriter, r *http.Request)
 		ctx := r.Context()
 		events, _ := s.siem.SearchHostEvents(ctx, "EventType:anomaly", limit)
 		for _, e := range events {
-			ev, _ := e.(map[string]interface{})
-			anomalies = append(anomalies, ev)
+			anomalies = append(anomalies, map[string]interface{}{
+				"id":         e.ID,
+				"tenant_id":  e.TenantID,
+				"host_id":    e.HostID,
+				"timestamp":  e.Timestamp,
+				"event_type": e.EventType,
+				"source_ip":  e.SourceIP,
+				"location":   e.Location,
+				"user":       e.User,
+				"raw_log":    e.RawLog,
+			})
 		}
 	}
 	if len(anomalies) == 0 {
@@ -273,8 +282,17 @@ func (s *RESTServer) handleNDRFlows(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		events, _ := s.siem.SearchHostEvents(ctx, "EventType:netflow OR EventType:network_connection", limit)
 		for _, e := range events {
-			ev, _ := e.(map[string]interface{})
-			flows = append(flows, ev)
+			flows = append(flows, map[string]interface{}{
+				"id":         e.ID,
+				"tenant_id":  e.TenantID,
+				"host_id":    e.HostID,
+				"timestamp":  e.Timestamp,
+				"event_type": e.EventType,
+				"source_ip":  e.SourceIP,
+				"location":   e.Location,
+				"user":       e.User,
+				"raw_log":    e.RawLog,
+			})
 		}
 	}
 	if len(flows) == 0 {
@@ -297,8 +315,17 @@ func (s *RESTServer) handleNDRAlerts(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		events, _ := s.siem.SearchHostEvents(ctx, "EventType:lateral_movement OR EventType:dns_tunnel OR EventType:c2_beacon", limit)
 		for _, e := range events {
-			ev, _ := e.(map[string]interface{})
-			alerts = append(alerts, ev)
+			alerts = append(alerts, map[string]interface{}{
+				"id":         e.ID,
+				"tenant_id":  e.TenantID,
+				"host_id":    e.HostID,
+				"timestamp":  e.Timestamp,
+				"event_type": e.EventType,
+				"source_ip":  e.SourceIP,
+				"location":   e.Location,
+				"user":       e.User,
+				"raw_log":    e.RawLog,
+			})
 		}
 	}
 	if len(alerts) == 0 {
@@ -342,8 +369,17 @@ func (s *RESTServer) handleRansomwareEvents(w http.ResponseWriter, r *http.Reque
 			"EventType:entropy_spike OR EventType:canary_triggered OR EventType:shadow_copy_deleted OR EventType:mass_rename OR EventType:ransom_note",
 			limit)
 		for _, e := range rawEvents {
-			ev, _ := e.(map[string]interface{})
-			events = append(events, ev)
+			events = append(events, map[string]interface{}{
+				"id":         e.ID,
+				"tenant_id":  e.TenantID,
+				"host_id":    e.HostID,
+				"timestamp":  e.Timestamp,
+				"event_type": e.EventType,
+				"source_ip":  e.SourceIP,
+				"location":   e.Location,
+				"user":       e.User,
+				"raw_log":    e.RawLog,
+			})
 		}
 	}
 	if len(events) == 0 {

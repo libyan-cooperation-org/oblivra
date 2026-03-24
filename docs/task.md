@@ -692,7 +692,7 @@
 
 ---
 
-### 22.1 — Reliability Engineering
+### 22.1 — Reliability Engineering (CRITICAL ADDITION)
 
 - [x] **Chaos test harness** — `cmd/chaos/main.go`: 4 scenarios: WAL replay after SIGKILL (200 records, 1 truncated header), BadgerDB VLog corruption (bit-flip + truncate recovery), OOM burst (80 goroutines, shed detection), clock skew ±5min (RFC3339 timestamps, server must accept). Run: `go run ./cmd/chaos` (COMPLETED 2026-03-23)
 - [ ] **Agent reconnect guarantee** — resume without data loss after server restart; unvalidated at >1000 events in-flight
@@ -700,9 +700,13 @@
 - [ ] **Graceful degradation under overload** — at 3× rated EPS: backpressure, detection degrades gracefully, UI shows `DEGRADED` banner; no silent data loss
 - [x] **Automated soak regression** — `.github/workflows/soak.yml`: triggers on release tags, 30-min 5,000 EPS soak, EPS regression gate, event-loss gate (<0.1%), pprof heap capture, JSON artefact upload. `cmd/soak_test` extended with `--report-json`, `--sample-interval`, HTTP REST mode (COMPLETED 2026-03-23)
 - [ ] **Node failure simulation** — kill Raft leader mid-election; verify cluster recovers, no double-processed events
-- [ ] **Deterministic Replay System** — Full platform replay (`oblivra replay --from WAL --timestamp`) ensuring exact same alerts are produced deterministically
-- [ ] **Time Synchronization Enforcement** — Agent time drift detection, NTP validation per agent, and explicit `event_time_confidence` scoring
-- [ ] **Upgrade Safety Guarantees** — Versioned schema migration rollback, dual-run (old+new pipeline) capability, and per-tenant canary upgrades
+- [ ] **Deterministic Execution Contract** — Strict event ordering (timestamp + UUID), fixed rule evaluation order, anchored time windows, and fully seeded/removed randomness.
+- [ ] **Full-System Replay Engine with Hash Validation** — Upgrade replay to validate final pipeline state and alert hashes against expected outcomes (`oblivra replay --expect-hash`).
+- [ ] **End-to-End State Hash Chaining** — `H(n) = SHA256(H(n-1) + current_state)` across event → enrichment → detection → alert → incident to form a System Truth Fingerprint.
+- [ ] **Version-Pinned Execution** — Pin `rule_version`, `pipeline_version`, and `enrichment_version` to every alert for exact mathematical reproducibility.
+- [ ] **Cross-Node Deterministic Consistency Checks** — Periodically compare alert and state hashes across nodes processing the same partition; trigger CRITICAL integrity alert on mismatch.
+- [ ] **Time Confidence Scoring** — Enforce explicit `event_time_confidence` constraints at ingestion (NTP status, drift, source reliability) to prevent time-based evasion.
+- [ ] **Upgrade Safety Guarantees** — Versioned schema migration rollback, dual-run (old+new pipeline) capability, and per-tenant canary upgrades.
 
 ---
 

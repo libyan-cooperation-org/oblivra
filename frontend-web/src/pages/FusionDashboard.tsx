@@ -143,7 +143,7 @@ export default function FusionDashboard() {
 
                                         {/* Kill chain progress */}
                                         <div style="display:flex; gap:2px; margin-bottom:0.5rem;">
-                                            {TACTIC_ORDER.slice(0, 12).map((t, i) => {
+                                            {TACTIC_ORDER.slice(0, 12).map((t) => {
                                                 const active = c.tactic_stages.some(s => s.toLowerCase().includes(t.toLowerCase().split(' ')[0]));
                                                 return (
                                                     <div title={t} style={`flex:1; height:6px; border-radius:1px; background:${active ? confidenceColor(c.confidence) : '#1e3040'};`} />

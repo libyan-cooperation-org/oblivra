@@ -260,11 +260,7 @@ func (s *RESTServer) handlePeerDeviations(w http.ResponseWriter, r *http.Request
 		ctx := r.Context()
 		events, _ := s.siem.SearchHostEvents(ctx, "EventType:anomaly OR EventType:off_hours_login OR EventType:mass_download", 20)
 		for _, e := range events {
-			ev, ok := e.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			entityID, _ := ev["host_id"].(string)
+			entityID := e.HostID
 			if entityID == "" {
 				continue
 			}
