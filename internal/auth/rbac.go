@@ -160,4 +160,8 @@ const (
 
 	PermClusterRead  = "cluster:read"
 	PermClusterWrite = "cluster:write"
+
+	PermMCPExecute  = "mcp:execute"
+	PermMCPSimulate = "mcp:simulate"
+	PermMCPApprove  = "mcp:approve"
 )

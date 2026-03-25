@@ -110,6 +110,7 @@ func apiKeyToIdentityUser(u *UserAccount) *IdentityUser {
 			PermEvidenceRead, PermEvidenceWrite,
 			PermSnippetsRead,
 			PermComplianceRead,
+			PermMCPExecute, PermMCPSimulate,
 		}
 	case RoleReadOnly:
 		perms = []string{

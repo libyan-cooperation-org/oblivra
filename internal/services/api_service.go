@@ -12,7 +12,22 @@ import (
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/security"
+	"github.com/kingknull/oblivrashell/internal/threatintel"
+	"github.com/kingknull/oblivrashell/internal/mcp"
 )
+
+// threatIntelWrapper bridges threatintel.MatchEngine to mcp.ThreatIntel
+type threatIntelWrapper struct {
+	engine *threatintel.MatchEngine
+}
+
+func (w *threatIntelWrapper) Match(iocType, value string) (any, bool) {
+	return w.engine.Match(iocType, value)
+}
+
+func (w *threatIntelWrapper) MatchAny(value string) (any, bool) {
+	return w.engine.MatchAny(value)
+}
 
 // APIService manages the standalone REST API server lifecycle.
 type APIService struct {
@@ -30,7 +45,7 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, identity *IdentityService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger) *APIService {
+func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, identity *IdentityService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, matchEngine *threatintel.MatchEngine) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -54,7 +69,12 @@ func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	// PRR Fix: Dynamic TLS loading
 	cm := security.NewCertificateManager("cert.pem", "key.pem", log)
 	
-	server := api.NewRESTServer(port, siem, pipeline, attest, am, identity, bus, cm, log)
+	// MCP Initialization (Phase 22.1)
+	mcpRegistry := mcp.NewToolRegistry()
+	mcpEngine := mcp.NewDefaultEngine(siem, isolator, &threatIntelWrapper{engine: matchEngine}, bus, log)
+	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, log)
+
+	server := api.NewRESTServer(port, siem, pipeline, attest, am, identity, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server: server,

@@ -29,6 +29,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/notifications"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
+	"github.com/kingknull/oblivrashell/internal/mcp"
 )
 
 // IdentityProvider defines the subset of IdentityService required by the REST API.
@@ -75,6 +76,10 @@ type RESTServer struct {
 	// Connection tracking
 	activeWS int64
 	maxWS    int64
+
+	// MCP - Protocol Phase 22.1
+	mcpRegistry *mcp.ToolRegistry
+	mcpHandler  *mcp.Handler
 }
 
 // AgentInfo tracks a registered agent.
@@ -96,7 +101,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger) *RESTServer {
+func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	s := &RESTServer{
 		port:     port,
 		siem:     siem,
@@ -112,6 +117,8 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
 		maxWS:    100,                               // Max 100 concurrent websocket listeners
 		evidence: forensics.NewEvidenceLocker([]byte("oblivra-evidence-hmac-key-v1")),
+		mcpRegistry: mcpRegistry,
+		mcpHandler:  mcpHandler,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -212,6 +219,10 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	mux.HandleFunc("/api/v1/audit/log", s.handleAuditLog)
 	mux.HandleFunc("/api/v1/audit/packages", s.handleAuditPackages)
 	mux.HandleFunc("/api/v1/audit/packages/generate", s.handleAuditPackageGenerate)
+
+	// MCP Endpoints (Phase 22.1)
+	mux.HandleFunc("/api/v1/mcp/tools", s.handleMCPDiscovery)
+	mux.HandleFunc("/api/v1/mcp/execute", s.handleMCPExecute)
 
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.handleUsers)
@@ -1475,4 +1486,59 @@ func sha256Hash(data []byte) []byte {
 	import_sha256 := sha256.New()
 	import_sha256.Write(data)
 	return import_sha256.Sum(nil)
+}
+
+// ── MCP Handlers (Phase 22.1) ────────────────────────────────────────────────
+
+func (s *RESTServer) handleMCPDiscovery(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	tools := s.mcpRegistry.ListTools()
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"tools":   tools,
+		"version": "1.0",
+		"capabilities": map[string]bool{
+			"approval":      true,
+			"simulation":    true,
+			"deterministic": true,
+		},
+	})
+}
+
+func (s *RESTServer) handleMCPExecute(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Max 5MB for MCP requests (some params like scripts might be large)
+	r.Body = http.MaxBytesReader(w, r.Body, 5*1024*1024)
+
+	var req mcp.MCPRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid MCP request envelope", http.StatusBadRequest)
+		return
+	}
+
+	// Enforce strict client-side ID if missing (server-side generation fallback)
+	if req.RequestID == "" {
+		req.RequestID = fmt.Sprintf("req-%d", time.Now().UnixNano())
+	}
+
+	// Execution pipeline
+	resp := s.mcpHandler.HandleRequest(r.Context(), req)
+
+	status := http.StatusOK
+	if resp.Status == "denied" {
+		status = http.StatusForbidden
+	} else if resp.Status == "error" {
+		status = http.StatusInternalServerError
+	} else if resp.Status == "pending_approval" {
+		status = http.StatusAccepted
+	}
+
+	s.jsonResponse(w, status, resp)
 }
