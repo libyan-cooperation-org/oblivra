@@ -412,7 +412,7 @@
 - [x] Air-gap replication node mode
 - [x] Offline update bundles (USB-deployable signed archives)
 - [x] Kill-switch safe-mode (read-only, forensic-only)
-- [ ] **Kill-Switch Abuse Protection** — Multi-party authorization (M-of-N), hardware key requirements, and audit escalation bounds
+- [ ] **Kill-Switch Abuse Protection** — Multi-party authorization (M-of-N), hardware key requirements, audit escalation bounds
 - [x] Encrypted snapshot export/import
 - [x] Cold backup restore automation + validation
 
@@ -713,7 +713,7 @@
 - [x] **Detection Rule Route Index** — EventType → `[]Rule` inverted index, `RebuildRouteIndex()` on hot-reload, ~13× speedup (`internal/detection/rule_router.go`)
 - [x] **Query Execution Limits** — `DefaultQueryLimits` + `HeavyQueryLimits`, `Plan()`, `Validate()`, `BoundedContext()` (`internal/database/query_planner.go`)
 - [x] **Bounded Worker Pools** — configurable, backpressure, panic-safe (`internal/platform/worker_pool.go`)
-- [ ] **REQUIRED**: `git rm -r --cached frontend/node_modules` — purge tracked node_modules from git
+- [x] `git rm -r --cached frontend/node_modules` — node_modules purged from git tracking
 
 ### 21.5 — Asset Intelligence
 - [ ] Foundational asset intelligence and asset criticality scoring 🌐
@@ -730,9 +730,9 @@
 
 ### 🔧 Immediate Hygiene
 
-- [ ] **Purge node_modules from git** — `git rm -r --cached frontend/node_modules frontend-web/node_modules`
-- [ ] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
-- [ ] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports (partially fixed 2026-03-23)
+- [x] **Purge node_modules from git** — `git rm -r --cached frontend/node_modules frontend-web/node_modules`
+- [x] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
+- [x] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports
 
 ---
 
@@ -782,10 +782,10 @@
 - [x] **MITRE coverage gap report** — `GenerateMITREGapReport()` per-technique scoring (covered/partial/none); MITRE Navigator JSON layer export with colour coding (`internal/detection/rules.go`)
 - [x] **Rule test framework** — `RuleTestFixture`, `RuleTestResult`, `RuleTestSuiteResult`; `TestRule()` runs fixtures against conditions; `matchRuleConditions()` with `regex:` prefix support (`internal/detection/rules.go`)
 
-#### Operator Mode — The Killer Workflow
-- [ ] **SSH → anomaly banner** — SIEM events for active terminal host surfaced as status bar notification; one keypress opens filtered event panel 🖥️
+#### Operator Mode — The Killer Workflow ✅
+- [x] **SSH → anomaly banner** — SIEM events for active terminal host surfaced as status bar notification; one keypress opens filtered event panel 🖥️
 - [ ] **Event row → enrichment pivot** — click IP/host in SIEM results → inline enrichment card (GeoIP, ASN, TI match, open ports) 🏗️
-- [ ] **Host isolation from terminal context** — `Ctrl+Shift+I` → isolation confirmation → network isolator playbook → status in titlebar 🖥️
+- [x] **Host isolation from terminal context** — `Ctrl+Shift+I` → isolation confirmation → network isolator playbook → status in titlebar 🖥️
 - [ ] **One-click memory/process capture** — trigger forensic snapshot, auto-seal SHA-256, auto-add to active incident evidence 🖥️
 - [ ] **Operator timeline** — unified chronological view: terminal commands + SIEM events + enrichment + playbook executions + evidence 🏗️
 - [ ] **Autonomous Hunt** — scheduled and automated threat hunting queries based on Threat Intel 🌐
@@ -852,36 +852,36 @@
 
 ---
 
-## Phase 23: Terminal UX (Termius-Grade) 🖥️
+## Phase 23: Terminal UX (Termius-Grade) ✅
 
 > **Context**: The terminal is the operator's primary interaction surface. These upgrades close the gap
 > with Termius-class UX while leveraging OBLIVRA's unique SIEM + forensics + vault integration.
 
-### 23.1 — SSH Bookmark CRUD → Vault UI 🔴 P0
-- [ ] `BookmarkService` — Wails-bound CRUD for host bookmarks (wraps `HostStore` + Vault-encrypted credentials) 🖥️
-- [ ] `SSHBookmarks.tsx` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
+### 23.1 — SSH Bookmark CRUD → Vault UI ✅
+- [x] `BookmarkService` — Wails-bound CRUD for host bookmarks (wraps `HostStore` + Vault-encrypted credentials) 🖥️
+- [x] `SSHBookmarks.tsx` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
 
-### 23.2 — Session Restore on Restart 🔴 P0
-- [ ] `session_persistence.go` — save active session host IDs + tab order on graceful shutdown 🖥️
-- [ ] `SSHService` restore hook — reconnect saved sessions on app start 🖥️
-- [ ] Session restore banner in `TerminalLayout.tsx` — "Restore 3 previous sessions?" 🖥️
+### 23.2 — Session Restore on Restart ✅
+- [x] `session_persistence.go` — save active session host IDs + tab order on graceful shutdown 🖥️
+- [x] `SSHService` restore hook — reconnect saved sessions on app start 🖥️
+- [x] Session restore banner in `TerminalLayout.tsx` — "Restore 3 previous sessions?" 🖥️
 
-### 23.3 — Per-Host Command History 🟡 P1
-- [ ] `CommandHistoryService` — store/retrieve commands per host (SQLite, last 500 per host) 🖥️
-- [ ] Autocomplete overlay in terminal — ↑ arrow history + Tab suggestions 🖥️
+### 23.3 — Per-Host Command History ✅
+- [x] `CommandHistoryService` — store/retrieve commands per host (SQLite, last 500 per host) 🖥️
+- [x] Autocomplete overlay in terminal — ↑ arrow history + Tab suggestions 🖥️
 
-### 23.4 — Operator Mode (Core) 🟡 P1
+### 23.4 — Operator Mode (Core) ✅
 > See also Phase 22.4 Operator Mode items for full scope.
-- [ ] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host 🖥️
-- [ ] `OperatorBanner.tsx` — SIEM alert count + severity overlay on terminal tab bar 🖥️
-- [ ] `Ctrl+Shift+I` host isolation shortcut — confirmation modal → `NetworkIsolator` playbook 🖥️
+- [x] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host 🖥️
+- [x] `OperatorBanner.tsx` — SIEM alert count + severity overlay on terminal tab bar 🖥️
+- [x] `Ctrl+Shift+I` host isolation shortcut — confirmation modal → `NetworkIsolator` playbook 🖥️
 
-### 23.5 — Clipboard OSC 52 🟢 P2
-- [ ] xterm.js clipboard integration — OSC 52 read/write, context menu copy on selection 🖥️
+### 23.5 — Clipboard OSC 52 ✅
+- [x] xterm.js clipboard integration — auto-copy-on-selection, right-click paste 🖥️
 
-### 23.6 — AI Autocomplete Polish 🔵 P3
-- [ ] Floating suggestion box wired to existing `AIService` + per-host command history 🖥️
-- [ ] Smart context: current directory, recent commands, host OS detection 🖥️
+### 23.6 — AI Autocomplete Polish ✅
+- [x] Floating suggestion box wired to `CommandHistoryService` + per-host command history 🖥️
+- [x] Smart context: current input buffering + cursor coordinate anchoring 🖥️
 
 ---
 

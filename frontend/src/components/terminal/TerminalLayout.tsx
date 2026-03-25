@@ -4,12 +4,18 @@ import { IS_BROWSER } from '@core/context';
 import { TerminalView } from './Terminal';
 import { SSHBookmarks } from './SSHBookmarks';
 import { OperatorBanner } from './OperatorBanner';
+import { CommandSuggest } from './CommandSuggest';
 
 export const TerminalLayout: Component = () => {
     const [state, actions] = useApp();
     const [hovered, setHovered] = createSignal<string | null>(null);
     const [showBookmarks, setShowBookmarks] = createSignal(true);
     const [restorableSessions, setRestorableSessions] = createSignal<any[]>([]);
+
+    // Command Suggestion state
+    const [currentInput, setCurrentInput] = createSignal("");
+    const [cursorPos, setCursorPos] = createSignal({ x: 0, y: 0 });
+    const [suggestVisible, setSuggestVisible] = createSignal(false);
 
     // Fetch restorable sessions on mount, or auto-open local shell
     onMount(async () => {
@@ -86,6 +92,18 @@ export const TerminalLayout: Component = () => {
 
     const sendData = (session: any, data: string) => {
         if (IS_BROWSER) return;
+        
+        // Command Suggestion buffering
+        if (data === '\r' || data === '\n') {
+            setCurrentInput("");
+            setSuggestVisible(false);
+        } else if (data === '\x7f' || data === '\b') {
+            setCurrentInput(prev => prev.slice(0, -1));
+        } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
+            setCurrentInput(prev => prev + data);
+            setSuggestVisible(true);
+        }
+
         const encoded = btoa(unescape(encodeURIComponent(data)));
         if (isLocal(session)) {
             import('../../../wailsjs/go/services/LocalService')
@@ -94,6 +112,17 @@ export const TerminalLayout: Component = () => {
             import('../../../wailsjs/go/services/SSHService')
                 .then(m => m.SendInput(session.id, encoded)).catch(() => {});
         }
+    };
+
+    const handleSelectSuggestion = (cmd: string) => {
+        const session = activeSession();
+        if (!session) return;
+        
+        // Clear current input from terminal first (naive approach)
+        const backspaces = "\b".repeat(currentInput().length);
+        sendData(session, backspaces + cmd);
+        setCurrentInput(cmd);
+        setSuggestVisible(false);
     };
 
     const sendResize = (session: any, cols: number, rows: number) => {
@@ -425,17 +454,37 @@ export const TerminalLayout: Component = () => {
                                     'pointer-events': isActive() ? 'auto' : 'none',
                                     'z-index': isActive() ? '1' : '0',
                                 }}
+                                id={`term-container-${session.id}`}
                             >
                                 <TerminalView
                                     sessionId={session.id}
                                     active={isActive()}
                                     onData={(data) => sendData(session, data)}
                                     onResize={(cols, rows) => sendResize(session, cols, rows)}
+                                    onCursorMove={(x, y) => {
+                                        // Position suggest box relative to terminal element
+                                        const el = document.getElementById(`term-container-${session.id}`);
+                                        if (el) {
+                                            const rect = el.getBoundingClientRect();
+                                            setCursorPos({ x: rect.left + x, y: rect.top + y });
+                                        }
+                                    }}
                                 />
                             </div>
                         );
                     }}
                 </For>
+                
+                {/* Floating Autocomplete Overlay */}
+                <CommandSuggest 
+                    hostId={activeSession()?.hostId || "local"}
+                    currentInput={currentInput()}
+                    visible={suggestVisible()}
+                    anchorX={cursorPos().x}
+                    anchorY={cursorPos().y}
+                    onSelect={handleSelectSuggestion}
+                    onDismiss={() => setSuggestVisible(false)}
+                />
             </div>
             
             </div> {/* End Main Content Area */}

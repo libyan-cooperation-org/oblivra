@@ -158,6 +158,22 @@ func (s *SSHService) Start(ctx context.Context) error {
 
 // Stop gracefully closes all SSH sessions
 func (s *SSHService) Stop(ctx context.Context) error {
+	if s.sessionPersist != nil {
+		activeSessions := s.manager.GetAll()
+		var persisted []PersistedSession
+		for i, sess := range activeSessions {
+			persisted = append(persisted, PersistedSession{
+				HostID:    sess.HostID,
+				HostLabel: sess.HostLabel,
+				TabIndex:  i,
+				IsLocal:   false,
+			})
+		}
+		// Also handle local shells if possible, but LocalService handles those.
+		// For now, only SSH sessions are persisted here.
+		s.sessionPersist.SaveState(persisted, 0)
+	}
+
 	s.CloseAll()
 	return nil
 }
@@ -506,13 +522,18 @@ func (s *SSHService) SendInput(sessionID string, data string) error {
 	for _, b := range decoded {
 		switch b {
 		case '\r', '\n':
-			if len(buf) > 0 && buf[0] == '/' {
+			if len(buf) > 0 {
 				cmd := string(buf)
-				s.commandBuffers[sessionID] = nil
-				s.cmdMu.Unlock()
-				// Clear the line on the terminal before executing
-				session.Write([]byte("\r\x1b[2K"))
-				return s.handleSystemCommand(sessionID, cmd)
+				if s.commandHistory != nil {
+					s.commandHistory.RecordCommand(session.HostID, cmd)
+				}
+				if buf[0] == '/' {
+					s.commandBuffers[sessionID] = nil
+					s.cmdMu.Unlock()
+					// Clear the line on the terminal before executing
+					session.Write([]byte("\r\x1b[2K"))
+					return s.handleSystemCommand(sessionID, cmd)
+				}
 			}
 			buf = nil
 		case 127, 8: // Backspace

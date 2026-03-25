@@ -41,6 +41,10 @@ type LocalService struct {
 	mu       *sync.Mutex
 	sessions map[string]*localSession
 	batchers *sync.Map // Map of sessionID -> *OutputBatcher
+	
+	commandHistory *CommandHistoryService
+	commandBuffers  map[string][]byte
+	cmdMu           *sync.Mutex
 }
 
 func (s *LocalService) Name() string { return "local-service" }
@@ -59,7 +63,13 @@ func NewLocalService(bus *eventbus.Bus, log *logger.Logger, sessionMgr SessionOp
 		sessions:   make(map[string]*localSession),
 		mu:         &sync.Mutex{},
 		batchers:   &sync.Map{},
+		commandBuffers:   make(map[string][]byte),
+		cmdMu:            &sync.Mutex{},
 	}
+}
+
+func (s *LocalService) SetCommandHistory(svc *CommandHistoryService) {
+	s.commandHistory = svc
 }
 
 func (s *LocalService) Start(ctx context.Context) error {
@@ -88,17 +98,7 @@ func (s *LocalService) StartLocalSession() (sessionID string, retErr error) {
 	s.log.Info("Starting local session %s", id)
 
 	// Pick the right shell
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-NoExit")
-	default:
-		shell := os.Getenv("SHELL")
-		if shell == "" {
-			shell = "/bin/bash"
-		}
-		cmd = exec.Command(shell, "-l")
-	}
+	cmd := s.getShellCommand()
 
 	// Use the platform-specific PTY abstraction (creack/pty on unix, pipes on windows)
 	ps, err := startPTY(cmd, 120, 40)
@@ -229,6 +229,29 @@ func (s *LocalService) SendInput(sessionID string, data string) error {
 	if s.recManager != nil {
 		go s.recManager.RecordInput(sessionID, decoded)
 	}
+
+	// Command history tracking
+	s.cmdMu.Lock()
+	buf := s.commandBuffers[sessionID]
+	for _, b := range decoded {
+		if b == '\r' || b == '\n' {
+			if len(buf) > 0 {
+				cmd := string(buf)
+				if s.commandHistory != nil {
+					s.commandHistory.RecordCommand("local", cmd)
+				}
+			}
+			buf = nil
+		} else if b == 127 || b == 8 {
+			if len(buf) > 0 {
+				buf = buf[:len(buf)-1]
+			}
+		} else if b >= 32 {
+			buf = append(buf, b)
+		}
+	}
+	s.commandBuffers[sessionID] = buf
+	s.cmdMu.Unlock()
 
 	_, err = sess.stdin.Write(decoded)
 	return err

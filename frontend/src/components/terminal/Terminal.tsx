@@ -11,6 +11,7 @@ interface TerminalProps {
     onResize?: (cols: number, rows: number) => void;
     /** When true the terminal is the visible/active tab — triggers fit on show */
     active?: boolean;
+    onCursorMove?: (x: number, y: number) => void;
 }
 
 const THEME = {
@@ -92,6 +93,20 @@ export const TerminalView: Component<TerminalProps> = (props) => {
         terminal.onData((data) => props.onData?.(data));
         terminal.onResize(({ cols, rows }) => props.onResize?.(cols, rows));
 
+        // P1: Command Suggestion — track cursor position for overlay anchoring
+        terminal.onCursorMove(() => {
+            if (!terminal) return;
+            const core = (terminal as any)._core;
+            if (core && core.viewport) {
+                // Approximate position in pixels
+                const charWidth = core._renderService.dimensions.actualCellWidth;
+                const charHeight = core._renderService.dimensions.actualCellHeight;
+                const x = terminal.buffer.active.cursorX * charWidth;
+                const y = (terminal.buffer.active.cursorY + 1) * charHeight;
+                props.onCursorMove?.(x, y);
+            }
+        });
+
         // P2: Clipboard — auto-copy selection to clipboard (Termius-style)
         terminal.onSelectionChange(() => {
             const sel = terminal?.getSelection();
@@ -149,8 +164,6 @@ export const TerminalView: Component<TerminalProps> = (props) => {
     });
 
     onCleanup(() => {
-        EventsOff(`terminal-output-${props.sessionId}`);
-        EventsOff(`session.output.${props.sessionId}`);
         resizeObserver?.disconnect();
         terminal?.dispose();
         initialized = false;

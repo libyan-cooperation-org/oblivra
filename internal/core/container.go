@@ -304,6 +304,7 @@ func (c *Container) initPlatform() error {
 	c.Platform.TunnelService = services.NewTunnelService(c.Infra.Bus, c.Log)
 	c.Platform.PluginService = services.NewPluginService(c.Infra.Bus, c.Log)
 	c.Platform.LocalService = services.NewLocalService(c.Infra.Bus, c.Log, c.Product.SessionService, nil)
+	c.Platform.LocalService.SetCommandHistory(c.Product.CommandHistory)
 	c.Platform.SyntheticService = services.NewSyntheticService(monitoring.NewSyntheticManager(c.Log), c.Log)
 	c.Platform.BroadcastService = services.NewBroadcastService(nil, c.Log)
 	c.Platform.ResourceMonitor = services.NewResourceMonitor(c.Log, 1024) // 1GB limit before pressure signaling

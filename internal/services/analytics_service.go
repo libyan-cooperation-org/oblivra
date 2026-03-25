@@ -143,9 +143,10 @@ func (s *AnalyticsService) GetEntityEnrichment(entityID string, entityType strin
 	// 1. Threat Intel Check
 	if s.matcher != nil {
 		iocType := "ipv4-addr"
-		if entityType == "user" {
+		switch entityType {
+		case "user":
 			iocType = "user" // Custom type if we have it
-		} else if entityType == "domain" {
+		case "domain":
 			iocType = "domain-name"
 		}
 

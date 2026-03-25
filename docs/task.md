@@ -1,2 +1,4 @@
-<!-- This file is a mirror of /task.md at the project root. Do not edit here — edit task.md instead. Last synced: 2026-03-25 -->
+<!-- docs/task.md — Mirror of /task.md (project root). Edit root file only. Last synced: 2026-03-25 -->
+<!-- This file intentionally kept minimal. The canonical tracker lives at the project root. -->
 
+See [`../task.md`](../task.md) for the full OBLIVRA Master Task Tracker.

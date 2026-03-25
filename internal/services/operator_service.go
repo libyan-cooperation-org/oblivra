@@ -110,11 +110,12 @@ func (s *OperatorService) GetContext(hostID string) (*OperatorContext, error) {
 			break
 		}
 		severity := "info"
-		if evt.EventType == "failed_login" || evt.EventType == "brute_force" {
+		switch evt.EventType {
+		case "failed_login", "brute_force":
 			severity = "high"
-		} else if evt.EventType == "suspicious_process" || evt.EventType == "lateral_movement" {
+		case "suspicious_process", "lateral_movement":
 			severity = "critical"
-		} else if evt.EventType == "port_scan" {
+		case "port_scan":
 			severity = "medium"
 		}
 

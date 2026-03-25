@@ -4,7 +4,6 @@ package services
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"runtime"
@@ -46,10 +45,11 @@ func startPTY(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
 		// ConPTY not available – old Windows build
 		return startPTYPipeMode(cmd)
 	}
-	return startPTYConPTY(cols, rows)
+	// On Windows, ConPTY is better for terminal apps.
+	return startPTYConPTY(cmd, cols, rows)
 }
 
-func startPTYConPTY(cols, rows int) (*ptySession, error) {
+func startPTYConPTY(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
 	// ── Create pipe pair for PTY input (keystrokes: us → shell) ────────
 	ptyInR, ptyInW, err := os.Pipe()
 	if err != nil {
@@ -99,9 +99,18 @@ func startPTYConPTY(cols, rows int) (*ptySession, error) {
 	si := siEx{}
 	si.Cb = uint32(unsafe.Sizeof(si))
 	si.lpAttributeList = uintptr(unsafe.Pointer(&attrBuf[0]))
+	si.Flags = windows.STARTF_USESHOWWINDOW
+	si.ShowWindow = windows.SW_HIDE
 
 	// ── CreateProcess ───────────────────────────────────────────────────
-	cmdLine, err := windows.UTF16PtrFromString("powershell.exe -NoLogo -NoProfile -NoExit")
+	cmdStr := cmd.Path
+	for i, arg := range cmd.Args {
+		if i == 0 {
+			continue
+		}
+		cmdStr += " " + arg
+	}
+	cmdLine, err := windows.UTF16PtrFromString(cmdStr)
 	if err != nil {
 		procDeleteProcThreadAttribList.Call(uintptr(unsafe.Pointer(&attrBuf[0])))
 		procClosePseudoConsole.Call(uintptr(hPC))
@@ -119,7 +128,9 @@ func startPTYConPTY(cols, rows int) (*ptySession, error) {
 		false,
 		// EXTENDED_STARTUPINFO_PRESENT tells CreateProcess to treat lpStartupInfo
 		// as STARTUPINFOEX rather than STARTUPINFO.
-		windows.EXTENDED_STARTUPINFO_PRESENT|windows.CREATE_UNICODE_ENVIRONMENT,
+		windows.EXTENDED_STARTUPINFO_PRESENT | 
+		windows.CREATE_UNICODE_ENVIRONMENT | 
+		windows.CREATE_NO_WINDOW,
 		nil,
 		nil,
 		// We pass a pointer to StartupInfo (the first field of siEx).
@@ -151,7 +162,7 @@ func startPTYConPTY(cols, rows int) (*ptySession, error) {
 		return nil, fmt.Errorf("conpty: FindProcess: %w", err)
 	}
 
-	bareCmd := exec.Command("powershell.exe")
+	bareCmd := exec.Command(cmd.Path)
 	bareCmd.Process = proc
 
 	// Keep attrBuf alive until after CreateProcess (already called above).
@@ -221,30 +232,4 @@ func buildAttrList(hPC windows.Handle) ([]byte, error) {
 	}
 
 	return buf, nil
-}
-
-// startPTYPipeMode is the legacy fallback for Windows without ConPTY.
-func startPTYPipeMode(cmd *exec.Cmd) (*ptySession, error) {
-	stdinPipe, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, fmt.Errorf("pipe: stdin: %w", err)
-	}
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("pipe: stdout: %w", err)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("pipe: stderr: %w", err)
-	}
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("pipe: start: %w", err)
-	}
-	return &ptySession{
-		cmd:    cmd,
-		stdin:  stdinPipe,
-		stdout: io.MultiReader(stdoutPipe, stderrPipe),
-		resize: nil,
-		closer: func() error { return stdinPipe.Close() },
-	}, nil
 }
