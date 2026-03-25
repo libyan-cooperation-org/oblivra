@@ -14,6 +14,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"golang.org/x/time/rate"
 )
 
 // PartitionCount is the number of independent pipeline shards.
@@ -33,9 +34,12 @@ const PartitionCount = 8
 //   - No single channel becomes the bottleneck
 //   - Emergency shedding is per-shard, never drops cross-entity events
 type PartitionedPipeline struct {
-	shards  [PartitionCount]*Pipeline
-	metrics PartitionedMetrics
-	log     *logger.Logger
+	shards    [PartitionCount]*Pipeline
+	Metrics   PartitionedMetrics
+	limiters  map[string]*rate.Limiter
+	limiterMu sync.RWMutex
+	maxEPS    int
+	log       *logger.Logger
 }
 
 // PartitionedMetrics aggregates stats across all shards.
@@ -56,7 +60,11 @@ func NewPartitionedPipeline(
 	log *logger.Logger,
 	temporal *temporal.IntegrityService,
 ) *PartitionedPipeline {
-	pp := &PartitionedPipeline{log: log.WithPrefix("partitioned-pipeline")}
+	pp := &PartitionedPipeline{
+		log:      log.WithPrefix("partitioned-pipeline"),
+		limiters: make(map[string]*rate.Limiter),
+		maxEPS:   1000, // Default 1000 EPS per tenant
+	}
 
 	for i := 0; i < PartitionCount; i++ {
 		pp.shards[i] = NewPipeline(bufferPerShard, wal, ae, siem, bus,
@@ -93,12 +101,45 @@ func (pp *PartitionedPipeline) Stop() {
 // Events from the same host always land in the same shard, preserving
 // correlation state (brute-force counters, sequence detectors) per entity.
 func (pp *PartitionedPipeline) QueueEvent(evt *events.SovereignEvent) error {
+	// 1. Enforce Per-Tenant Rate Limiting
+	if evt.TenantID != "" {
+		limiter := pp.getLimiter(evt.TenantID)
+		if !limiter.Allow() {
+			pp.Metrics.DroppedEvents.Add(1)
+			return nil // Drop silently with metric increment (Phase 22.3 requirement)
+		}
+	}
+
 	shard := pp.shardFor(evt)
 	err := shard.QueueEvent(evt)
 	if err != nil {
-		pp.metrics.DroppedEvents.Add(1)
+		pp.Metrics.DroppedEvents.Add(1)
 	}
 	return err
+}
+
+// getLimiter returns an existing limiter or creates a new one for the tenant.
+func (pp *PartitionedPipeline) getLimiter(tenantID string) *rate.Limiter {
+	pp.limiterMu.RLock()
+	l, ok := pp.limiters[tenantID]
+	pp.limiterMu.RUnlock()
+
+	if ok {
+		return l
+	}
+
+	pp.limiterMu.Lock()
+	defer pp.limiterMu.Unlock()
+
+	// Double check under write lock
+	if l, ok := pp.limiters[tenantID]; ok {
+		return l
+	}
+
+	// Create new limiter: MaxEPS tokens/sec, burst size of MaxEPS/2
+	l = rate.NewLimiter(rate.Limit(pp.maxEPS), pp.maxEPS/2)
+	pp.limiters[tenantID] = l
+	return l
 }
 
 // shardFor computes the shard index for an event using FNV-1a on the partition key.

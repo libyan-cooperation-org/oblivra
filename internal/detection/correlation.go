@@ -37,6 +37,7 @@ type CrossSourceCondition struct {
 
 // CorrelationMatch is the result of a triggered cross-source rule.
 type CorrelationMatch struct {
+	TenantID        string
 	RuleID          string
 	RuleName        string
 	Description     string
@@ -170,6 +171,7 @@ func (e *CorrelationEngine) evaluate(rule CrossSourceRule, evt Event) {
 	lru.Remove(groupKey)
 
 	match := CorrelationMatch{
+		TenantID:        evt.TenantID,
 		RuleID:          rule.ID,
 		RuleName:        rule.Name,
 		Description:     fmt.Sprintf("%s [group=%s]", rule.Description, groupKey),
@@ -223,10 +225,11 @@ func conditionMatches(cond CrossSourceCondition, evt Event) bool {
 
 // resolveGroupKey builds a correlation scope key from GroupBy fields.
 func resolveGroupKey(groupBy []string, evt Event) string {
-	if len(groupBy) == 0 {
-		return "global"
-	}
 	var parts []string
+	if evt.TenantID != "" {
+		parts = append(parts, "t:"+evt.TenantID)
+	}
+
 	for _, gb := range groupBy {
 		switch strings.ToLower(gb) {
 		case "user":

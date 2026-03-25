@@ -13,7 +13,8 @@ import { ThreatIntelPanel } from './ThreatIntelPanel';
 import { AlertDashboard } from './AlertDashboard';
 import { CompliancePanel } from '../compliance/CompliancePanel';
 import { MitreHeatmap } from './MitreHeatmap';
-import { LiveTailPanel } from '../ops/LiveTailPanel';
+import { TerminalForensics } from './TerminalForensics';
+import '../../styles/siem-panel.css';
 
 export const SIEMPanel: Component = () => {
     const [state] = useApp();
@@ -56,19 +57,19 @@ export const SIEMPanel: Component = () => {
                 class="mb-6"
             />
 
-            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div class="siem-content-wrap">
                 <Show when={activeTab() === 'logs'}>
-                    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                        <LiveTailPanel />
+                    <div class="siem-tab-content">
+                        <TerminalForensics />
                     </div>
                 </Show>
 
                 <Show when={activeTab() === 'intel'}>
-                    <div style="display: flex; flex-direction: column; gap: var(--gap-lg); flex: 1; overflow-y: auto;">
+                    <div class="siem-scroll-container">
                         <ThreatIntelPanel />
 
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Host Selection:</span>
+                        <div class="host-selection-strip">
+                            <span class="host-selection-label">Host Selection:</span>
                             <Select
                                 style="width: 250px;"
                                 value={selectedHost() === 'global' ? (state.hosts[0]?.id || '') : selectedHost()}
@@ -77,7 +78,7 @@ export const SIEMPanel: Component = () => {
                             />
                         </div>
 
-                        <div style="flex: 1; min-height: 400px; position: relative;">
+                        <div class="threat-map-container">
                             <Show when={selectedHost() && selectedHost() !== 'global'}>
                                 <ThreatMap hostId={selectedHost()} />
                             </Show>
@@ -96,19 +97,19 @@ export const SIEMPanel: Component = () => {
                 </Show>
 
                 <Show when={activeTab() === 'compliance'}>
-                    <div style="flex: 1; min-height: 0;">
+                    <div class="siem-full-height">
                         <CompliancePanel />
                     </div>
                 </Show>
 
                 <Show when={activeTab() === 'alerts'}>
-                    <div style="flex: 1; min-height: 0;">
+                    <div class="siem-full-height">
                         <AlertDashboard />
                     </div>
                 </Show>
 
                 <Show when={activeTab() === 'mitre'}>
-                    <div style="flex: 1; min-height: 0;">
+                    <div class="siem-full-height">
                         <MitreHeatmap />
                     </div>
                 </Show>

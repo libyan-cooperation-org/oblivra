@@ -14,6 +14,7 @@ import (
 
 // Event represents a normalized log event for the detection engine to process
 type Event struct {
+	TenantID  string
 	EventType string
 	SourceIP  string
 	User      string
@@ -25,6 +26,7 @@ type Event struct {
 
 // Match represents a triggered detection rule.
 type Match struct {
+	TenantID        string
 	RuleID          string
 	RuleName        string
 	Severity        string
@@ -273,20 +275,27 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 
 	// 1. Determine Grouping Key
 	groupKey := "global"
+	if evt.TenantID != "" {
+		groupKey = evt.TenantID
+	}
+
 	if len(rule.GroupBy) > 0 {
 		var parts []string
+		if evt.TenantID != "" {
+			parts = append(parts, "t:"+evt.TenantID)
+		}
 		for _, gb := range rule.GroupBy {
 			switch strings.ToLower(gb) {
 			case "source_ip":
-				parts = append(parts, evt.SourceIP)
+				parts = append(parts, "ip:"+evt.SourceIP)
 			case "user":
-				parts = append(parts, evt.User)
+				parts = append(parts, "u:"+evt.User)
 			case "host":
-				parts = append(parts, evt.HostID)
+				parts = append(parts, "h:"+evt.HostID)
 			}
 		}
 		if len(parts) > 0 {
-			groupKey = strings.Join(parts, "-")
+			groupKey = strings.Join(parts, "|")
 		}
 	}
 
@@ -370,6 +379,7 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 		e.state[rule.ID].Remove(groupKey) // Reset state after alerting
 
 		return &Match{
+			TenantID:        activeEvents[0].TenantID, // Assume all same tenant in group
 			RuleID:          rule.ID,
 			RuleName:        rule.Name,
 			Description:     rule.Description,

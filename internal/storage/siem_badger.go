@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/search"
 )
@@ -86,8 +85,10 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 	// 3. Dual-write to Bleve for full-text search
 	if r.search != nil && *r.search != nil {
-		docID := fmt.Sprintf("event_%s_%d", event.HostID, event.ID)
+		// FIX: Include TenantID in docID to prevent cross-tenant collisions
+		docID := fmt.Sprintf("event_%s_%s_%d", event.TenantID, event.HostID, event.ID)
 		searchData := map[string]interface{}{
+			"tenant":     event.TenantID,
 			"host":       event.HostID,
 			"source_ip":  event.SourceIP,
 			"event_type": event.EventType,
@@ -123,9 +124,14 @@ func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string,
 
 // SearchHostEvents performs a flexible search across security anomalies
 func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
+	tenantID := database.TenantFromContext(ctx)
+
 	if r.search != nil && *r.search != nil {
+		// Inject strict tenant filter into the query
+		tenantQuery := fmt.Sprintf("+tenant:%s %s", tenantID, query)
+
 		// Attempt to hit Bleve first for actual full-text performance
-		results, err := (*r.search).Search(query, limit, 0)
+		results, err := (*r.search).Search(tenantQuery, limit, 0)
 		if err == nil {
 			var events []database.HostEvent
 			for _, res := range results {
@@ -159,7 +165,6 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 	}
 
 	// Fallback to slow BadgerDB prefix scan if Bleve is offline or locked
-	tenantID := database.TenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
 	var events []database.HostEvent
 	qLower := strings.ToLower(query)
@@ -318,10 +323,7 @@ func (r *BadgerSIEMRepository) GetEventTrend(ctx context.Context, days int) ([]m
 		trendMap[d] = 0
 	}
 
-	tenantID := "GLOBAL"
-	if u := auth.UserFromContext(ctx); u != nil {
-		tenantID = u.TenantID
-	}
+	tenantID := database.TenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
 
 	r.store.ReverseIteratePrefix(prefix, 0, func(key, value []byte) error {

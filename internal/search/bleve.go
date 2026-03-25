@@ -76,10 +76,14 @@ func buildIndexMapping() mapping.IndexMapping {
 	hostFieldMapping := bleve.NewTextFieldMapping()
 	hostFieldMapping.Analyzer = "keyword"
 
+	tenantFieldMapping := bleve.NewTextFieldMapping()
+	tenantFieldMapping.Analyzer = "keyword"
+
 	// Tie mappings to fields
 	logMapping.AddFieldMappingsAt("output", outputFieldMapping)
 	logMapping.AddFieldMappingsAt("session_id", sessionFieldMapping)
 	logMapping.AddFieldMappingsAt("host", hostFieldMapping)
+	logMapping.AddFieldMappingsAt("tenant", tenantFieldMapping)
 
 	indexMapping.AddDocumentMapping("log_entry", logMapping)
 	return indexMapping

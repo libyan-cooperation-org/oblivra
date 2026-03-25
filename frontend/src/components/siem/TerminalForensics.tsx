@@ -25,6 +25,7 @@ import {
     ModalOptions
 } from '@components/ui';
 import { SessionPlayback } from './SessionPlayback';
+import '../../styles/terminal-forensics.css';
 
 export const TerminalForensics: Component = () => {
     const [state] = useApp();
@@ -141,7 +142,7 @@ export const TerminalForensics: Component = () => {
     };
 
     return (
-        <div style="height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-0);">
+        <div class="forensics-container">
             <Toolbar>
                 <div style="display: flex; gap: 8px;">
                     <Select
@@ -165,17 +166,18 @@ export const TerminalForensics: Component = () => {
                 <div style="display: flex; gap: 8px;">
                     <Select
                         value=""
-                        placeholder="SAVED_SEARCHES"
                         onChange={(v: string) => {
                             if (v) { setSearchQuery(v); runSearch(); }
                         }}
                         options={savedSearches().map(ss => ({ label: ss.name.toUpperCase(), value: ss.query }))}
-                    />
+                    >
+                        <option value="" disabled selected>SAVED_SEARCHES</option>
+                    </Select>
                     <Button variant="ghost" onClick={handleSaveSearch} title="Save Search">💾</Button>
                 </div>
             </Toolbar>
 
-            <div style="padding: var(--gap-md); border-bottom: 1px solid var(--border-primary);">
+            <div class="forensics-search-strip">
                 <SearchBar
                     value={searchQuery()}
                     onInput={setSearchQuery}
@@ -185,10 +187,10 @@ export const TerminalForensics: Component = () => {
                 />
             </div>
 
-            <div style="flex: 1; overflow-y: auto; padding: var(--gap-md);">
+            <div class="forensics-scroll-area">
                 <Show when={searchMode() === 'security' && Object.keys(aggregations()).length > 0}>
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--gap-md); overflow-x: auto;">
-                        <span style="font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Top Events:</span>
+                    <div class="forensics-agg-strip">
+                        <span class="forensics-agg-label">Top Events:</span>
                         <For each={Object.entries(aggregations())}>
                             {([type, count]) => (
                                 <Badge severity="info">{type} ({count})</Badge>
@@ -202,7 +204,7 @@ export const TerminalForensics: Component = () => {
                         <EmptyState
                             icon="🔍"
                             title="NO_EVENTS_DISCOVERED"
-                            description="Modifier search constraints or host filter to expand results."
+                            description="Modified search constraints or host filter to expand results."
                             action="CLEAR_FILTERS"
                             onAction={() => {
                                 setSearchQuery('');
@@ -213,14 +215,14 @@ export const TerminalForensics: Component = () => {
                     </div>
                 </Show>
 
-                <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="forensics-results-list">
                     <For each={results()}>
                         {(row) => (
                             <Panel noPadding>
-                                <div style="display: flex; flex-direction: column; padding: 12px 16px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
+                                <div class="event-row">
+                                    <div class="event-header">
+                                        <div class="event-meta">
+                                            <span class="event-timestamp">
                                                 {formatTimestamp(row.timestamp || row.CreatedAt)}
                                             </span>
                                             <Badge severity="neutral" size="sm">HOST:{row.host_id || row.HostID}</Badge>
@@ -233,7 +235,7 @@ export const TerminalForensics: Component = () => {
                                                 </Badge>
                                             </Show>
                                         </div>
-                                        <div style="display: flex; gap: 6px;">
+                                        <div class="event-actions">
                                             <Button 
                                                 variant="ghost" 
                                                 size="sm"
@@ -247,14 +249,14 @@ export const TerminalForensics: Component = () => {
                                                     variant="primary"
                                                     size="sm"
                                                     onClick={() => setPlaybackSessionId(row.session_id)}
-                                                    style="background: var(--surface-3); border-color: var(--border-primary); color: var(--accent-primary);"
+                                                    class="replay-btn"
                                                 >
                                                     🎬 REPLAY
                                                 </Button>
                                             </Show>
                                         </div>
                                     </div>
-                                    <div style="font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); white-space: pre-wrap; word-break: break-all; line-height: 1.5; background: rgba(0,0,0,0.15); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                                    <div class="event-raw-log">
                                         {row.output_clean || row.output || row.RawLog || JSON.stringify(row)}
                                     </div>
                                 </div>

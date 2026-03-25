@@ -14,6 +14,7 @@ import {
     normalizeSeverity,
     formatTimestamp 
 } from '@components/ui';
+import '../../styles/alert-dashboard.css';
 
 export const AlertDashboard: Component = () => {
     const [incidents, setIncidents] = createSignal<database.Incident[]>([]);
@@ -60,16 +61,14 @@ export const AlertDashboard: Component = () => {
     ];
 
     return (
-        <div style="height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-0);">
+        <div class="alerts-container">
             <Toolbar>
-                <div style="display: flex; gap: 4px;">
-                    <TabBar 
-                        tabs={tabs} 
-                        active={statusFilter()} 
-                        onSelect={(id) => { setStatusFilter(id); fetchIncidents(); }} 
-                        class="compact"
-                    />
-                </div>
+                <TabBar 
+                    tabs={tabs} 
+                    active={statusFilter()} 
+                    onSelect={(id) => { setStatusFilter(id); fetchIncidents(); }} 
+                    class="compact"
+                />
                 <ToolbarSpacer />
                 <Button 
                     variant="ghost" 
@@ -80,9 +79,9 @@ export const AlertDashboard: Component = () => {
                 </Button>
             </Toolbar>
 
-            <div style="flex: 1; overflow-y: auto; padding: var(--gap-md);">
+            <div class="alerts-scroll-area">
                 <Show when={error()}>
-                    <div style="padding: 12px; border: 1px solid var(--alert-critical); color: var(--alert-critical); font-family: var(--font-mono); font-size: 11px; background: rgba(239,68,68,0.05); margin-bottom: var(--gap-md); border-radius: var(--radius-sm);">
+                    <div class="alerts-error-notice">
                         <strong>CRITICAL_INTERFACE_ERROR:</strong> {error()}
                     </div>
                 </Show>
@@ -110,7 +109,7 @@ export const AlertDashboard: Component = () => {
                         />
                     </KPIGrid>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: var(--gap-md);">
+                    <div class="alerts-grid">
                         <For each={incidents()}>
                             {(incident) => (
                                 <Panel 
@@ -122,31 +121,31 @@ export const AlertDashboard: Component = () => {
                                         </Badge>
                                     }
                                 >
-                                    <div style="margin-bottom: var(--gap-md);">
-                                        <div style="font-size: 13px; color: var(--text-primary); margin-bottom: var(--gap-sm); line-height: 1.5;">
+                                    <div class="alert-panel-content">
+                                        <div class="alert-description">
                                             {incident.description}
                                         </div>
-                                        <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">
+                                        <div class="alert-timestamp">
                                             DETECTED_{formatTimestamp(incident.first_seen_at as any)}
                                         </div>
                                     </div>
 
-                                    <div style="display: flex; gap: var(--gap-xl); padding: var(--gap-md) 0; border-top: 1px solid var(--border-subtle); margin-bottom: var(--gap-lg);">
-                                        <div style="display: flex; flex-direction: column;">
-                                            <span style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Entity</span>
-                                            <span style="font-family: var(--font-mono); font-size: 12px; color: var(--accent-primary);">{incident.group_key}</span>
+                                    <div class="alert-stats-strip">
+                                        <div class="alert-stat-item">
+                                            <span class="alert-stat-label">Entity</span>
+                                            <span class="alert-stat-value entity-id">{incident.group_key}</span>
                                         </div>
-                                        <div style="display: flex; flex-direction: column;">
-                                            <span style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Events</span>
-                                            <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-primary);">{incident.event_count}</span>
+                                        <div class="alert-stat-item">
+                                            <span class="alert-stat-label">Events</span>
+                                            <span class="alert-stat-value">{incident.event_count}</span>
                                         </div>
-                                        <div style="display: flex; flex-direction: column;">
-                                            <span style="font-size: 9px; color: var(--text-muted); text-transform: uppercase;">Rule_ID</span>
-                                            <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);">{incident.rule_id}</span>
+                                        <div class="alert-stat-item">
+                                            <span class="alert-stat-label">Rule_ID</span>
+                                            <span class="alert-stat-value">{incident.rule_id}</span>
                                         </div>
                                     </div>
 
-                                    <div style="display: flex; justify-content: flex-end; gap: var(--gap-sm);">
+                                    <div class="alert-actions">
                                         <Show when={incident.status === 'New' || incident.status === 'Active'}>
                                             <Button variant="ghost" size="sm" onClick={() => handleStatusChange(incident.id, 'Investigating')}>
                                                 INVESTIGATE
