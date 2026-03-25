@@ -1,8 +1,12 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
@@ -12,14 +16,18 @@ import (
 )
 
 // ForensicsService exposes forensic evidence management to the frontend via Wails.
+// This is DESKTOP-ONLY — it uses local hardware (disks, memory, TPM) and must
+// never be exposed to the Web layer.
 type ForensicsService struct {
 	BaseService
-	ctx      context.Context
-	locker   *forensics.EvidenceLocker
-	store    database.EvidenceStore
-	bus      *eventbus.Bus
-	log      *logger.Logger
-	analyzer *forensics.ForensicAnalyzer
+	ctx       context.Context
+	locker    *forensics.EvidenceLocker
+	collector *forensics.LocalCollector
+	signer    *forensics.TPMSigner
+	store     database.EvidenceStore
+	bus       *eventbus.Bus
+	log       *logger.Logger
+	analyzer  *forensics.ForensicAnalyzer
 }
 
 // Name returns the service name.
@@ -31,27 +39,36 @@ func (s *ForensicsService) Dependencies() []string {
 }
 
 // NewForensicsService creates a new forensics service.
-// It initialises the evidence locker using the vault's master key for HMAC signing.
+// It initialises the evidence locker using a TPM-rooted signer (falls back to
+// vault-derived HMAC key when hardware TPM is unavailable).
 func NewForensicsService(store database.EvidenceStore, v *vault.Vault, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
-	// Derive HMAC key from vault; fallback to a default if vault is locked
-	var hmacKey []byte
+	// Derive fallback HMAC key from vault; use sentinel if vault is locked
+	var fallbackKey []byte
 	if v != nil && v.IsUnlocked() {
 		_ = v.AccessMasterKey(func(key []byte) error {
-			hmacKey = make([]byte, len(key))
-			copy(hmacKey, key)
+			fallbackKey = make([]byte, len(key))
+			copy(fallbackKey, key)
 			return nil
 		})
 	}
-	if hmacKey == nil {
-		hmacKey = []byte("oblivra-evidence-default-key-change-me")
+	if fallbackKey == nil {
+		h := sha256.Sum256([]byte("oblivra-evidence-default-key-change-me"))
+		fallbackKey = h[:]
 	}
 
+	// Create TPM-rooted signer (graceful HMAC fallback if no TPM)
+	signer := forensics.NewTPMSigner(forensics.TPMSignerConfig{
+		FallbackKey: fallbackKey,
+	}, log)
+
 	svc := &ForensicsService{
-		store:    store,
-		locker:   forensics.NewEvidenceLocker(hmacKey),
-		bus:      bus,
-		log:      log.WithPrefix("forensics"),
-		analyzer: forensics.NewForensicAnalyzer(log),
+		store:     store,
+		locker:    forensics.NewEvidenceLocker(signer, log),
+		collector: forensics.NewLocalCollector(log),
+		signer:    signer,
+		bus:       bus,
+		log:       log.WithPrefix("forensics"),
+		analyzer:  forensics.NewForensicAnalyzer(log),
 	}
 
 	// Set persistence hook
@@ -236,6 +253,100 @@ func (s *ForensicsService) ListEvidence(incidentID string) []*forensics.Evidence
 		return s.locker.ListAll()
 	}
 	return s.locker.ListByIncident(incidentID)
+}
+
+// IsHardwareRooted returns true if chain-of-custody signatures are hardware-anchored.
+func (s *ForensicsService) IsHardwareRooted() bool {
+	if s.signer == nil {
+		return false
+	}
+	return s.signer.IsHardwareRooted()
+}
+
+// AcquireDiskImage performs a raw disk acquisition and stores it in the evidence locker.
+// [CAUTION] Requires admin privileges. Desktop-only operation.
+func (s *ForensicsService) AcquireDiskImage(devicePath string, incidentID string) (map[string]interface{}, error) {
+	s.log.Warn("[FORENSICS] 🔴 Starting disk acquisition: device=%s incident=%s", devicePath, incidentID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Hour)
+	defer cancel()
+
+	var buf bytes.Buffer
+	if err := s.collector.AcquireDisk(ctx, devicePath, &buf); err != nil {
+		return nil, fmt.Errorf("disk acquisition failed: %w", err)
+	}
+
+	data := buf.Bytes()
+	hash := sha256.Sum256(data)
+	sha256Hex := hex.EncodeToString(hash[:])
+
+	item, err := s.locker.Collect(
+		incidentID,
+		forensics.EvidenceArtifact,
+		fmt.Sprintf("disk-image-%s", devicePath),
+		data,
+		"desktop-operator",
+		fmt.Sprintf("Raw disk image of %s", devicePath),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evidence collection failed: %w", err)
+	}
+
+	s.log.Info("[FORENSICS] ✅ Disk image acquired: id=%s sha256=%s size=%d", item.ID, sha256Hex, len(data))
+	s.bus.Publish("forensics:disk_acquired", map[string]interface{}{
+		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex,
+	})
+
+	return map[string]interface{}{
+		"evidence_id":  item.ID,
+		"sha256":       sha256Hex,
+		"size_bytes":   len(data),
+		"hw_rooted":    s.IsHardwareRooted(),
+		"collected_at": item.CollectedAt,
+	}, nil
+}
+
+// AcquireMemoryDump captures the physical memory of the local machine.
+// [CAUTION] Requires admin privileges. Desktop-only operation.
+func (s *ForensicsService) AcquireMemoryDump(incidentID string) (map[string]interface{}, error) {
+	s.log.Warn("[FORENSICS] 🔴 Starting memory dump for incident=%s", incidentID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	var buf bytes.Buffer
+	if err := s.collector.AcquireMemory(ctx, &buf); err != nil {
+		return nil, fmt.Errorf("memory dump failed: %w", err)
+	}
+
+	data := buf.Bytes()
+	hash := sha256.Sum256(data)
+	sha256Hex := hex.EncodeToString(hash[:])
+
+	item, err := s.locker.Collect(
+		incidentID,
+		forensics.EvidenceMemory,
+		"memory-dump",
+		data,
+		"desktop-operator",
+		"Physical memory dump",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("evidence collection failed: %w", err)
+	}
+
+	s.log.Info("[FORENSICS] ✅ Memory dump acquired: id=%s sha256=%s size=%d", item.ID, sha256Hex, len(data))
+	s.bus.Publish("forensics:memory_acquired", map[string]interface{}{
+		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex,
+	})
+
+	return map[string]interface{}{
+		"evidence_id":  item.ID,
+		"sha256":       sha256Hex,
+		"size_bytes":   len(data),
+		"hw_rooted":    s.IsHardwareRooted(),
+		"collected_at": item.CollectedAt,
+	}, nil
 }
 
 // GetChainOfCustody returns just the chain for a specific evidence item.

@@ -21,17 +21,24 @@ type ExecutionEngine interface {
 
 // Handler implements the MCP execution pipeline
 type Handler struct {
-	registry *ToolRegistry
-	engine   ExecutionEngine
-	log      *logger.Logger
+	registry  *ToolRegistry
+	engine    ExecutionEngine
+	integrity StateProvider
+	log       *logger.Logger
+}
+
+// StateProvider defines the interface for state hashing
+type StateProvider interface {
+	StateHash() string
 }
 
 // NewHandler creates a new MCP handler
-func NewHandler(registry *ToolRegistry, engine ExecutionEngine, log *logger.Logger) *Handler {
+func NewHandler(registry *ToolRegistry, engine ExecutionEngine, integrity StateProvider, log *logger.Logger) *Handler {
 	return &Handler{
-		registry: registry,
-		engine:   engine,
-		log:      log.WithPrefix("mcp"),
+		registry:  registry,
+		engine:    engine,
+		integrity: integrity,
+		log:       log.WithPrefix("mcp"),
 	}
 }
 
@@ -165,19 +172,23 @@ func (h *Handler) finalize(resp MCPResponse, req MCPRequest) MCPResponse {
 }
 
 func (h *Handler) generateAuditInfo(resp MCPResponse, req MCPRequest) AuditInfo {
-	// Hash of inputs
 	paramData, _ := json.Marshal(req.Params)
 	inputHash := sha256.Sum256(paramData)
 	
 	outputData, _ := json.Marshal(resp.Data)
 	outputHash := sha256.Sum256(outputData)
 	
+	// Deterministic State Chaining: Input + Global State + Output
+	stateHash := h.integrity.StateHash()
+	combined := fmt.Sprintf("%x:%s:%x", inputHash, stateHash, outputHash)
+	execHash := sha256.Sum256([]byte(combined))
+
 	return AuditInfo{
 		EventHash:        hex.EncodeToString(outputHash[:]),
 		RuleVersion:      "v1.0",
 		PipelineVersion:  "mcp-v1",
 		InputHash:        hex.EncodeToString(inputHash[:]),
-		ExecutionHash:    "chain-" + uuid.New().String()[:8], // Simplified chaining
+		ExecutionHash:    hex.EncodeToString(execHash[:]),
 		OutputHash:       hex.EncodeToString(outputHash[:]),
 	}
 }

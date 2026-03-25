@@ -90,6 +90,12 @@ type App struct {
 	DiagnosticsService    *services.DiagnosticsService
 	FusionService         *services.FusionService
 	LicensingService      *services.LicensingService
+
+	// Terminal UX (Phase 23)
+	BookmarkService    *services.BookmarkService
+	CommandHistory     *services.CommandHistoryService
+	OperatorService    *services.OperatorService
+	SessionPersistence *services.SessionPersistence
 }
 
 // New creates a new App instance with placeholder service structs.
@@ -154,6 +160,10 @@ func New() *App {
 	a.NotesService = a.container.Product.NotesService
 	a.ShareService = a.container.Product.ShareService
 	a.RecordingService = a.container.Product.RecordingService
+	a.BookmarkService = a.container.Product.BookmarkService
+	a.CommandHistory = a.container.Product.CommandHistory
+	a.OperatorService = a.container.Product.OperatorService
+	a.SessionPersistence = a.container.Product.SessionPersistence
 
 	// Cluster: Security
 	a.SecurityService = a.container.Security.SecurityService

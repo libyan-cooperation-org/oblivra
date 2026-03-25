@@ -1,6 +1,8 @@
 package temporal
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"sort"
@@ -326,6 +328,25 @@ func (s *IntegrityService) DetectSequenceManipulation(events []TimestampedEvent)
 	}
 
 	return anomalies
+}
+
+// StateHash returns a deterministic hash of the current fleet temporal state.
+// This is used as an anchor for MCP execution integrity.
+func (s *IntegrityService) StateHash() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	h := sha256.New()
+	keys := make([]string, 0, len(s.highWater))
+	for k := range s.highWater {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		h.Write([]byte(k + ":" + s.highWater[k] + ";"))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func parseTime(ts string) time.Time {

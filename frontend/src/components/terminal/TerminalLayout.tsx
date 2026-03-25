@@ -2,19 +2,69 @@ import { Component, Show, For, createSignal, onMount } from 'solid-js';
 import { useApp } from '@core/store';
 import { IS_BROWSER } from '@core/context';
 import { TerminalView } from './Terminal';
+import { SSHBookmarks } from './SSHBookmarks';
+import { OperatorBanner } from './OperatorBanner';
 
 export const TerminalLayout: Component = () => {
     const [state, actions] = useApp();
     const [hovered, setHovered] = createSignal<string | null>(null);
+    const [showBookmarks, setShowBookmarks] = createSignal(true);
+    const [restorableSessions, setRestorableSessions] = createSignal<any[]>([]);
 
-    // Auto-open a local shell on first mount if no sessions exist
-    onMount(() => {
+    // Fetch restorable sessions on mount, or auto-open local shell
+    onMount(async () => {
+        if (!IS_BROWSER) {
+            try {
+                const { GetRestorable } = await import('../../../wailsjs/go/services/SessionPersistence');
+                const restorable = await GetRestorable();
+                if (restorable && restorable.length > 0) {
+                    setRestorableSessions(restorable);
+                    return; // Wait for user to accept/decline
+                }
+            } catch (e) { console.error('Failed to fetch restorable sessions', e); }
+        }
+
         if (state.sessions.filter(s => s.status === 'active').length === 0) {
             actions.connectToLocal();
         }
     });
 
+    const handleRestore = async () => {
+        const sessions = restorableSessions();
+        setRestorableSessions([]); // clear prompt
+        
+        if (!IS_BROWSER) {
+            try {
+                const { ClearState } = await import('../../../wailsjs/go/services/SessionPersistence');
+                await ClearState();
+            } catch {}
+        }
+        
+        for (const s of sessions) {
+            if (s.is_local || s.host_id === 'local') {
+                actions.connectToLocal();
+            } else {
+                actions.connectToHost(s.host_id);
+            }
+        }
+    };
+
+    const handleDeclineRestore = async () => {
+        setRestorableSessions([]);
+        if (!IS_BROWSER) {
+            try {
+                const { ClearState } = await import('../../../wailsjs/go/services/SessionPersistence');
+                await ClearState();
+            } catch {}
+        }
+        if (state.sessions.filter(s => s.status === 'active').length === 0) {
+            actions.connectToLocal();
+        }
+    };
+
     const sessions = () => state.sessions.filter(s => s.status === 'active');
+    const activeSession = () => sessions().find(s => s.id === state.activeSessionId);
+    
     const isLocal = (s: any) =>
         s.hostId === 'local' || !s.hostId || s.hostLabel === 'Local Shell';
 
@@ -58,17 +108,27 @@ export const TerminalLayout: Component = () => {
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            'flex-direction': 'column',
-            height: '100%',
-            width: '100%',
-            background: '#0d0e10',
-            overflow: 'hidden',
-        }}>
-            {/* ── Tab Bar ─────────────────────────────────────────── */}
-            <div
-                class="term-tabbar"
+        <div style={{ display: 'flex', height: '100%', width: '100%', background: '#0d0e10', overflow: 'hidden' }}>
+            
+            {/* Sidebar Overlay/Pane */}
+            <Show when={showBookmarks()}>
+                <SSHBookmarks 
+                    onConnect={(id) => actions.connectToHost(id)}
+                    onClose={() => setShowBookmarks(false)} 
+                />
+            </Show>
+
+            {/* Main Content Area */}
+            <div style={{
+                display: 'flex',
+                'flex-direction': 'column',
+                flex: '1',
+                height: '100%',
+                'min-width': '0',
+            }}>
+                {/* ── Tab Bar ─────────────────────────────────────────── */}
+                <div
+                    class="term-tabbar"
                 style={{
                     display: 'flex',
                     'align-items': 'stretch',
@@ -216,12 +276,38 @@ export const TerminalLayout: Component = () => {
                         </span>
                     </div>
                 </Show>
+
+                {/* Bookmarks Toggle button */}
+                <button
+                    onClick={() => setShowBookmarks(!showBookmarks())}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        'border-left': '1px solid var(--border-primary)',
+                        color: showBookmarks() ? '#0099e0' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '0 12px',
+                        'font-size': '16px',
+                        transition: 'color 0.1s',
+                    }}
+                    title="Toggle Bookmarks"
+                >
+                    📑
+                </button>
             </div>
+
+            {/* ── Operator Security Context Banner ──────────────────── */}
+            <Show when={activeSession()}>
+                <OperatorBanner 
+                    hostId={activeSession()?.hostId || ''} 
+                    hostLabel={activeSession()?.hostLabel || activeSession()?.hostId || 'local'} 
+                />
+            </Show>
 
             {/* ── Terminal pane ───────────────────────────────────── */}
             <div style={{ flex: '1', position: 'relative', overflow: 'hidden' }}>
 
-                {/* Empty state — shown when no sessions exist */}
+                {/* Empty & Restore state — shown when no sessions exist */}
                 <Show when={sessions().length === 0}>
                     <div style={{
                         position: 'absolute',
@@ -234,6 +320,41 @@ export const TerminalLayout: Component = () => {
                         gap: '20px',
                         color: 'var(--text-muted)',
                     }}>
+                        {/* Restore Prompt */}
+                        <Show when={restorableSessions().length > 0}>
+                            <div style={{
+                                background: 'rgba(0,153,224,0.05)',
+                                border: '1px solid rgba(0,153,224,0.3)',
+                                padding: '20px 30px',
+                                'border-radius': '6px',
+                                display: 'flex',
+                                'flex-direction': 'column',
+                                'align-items': 'center',
+                                gap: '16px',
+                                'margin-bottom': '20px'
+                            }}>
+                                <span style={{ color: '#0099e0', 'font-size': '24px' }}>📡</span>
+                                <div style={{ 'text-align': 'center' }}>
+                                    <div style={{ color: 'var(--text-primary)', 'font-weight': '600', 'margin-bottom': '4px' }}>
+                                        Restore previous sessions?
+                                    </div>
+                                    <div style={{ 'font-size': '12px', opacity: 0.7 }}>
+                                        You had {restorableSessions().length} active connections before shutting down.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button onClick={handleRestore} style={{
+                                        background: '#0099e0', color: '#fff', border: 'none', padding: '6px 16px',
+                                        'border-radius': '4px', cursor: 'pointer', 'font-weight': '600'
+                                    }}>Restore All</button>
+                                    <button onClick={handleDeclineRestore} style={{
+                                        background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-primary)', 
+                                        padding: '6px 16px', 'border-radius': '4px', cursor: 'pointer'
+                                    }}>Dismiss</button>
+                                </div>
+                            </div>
+                        </Show>
+
                         <div style={{
                             'font-family': 'var(--font-mono)',
                             'font-size': '11px',
@@ -270,6 +391,20 @@ export const TerminalLayout: Component = () => {
                             }}>
                                 or select a host from the sidebar →
                             </span>
+                            <button
+                                onClick={() => setShowBookmarks(true)}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid rgba(0,153,224,0.3)',
+                                    color: '#0099e0',
+                                    padding: '9px 22px',
+                                    'border-radius': '3px',
+                                    'font-size': '11px',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Open Bookmarks
+                            </button>
                         </div>
                     </div>
                 </Show>
@@ -302,6 +437,8 @@ export const TerminalLayout: Component = () => {
                     }}
                 </For>
             </div>
+            
+            </div> {/* End Main Content Area */}
         </div>
     );
 };

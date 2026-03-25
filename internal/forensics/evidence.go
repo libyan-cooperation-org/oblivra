@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
 // EvidenceType classifies the kind of evidence collected.
@@ -40,10 +41,10 @@ const (
 type ChainEntry struct {
 	Action       CustodyAction `json:"action"`
 	Actor        string        `json:"actor"`
-	Timestamp    string `json:"timestamp"`
+	Timestamp    string        `json:"timestamp"`
 	Notes        string        `json:"notes,omitempty"`
-	PreviousHash string        `json:"previous_hash"` // HMAC of the prior entry
-	EntryHash    string        `json:"entry_hash"`    // HMAC of this entry
+	PreviousHash string        `json:"previous_hash"` // Signature of the prior entry
+	EntryHash    string        `json:"entry_hash"`    // Signature of this entry
 }
 
 // EvidenceItem represents a single piece of forensic evidence.
@@ -56,31 +57,53 @@ type EvidenceItem struct {
 	SHA256         string            `json:"sha256"`
 	Size           int64             `json:"size"`
 	Collector      string            `json:"collector"`
-	CollectedAt    string         `json:"collected_at"`
+	CollectedAt    string            `json:"collected_at"`
 	Sealed         bool              `json:"sealed"`
-	SealedAt       *string        `json:"sealed_at,omitempty"`
+	SealedAt       *string           `json:"sealed_at,omitempty"`
 	ChainOfCustody []ChainEntry      `json:"chain_of_custody"`
 	Tags           []string          `json:"tags,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
 	Data           []byte            `json:"data,omitempty"` // Raw evidence data
 }
 
+// ForensicSigner defines the interface for signing chain-of-custody entries.
+type ForensicSigner interface {
+	SignEntry(payload string) (string, error)
+}
+
 // EvidenceLocker is a secure, append-only evidence store with chain-of-custody tracking.
 type EvidenceLocker struct {
 	mu      sync.RWMutex
 	items   map[string]*EvidenceItem // ID → item
-	hmacKey []byte                   // key for HMAC signatures
-
+	signer  ForensicSigner
+	log     *logger.Logger
+	
 	// Persistence callback
 	OnPersist func(item *EvidenceItem) error
 }
 
-// NewEvidenceLocker creates an evidence locker with the given HMAC signing key.
-func NewEvidenceLocker(hmacKey []byte) *EvidenceLocker {
+// NewEvidenceLocker creates an evidence locker with the given signer.
+func NewEvidenceLocker(signer ForensicSigner, log *logger.Logger) *EvidenceLocker {
 	return &EvidenceLocker{
-		items:   make(map[string]*EvidenceItem),
-		hmacKey: hmacKey,
+		items:  make(map[string]*EvidenceItem),
+		signer: signer,
+		log:    log.WithPrefix("evidence-locker"),
 	}
+}
+
+// HMACSigner implements ForensicSigner using a traditional HMAC-SHA256.
+type HMACSigner struct {
+	key []byte
+}
+
+func NewHMACSigner(key []byte) *HMACSigner {
+	return &HMACSigner{key: key}
+}
+
+func (s *HMACSigner) SignEntry(payload string) (string, error) {
+	mac := hmac.New(sha256.New, s.key)
+	mac.Write([]byte(payload))
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }
 
 // Collect creates a new evidence item and starts its chain of custody.
@@ -109,15 +132,19 @@ func (l *EvidenceLocker) Collect(
 		Data:        data,
 	}
 
-	// Create the first chain entry
 	entry := ChainEntry{
 		Action:       ActionCollected,
 		Actor:        collector,
 		Timestamp:    time.Now().Format(time.RFC3339),
 		Notes:        notes,
-		PreviousHash: "", // First entry has no previous
+		PreviousHash: "",
 	}
-	entry.EntryHash = l.signEntry(entry)
+	
+	sig, err := l.signer.SignEntry(l.serializeEntry(entry))
+	if err != nil {
+		return nil, fmt.Errorf("sign evidence collection: %w", err)
+	}
+	entry.EntryHash = sig
 	item.ChainOfCustody = []ChainEntry{entry}
 
 	l.mu.Lock()
@@ -146,47 +173,11 @@ func (l *EvidenceLocker) Analyze(itemID string, analyst string, notes string) er
 
 // Seal marks evidence as sealed — no further modifications allowed.
 func (l *EvidenceLocker) Seal(itemID string, sealer string, notes string) error {
-	l.mu.Lock()
-	item, exists := l.items[itemID]
-	if !exists {
-		l.mu.Unlock()
-		return fmt.Errorf("evidence %s not found", itemID)
-	}
-	if item.Sealed {
-		l.mu.Unlock()
-		return fmt.Errorf("evidence %s is already sealed", itemID)
-	}
-
-	now := time.Now().Format(time.RFC3339)
-	item.Sealed = true
-	item.SealedAt = &now
-
-	lastHash := ""
-	if len(item.ChainOfCustody) > 0 {
-		lastHash = item.ChainOfCustody[len(item.ChainOfCustody)-1].EntryHash
-	}
-
-	entry := ChainEntry{
-		Action:       ActionSealed,
-		Actor:        sealer,
-		Timestamp:    now,
-		Notes:        notes,
-		PreviousHash: lastHash,
-	}
-	entry.EntryHash = l.signEntry(entry)
-	item.ChainOfCustody = append(item.ChainOfCustody, entry)
-
-	persist := l.OnPersist
-	l.mu.Unlock()
-
-	if persist != nil {
-		return persist(item)
-	}
-	return nil
+	return l.appendChainEntry(itemID, ActionSealed, sealer, notes)
 }
 
 // Verify checks the integrity of the entire chain of custody.
-// Returns true if all HMAC signatures and hash links are valid.
+// Returns true if all signatures and hash links are valid.
 func (l *EvidenceLocker) Verify(itemID string) (bool, error) {
 	l.mu.RLock()
 	item, exists := l.items[itemID]
@@ -194,13 +185,11 @@ func (l *EvidenceLocker) Verify(itemID string) (bool, error) {
 		l.mu.RUnlock()
 		return false, fmt.Errorf("evidence %s not found", itemID)
 	}
-	// Copy chain to avoid holding lock during verification
 	chain := make([]ChainEntry, len(item.ChainOfCustody))
 	copy(chain, item.ChainOfCustody)
 	l.mu.RUnlock()
 
 	for i, entry := range chain {
-		// Verify previous hash linkage
 		if i == 0 {
 			if entry.PreviousHash != "" {
 				return false, nil
@@ -211,15 +200,14 @@ func (l *EvidenceLocker) Verify(itemID string) (bool, error) {
 			}
 		}
 
-		// Verify HMAC signature
-		expected := l.signEntry(ChainEntry{
+		expected, err := l.signer.SignEntry(l.serializeEntry(ChainEntry{
 			Action:       entry.Action,
 			Actor:        entry.Actor,
 			Timestamp:    entry.Timestamp,
 			Notes:        entry.Notes,
 			PreviousHash: entry.PreviousHash,
-		})
-		if expected != entry.EntryHash {
+		}))
+		if err != nil || expected != entry.EntryHash {
 			return false, nil
 		}
 	}
@@ -253,7 +241,7 @@ func (l *EvidenceLocker) ListByIncident(incidentID string) []*EvidenceItem {
 	return items
 }
 
-// ListAll returns all evidence items.
+// ListAll returns all evidence items in the locker.
 func (l *EvidenceLocker) ListAll() []*EvidenceItem {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -263,13 +251,6 @@ func (l *EvidenceLocker) ListAll() []*EvidenceItem {
 		items = append(items, item)
 	}
 	return items
-}
-
-// Export serializes all evidence for backup or legal discovery.
-func (l *EvidenceLocker) Export() ([]byte, error) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return json.MarshalIndent(l.items, "", "  ")
 }
 
 // Import restores evidence from a previous export.
@@ -303,9 +284,15 @@ func (l *EvidenceLocker) appendChainEntry(itemID string, action CustodyAction, a
 		l.mu.Unlock()
 		return fmt.Errorf("evidence %s not found", itemID)
 	}
-	if item.Sealed {
+	if item.Sealed && action != ActionVerified { // Verification is allowed even if sealed
 		l.mu.Unlock()
 		return fmt.Errorf("evidence %s is sealed; no modifications allowed", itemID)
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	if action == ActionSealed {
+		item.Sealed = true
+		item.SealedAt = &now
 	}
 
 	lastHash := ""
@@ -316,11 +303,17 @@ func (l *EvidenceLocker) appendChainEntry(itemID string, action CustodyAction, a
 	entry := ChainEntry{
 		Action:       action,
 		Actor:        actor,
-		Timestamp:    time.Now().Format(time.RFC3339),
+		Timestamp:    now,
 		Notes:        notes,
 		PreviousHash: lastHash,
 	}
-	entry.EntryHash = l.signEntry(entry)
+	
+	sig, err := l.signer.SignEntry(l.serializeEntry(entry))
+	if err != nil {
+		l.mu.Unlock()
+		return fmt.Errorf("sign chain entry: %w", err)
+	}
+	entry.EntryHash = sig
 	item.ChainOfCustody = append(item.ChainOfCustody, entry)
 
 	persist := l.OnPersist
@@ -332,17 +325,19 @@ func (l *EvidenceLocker) appendChainEntry(itemID string, action CustodyAction, a
 	return nil
 }
 
-func (l *EvidenceLocker) signEntry(entry ChainEntry) string {
-	// Deterministic serialization for HMAC input
-	payload := fmt.Sprintf("%s|%s|%s|%s|%s",
+func (l *EvidenceLocker) serializeEntry(entry ChainEntry) string {
+	return fmt.Sprintf("%s|%s|%s|%s|%s",
 		entry.Action,
 		entry.Actor,
 		entry.Timestamp,
 		entry.Notes,
 		entry.PreviousHash,
 	)
+}
 
-	mac := hmac.New(sha256.New, l.hmacKey)
-	mac.Write([]byte(payload))
-	return hex.EncodeToString(mac.Sum(nil))
+// Export returns a JSON-encoded snapshot of all evidence items in the locker.
+func (l *EvidenceLocker) Export() ([]byte, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return json.MarshalIndent(l.items, "", "  ")
 }

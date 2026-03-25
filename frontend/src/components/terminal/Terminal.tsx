@@ -74,6 +74,8 @@ export const TerminalView: Component<TerminalProps> = (props) => {
             convertEol: true,
             lineHeight: 1.25,
             allowProposedApi: false,
+            // P2: Clipboard OSC 52 integration
+            rightClickSelectsWord: true,
         });
 
         fitAddon = new FitAddon();
@@ -89,6 +91,25 @@ export const TerminalView: Component<TerminalProps> = (props) => {
 
         terminal.onData((data) => props.onData?.(data));
         terminal.onResize(({ cols, rows }) => props.onResize?.(cols, rows));
+
+        // P2: Clipboard — auto-copy selection to clipboard (Termius-style)
+        terminal.onSelectionChange(() => {
+            const sel = terminal?.getSelection();
+            if (sel && sel.length > 0) {
+                navigator.clipboard.writeText(sel).catch(() => {});
+            }
+        });
+
+        // P2: Clipboard — right-click paste from clipboard
+        containerRef?.addEventListener('contextmenu', async (e) => {
+            e.preventDefault();
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && terminal) {
+                    props.onData?.(text);
+                }
+            } catch {}
+        });
 
         // Local PTY output
         const unsubPty = subscribe(`terminal-output-${props.sessionId}`, (data: string) => {

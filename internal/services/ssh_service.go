@@ -40,6 +40,8 @@ type SSHService struct {
 	sanitizer        *security.ShellSanitizer
 	manager          *ssh.SessionManager
 	tailingSvc       *TailingService
+	commandHistory   *CommandHistoryService
+	sessionPersist   *SessionPersistence
 
 	onOutputCb func(sessionID, hostID, data string)
 	batchers   *sync.Map 
@@ -94,6 +96,14 @@ func NewSSHService(
 
 func (s *SSHService) SetSnippetService(svc *SnippetService) {
 	// Logic: This could be used for autonomous follow-ups
+}
+
+func (s *SSHService) SetCommandHistory(svc *CommandHistoryService) {
+	s.commandHistory = svc
+}
+
+func (s *SSHService) SetSessionPersistence(svc *SessionPersistence) {
+	s.sessionPersist = svc
 }
 
 // fetchAndDecryptHostPassword fetches the encrypted password blob from the DB

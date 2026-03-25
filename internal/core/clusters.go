@@ -22,6 +22,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/simulation"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
+	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/vault"
 	"github.com/kingknull/oblivrashell/internal/workspace"
 )
@@ -76,6 +77,7 @@ type SIEMCluster struct {
 	SourceManager    *logsources.SourceManager
 	FusionEngine     *detection.AttackFusionEngine
 	FusionService    *services.FusionService
+	TemporalEngine   *temporal.IntegrityService
 }
 
 // IntelCluster holds analytics, risk, and graph correlation services.
@@ -125,6 +127,10 @@ type ProductCluster struct {
 	WorkspaceManager  *workspace.WorkspaceManager
 	TeamService       *services.TeamService
 	SnippetRepo       database.SnippetStore
+	BookmarkService   *services.BookmarkService
+	CommandHistory    *services.CommandHistoryService
+	OperatorService   *services.OperatorService
+	SessionPersistence *services.SessionPersistence
 }
 
 // PlatformCluster holds utility and system services.

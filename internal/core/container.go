@@ -200,6 +200,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 	}
 
 	temporalEngine := temporal.NewIntegrityService(temporal.DefaultPolicy(), c.Infra.Bus, c.Log)
+	c.SIEM.TemporalEngine = temporalEngine
 	pipeline := ingest.NewPipeline(100000, wal, c.Infra.AnalyticsEngine, siemRepo, c.Infra.Bus, c.Log, temporalEngine)
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, "", "", "", c.Log), c.Infra.Bus, c.Log)
@@ -275,6 +276,21 @@ func (c *Container) initProduct() error {
 	c.Product.TailingService = services.NewTailingService(c.Infra.Bus, c.Log)
 	c.Product.TeamService = services.NewTeamService(team.NewTeamVault("Org Vault"), c.Infra.Bus, c.Log)
 
+	// Phase 23: Terminal UX Services
+	c.Product.BookmarkService = services.NewBookmarkService(hostRepo, credRepo, c.Infra.Vault, c.Infra.Bus, c.Log)
+	c.Product.CommandHistory = services.NewCommandHistoryService(c.Infra.DB, c.Log)
+	if c.SIEM != nil && c.SIEM.SIEMService != nil {
+		c.Product.OperatorService = services.NewOperatorService(c.SIEM.SIEMService.Store(), hostRepo, c.Log)
+	} else {
+		// Fallback if SIEM not ready
+		c.Product.OperatorService = services.NewOperatorService(nil, hostRepo, c.Log)
+	}
+	c.Product.SessionPersistence = services.NewSessionPersistence(c.Log)
+
+	// Wire Terminal UX services into SSHService
+	c.Product.SSHService.SetCommandHistory(c.Product.CommandHistory)
+	c.Product.SSHService.SetSessionPersistence(c.Product.SessionPersistence)
+
 	return nil
 }
 
@@ -295,7 +311,7 @@ func (c *Container) initPlatform() error {
 	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
-	c.Platform.APIService = services.NewAPIService(8080, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {
@@ -378,6 +394,9 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Product.ComplianceService)
 	c.mustRegister(c.Product.TailingService)
 	c.mustRegister(c.Product.TeamService)
+	c.mustRegister(c.Product.BookmarkService)
+	c.mustRegister(c.Product.CommandHistory)
+	c.mustRegister(c.Product.OperatorService)
 
 	// Platform
 	c.mustRegister(c.Platform.HealthService)

@@ -13,6 +13,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
+	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/mcp"
 )
 
@@ -45,7 +46,7 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, identity *IdentityService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, matchEngine *threatintel.MatchEngine) *APIService {
+func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, settings *SettingsService, identity *IdentityService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -72,7 +73,7 @@ func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	// MCP Initialization (Phase 22.1)
 	mcpRegistry := mcp.NewToolRegistry()
 	mcpEngine := mcp.NewDefaultEngine(siem, isolator, &threatIntelWrapper{engine: matchEngine}, bus, log)
-	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, log)
+	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
 	server := api.NewRESTServer(port, siem, pipeline, attest, am, identity, bus, cm, log, mcpRegistry, mcpHandler)
 

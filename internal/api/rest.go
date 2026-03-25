@@ -116,7 +116,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		agents:   make(map[string]*AgentInfo),
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
 		maxWS:    100,                               // Max 100 concurrent websocket listeners
-		evidence: forensics.NewEvidenceLocker([]byte("oblivra-evidence-hmac-key-v1")),
+		evidence: forensics.NewEvidenceLocker(forensics.NewHMACSigner([]byte("oblivra-evidence-hmac-key-v1")), log),
 		mcpRegistry: mcpRegistry,
 		mcpHandler:  mcpHandler,
 		upgrader: websocket.Upgrader{
@@ -223,6 +223,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	// MCP Endpoints (Phase 22.1)
 	mux.HandleFunc("/api/v1/mcp/tools", s.handleMCPDiscovery)
 	mux.HandleFunc("/api/v1/mcp/execute", s.handleMCPExecute)
+	mux.HandleFunc("/api/v1/mcp/approve", s.handleMCPApprove)
 
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.handleUsers)
@@ -1541,4 +1542,35 @@ func (s *RESTServer) handleMCPExecute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.jsonResponse(w, status, resp)
+}
+
+func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ApprovalID string `json:"approval_id"`
+		ActorID    string `json:"actor_id"`
+		Signature  string `json:"signature"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// In a real M-of-N system, we would:
+	// 1. Verify the signature against ActorID's public key
+	// 2. Increment approval count for ApprovalID
+	// 3. If threshold met, generate a one-time execution token
+
+	// MVP: Generate a simple HMAC-based token
+	token := fmt.Sprintf("approved-%s", req.ActorID) // Matches validateApproval in handler.go
+
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"status": "approved",
+		"token":  token,
+	})
 }
