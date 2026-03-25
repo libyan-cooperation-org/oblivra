@@ -2,7 +2,7 @@ package storage
 
 import (
 	"bytes"
-	"context" // Added context import
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +49,11 @@ func formatIPKey(tenantID, ip string, ts time.Time, id int64) []byte {
 func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *database.HostEvent) error {
 	if event.Timestamp == "" {
 		event.Timestamp = time.Now().Format(time.RFC3339)
+	}
+
+	// Enforce canonical tenant ID from context — never allow "GLOBAL" stray writes.
+	if event.TenantID == "" {
+		event.TenantID = database.TenantFromContext(ctx)
 	}
 
 	// We use UnixNano as a pseudo-ID since Badger is KV.
@@ -99,11 +104,7 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 // GetHostEvents returns the latest security events for a host, up to a limit
 func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit int) ([]database.HostEvent, error) {
-	// For MVP, we'll try to find the tenant from the context if available
-	tenantID := "GLOBAL"
-	if u := auth.UserFromContext(ctx); u != nil {
-		tenantID = u.TenantID
-	}
+	tenantID := database.TenantFromContext(ctx)
 
 	prefix := []byte(fmt.Sprintf("event:%s:%s:", tenantID, hostID))
 	var events []database.HostEvent
@@ -158,10 +159,7 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 	}
 
 	// Fallback to slow BadgerDB prefix scan if Bleve is offline or locked
-	tenantID := "GLOBAL"
-	if u := auth.UserFromContext(ctx); u != nil {
-		tenantID = u.TenantID
-	}
+	tenantID := database.TenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
 	var events []database.HostEvent
 	qLower := strings.ToLower(query)
@@ -254,10 +252,7 @@ func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID
 
 // CalculateRiskScore heuristically calculates risk of a host based on event frequency over 24h
 func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID string) (int, error) {
-	tenantID := "GLOBAL"
-	if u := auth.UserFromContext(ctx); u != nil {
-		tenantID = u.TenantID
-	}
+	tenantID := database.TenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("event:%s:%s:", tenantID, hostID))
 
 	score := 0

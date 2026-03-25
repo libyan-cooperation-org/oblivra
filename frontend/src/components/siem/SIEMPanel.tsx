@@ -1,14 +1,19 @@
-import { Component, createSignal, Show, For } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { useApp } from '@core/store';
-import { ThreatMap } from './ThreatMap';
 import { useNavigate, useLocation } from '@solidjs/router';
-import { EmptyState } from '../ui/EmptyState';
+import { 
+    PageLayout, 
+    TabBar, 
+    Select, 
+    EmptyState 
+} from '@components/ui';
+
+import { ThreatMap } from './ThreatMap';
 import { ThreatIntelPanel } from './ThreatIntelPanel';
 import { AlertDashboard } from './AlertDashboard';
 import { CompliancePanel } from '../compliance/CompliancePanel';
 import { MitreHeatmap } from './MitreHeatmap';
 import { LiveTailPanel } from '../ops/LiveTailPanel';
-import '../../styles/siem.css';
 
 export const SIEMPanel: Component = () => {
     const [state] = useApp();
@@ -16,7 +21,15 @@ export const SIEMPanel: Component = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Map pathname to active tab visually
+    // Mapping routes to tab IDs
+    const tabs = [
+        { id: 'logs', label: 'TERMINAL_FORENSICS' },
+        { id: 'intel', label: 'THREAT_INTELLIGENCE' },
+        { id: 'compliance', label: 'COMPLIANCE_WORKFLOW' },
+        { id: 'alerts', label: 'ACTIVE_ALERTS' },
+        { id: 'mitre', label: 'MITRE_MATRIX' }
+    ];
+
     const activeTab = () => {
         const path = location.pathname;
         if (path.includes('intel')) return 'intel';
@@ -26,102 +39,80 @@ export const SIEMPanel: Component = () => {
         return 'logs';
     };
 
+    const handleTabSelect = (id: string) => {
+        const route = id === 'logs' ? '/siem' : `/siem/${id}`;
+        navigate(route);
+    };
+
     return (
-        <div class="ob-page page-enter">
-            <div class="ob-tabs" style="margin-bottom: 24px;">
-                <button
-                    class={`ob-tab ${activeTab() === 'logs' ? 'active' : ''}`}
-                    onClick={() => navigate('/siem')}
-                >
-                    Terminal Forensics
-                </button>
-                <button
-                    class={`ob-tab ${activeTab() === 'intel' ? 'active' : ''}`}
-                    onClick={() => navigate('/siem/intel')}
-                >
-                    Threat Intelligence
-                </button>
-                <button
-                    class={`ob-tab ${activeTab() === 'compliance' ? 'active' : ''}`}
-                    onClick={() => navigate('/siem/compliance')}
-                >
-                    Compliance Workflow
-                </button>
-                <button
-                    class={`ob-tab ${activeTab() === 'alerts' ? 'active' : ''}`}
-                    onClick={() => navigate('/siem/alerts')}
-                >
-                    Active Alerts
-                </button>
-                <button
-                    class={`ob-tab ${activeTab() === 'mitre' ? 'active' : ''}`}
-                    onClick={() => navigate('/siem/mitre')}
-                >
-                    MITRE Matrix
-                </button>
-            </div>
+        <PageLayout 
+            title="Cyber-Intelligence & SIEM"
+            subtitle="ADVANCED_THREAT_DETECTION_ENGINE"
+        >
+            <TabBar 
+                tabs={tabs} 
+                active={activeTab()} 
+                onSelect={handleTabSelect} 
+                class="mb-6"
+            />
 
-            <Show when={activeTab() === 'logs'}>
-                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-                    <LiveTailPanel />
-                </div>
-            </Show>
-
-            <Show when={activeTab() === 'intel'}>
-                <div style="display: flex; flex-direction: column; gap: 24px; flex: 1; min-height: 0;">
-                    <ThreatIntelPanel />
-
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Host Selection:</span>
-                        <select
-                            class="ob-select ob-select-sm"
-                            style="width: 250px;"
-                            value={selectedHost() === 'global' ? (state.hosts[0]?.id || '') : selectedHost()}
-                            onChange={(e) => setSelectedHost(e.currentTarget.value)}
-                        >
-                            <For each={state.hosts}>
-                                {(host) => (
-                                    <option value={host.id}>{host.label || host.hostname}</option>
-                                )}
-                            </For>
-                        </select>
+            <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <Show when={activeTab() === 'logs'}>
+                    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                        <LiveTailPanel />
                     </div>
+                </Show>
 
-                    <div style="flex: 1; min-height: 0;">
-                        <Show when={selectedHost() && selectedHost() !== 'global'}>
-                            <ThreatMap hostId={selectedHost()} />
-                        </Show>
-                        <Show when={selectedHost() === 'global' && state.hosts.length > 0}>
-                            <ThreatMap hostId={state.hosts[0].id} />
-                        </Show>
-                        <Show when={state.hosts.length === 0}>
-                            <EmptyState
-                                icon="SECURITY_SHIELD"
-                                title="NO HOSTS CONFIGURED"
-                                description="Host telemetry required for forensic initialization. Configure edge nodes to proceed."
+                <Show when={activeTab() === 'intel'}>
+                    <div style="display: flex; flex-direction: column; gap: var(--gap-lg); flex: 1; overflow-y: auto;">
+                        <ThreatIntelPanel />
+
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Host Selection:</span>
+                            <Select
+                                style="width: 250px;"
+                                value={selectedHost() === 'global' ? (state.hosts[0]?.id || '') : selectedHost()}
+                                onChange={setSelectedHost}
+                                options={state.hosts.map(h => ({ label: (h.label || h.hostname).toUpperCase(), value: h.id }))}
                             />
-                        </Show>
+                        </div>
+
+                        <div style="flex: 1; min-height: 400px; position: relative;">
+                            <Show when={selectedHost() && selectedHost() !== 'global'}>
+                                <ThreatMap hostId={selectedHost()} />
+                            </Show>
+                            <Show when={selectedHost() === 'global' && state.hosts.length > 0}>
+                                <ThreatMap hostId={state.hosts[0].id} />
+                            </Show>
+                            <Show when={state.hosts.length === 0}>
+                                <EmptyState
+                                    icon="🛡️"
+                                    title="NO_HOSTS_CONFIGURED"
+                                    description="Host telemetry required for forensic initialization. Configure edge nodes to proceed."
+                                />
+                            </Show>
+                        </div>
                     </div>
-                </div>
-            </Show>
+                </Show>
 
-            <Show when={activeTab() === 'compliance'}>
-                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-                    <CompliancePanel />
-                </div>
-            </Show>
+                <Show when={activeTab() === 'compliance'}>
+                    <div style="flex: 1; min-height: 0;">
+                        <CompliancePanel />
+                    </div>
+                </Show>
 
-            <Show when={activeTab() === 'alerts'}>
-                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-                    <AlertDashboard />
-                </div>
-            </Show>
+                <Show when={activeTab() === 'alerts'}>
+                    <div style="flex: 1; min-height: 0;">
+                        <AlertDashboard />
+                    </div>
+                </Show>
 
-            <Show when={activeTab() === 'mitre'}>
-                <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-                    <MitreHeatmap />
-                </div>
-            </Show>
-        </div>
+                <Show when={activeTab() === 'mitre'}>
+                    <div style="flex: 1; min-height: 0;">
+                        <MitreHeatmap />
+                    </div>
+                </Show>
+            </div>
+        </PageLayout>
     );
 };

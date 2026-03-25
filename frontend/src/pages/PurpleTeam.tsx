@@ -1,6 +1,19 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import * as SimulationService from '../../wailsjs/go/simulation/SimulationService';
-import '../styles/purple-team.css';
+import { 
+    PageLayout, 
+    KPIGrid, 
+    KPI, 
+    Table, 
+    Badge, 
+    Panel, 
+    Button, 
+    Notice,
+    TabBar,
+    Progress,
+    formatTimestamp,
+    Column
+} from '@components/ui';
 
 export const PurpleTeam: Component = () => {
     const [report, setReport] = createSignal<any>(null);
@@ -10,8 +23,6 @@ export const PurpleTeam: Component = () => {
     const [validating, setValidating] = createSignal(false);
     const [msg, setMsg] = createSignal('');
     const [expandedTactic, setExpandedTactic] = createSignal<string | null>(null);
-
-    onMount(async () => await refreshData());
 
     const refreshData = async () => {
         try {
@@ -28,14 +39,16 @@ export const PurpleTeam: Component = () => {
         }
     };
 
+    onMount(async () => await refreshData());
+
     const runValidation = async () => {
         setValidating(true);
-        setMsg('⚡ CONTINUOUS VALIDATION — executing all scenario vectors...');
+        setMsg('⚡ CONTINUOUS_VALIDATION_IN_PROGRESS — executing all scenario vectors...');
         try {
             await SimulationService.RunContinuousValidation();
             setMsg('✅ Validation cycle complete. Refreshing metrics...');
             await refreshData();
-            setMsg('');
+            setTimeout(() => setMsg(''), 5000);
         } catch (e) {
             setMsg(`❌ Validation failed: ${e}`);
         } finally {
@@ -43,176 +56,218 @@ export const PurpleTeam: Component = () => {
         }
     };
 
-    const gradeColor = (grade: string) => {
+    const getGradeColor = (grade: string) => {
         switch (grade) {
-            case 'A': return '#10b981';
-            case 'B': return '#22d3ee';
-            case 'C': return '#f59e0b';
-            case 'D': return '#f97316';
-            default: return '#ef4444';
+            case 'A': return 'var(--status-online)';
+            case 'B': return 'var(--accent-primary)';
+            case 'C': return 'var(--alert-medium)';
+            case 'D': return 'var(--alert-high)';
+            default: return 'var(--alert-critical)';
         }
     };
 
-    const coverageColor = (pct: number) => {
-        if (pct >= 66) return '#10b981';
-        if (pct >= 33) return '#f59e0b';
-        return '#ef4444';
+    const getProgressColor = (pct: number): 'green' | 'orange' | 'red' | 'blue' => {
+        if (pct >= 66) return 'green';
+        if (pct >= 33) return 'orange';
+        return 'red';
     };
 
-    return (
-        <div class="purple-page">
-            <header class="purple-header">
-                <div>
-                    <h1>PURPLE TEAM ENGINE</h1>
-                    <p>Detection coverage scoring · Continuous validation · Resilience grading</p>
-                </div>
-                <div class="header-actions">
-                    <button class="ob-btn ob-btn-ghost" onClick={refreshData}>REFRESH</button>
-                    <button
-                        class="ob-btn ob-btn-danger"
-                        onClick={runValidation}
-                        disabled={validating()}
-                    >
-                        {validating() ? '◉ VALIDATING...' : '▶ RUN VALIDATION'}
-                    </button>
-                </div>
-            </header>
+    const historyColumns: Column<any>[] = [
+        { key: 'id', label: 'RUN_ID', width: '100px', mono: true, render: (r) => r.id || '—' },
+        { 
+            key: 'timestamp', 
+            label: 'TIMESTAMP', 
+            width: '180px', 
+            mono: true, 
+            render: (r) => formatTimestamp(r.timestamp) 
+        },
+        { key: 'detected', label: 'DETECTED', width: '90px' },
+        { key: 'missed', label: 'MISSED', width: '90px' },
+        { 
+            key: 'pass_rate', 
+            label: 'PASS_RATE',
+            render: (r) => (
+                <Badge severity={r.pass_rate >= 80 ? 'success' : r.pass_rate >= 50 ? 'warning' : 'danger'}>
+                    {r.pass_rate.toFixed(0)}%
+                </Badge>
+            )
+        },
+        { 
+            key: 'coverage_index', 
+            label: 'COVERAGE', 
+            mono: true, 
+            render: (r) => `${r.coverage_index.toFixed(1)}%` 
+        },
+        { 
+            key: 'duration_ms', 
+            label: 'DURATION', 
+            mono: true, 
+            render: (r) => `${r.duration_ms}ms` 
+        }
+    ];
 
+    const tabs = [
+        { id: 'overview', label: 'PERFORMANCE_OVERVIEW' },
+        { id: 'matrix', label: 'MITRE_MATRIX' },
+        { id: 'history', label: 'VALIDATION_HISTORY' },
+        { id: 'execute', label: 'ADVERSARY_SIMULATION' }
+    ];
+
+    return (
+        <PageLayout
+            title="Purple Team Engine"
+            subtitle="CONTINUOUS_CONTROLS_VALIDATION_&_RESILIENCE"
+            actions={
+                <>
+                    <Button variant="ghost" onClick={refreshData}>REFRESH</Button>
+                    <Button
+                        variant="primary"
+                        onClick={runValidation}
+                        loading={validating()}
+                        style="background: var(--alert-critical); color: #fff; border-color: transparent;"
+                    >
+                        RUN_FULL_VALIDATION
+                    </Button>
+                </>
+            }
+        >
             <Show when={msg()}>
-                <div class="purple-status-banner">[PURPLE_ENGINE]: {msg()}</div>
+                <Notice level={msg().startsWith('❌') ? 'error' : 'info'}>
+                    {msg()}
+                </Notice>
             </Show>
 
-            {/* KPI Strip */}
-            <div class="purple-kpi-strip">
-                <div class="kpi-card kpi-grade">
-                    <span class="kpi-label">RESILIENCE</span>
-                    <span
-                        class="kpi-value grade"
-                        style={{ color: gradeColor(report()?.resilience_grade || 'F') }}
-                    >
-                        {report()?.resilience_grade || '—'}
-                    </span>
-                    <span class="kpi-sub">{(report()?.resilience_score ?? 0).toFixed(1)} / 100</span>
-                </div>
-                <div class="kpi-card">
-                    <span class="kpi-label">DETECTION RATE</span>
-                    <span class="kpi-value">{(report()?.detection_rate ?? 0).toFixed(0)}%</span>
-                    <span class="kpi-sub">of executed scenarios</span>
-                </div>
-                <div class="kpi-card">
-                    <span class="kpi-label">COVERAGE INDEX</span>
-                    <span class="kpi-value">{(report()?.coverage_index ?? 0).toFixed(1)}%</span>
-                    <span class="kpi-sub">{coverage()?.covered_techniques ?? 0}/{coverage()?.total_techniques ?? 0} techniques</span>
-                </div>
-                <div class="kpi-card">
-                    <span class="kpi-label">MEAN RESPONSE</span>
-                    <span class="kpi-value">{report()?.mean_response_ms ?? '—'}<span class="kpi-unit">ms</span></span>
-                    <span class="kpi-sub">avg per scenario</span>
-                </div>
-                <div class="kpi-card">
-                    <span class="kpi-label">VALIDATION RUNS</span>
-                    <span class="kpi-value">{history().length}</span>
-                    <span class="kpi-sub">historical passes</span>
-                </div>
-            </div>
+            <KPIGrid cols={5} class="mb-6">
+                <KPI 
+                    label="RESILIENCE_GRADE" 
+                    value={report()?.resilience_grade || '—'} 
+                    color={getGradeColor(report()?.resilience_grade || 'F')}
+                    subtitle={`SCORE: ${(report()?.resilience_score ?? 0).toFixed(1)}`}
+                />
+                <KPI 
+                    label="DETECTION_RATE" 
+                    value={`${(report()?.detection_rate ?? 0).toFixed(0)}%`} 
+                    sparkData={[65, 72, 68, 80, 85]}
+                    sparkColor="var(--status-online)"
+                />
+                <KPI 
+                    label="COVERAGE_INDEX" 
+                    value={`${(report()?.coverage_index ?? 0).toFixed(1)}%`} 
+                    subtitle={`${coverage()?.covered_techniques ?? 0}/${coverage()?.total_techniques ?? 0} techniques`}
+                />
+                <KPI 
+                    label="MEAN_RESPONSE" 
+                    value={`${report()?.mean_response_ms ?? '—'}ms`} 
+                    color="var(--accent-primary)"
+                />
+                <KPI 
+                    label="VALIDATION_RUNS" 
+                    value={history().length} 
+                    subtitle="historical passes"
+                />
+            </KPIGrid>
 
-            {/* Tabs */}
-            <nav class="purple-tabs">
-                <button class={activeTab() === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>OVERVIEW</button>
-                <button class={activeTab() === 'matrix' ? 'active' : ''} onClick={() => setActiveTab('matrix')}>MITRE MATRIX</button>
-                <button class={activeTab() === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>HISTORY</button>
-                <button class={activeTab() === 'execute' ? 'active' : ''} onClick={() => setActiveTab('execute')}>EXECUTE</button>
-            </nav>
+            <TabBar 
+                tabs={tabs} 
+                active={activeTab()} 
+                onSelect={(id) => setActiveTab(id as any)} 
+                class="mb-6"
+            />
 
-            <div class="purple-content">
+            <div style="flex: 1; overflow-y: auto;">
                 {/* ── OVERVIEW ── */}
                 <Show when={activeTab() === 'overview'}>
-                    <div class="overview-grid">
-                        {/* Coverage bar per tactic */}
-                        <div class="overview-section">
-                            <h3>TACTIC COVERAGE</h3>
-                            <div class="tactic-bars">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-lg);">
+                        <Panel title="TACTIC_COVERAGE_METRICS">
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
                                 <For each={coverage()?.tactic_breakdown || []}>
                                     {(tc: any) => (
-                                        <div class="tactic-bar-row">
-                                            <span class="tactic-name">{tc.tactic}</span>
-                                            <div class="tactic-bar-track">
-                                                <div
-                                                    class="tactic-bar-fill"
-                                                    style={{
-                                                        width: `${tc.percent}%`,
-                                                        background: coverageColor(tc.percent)
-                                                    }}
-                                                />
+                                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                                            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: var(--text-primary);">
+                                                <span style="text-transform: uppercase;">{tc.tactic}</span>
+                                                <span style="font-family: var(--font-mono); color: var(--text-muted);">{tc.covered}/{tc.total}</span>
                                             </div>
-                                            <span class="tactic-ratio">{tc.covered}/{tc.total}</span>
+                                            <Progress value={tc.percent} color={getProgressColor(tc.percent)} />
                                         </div>
                                     )}
                                 </For>
                             </div>
-                        </div>
+                        </Panel>
 
-                        {/* Gap Report */}
-                        <div class="overview-section">
-                            <h3>DETECTION GAPS</h3>
-                            <div class="gap-list">
+                        <Panel title="DETECTION_GAP_ANALYSIS">
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
                                 <For each={coverage()?.gap_ids || []}>
                                     {(id: string) => (
-                                        <div class="gap-item">
-                                            <span class="gap-indicator">○</span>
-                                            <span class="gap-id">{id}</span>
-                                            <span class="gap-status">UNCOVERED</span>
+                                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.1); border-radius: var(--radius-sm); border-left: 3px solid var(--alert-critical);">
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <span style="color: var(--alert-critical); font-size: 14px;">○</span>
+                                                <span style="font-family: var(--font-mono); font-size: 11px; font-weight: 700;">{id}</span>
+                                            </div>
+                                            <Badge severity="danger" size="sm">UNCOVERED_GAP</Badge>
                                         </div>
                                     )}
                                 </For>
                                 <Show when={(coverage()?.gap_ids || []).length === 0}>
-                                    <div class="empty-state">Full coverage achieved. No technique gaps.</div>
+                                    <div style="text-align: center; padding: 48px 0; color: var(--status-online); font-size: 12px; font-weight: 700;">
+                                        ✅ FULL COVERAGE ACHIEVED ACROSS ALL MONITORED VECTORS
+                                    </div>
                                 </Show>
                             </div>
-                        </div>
+                        </Panel>
                     </div>
                 </Show>
 
                 {/* ── MITRE MATRIX ── */}
                 <Show when={activeTab() === 'matrix'}>
-                    <div class="matrix-grid">
+                    <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; min-height: 400px;">
                         <For each={coverage()?.tactic_breakdown || []}>
                             {(tc: any) => (
-                                <div
-                                    class={`matrix-column ${expandedTactic() === tc.tactic ? 'expanded' : ''}`}
+                                <div 
                                     onClick={() => setExpandedTactic(expandedTactic() === tc.tactic ? null : tc.tactic)}
+                                    style={{
+                                        'width': expandedTactic() === tc.tactic ? '300px' : '120px',
+                                        'min-width': expandedTactic() === tc.tactic ? '300px' : '120px',
+                                        'background': 'var(--surface-1)',
+                                        'border': '1px solid var(--border-primary)',
+                                        'transition': 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        'border-radius': 'var(--radius-sm)',
+                                        'display': 'flex',
+                                        'flex-direction': 'column',
+                                        'cursor': 'pointer'
+                                    }}
                                 >
-                                    <div class="matrix-col-header">
-                                        <span class="matrix-tactic-name">{tc.tactic}</span>
-                                        <span
-                                            class="matrix-tactic-pct"
-                                            style={{ color: coverageColor(tc.percent) }}
-                                        >
+                                    <div style="padding: 12px 8px; border-bottom: 2px solid var(--border-secondary); background: var(--surface-2); text-align: center;">
+                                        <div style="font-size: 9px; font-weight: 800; color: var(--text-primary); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{tc.tactic}</div>
+                                        <div style={{ 'font-family': 'var(--font-mono)', 'font-size': '12px', 'font-weight': '900', 'color': `var(--status-${getProgressColor(tc.percent)})`, 'margin-top': '4px' }}>
                                             {tc.percent.toFixed(0)}%
-                                        </span>
-                                    </div>
-                                    <div class="matrix-col-bar">
-                                        <div
-                                            class="matrix-bar-fill"
-                                            style={{
-                                                height: `${tc.percent}%`,
-                                                background: coverageColor(tc.percent)
-                                            }}
-                                        />
-                                    </div>
-                                    <Show when={expandedTactic() === tc.tactic}>
-                                        <div class="matrix-techniques">
-                                            <For each={tc.techniques || []}>
-                                                {(tech: any) => (
-                                                    <div class={`matrix-tech ${tech.covered ? 'covered' : 'gap'}`}>
-                                                        <span class="tech-dot">{tech.covered ? '●' : '○'}</span>
-                                                        <span class="tech-id">{tech.id}</span>
-                                                        <span class="tech-name">{tech.name}</span>
-                                                    </div>
-                                                )}
-                                            </For>
                                         </div>
-                                    </Show>
+                                    </div>
+                                    <div style="flex: 1; position: relative;">
+                                        <div style={{
+                                            'position': 'absolute', 'bottom': '0', 'left': '0', 'right': '0',
+                                            'height': `${tc.percent}%`, 'background': `var(--status-${getProgressColor(tc.percent)})`,
+                                            'opacity': '0.15', 'transition': 'height 0.5s ease-out'
+                                        }} />
+                                        <Show when={expandedTactic() === tc.tactic}>
+                                            <div style="position: relative; padding: 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
+                                                <For each={tc.techniques || []}>
+                                                    {(tech: any) => (
+                                                        <div style={{
+                                                            'padding': '6px 8px', 'background': 'rgba(0,0,0,0.2)', 'border-radius': 'var(--radius-xs)',
+                                                            'border-left': `2px solid ${tech.covered ? 'var(--status-online)' : 'var(--alert-critical)'}`,
+                                                            'display': 'flex', 'flex-direction': 'column', 'gap': '2px'
+                                                        }}>
+                                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                                <span style="font-family: var(--font-mono); font-size: 10px; font-weight: 800; color: var(--accent-primary);">{tech.id}</span>
+                                                                <span style={{'font-size': '9px', 'color': tech.covered ? 'var(--status-online)' : 'var(--alert-critical)'}}>{tech.covered ? '●' : '○'}</span>
+                                                            </div>
+                                                            <div style="font-size: 10px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{tech.name}</div>
+                                                        </div>
+                                                    )}
+                                                </For>
+                                            </div>
+                                        </Show>
+                                    </div>
                                 </div>
                             )}
                         </For>
@@ -221,72 +276,47 @@ export const PurpleTeam: Component = () => {
 
                 {/* ── VALIDATION HISTORY ── */}
                 <Show when={activeTab() === 'history'}>
-                    <div class="history-section">
-                        <Show when={history().length > 0} fallback={
-                            <div class="empty-state">No validation runs yet. Execute a continuous validation pass.</div>
-                        }>
-                            <table class="history-table">
-                                <thead>
-                                    <tr>
-                                        <th>RUN ID</th>
-                                        <th>TIMESTAMP</th>
-                                        <th>DETECTED</th>
-                                        <th>MISSED</th>
-                                        <th>PASS RATE</th>
-                                        <th>COVERAGE</th>
-                                        <th>DURATION</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={[...history()].reverse()}>
-                                        {(run: any) => (
-                                            <tr>
-                                                <td class="mono">{run.id}</td>
-                                                <td class="mono">{new Date(run.timestamp).toLocaleString()}</td>
-                                                <td class="pass">{run.detected}</td>
-                                                <td class="fail">{run.missed}</td>
-                                                <td>
-                                                    <span class={`rate-badge ${run.pass_rate >= 80 ? 'good' : run.pass_rate >= 50 ? 'warn' : 'bad'}`}>
-                                                        {run.pass_rate.toFixed(0)}%
-                                                    </span>
-                                                </td>
-                                                <td class="mono">{run.coverage_index.toFixed(1)}%</td>
-                                                <td class="mono">{run.duration_ms}ms</td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
-                        </Show>
-                    </div>
+                    <Panel noPadding>
+                        <Table 
+                            columns={historyColumns} 
+                            data={[...history()].reverse()} 
+                            emptyText="NO VALIDATION RUNS DETECTED"
+                            striped
+                        />
+                    </Panel>
                 </Show>
 
-                {/* ── EXECUTE (Quick Actions) ── */}
+                {/* ── EXECUTE ── */}
                 <Show when={activeTab() === 'execute'}>
-                    <div class="execute-section">
-                        <div class="execute-card">
-                            <h3>▶ FULL SPECTRUM VALIDATION</h3>
-                            <p>Execute all {coverage()?.total_techniques ?? 0} mapped scenarios sequentially. Each scenario fires simulated events through the detection pipeline and waits for alert correlation.</p>
-                            <button
-                                class="ob-btn ob-btn-danger execute-btn"
-                                onClick={runValidation}
-                                disabled={validating()}
-                            >
-                                {validating() ? '◉ EXECUTING...' : 'INITIATE VALIDATION RUN'}
-                            </button>
-                        </div>
-                        <div class="execute-card">
-                            <h3>⟲ SCHEDULED SELF-TEST</h3>
-                            <p>Configure a periodic validation interval. Detections are correlated automatically and coverage metrics updated.</p>
-                            <div class="schedule-row">
-                                <span class="schedule-label">Status:</span>
-                                <span class="schedule-value">Manual only (schedule via cron or playbook)</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-lg);">
+                        <Panel title="FULL_SPECTRUM_VALIDATION">
+                            <div style="margin-bottom: var(--gap-lg); font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                                Execute all {coverage()?.total_techniques ?? 0} mapped scenarios sequentially. 
+                                Each scenario fires simulated events through the detection pipeline and waits for alert correlation.
                             </div>
-                        </div>
+                            <Button
+                                variant="primary"
+                                onClick={runValidation}
+                                loading={validating()}
+                                style="width: 100%; height: 48px; background: var(--alert-critical); color: #fff; font-weight: 800;"
+                            >
+                                {validating() ? 'VALIDATION_CYCLE_RUNNING...' : 'INITIATE_VALIDATION_PASS'}
+                            </Button>
+                        </Panel>
+
+                        <Panel title="SCHEDULED_CONTROLS_SELF-TEST">
+                            <div style="margin-bottom: var(--gap-lg); font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                                Configure a periodic validation interval. Detections are correlated automatically and coverage metrics updated via the OBLIVRA automation engine.
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid var(--border-primary);">
+                                <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Engine Status</span>
+                                <Badge severity="neutral">MANUAL_TRIGGER_ONLY</Badge>
+                            </div>
+                        </Panel>
                     </div>
                 </Show>
             </div>
-        </div>
+        </PageLayout>
     );
 };
 

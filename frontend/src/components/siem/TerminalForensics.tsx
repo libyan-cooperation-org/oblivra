@@ -1,10 +1,29 @@
 import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useApp } from '@core/store';
 import { SearchLogs } from '../../../wailsjs/go/services/AnalyticsService';
-import { SearchHostEvents, GetHostEvents, AnalyzeEvent, AggregateHostEvents, CreateSavedSearch, GetSavedSearches } from '../../../wailsjs/go/services/SIEMService';
+import { 
+    SearchHostEvents, 
+    GetHostEvents, 
+    AnalyzeEvent, 
+    AggregateHostEvents, 
+    CreateSavedSearch, 
+    GetSavedSearches 
+} from '../../../wailsjs/go/services/SIEMService';
 import { SaveRunbook } from '../../../wailsjs/go/services/NotesService';
-import { showModal } from '../ui/ModalSystem';
-import { EmptyState } from '../ui/EmptyState';
+import { 
+    SearchBar, 
+    Select, 
+    Button, 
+    Badge, 
+    EmptyState, 
+    formatTimestamp,
+    normalizeSeverity,
+    Panel,
+    Toolbar,
+    ToolbarSpacer,
+    showModal,
+    ModalOptions
+} from '@components/ui';
 import { SessionPlayback } from './SessionPlayback';
 
 export const TerminalForensics: Component = () => {
@@ -24,12 +43,12 @@ export const TerminalForensics: Component = () => {
         try {
             const res = await AnalyzeEvent(rawLog);
             if (res && res.text) {
-                showModal({
+                const modalOpts: ModalOptions = {
                     title: 'AI Forensic Analysis',
                     message: res.text,
                     confirmText: 'Got it',
-                    onConfirm: () => { },
-                    onCancel: () => { },
+                    onConfirm: () => {},
+                    onCancel: () => {},
                     actions: [
                         {
                             label: '📕 Save as Playbook',
@@ -52,7 +71,8 @@ export const TerminalForensics: Component = () => {
                             type: 'secondary'
                         }
                     ]
-                });
+                };
+                showModal(modalOpts);
             }
         } catch (err) {
             console.error("AI analysis failed:", err);
@@ -61,7 +81,6 @@ export const TerminalForensics: Component = () => {
         }
     };
 
-    // Run a default 24h search on mount for logs
     createEffect(() => {
         if (state.activeNavTab === 'siem' && results().length === 0) {
             runSearch();
@@ -121,145 +140,125 @@ export const TerminalForensics: Component = () => {
         }
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            runSearch();
-        }
-    };
-
     return (
-        <>
-            <div class="siem-controls">
-                <select
-                    class="siem-select"
-                    value={selectedHost()}
-                    onChange={(e) => setSelectedHost(e.currentTarget.value)}
-                >
-                    <option value="global">Global (All Hosts)</option>
-                    <For each={state.hosts}>
-                        {(host) => (
-                            <option value={host.id}>{host.label || host.hostname}</option>
-                        )}
-                    </For>
-                </select>
+        <div style="height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-0);">
+            <Toolbar>
+                <div style="display: flex; gap: 8px;">
+                    <Select
+                        value={selectedHost()}
+                        onChange={setSelectedHost}
+                        options={[
+                            { label: 'GLOBAL_HOSTS', value: 'global' },
+                            ...state.hosts.map(h => ({ label: (h.label || h.hostname).toUpperCase(), value: h.id }))
+                        ]}
+                    />
+                    <Select
+                        value={searchMode()}
+                        onChange={(v: string) => setSearchMode(v as any)}
+                        options={[
+                            { label: 'TERMINAL_OUTPUT', value: 'terminal' },
+                            { label: 'SECURITY_EVENTS', value: 'security' }
+                        ]}
+                    />
+                </div>
+                <ToolbarSpacer />
+                <div style="display: flex; gap: 8px;">
+                    <Select
+                        value=""
+                        placeholder="SAVED_SEARCHES"
+                        onChange={(v: string) => {
+                            if (v) { setSearchQuery(v); runSearch(); }
+                        }}
+                        options={savedSearches().map(ss => ({ label: ss.name.toUpperCase(), value: ss.query }))}
+                    />
+                    <Button variant="ghost" onClick={handleSaveSearch} title="Save Search">💾</Button>
+                </div>
+            </Toolbar>
 
-                <select
-                    class="siem-select"
-                    value={searchMode()}
-                    onChange={(e) => setSearchMode(e.currentTarget.value as any)}
-                >
-                    <option value="terminal">Terminal Output</option>
-                    <option value="security">Security Events</option>
-                </select>
-
-                <input
-                    type="text"
-                    class="siem-input"
-                    placeholder={searchMode() === 'terminal' ? "Search output text... (e.g. 'docker')" : "Search anomalies... (IP, User)"}
+            <div style="padding: var(--gap-md); border-bottom: 1px solid var(--border-primary);">
+                <SearchBar
                     value={searchQuery()}
-                    onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                    onKeyDown={handleKeyDown}
+                    onInput={setSearchQuery}
+                    onSubmit={runSearch}
+                    placeholder={searchMode() === 'terminal' ? "Search output text... (e.g. 'docker')" : "Search anomalies... (IP, User)"}
+                    buttonText={isSearching() ? 'SEARCHING...' : 'RUN_QUERY'}
                 />
-
-                <select
-                    class="siem-select"
-                    style="max-width: 150px;"
-                    onChange={(e) => {
-                        if (e.currentTarget.value) {
-                            setSearchQuery(e.currentTarget.value);
-                            runSearch();
-                        }
-                    }}
-                >
-                    <option value="">Saved Searches</option>
-                    <For each={savedSearches()}>
-                        {(ss: any) => <option value={ss.query}>{ss.name}</option>}
-                    </For>
-                </select>
-
-                <button class="btn btn-secondary" style="height: 44px; padding: 0 12px;" onClick={handleSaveSearch} title="Save Search">
-                    💾
-                </button>
-
-                <button
-                    onClick={runSearch}
-                    disabled={isSearching()}
-                    class="btn btn-primary"
-                    style="height: 44px; padding: 0 24px;"
-                >
-                    {isSearching() ? 'Searching...' : 'Search'}
-                </button>
             </div>
 
-            <div class="siem-results-container">
+            <div style="flex: 1; overflow-y: auto; padding: var(--gap-md);">
                 <Show when={searchMode() === 'security' && Object.keys(aggregations()).length > 0}>
-                    <div class="siem-aggregations" style="display: flex; gap: 8px; margin-bottom: 12px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px; overflow-x: auto;">
-                        <span style="font-size: 13px; color: var(--text-secondary); align-self: center; white-space: nowrap;">Top Events:</span>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: var(--gap-md); overflow-x: auto;">
+                        <span style="font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Top Events:</span>
                         <For each={Object.entries(aggregations())}>
                             {([type, count]) => (
-                                <span class="siem-tag" style="background: rgba(var(--accent-primary-rgb), 0.1); color: var(--accent-primary); border: none; white-space: nowrap;">
-                                    {type} ({count})
-                                </span>
+                                <Badge severity="info">{type} ({count})</Badge>
                             )}
                         </For>
                     </div>
                 </Show>
 
                 <Show when={results().length === 0 && !isSearching()}>
-                    <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
+                    <div style="padding: 100px 0;">
                         <EmptyState
                             icon="🔍"
-                            title="No events found"
-                            description="Try modifying your search constraints or host filter."
+                            title="NO_EVENTS_DISCOVERED"
+                            description="Modifier search constraints or host filter to expand results."
+                            action="CLEAR_FILTERS"
+                            onAction={() => {
+                                setSearchQuery('');
+                                setSelectedHost('global');
+                                runSearch();
+                            }}
                         />
-                        <button class="btn btn-secondary" onClick={() => {
-                            setSearchQuery('');
-                            setSelectedHost('global');
-                            runSearch();
-                        }}>Clear Filters</button>
                     </div>
                 </Show>
-                <div class="siem-results">
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
                     <For each={results()}>
                         {(row) => (
-                            <div class="siem-event-card">
-                                <div class="siem-event-header">
-                                    <span class="siem-event-time">
-                                        {new Date(row.timestamp || row.CreatedAt).toLocaleString()}
-                                    </span>
-                                    <span class="siem-host-badge">HOST: {row.host_id || row.HostID}</span>
-                                    <Show when={row.session_id}>
-                                        <span class="siem-tag">Session: {row.session_id.substring(0, 8)}</span>
-                                    </Show>
-                                    <Show when={row.EventType || row.Category}>
-                                        <span class={`siem-tag severity-${row.Severity || 'info'}`}>{row.EventType || row.Category}</span>
-                                    </Show>
-
-                                    <div style="flex-grow: 1;"></div>
-                                    <button
-                                        class="siem-btn-icon"
-                                        onClick={() => handleAnalyze((row.output_clean || row.output || row.RawLog || JSON.stringify(row)), (row.id || row.ID))}
-                                        disabled={analyzingId() === (row.id || row.ID)}
-                                        title="Send to AI Analyst"
-                                    >
-                                        {analyzingId() === (row.id || row.ID) ? '⏳' : '🤖 Analyze'}
-                                    </button>
-
-                                    <Show when={row.session_id}>
-                                        <button
-                                            class="siem-btn-icon"
-                                            onClick={() => setPlaybackSessionId(row.session_id)}
-                                            title="Replay Session"
-                                            style="background: rgba(var(--accent-primary-rgb), 0.1); color: var(--accent-primary);"
-                                        >
-                                            🎬 REPLAY
-                                        </button>
-                                    </Show>
+                            <Panel noPadding>
+                                <div style="display: flex; flex-direction: column; padding: 12px 16px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">
+                                                {formatTimestamp(row.timestamp || row.CreatedAt)}
+                                            </span>
+                                            <Badge severity="neutral" size="sm">HOST:{row.host_id || row.HostID}</Badge>
+                                            <Show when={row.session_id}>
+                                                <Badge severity="info" size="sm">SESSION:{row.session_id.substring(0, 8)}</Badge>
+                                            </Show>
+                                            <Show when={row.EventType || row.Category}>
+                                                <Badge severity={normalizeSeverity(row.Severity || 'info')} size="sm">
+                                                    {row.EventType || row.Category}
+                                                </Badge>
+                                            </Show>
+                                        </div>
+                                        <div style="display: flex; gap: 6px;">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm"
+                                                onClick={() => handleAnalyze((row.output_clean || row.output || row.RawLog || JSON.stringify(row)), (row.id || row.ID))}
+                                                disabled={analyzingId() === (row.id || row.ID)}
+                                            >
+                                                {analyzingId() === (row.id || row.ID) ? '⏳ ANALYZING...' : '🤖 AI_ANALYZE'}
+                                            </Button>
+                                            <Show when={row.session_id}>
+                                                <Button
+                                                    variant="primary"
+                                                    size="sm"
+                                                    onClick={() => setPlaybackSessionId(row.session_id)}
+                                                    style="background: var(--surface-3); border-color: var(--border-primary); color: var(--accent-primary);"
+                                                >
+                                                    🎬 REPLAY
+                                                </Button>
+                                            </Show>
+                                        </div>
+                                    </div>
+                                    <div style="font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); white-space: pre-wrap; word-break: break-all; line-height: 1.5; background: rgba(0,0,0,0.15); padding: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                                        {row.output_clean || row.output || row.RawLog || JSON.stringify(row)}
+                                    </div>
                                 </div>
-                                <div class="siem-event-body">
-                                    {row.output_clean || row.output || row.RawLog || JSON.stringify(row)}
-                                </div>
-                            </div>
+                            </Panel>
                         )}
                     </For>
                 </div>
@@ -271,6 +270,6 @@ export const TerminalForensics: Component = () => {
                     onClose={() => setPlaybackSessionId(null)} 
                 />
             </Show>
-        </>
+        </div>
     );
 };
