@@ -42,6 +42,9 @@ func NewSettingsService(db database.DatabaseStore, bus *eventbus.Bus, log *logge
 }
 
 func (s *SettingsService) Get(key string) (string, error) {
+	if s.db == nil || s.db.DB() == nil {
+		return "", database.ErrLocked
+	}
 	var val string
 	err := s.db.DB().QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&val)
 	if err != nil {
@@ -51,6 +54,9 @@ func (s *SettingsService) Get(key string) (string, error) {
 }
 
 func (s *SettingsService) Set(key string, value string) error {
+	if s.db == nil || s.db.DB() == nil {
+		return database.ErrLocked
+	}
 	s.log.Debug("Setting setting: %s=%s", key, value)
 	_, err := s.db.DB().Exec("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", key, value)
 	if err == nil {

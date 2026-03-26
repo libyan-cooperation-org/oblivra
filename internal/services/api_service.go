@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	"github.com/kingknull/oblivrashell/internal/api"
@@ -11,6 +12,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/temporal"
@@ -67,8 +69,10 @@ func NewAPIService(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	var am *auth.APIKeyMiddleware
 	am = auth.NewAPIKeyMiddleware(validKeys, log)
 
-	// PRR Fix: Dynamic TLS loading
-	cm := security.NewCertificateManager("cert.pem", "key.pem", log)
+	// PRR Fix: Dynamic TLS loading from standard config directory
+	certPath := filepath.Join(platform.ConfigDir(), "cert.pem")
+	keyPath := filepath.Join(platform.ConfigDir(), "key.pem")
+	cm := security.NewCertificateManager(certPath, keyPath, log)
 	
 	// MCP Initialization (Phase 22.1)
 	mcpRegistry := mcp.NewToolRegistry()

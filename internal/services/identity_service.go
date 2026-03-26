@@ -185,7 +185,8 @@ func (s *IdentityService) UpdateUserRole(userID, roleID string) error {
 
 // LoginLocal authenticates a user with email and password
 func (s *IdentityService) LoginLocal(email, password string) (*database.User, error) {
-	user, err := s.userRepo.GetUserByEmail(context.Background(), email)
+	// Search across all tenants for the user (global login)
+	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(context.Background()), email)
 	if err != nil {
 		s.log.Warn("Login failed for %s: user not found", email)
 		return nil, fmt.Errorf("invalid credentials")

@@ -1,7 +1,6 @@
 package ingest
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func TestPartitionedPipeline_RateLimiting(t *testing.T) {
-	log := logger.NewNop()
+	log := logger.NewStdoutLogger()
 	// Create pipeline with very low limit for testing
 	pp := NewPartitionedPipeline(100, nil, nil, nil, nil, log, nil)
 	pp.maxEPS = 10 // 10 events per second

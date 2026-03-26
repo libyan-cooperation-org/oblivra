@@ -7,6 +7,7 @@ type contextKey string
 const (
 	tenantConfigKey contextKey = "tenant_id"
 	DefaultTenantID string     = "default_tenant"
+	GlobalSearchKey contextKey = "global_search"
 )
 
 // WithTenantID returns a new context with the given tenant ID.
@@ -24,4 +25,9 @@ func TenantFromContext(ctx context.Context) string {
 		return tenantID
 	}
 	return DefaultTenantID
+}
+
+// WithGlobalSearch returns a context that signals repositories to skip tenant filtering.
+func WithGlobalSearch(ctx context.Context) context.Context {
+	return context.WithValue(ctx, GlobalSearchKey, true)
 }

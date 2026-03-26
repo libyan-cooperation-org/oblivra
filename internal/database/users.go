@@ -86,17 +86,38 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	// Check for global search flag in context
+	isGlobal := false
+	if g, ok := ctx.Value(GlobalSearchKey).(bool); ok && g {
+		isGlobal = true
+	}
 
 	var u User
 	var lastLogin sql.NullString
 
-	err = conn.QueryRow(`
-		SELECT id, tenant_id, email, name, password_hash, auth_provider,
-		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
-		FROM users
-		WHERE email = ? AND tenant_id = ?
-	`, email, tenantID).Scan(
+	var query string
+	var args []interface{}
+
+	if isGlobal {
+		query = `
+			SELECT id, tenant_id, email, name, password_hash, auth_provider,
+			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
+			FROM users
+			WHERE email = ?
+		`
+		args = []interface{}{email}
+	} else {
+		tenantID := TenantFromContext(ctx)
+		query = `
+			SELECT id, tenant_id, email, name, password_hash, auth_provider,
+			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
+			FROM users
+			WHERE email = ? AND tenant_id = ?
+		`
+		args = []interface{}{email, tenantID}
+	}
+
+	err = conn.QueryRow(query, args...).Scan(
 		&u.ID, &u.TenantID, &u.Email, &u.Name, &u.PasswordHash, &u.AuthProvider,
 		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
 	)

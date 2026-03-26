@@ -84,11 +84,14 @@ type EvidenceLocker struct {
 
 // NewEvidenceLocker creates an evidence locker with the given signer.
 func NewEvidenceLocker(signer ForensicSigner, log *logger.Logger) *EvidenceLocker {
-	return &EvidenceLocker{
+	l := &EvidenceLocker{
 		items:  make(map[string]*EvidenceItem),
 		signer: signer,
-		log:    log.WithPrefix("evidence-locker"),
 	}
+	if log != nil {
+		l.log = log.WithPrefix("evidence-locker")
+	}
+	return l
 }
 
 // HMACSigner implements ForensicSigner using a traditional HMAC-SHA256.

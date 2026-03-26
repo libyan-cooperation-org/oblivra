@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"flag"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/isolation"
@@ -25,6 +29,11 @@ var assets embed.FS
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "worker" {
 		workerCmd(os.Args[2:])
+		return
+	}
+
+	if len(os.Args) >= 2 && os.Args[1] == "server" {
+		serverCmd(os.Args[2:])
 		return
 	}
 
@@ -220,6 +229,37 @@ func (e *WorkerEnrichEngine) Enrich(args *EnrichArgs, reply *EnrichReply) error 
 	// A real implementation would apply GeoIP, DNS, and asset mapping.
 	reply.EnrichedEventJSON = args.RawEventJSON
 	return nil
+}
+
+func serverCmd(args []string) {
+	fs := flag.NewFlagSet("server", flag.ExitOnError)
+	port := fs.Int("port", 8080, "Port for the headless API server")
+	fs.Parse(args)
+
+	// Runtime Binary Attestation
+	attestSvc := attestation.NewAttestationService()
+	if err := attestSvc.VerifyOnStartup(); err != nil {
+		log.Fatalf("FATAL: %v", err)
+	}
+
+	application := app.New()
+	
+	// Create context that listens for interrupt signals
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// In server mode, we don't have Wails calling Startup, so we do it manually.
+	application.Startup(ctx)
+
+	log.Printf("[SERVER] OBLIVRA Headless Core active on port %d\n", *port)
+	log.Println("[SERVER] Press Ctrl+C to shut down")
+
+	<-ctx.Done()
+	log.Println("[SERVER] Shutting down...")
+	
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	application.Shutdown(shutdownCtx)
 }
 
 func workerCmd(args []string) {

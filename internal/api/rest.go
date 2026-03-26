@@ -268,13 +268,26 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 
 	var handler http.Handler = mux
 
-	// Wrap entire mux with Authentication middleware if provided
-	if s.auth != nil {
-		handler = s.auth.Middleware(handler)
-	}
+	// Wrap entire mux with Authentication middleware if provided, BUT exclude
+	// the login and OIDC endpoints which must be accessible to anonymous users.
+	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.HasPrefix(path, "/api/v1/auth/login") ||
+			strings.HasPrefix(path, "/api/v1/auth/oidc") ||
+			path == "/healthz" || path == "/readyz" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+
+		if s.auth != nil {
+			s.auth.Middleware(mux).ServeHTTP(w, r)
+		} else {
+			mux.ServeHTTP(w, r)
+		}
+	})
 
 	// Wrap entire router with security middleware (CORS, Headers, Rate Limiting)
-	handler = s.secureMiddleware(handler)
+	handler = s.secureMiddleware(finalHandler)
 
 	s.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
