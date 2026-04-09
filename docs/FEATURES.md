@@ -38,7 +38,7 @@ This document provides a comprehensive list of all features currently implemente
 **High-velocity log ingestion and real-time detection engine running entirely on-device.**
 
 ### Ingestion & Storage
-- **50,000+ EPS Pipeline**: High-performance ingestion with crash-safe WAL.
+- **18,000+ EPS Pipeline**: Validated 18,000 EPS burst / 10,000 EPS sustained with crash-safe WAL and zero data loss on restart.
 - **Unified Ingest**: Support for Syslog (RFC 5424/3164), JSON, CEF, and LEEF.
 - **State-of-the-Art Storage**: BadgerDB (hot store) + Bleve (full-text index) for sub-second search.
 - **Columnar Archival**: Parquet-based long-term storage for forensic data.

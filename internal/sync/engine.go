@@ -58,20 +58,28 @@ type SyncEngine struct {
 	isSyncing     bool
 }
 
-func NewSyncEngine(deviceID string, password string) *SyncEngine {
+// NewSyncEngine creates a new SyncEngine.
+// syncEndpoint is the URL of the relay server. Pass an empty string to run in
+// offline / air-gap mode — all cloud operations will be silently skipped.
+func NewSyncEngine(deviceID string, password string, syncEndpoint string) *SyncEngine {
 	// Derive encryption key using deviceID as salt
 	key := argon2.IDKey([]byte(password), []byte(deviceID), 3, 64*1024, 4, 32)
 
 	return &SyncEngine{
 		deviceID:      deviceID,
 		encryptionKey: key,
-		syncEndpoint:  "https://sync.oblivrashell.dev/api/v1/sync",
+		syncEndpoint:  syncEndpoint, // empty = offline mode (no outbound calls)
 		queue:         make([]SyncItem, 0),
 		conflicts:     make([]Conflict, 0),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// IsOnline reports whether cloud sync is enabled (non-empty endpoint).
+func (e *SyncEngine) IsOnline() bool {
+	return e.syncEndpoint != ""
 }
 
 // QueueUpdate adds an item to the sync queue
@@ -228,6 +236,9 @@ func (e *SyncEngine) decrypt(data []byte, nonce []byte) ([]byte, error) {
 }
 
 func (e *SyncEngine) pushToCloud(payload EncryptedPayload) error {
+	if e.syncEndpoint == "" {
+		return fmt.Errorf("sync: offline mode — no endpoint configured")
+	}
 	data, _ := json.Marshal(payload)
 	resp, err := e.httpClient.Post(e.syncEndpoint, "application/json", bytes.NewReader(data))
 	if err != nil {
@@ -243,6 +254,9 @@ func (e *SyncEngine) pushToCloud(payload EncryptedPayload) error {
 }
 
 func (e *SyncEngine) fetchFromCloud() (*EncryptedPayload, error) {
+	if e.syncEndpoint == "" {
+		return nil, fmt.Errorf("sync: offline mode — no endpoint configured")
+	}
 	url := fmt.Sprintf("%s?device_id=%s&since=%d", e.syncEndpoint, e.deviceID, parseTime(e.lastSync).Unix())
 	resp, err := e.httpClient.Get(url)
 	if err != nil {

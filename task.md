@@ -728,11 +728,37 @@
 
 ---
 
+### 🗺️ Execution Sequence — Open Work Build Order
+> Sub-phases are documented in their original numbering (22.1–22.7) but must be **executed in the priority order below**.
+> Older open items from phases 3, 6, 9, 20, 21, 24 are slotted into the correct sprint.
+
+| Sprint | Theme | Sub-Phases / Items | ~Effort |
+|---|---|---|---|
+| **S0 🚨** | Emergency: dark-site URLs + marketing copy | 22.6 (URLs only), 24.4 | < 1 day |
+| **S1 🔴** | Multi-Tenant Isolation | **22.2** (all 8 items) | 2 wks |
+| **S2 🔴** | Reliability Gate (4 of 9) | **22.1** ★ (reconnect, degradation, soak CI, BadgerDB recovery) | 2 wks |
+| **S3 🟡** | Setup Wizard + Trust Signals | **22.5** ★ (wizard, security.txt, threat model, crypto doc) | 1.5 wks |
+| **S4 🟡** | Storage Economics | **22.3** (Hot/Warm/Cold, rate limits, cost dashboard) | 1.5 wks |
+| **S5 🟡** | Detection Quality | **22.4** remaining + **22.1** deferred items | 2 wks |
+| **S6 🟢** | Feature Gap Closure | **24.2** (Arabic i18n, backup integrity, VT) + **24.3** (partials) | 2 wks |
+| **S7 🟢** | Platform & Analytics | **Phase 20** (OQL, reports, studio) + **21.5** + **3.4** | 2 wks |
+| **S8 🟢** | Commercial Readiness | **4.1/4.2**, **22.5** deferred, **1.7** (mobile) | 1 wk |
+| **S9 🔵** | Architecture Hardening | **22.6** remaining + **6.5** + **Phase 9** open | 2 wks |
+| **S10 🔵** | Sovereign / Nation-State | **22.7** (all 6) + Sovereign Meta-Layer remaining | 3 wks |
+| **Defer ⚫** | v2+ Features | Cloud connectors, ClickHouse, ITDR, AI/LLM Sec, Endpoint Prevention | — |
+
+> **Current sprint**: ~~S0~~ ✅ → **S1** (Multi-Tenant Isolation)
+
+---
+
+---
+
 ### 🔧 Immediate Hygiene
 
 - [x] **Purge node_modules from git** — `git rm -r --cached frontend/node_modules frontend-web/node_modules`
 - [x] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
 - [x] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports
+- [x] **S0: Dark-site URL eradication** — `internal/sync/engine.go`: removed hardcoded `https://sync.oblivrashell.dev`; `NewSyncEngine()` now accepts `syncEndpoint` param; empty string = offline mode; guards added to `pushToCloud`/`fetchFromCloud`. `internal/updater/updater.go`: `CheckUpdate()`/`DownloadAndApply()` return clean disabled signal when `repoURL == ""` (already the default in `container.go`). Compiled ✅
 
 ---
 
@@ -885,7 +911,262 @@
 
 ---
 
+## Phase 24: Feature Spec Reconciliation
+
+> **Context**: Cross-reference audit performed 2026-04-07 against the 215+ official feature list.
+> Items below were **missing from the codebase entirely** or **misrepresented** in the public feature spec.
+> This phase must be completed before any enterprise sales motion or sovereign deployment.
+>
+> See `docs/oblivra_feature_crossref.md` for the full audit report.
+
+---
+
+### 24.1 — Spec Inaccuracies (Fix Marketing OR Implement)
+
+> [!CAUTION]
+> These are claims in the public feature list that do not match the implementation.
+> Each item must be resolved by either correcting the spec copy or shipping the missing code.
+> Audit note: wazero IS shipping (`internal/engine/wasm/`, `internal/plugin/wasm_sandbox.go`); in-repo docs already say "Bleve" correctly.
+
+- [x] **WASM Plugin Runtime** — ✅ Confirmed: wazero IS implemented (`internal/engine/wasm/manager.go`, `internal/plugin/wasm_sandbox.go`, `plugins/example_wasm/`). Feature spec claim is accurate. No action needed.
+- [x] **Search engine naming ("Bluge")** — ✅ `docs/FEATURES.md` already says "Bleve" correctly. The "Bluge" name only appeared in the external marketing doc, not in any in-repo file. No code change required; external marketing copy needs updating.
+- [x] **"Dual-storage BadgerDB + Bluge"** — ✅ In-repo docs already correct. External marketing copy to be updated.
+- [x] **Glassmorphism / spotlight comment** — ✅ Fixed: `frontend/src/styles/command-palette.css` comment updated. No actual `backdrop-filter: blur` was in use (confirmed by CHANGELOG).
+- [ ] **EPS claim** — `docs/FEATURES.md` claimed "50,000+ EPS" but validated benchmark is 18,000 EPS peak / 10,000 EPS sustained. ✅ Fixed in `docs/FEATURES.md:41`. Check `docs/operator/api-reference.md:348` — "50,000 events/min" refers to HTTP ingest endpoint rate (~833 EPS), which is accurate for that transport. Keep as-is with clarifying note added. 🌐
+- [ ] **Animated background / spotlight effects** — External feature list #101 claims "cinematic blobs" and "spotlight mouse-tracking" which contradict design system Rule 3. These do not exist in the codebase. Must be removed from any external product marketing copy before customer-facing release. 🌐
+
+---
+
+### 24.2 — Missing Implementations (Not Found in Codebase)
+
+#### 🔴 High Priority
+
+- [ ] **Arabic / RTL UI (i18n)** — Listed as ✅ in sovereign feature set. Zero implementation found: no i18next config, no locale files, no RTL CSS overrides in `frontend/src/`. Required for government/sovereign market. Milestone: `i18next` wired, `ar.json` locale file, RTL layout pass on all primary pages. 🌐
+- [ ] **Backup Integrity Verification** — Ransomware defense spec claims this as ✅. `task.md` Phase 9 has it explicitly open (`[ ]`). Implement: scheduled hash verification of stored backups, alert if backup missed policy window, test restore automation with integrity proofs. 🌐
+
+#### 🟡 Medium Priority
+
+- [ ] **VirusTotal API Integration** — Listed under threat intelligence as ✅. No code found. Implement hash/IP/domain reputation lookups via VT API v3, with rate limiting and optional air-gap stub. `GET /api/v1/threatintel/virustotal` 🌐
+- [ ] **Plugin Marketplace** — Listed as ✅ in WASM plugin section. No implementation found. Minimum: YAML bundle schema (plugin + metadata + signature), import/export CLI, `GET /api/v1/plugins/marketplace`. 🏗️
+- [ ] **Collaborative Threat Hunting** (shared workspaces) — Listed as ✅ in Feature #36. No code found. Implement: shared hunting session state, collaborator invite, real-time cursor sharing on hypothesis tracker. 🌐
+- [ ] **Incremental Backup Support** — Listed as ✅ in Feature #4 Backup & Recovery. No code found. Implement block-level or WAL-delta incremental backup to complement existing full snapshots. 🏗️
+
+#### 🟢 Low Priority
+
+- [ ] **3D Constellation (WebGL / Three.js)** — Feature #53 claims a Three.js powered 3D network topology. `GlobalTopology.tsx` exists but Three.js is not confirmed. Validate: add Three.js or document that 2D topology is the shipped feature. 🏗️
+- [ ] **Built-in HTTP Client (API Testing Lab)** — Feature #105 claims a "built-in Postman alternative" with request builder, collections, environment variables, and response viewer. No code found. Implement or remove from spec. 🏗️
+- [ ] **Owner / Department Asset Tagging** — Listed under Asset Enrichment (#13) as ✅. No code found. Implement: `department` and `owner` fields on asset records, tag-based filtering in enrichment viewer and alert context. 🌐
+
+---
+
+### 24.3 — Partial Implementations Not Yet Tracked
+
+> Items already partially built but not formally listed in task.md as open work.
+
+- [ ] **Saved Search Templates (UI)** — Backend scaffolded (Phase 1.3). Frontend `SIEMSearch.tsx` has no save/load UI. Implement: save button, named template list, one-click restore in search bar. 🌐
+- [ ] **Multi-language framework (i18next)** — Dependencies not installed, no `i18n.ts` init file, no translation namespace. Must be wired before Arabic or any other locale can land. 🌐
+- [ ] **VirusTotal enrichment display** — `EnrichmentViewer.tsx` has no VirusTotal section. Add VT reputation card (hash score, AV vendor hits, last scan date) when VT API is implemented. 🌐
+- [ ] **Asset criticality scoring UI** — `internal/enrich/pipeline.go` maps assets but no UI exposes Crown Jewel tags in alert/event context. Build: criticality badge in alert cards, asset detail page field. 🌐 *(tracked in 21.5 as deferred — escalated here)*
+- [ ] **Honeytoken management UI** — Canary files are deployed (`canary_deployment_service.go`) but honeytokens (fake credentials) have no dedicated management page. Add `/deception` route with honeyport + honeytoken configuration. 🌐
+- [ ] **Alert suppression / maintenance windows** — Alert deduplication exists but maintenance window suppression (suppress alerts during patch windows) is not wired to any UI or API. `POST /api/v1/alerts/suppress` + scheduler. 🌐
+- [ ] **Search export (CSV/JSON)** — Forensic export exists but `SIEMSearch.tsx` has no "Export results" button. Add export action to search toolbar. 🌐
+
+---
+
+### 24.4 — Spec Copy Fixes (No Code Required)
+
+> Documentation/marketing corrections that resolve discrepancies without code changes.
+> Items marked [x] were resolved during the 2026-04-07 audit.
+
+- [x] `docs/FEATURES.md:41` — "50,000+ EPS" corrected to "18,000+ EPS burst / 10,000 EPS sustained" (validated benchmarks, Phase 1.2)
+- [x] `command-palette.css:3` — Stale "Glassmorphism, spotlight search" comment updated to reflect post-CHANGELOG reality
+- [x] In-repo docs already use "Bleve" correctly — no in-repo file had "Bluge"
+- [x] WASM/wazero — confirmed implemented; no rename needed
+- [ ] **External marketing doc** — Remove "cinematic blobs" / "spotlight mouse-tracking" from Feature #101
+- [ ] **External marketing doc** — Replace "Bluge-powered" with "Bleve-powered" in any external-facing copy
+- [ ] **External marketing doc** — Replace "50,000+ EPS" with "18,000+ EPS burst / 10,000 EPS sustained"
+- [ ] **External marketing doc** — Audit all ✅ checkmarks against open `[ ]` items in this task tracker before customer-facing release
+
+---
+
+## Phase 25: Brutal Audit Backlog
+
+> **Context**: Static analysis, code audit, and cross-reference review performed 2026-04-07.
+> Every item below is evidenced by specific file locations. These are not theoretical concerns.
+> **None of these existed in any previous phase.** This phase must be worked in parallel with the sprint sequence.
+
+---
+
+### 25.1 — 🚨 Fake Data Served as Real Security Data (CRITICAL — FRAUD RISK)
+
+> This is the single most dangerous finding. The UEBA dashboard, peer analytics, and ransomware entropy
+> scores visible in the UI are **randomly generated at request time using `math/rand`**. A customer
+> making security decisions from OBLIVRA's UEBA panel is acting on fabricated numbers.
+
+- [ ] **`internal/api/rest_phase8_12.go:6–7`** — File header states: *"All handlers are in-memory stubs that return live data from the registered agent map and seeded data. Full persistence wiring is Phase 22 backlog."* Every UEBA risk score, anomaly count, baseline flag, and high-risk entity count returned by `/api/v1/ueba/*` is `rand.Intn()`. **Ship real data or disable the route entirely.** 🌐
+- [ ] **`internal/api/rest_phase8_12.go:192,194,205–209,262–263,412`** — 12 separate `rand.Intn()` / `rand.Float()` calls generating fake security metrics in production API responses (risk scores, anomaly counts, entropy scores, baseline flags, top anomaly types). 🌐
+- [ ] **`internal/api/rest_fusion_peer.go:112–113,268–269,282,318`** — Fusion campaign confidence scores, first-seen timestamps, peer group assignments, entity risk scores, and deviation types are all `rand.Float64()` / `rand.Intn()`. MITRE kill chain data shown in `FusionDashboard.tsx` is fabricated. 🌐
+- [ ] **`internal/api/rest_fusion_peer.go:40–47`** — `fusionSeeded` flag means on first request, fake campaign data is generated once and cached. Subsequent requests return the same fake set. This is deterministically fake data presented as live intelligence. 🌐
+- [ ] **`internal/ueba/anomaly.go:36`** — Isolation Forest is seeded with `time.Now().UnixNano()`. Any attacker who knows the approximate process start time can predict anomaly scores. Use `crypto/rand` for seeding. 🏗️
+
+---
+
+### 25.2 — 🔴 Security Vulnerabilities (Exploitable)
+
+#### Command Injection
+- [ ] **`internal/osquery/executor.go:22–24`** — `osqueryi` is invoked via `fmt.Sprintf("osqueryi --json \"%s\"", safeQuery)`. The "sanitization" is only `strings.ReplaceAll(query, `"`, `\"`)`. Shell metacharacters `;`, `` ` ``, `$()`, `|`, `&&` are **not escaped**, creating a command injection vector via the SSH session into the remote host. Replace with `exec.Command("osqueryi", "--json", query)` using argument list (no shell). 🏗️
+
+#### SQL Injection
+- [ ] **`internal/gdpr/crypto_wipe.go:93,100`** — `fmt.Sprintf("UPDATE %s SET %s ... WHERE %s", tableName, col, whereClause)` and `fmt.Sprintf("DELETE FROM %s WHERE %s", tableName, whereClause)`. If `tableName` or `whereClause` is caller-controlled (check all call sites), this is SQL injection in the GDPR wipe path — the worst possible place. Audit all callers; add allowlist validation for table names. 🏗️
+- [ ] **`internal/services/lifecycle_service.go:209`** — `fmt.Sprintf("DELETE FROM %s WHERE %s < ?", category, tsCol)` — `category` and `tsCol` are string-injected into a raw SQL query. Audit origin of these values. 🏗️
+- [ ] **`internal/cluster/fsm.go:133`** — `db.Exec(fmt.Sprintf("VACUUM INTO '%s'", tmpPath))` — `tmpPath` inside SQL string allows path traversal + SQL injection. Use `?` placeholder or validate `tmpPath` against allowed patterns. 🏗️
+
+#### TLS Verification Bypass
+- [ ] **`internal/logsources/sources.go:77–85,642`** — `TLSSkipVerify: true` is a valid and silently-accepted config field on log sources. No warning is logged, no audit event is emitted when a source disables TLS verification. An attacker who can modify source config can MITM all log ingestion silently. Emit a `CRITICAL` audit event + startup warning when any source has `TLSSkipVerify: true`. 🌐
+- [ ] **`internal/threatintel/taxii.go:44–49`** — `skipVerify bool` disables TLS verification on the threat intel feed. If a nation-state MITM's the TAXII feed with verification disabled, they can inject false IOCs and suppress real ones. Add mandatory TLS pinning option for sovereign deployments. 🌐
+
+#### Share Session Expiry Bug
+- [ ] **`internal/services/share_service.go:53`** — `CreateShare(..., 0, maxViewers) // TODO correct duration` — duration is hardcoded to `0`. If `ShareManager` treats `0` as "no expiry", **all shared terminal sessions never expire**. Audit `sharing.ShareManager.CreateShare()` for how `0` duration is handled; this is almost certainly an infinite-lifetime session share. 🏗️
+
+---
+
+### 25.3 — 🔴 Validation Fraud (Phases Marked ✅ That Were Never Actually Validated)
+
+> These are places in task.md where a phase is marked complete but the validation
+> criterion explicitly says "self-audited only" or was never performed.
+
+- [ ] **Phase 6 — Forensics & Compliance** — `[s] Validate: external audit pass (self-audited only)`. A SIEM claiming PCI-DSS, ISO 27001, HIPAA, SOC 2 compliance based on a self-audit is **not compliant**. This validation item must be reclassified as `[ ]` and an actual third-party audit must be performed. 🏗️
+- [ ] **Phase 12 — Enterprise** — `Validate: 50+ tenants, 99.9% uptime` is marked `[x]` complete. **Has this ever been tested?** 50-tenant isolation test is in Phase 22.2 as an open `[ ]` item. These two entries contradict each other. 🏗️
+- [ ] **Phase 11 — NDR** — `Validate: lateral movement <5 min, 90%+ C2 identification` — self-validated. No external red team or independent test. 🏗️
+- [ ] **Phase 4 — Detection** — `Validate: <5% false positives, 30+ ATT&CK techniques` — self-validated. 18 detection engine tests for 82 rules = **22% rule coverage**. 🏗️
+- [ ] **Phase 10 — UEBA/ML** — Entire UEBA stack claimed validated but API returns fake data (see 25.1). The "validated" baselines were validated against seeded mock data, not real logs. 🏗️
+
+---
+
+### 25.4 — 🟡 Code Safety & Runtime Reliability
+
+- [ ] **143 `context.Background()` / `context.TODO()` usages** — Contexts that never time out allow unbounded goroutine accumulation under adversarial query load. Audit all 143; replace with scoped contexts derived from request context with deadlines. 🏗️
+- [ ] **61 discarded errors (`_ =`)** — Silent error swallowing. In a SIEM, swallowed errors = missed detections, silent write failures, unnoticed corruption. Every `_ =` on a non-trivially-safe operation must be logged at minimum. 🏗️
+- [ ] **132 untracked goroutine launches** — No goroutine lifecycle accounting. Add `goleak` to the test suite to catch leaks on every PR. 🏗️
+- [ ] **`math/rand` for "security data"** — `internal/api/rest_fusion_peer.go`, `rest_phase8_12.go`, `internal/ueba/anomaly.go` all use `math/rand`. Any time-based seed is guessable. Security-relevant random data must use `crypto/rand`. 🏗️
+- [ ] **No `go vet` / `staticcheck` / `gosec` in CI** — Zero static analysis tooling found in `Makefile` or GitHub Actions. `gosec` would have flagged the `InsecureSkipVerify`, `math/rand` for security, and the Sprintf-into-SQL patterns immediately. Add as mandatory PR gate. 🏗️
+- [ ] **No secrets scanning in CI** — No `gitleaks`, `trufflehog`, or `detect-secrets` in the pipeline. The dark-site URL (`sync.oblivrashell.dev`) survived in the codebase undetected until a manual audit. 🌐
+
+---
+
+### 25.5 — 🟡 Licensing & Feature Gating
+
+- [ ] **Enterprise features are not license-gated at the API layer** — `RequireFeature()` is called only ~4 times across all API routes. UEBA, NDR, multi-tenancy, forensics, compliance reporting, and playbooks are all accessible without a valid license via direct API calls. Every premium route must check `lm.RequireFeature(FeatureX)` before executing. 🌐
+- [ ] **Seat count enforcement** — `Claims.MaxSeats` exists in the license schema but is never enforced. A single-seat license can serve unlimited users with no enforcement. 🌐
+- [ ] **License bypass via API** — Since `RequireFeature` is absent from ~96% of API routes, the Wails license check (desktop) is trivially bypassed by calling the REST API directly. The license gate must be at the API middleware layer, not the Wails binding layer. 🌐
+
+---
+
+### 25.6 — 🟡 Operational Production Gaps
+
+- [ ] **No `SECURITY.md`** — No vulnerability disclosure policy, no CVE contact, no patch SLA. Required before any enterprise sales motion or public announcement. CVE reporters will disclose publicly if there's no responsible disclosure channel. 🌐
+- [ ] **No CVE tracking process** — No inventory of dependencies with known CVEs. `govulncheck` has never been run (not in CI). OBLIVRA bundles many third-party packages (BadgerDB, Bleve, gRPC, etc.) with their own CVE histories. 🌐
+- [ ] **No `go.sum` integrity pinning in CI** — GONOSUMCHECK / GONOSUMDB not configured. Supply chain attack on a Go module registry would be undetected. 🌐
+- [ ] **No structured incident log** — The `sync.oblivrashell.dev` dark-site URL discovery (a potential data sovereignty issue) has no incident record. Define an incident classification process; log this as Incident #001. 🌐
+- [ ] **`context.Background()` in `Start()` methods** — Service start lifecycle uses unscoped contexts; if a service hangs on startup, there's no timeout to prevent cascade stall at boot. 🏗️
+- [ ] **Raft implementation never chaos-tested** — `internal/cluster/` implements Raft consensus. No split-brain, network partition, or leader re-election under load test exists. Unvalidated Raft = potential data loss or double-processing in multi-node deployments. 🏗️
+
+---
+
+### 25.7 — 🟡 Detection Quality
+
+- [ ] **82 rules, 18 tests = 22% coverage** — A functional detection rule library has test coverage; currently 64 rules have zero automated tests. A rule regression could go undetected. Add at least one `RuleTestFixture` per rule. 🏗️
+- [ ] **False positive rate never externally validated** — Phase 4 claims "<5% FPR" but this was self-assessed. Run 82 rules against a baseline of known-benign log data (CIC-IDS-2017 benign traffic from `test/datasets/`) and measure actual FPR. 🏗️
+- [ ] **Sigma rule semantic drift** — Upstream SigmaHQ rules evolve; OBLIVRA's local copies may have stale field mappings. No automated sync or diff test against upstream exists. 🏗️
+- [ ] **WASM sandbox escape testing** — `internal/plugin/wasm_sandbox.go` exists. Has anyone tried to escape the sandbox? No adversarial WASM module test exists. 🌐
+
+---
+
+### 25.8 — 🟢 Compliance & Privacy
+
+- [ ] **No Data Protection Impact Assessment (DPIA/PIA)** — GDPR compliance is claimed but no formal DPIA has been conducted. Required by GDPR Article 35 before processing high-risk personal data (security logs contain highly personal behavioral data). 🌐
+- [ ] **No data flow diagram for PII** — No documented mapping of what PII fields are ingested, where they're stored (BadgerDB, Bleve index, SQLite, Parquet), how they're encrypted, and when they're deleted. Required for GDPR Article 30 Records of Processing Activities. 🌐
+- [ ] **No data subject request (DSR) API** — GDPR/CCPA require responding to deletion and access requests. `internal/gdpr/` handles crypto wipes but there's no user-facing API or workflow for a data subject to request their data. 🌐
+- [ ] **Audit log tamper by privileged admin** — The Merkle chain proves log integrity but a privileged OBLIVRA admin with DB access can replace the entire chain. True immutability requires either an append-only external witness (RFC 3161 timestamp server) or WORM storage (Phase 22.7). Until then, the "tamper-evident" claim is only valid against non-privileged attackers. 🏗️
+- [ ] **No DPA / BAA template** — Phase 4.1 has these as open items. Without a Data Processing Agreement template, OBLIVRA cannot legally process customer data under GDPR in the EU. This blocks commercial contracts. 🌐
+
+---
+
+### 25.9 — 🟢 Architecture Integrity
+
+- [ ] **`internal/api/rest.go:502,544`** — Tenant isolation in search is done via Bleve query string injection: `query = fmt.Sprintf("TenantID:%s AND (%s)", identityUser.TenantID, query)`. This is **soft isolation** — a crafted Bleve query may escape the tenant filter depending on Bleve's query parser operator precedence. Replace with structural filter (separate index per tenant as planned in Phase 22.2). Until 22.2 lands, this is a tenant data leakage vector. 🏗️
+- [ ] **`internal/mcp/engine.go:71,74`** — OQL/MCP query composition via `fmt.Sprintf("%s AND Status:%s", query, status)` — injecting user-supplied `status` directly into a query string. If query parser doesn't sanitize, filter bypass via crafted status value. 🏗️
+- [ ] **No request body size limits on ingest endpoints** — `/api/v1/ingest` accepts arbitrary JSON bodies. A 1GB JSON payload could OOM the server. Add `http.MaxBytesReader`. 🌐
+- [ ] **Bleve full-text index stores raw event data** — Bleve indexes are stored unencrypted on disk alongside BadgerDB. Even if BadgerDB is encrypted (via SQLCipher-style key), Bleve index files may leak raw event content in plaintext. Verify Bleve index encryption or document this as a known gap. 🏗️
+
+---
+
 ## Frontend Pages Inventory (frontend-web/)
+
+---
+
+### 25.10 — 🚨 SOAR Playbook Authorization Is Completely Fake (CRITICAL)
+
+> The autonomous response engine can network-isolate hosts, execute shell commands, and shut down
+> systems. Its authorization gate is a string equality check against a self-constructable token.
+
+- [ ] **`internal/mcp/handler.go:161`** — `validateApproval(token, userID)` returns `token == "approved-" + userID`. Any user who knows their own `userID` (which is returned in every authenticated response) can construct a valid approval token without asking anyone. The entire M-of-N gating for destructive SOAR tools is bypassed by sending `"approved-{your-user-id}"` as the approval token. 🏗️
+- [ ] **`internal/api/rest.go:1583`** — The approval generation endpoint produces `fmt.Sprintf("approved-%s", req.ActorID)`. This isn't a cryptographically random token — it's deterministic and guessable. Replace with HMAC-SHA256(`serverSecret`, `approvalID+actorID+timestamp`) with expiry. 🏗️
+- [ ] **No multi-party enforcement** — The approval endpoint generates a token from a single actor's request with no vote counting, no quorum check, no threshold enforcement. Phase 22.7's WORM + M-of-N requirement has a stub implementation that provides zero actual protection. 🏗️
+
+---
+
+### 25.11 — 🔴 Authentication & Session Security
+
+#### TOTP Replay Attack
+- [ ] **`internal/auth/mfa.go:54–55`** — `ValidateTOTP` calls `totp.Validate(code, secret)` which uses the `pquerna/otp` default 30-second window (±1 step = 90-second valid window). **There is no used-code tracking anywhere in the codebase.** An attacker who intercepts or observes a TOTP code can replay it within the same ~90-second window for a second, independent authentication. Implement a `sync.Map`-backed used-code cache keyed on `secret+code`, expiring after 90 seconds. 🏗️
+
+#### SSH Jump Host MITM
+- [ ] **`internal/ssh/client.go:203`** — All SSH jump host connections use `buildHostKeyCallback(false)` which resolves to `ssh.InsecureIgnoreHostKey()`. Jump proxy SSH connections **never verify host keys**. An attacker positioned between OBLIVRA and a jump proxy can MITM all proxied SSH sessions, capture credentials, and inject commands. Removing this requires storing jump host fingerprints in the vault alongside jump host credentials. 🏗️
+
+#### Brute-Force Login
+- [ ] **`internal/api/rest.go:117`** — Rate limiter is `rate.NewLimiter(rate.Limit(20), 50)` — a **single global token bucket for all clients**. An attacker who sends 1 req/sec stays well under the limit while brute-forcing indefinitely. There is no per-IP or per-account lockout. No failed-attempt counter. Add per-account lockout (5 failures → 15-minute lockout, logged as a security event). 🌐
+
+#### Rate Limiter Misrepresentation
+- [ ] **`docs/operator/api-reference.md:347–348`** — Documents "1,000 req/min per-token" rate limiting. The actual implementation is `20 req/sec global` (1,200 req/min total, shared across all tokens). `api-reference.md` is factually wrong — the limit is global, not per-token. Fix either the code (add per-token rate limiting) or the docs. 🌐
+
+---
+
+### 25.12 — 🔴 Information Disclosure
+
+#### Plaintext Settings Values in Logs
+- [ ] **`internal/services/settings_service.go:60`** — `s.log.Debug("Setting setting: %s=%s", key, value)` — every `Set()` call logs the key AND value in plaintext at DEBUG level. Any setting that stores a sensitive value (SMTP password, webhook secret, Slack token, API key) is logged in plaintext. If debug logging is enabled in any deployment, secrets are exfiltrated to log files. Replace with `s.log.Debug("Setting setting: %s=[REDACTED]", key)` or maintain a blocklist of sensitive key names. 🏗️
+
+#### Honeypot Credentials Leaked to Log Readers
+- [ ] **`internal/security/honeypot_service.go:60`** — `s.log.Info("Injected honeypot credential: %s", username)` — logs every honeypot username in plaintext. The entire point of a honeypot is that attackers don't know it exists. Anyone with log access (sysadmin, log aggregation pipeline, SIEM operator with broad access) sees which credentials are traps. Log only an opaque ID, not the username. 🏗️
+
+#### Internal Errors Returned to API Clients
+- [ ] **`internal/api/rest.go:507,551`** — `"Search failed: %v"` and `"Query failed: %v"` return raw Bleve/BadgerDB error messages to unauthenticated callers. Internal errors can reveal field names, index structure, file paths, and query planner details. Return generic `"search unavailable"` to callers; log the full error server-side. 🌐
+- [ ] **`internal/api/agent_handlers.go:~50`** — `fmt.Sprintf("Invalid payload: %v", err)` — JSON decode errors returned to the agent caller include go type information and internal struct field names. Return `"invalid payload"` only. 🌐
+
+---
+
+### 25.13 — 🟡 Missing Security Controls
+
+#### No Content-Security-Policy Header
+- [ ] **`internal/api/rest.go:378–380`** — Only 3 security headers set: `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`. **No `Content-Security-Policy` header.** The web dashboard is vulnerable to XSS escalation (injected scripts can run freely). No `Referrer-Policy`. No `Permissions-Policy`. Add these to the security middleware. 🌐
+
+#### Agent Ingest Has No Body Size Limit
+- [ ] **`internal/api/agent_handlers.go:~50`** — `json.NewDecoder(r.Body).Decode(&events)` with no `http.MaxBytesReader`. The general ingest endpoint (`rest.go:470`) correctly limits to 1MB but the agent ingest endpoint is unlimited. A compromised agent or a spoofed agent token can send a multi-GB payload and OOM the server. 🌐
+
+#### No Per-IP Request Fingerprinting
+- [ ] **No IP-based controls anywhere** — No per-IP rate limiting, no IP allowlist/denylist support for API access, no geo-block capability for sovereign deployments. Attacks from a single IP are only rate-limited by the global 20 req/sec bucket shared with all clients. 🌐
+
+---
+
+### 25.14 — 🟡 Misleading Documentation (Second Wave)
+
+- [ ] **`docs/operator/api-reference.md:347`** — "Standard endpoints: 1,000 req/min" — actual implementation: 20 req/sec global burst of 50, shared across all tokens. Per-token limiting doesn't exist. 🌐
+- [ ] **`docs/operator/api-reference.md:234`** — `"rules_loaded": 2543` in the Sigma reload example response. With 82 rules in the codebase, this hardcoded example is 31× the real number. A customer reading the docs expects 2,500+ rules. 🌐
+- [ ] **Phase 22.7 task description** — Describes WORM storage requiring "2-of-3 senior admins via FIDO2 token" but the actual implementation (`mcp/handler.go:161`) accepts `"approved-{userID}"` as a valid approval. These two must be reconciled. 🏗️
+- [ ] **Phase 8 / SOAR** — Autonomous playbook execution is described as requiring operator confirmation but the MCP approval gate is forgeable as documented in 25.10. Any feature description that implies "requires approval" is currently inaccurate. 🏗️
+
+---
 
 > All pages routed in `frontend-web/src/index.tsx` with context guards.
 

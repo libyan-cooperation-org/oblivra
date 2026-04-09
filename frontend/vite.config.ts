@@ -1,15 +1,19 @@
 import { defineConfig } from 'vite';
-import solidPlugin from 'vite-plugin-solid';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [solidPlugin()],
+  plugins: [
+    svelte(),
+    tailwindcss(),
+  ],
 
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
       '@components': resolve(__dirname, 'src/components'),
-      '@core': resolve(__dirname, 'src/core'),
+      '@lib': resolve(__dirname, 'src/lib'),
       '@pages': resolve(__dirname, 'src/pages'),
       '@styles': resolve(__dirname, 'src/styles'),
       '@assets': resolve(__dirname, 'src/assets'),
@@ -26,7 +30,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('solid-js')) return 'vendor-solid';
+            if (id.includes('svelte')) return 'vendor-svelte';
             if (id.includes('@xterm')) return 'vendor-xterm';
             if (id.includes('echarts')) return 'vendor-charts';
             return 'vendor';

@@ -1,0 +1,333 @@
+/* =====================================================================
+   OBLIVRA — Tailwind CSS v4 Entry Point
+   Design tokens migrated from variables.css + global.css
+   ===================================================================== */
+
+/* ── Google Fonts (must precede all other rules) ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+/* ── Tailwind v4 Theme Configuration (replaces tailwind.config.ts) ── */
+@theme {
+  /* ── Surfaces ── */
+  --color-surface-0: #1a1c20;
+  --color-surface-1: #212327;
+  --color-surface-2: #2b2d31;
+  --color-surface-3: #33363c;
+  --color-surface-4: #3d4148;
+
+  /* ── Semantic Status ── */
+  --color-alert-critical: #e04040;
+  --color-alert-high: #f58b00;
+  --color-alert-medium: #f5c518;
+  --color-alert-low: #5cc05c;
+  --color-alert-info: #0099e0;
+
+  --color-status-online: #5cc05c;
+  --color-status-degraded: #f58b00;
+  --color-status-offline: #e04040;
+
+  --color-success: #5cc05c;
+  --color-error: #e04040;
+  --color-warning: #f58b00;
+
+  /* ── Accent ── */
+  --color-accent: #0099e0;
+  --color-accent-dim: rgba(0, 153, 224, 0.15);
+  --color-accent-secondary: #0077b3;
+  --color-accent-cta: #f58b00;
+  --color-accent-cta-hover: #d97a00;
+  --color-accent-danger: #e04040;
+  --color-accent-warning: #f5c518;
+  --color-accent-hover: #00b4ff;
+  --color-accent-violet: #b87fff;
+
+  /* ── Text ── */
+  --color-text-primary: #d4d5d8;
+  --color-text-secondary: #9b9ea4;
+  --color-text-muted: #6b6e76;
+  --color-text-accent: #0099e0;
+  --color-text-heading: #e8e9eb;
+  --color-text-inverted: #1a1c20;
+
+  /* ── Borders ── */
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+  --color-border-primary: #3a3d44;
+  --color-border-secondary: #4a4d55;
+  --color-border-active: #0099e0;
+  --color-border-hover: #52555e;
+
+  /* ── War Mode ── */
+  --color-war-red: #7f1d1d;
+
+  /* ── Typography ── */
+  --font-ui: "Inter", "Splunk Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Splunk Mono", "Fira Code", monospace;
+  --font-display: var(--font-ui);
+
+  --font-size-2xs: 9px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+
+  /* ── Shadows (flat enterprise) ── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 3px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 6px 20px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 0 2px rgba(0, 153, 224, 0.3);
+  --shadow-glow-danger: 0 0 0 2px rgba(224, 64, 64, 0.3);
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.35);
+
+  /* ── Layout ── */
+  --spacing-header: 40px;
+  --spacing-nav: 200px;
+  --spacing-nav-collapsed: 48px;
+  --spacing-sidebar: 260px;
+  --spacing-statusbar: 24px;
+
+  /* ── Radius ── */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+
+  /* ── Transitions ── */
+  --transition-property-fast: all;
+  --transition-timing-function-fast: ease;
+  --transition-duration-fast: 100ms;
+
+  --transition-property-normal: all;
+  --transition-timing-function-normal: ease;
+  --transition-duration-normal: 150ms;
+
+  --transition-property-slow: all;
+  --transition-timing-function-slow: ease;
+  --transition-duration-slow: 250ms;
+
+  /* ── Custom Animations ── */
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-fade-in-up: fade-in-up 0.3s ease-out;
+  --animate-war-aberration: war-aberration 0.2s infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes war-aberration {
+    0% { transform: translate(0, 0); }
+    25% { transform: translate(1px, -1px); }
+    50% { transform: translate(-1px, 1px); }
+    75% { transform: translate(1px, 1px); }
+    100% { transform: translate(0, 0); }
+  }
+}
+
+/* ── CSS Custom Properties (kept for runtime theming & legacy compat) ── */
+:root {
+  /* These are kept as CSS custom properties for components that need
+     runtime theming or aren't yet migrated to Tailwind classes */
+  --surface-0: #1a1c20;
+  --surface-1: #212327;
+  --surface-2: #2b2d31;
+  --surface-3: #33363c;
+  --surface-4: #3d4148;
+
+  --bg-primary: #1a1c20;
+  --bg-secondary: #212327;
+  --bg-tertiary: #2b2d31;
+  --bg-surface: #212327;
+  --bg-hover: #33363c;
+  --bg-active: #33363c;
+  --bg-selected: rgba(0, 153, 224, 0.12);
+  --bg-elevated: #2b2d31;
+
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-primary: #3a3d44;
+  --border-secondary: #4a4d55;
+  --border-active: #0099e0;
+  --border-hover: #52555e;
+  --border-focus: #0099e0;
+
+  --accent-primary: #0099e0;
+  --accent-primary-rgb: 0, 153, 224;
+  --accent-dim: rgba(0, 153, 224, 0.15);
+  --accent-secondary: #0077b3;
+  --accent-cta: #f58b00;
+  --accent-cta-hover: #d97a00;
+  --accent-danger: #e04040;
+  --accent-warning: #f5c518;
+  --accent-hover: #00b4ff;
+  --accent-gradient: linear-gradient(135deg, #0099e0 0%, #0077b3 100%);
+  --accent-violet: #b87fff;
+
+  --text-primary: #d4d5d8;
+  --text-secondary: #9b9ea4;
+  --text-muted: #6b6e76;
+  --text-accent: #0099e0;
+  --text-heading: #e8e9eb;
+  --text-inverted: #1a1c20;
+
+  --font-ui: "Inter", "Splunk Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Splunk Mono", "Fira Code", monospace;
+
+  --shadow-glow: 0 0 0 2px rgba(0, 153, 224, 0.3);
+  --shadow-glow-danger: 0 0 0 2px rgba(224, 64, 64, 0.3);
+  --focus-ring: 0 0 0 2px rgba(0, 153, 224, 0.5);
+
+  --glass-border: #3a3d44;
+  --glass-border-highlight: #4a4d55;
+  --glass-bg-strong: rgba(33, 35, 39, 0.97);
+  --glass-bg-subtle: rgba(33, 35, 39, 0.6);
+  --bg-overlay: rgba(0, 0, 0, 0.55);
+  --bg-danger-subtle: rgba(224, 64, 64, 0.06);
+  --bg-success-subtle: rgba(92, 192, 92, 0.06);
+
+  --header-height: 40px;
+  --nav-width: 200px;
+  --nav-collapsed-width: 48px;
+  --sidebar-width: 260px;
+  --status-bar-height: 24px;
+
+  --scanline-opacity: 0;
+  --flicker-opacity: 0;
+  --war-red: #7f1d1d;
+  --war-glow: rgba(127, 29, 29, 0.5);
+
+  --anim-easing-enter: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Base Reset ── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: var(--surface-0);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+  }
+
+  /* Scrollbar — thin dark */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-secondary);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--border-hover);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Focus ring */
+  *:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 2px rgba(0, 153, 224, 0.2) !important;
+  }
+}
+
+/* ── GoldenLayout Overrides ── */
+@layer components {
+  .lm_content {
+    background: var(--surface-0) !important;
+  }
+  .lm_header {
+    background: var(--surface-1) !important;
+    height: 30px !important;
+    border-bottom: 1px solid var(--border-primary) !important;
+  }
+  .lm_tab {
+    background: transparent !important;
+    border: none !important;
+    border-right: 1px solid var(--border-primary) !important;
+    height: 30px !important;
+    padding: 0 14px !important;
+    color: var(--text-muted) !important;
+    font-family: var(--font-ui) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .lm_tab.lm_active {
+    background: var(--surface-0) !important;
+    color: var(--text-primary) !important;
+    border-bottom: 2px solid var(--accent-cta) !important;
+  }
+  .lm_tab:hover {
+    background: var(--surface-3) !important;
+    color: var(--text-secondary) !important;
+  }
+  .lm_splitter {
+    background: var(--border-primary) !important;
+  }
+  .lm_splitter:hover,
+  .lm_splitter.lm_dragging {
+    background: var(--accent-primary) !important;
+  }
+}
+
+/* ── War Mode ── */
+.war-mode-active {
+  background-color: var(--war-red) !important;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.8);
+}
+.war-mode-active * {
+  border-color: rgba(220, 38, 38, 0.4) !important;
+}
+.war-mode-aberration {
+  animation: war-aberration 0.2s infinite;
+}
+
+/* ── CRT overlay (off by default) ── */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+  z-index: 9999;
+  background-size: 100% 2px;
+  pointer-events: none;
+  opacity: var(--scanline-opacity);
+}

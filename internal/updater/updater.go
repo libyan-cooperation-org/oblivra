@@ -49,8 +49,13 @@ func NewUpdater(repoURL, currentVersion string, log *logger.Logger) *Updater {
 	}
 }
 
-// CheckUpdate checks for a newer version
+// CheckUpdate checks for a newer version.
+// Returns (nil, false, nil) when repoURL is empty (offline / air-gap mode).
 func (u *Updater) CheckUpdate() (*Release, bool, error) {
+	if u.repoURL == "" {
+		u.log.Info("updater: no update endpoint configured — running in offline mode")
+		return nil, false, nil
+	}
 	resp, err := http.Get(u.repoURL)
 	if err != nil {
 		return nil, false, fmt.Errorf("fetch release info: %w", err)
@@ -119,6 +124,9 @@ func (u *Updater) ApplyOfflineUpdate(bundlePath string) error {
 }
 
 func (u *Updater) DownloadAndApply(rel *Release) error {
+	if u.repoURL == "" {
+		return fmt.Errorf("updater: no update endpoint configured — use offline bundle import instead")
+	}
 	assetName := getExpectedAssetName(rel.TagName)
 
 	var dlAsset *Asset
