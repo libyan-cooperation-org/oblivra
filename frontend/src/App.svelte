@@ -77,6 +77,7 @@
   import ConfigRisk from '@pages/ConfigRisk.svelte';
   import EntityView from '@pages/EntityView.svelte';
   import AIAssistantPage from '@pages/AIAssistantPage.svelte';
+  import WarMode from '@pages/WarMode.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
 
   // ── Types

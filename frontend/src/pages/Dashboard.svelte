@@ -16,6 +16,13 @@
   let siemStats = $state<any>({});
   let loading = $state(false);
 
+  // Derived health sub-scores — sourced from health API or safe defaults
+  const healthScores = $derived({
+    compute: health?.compute ?? { usage: '14', status: 'success' },
+    network: health?.network ?? { latency: '2', status: 'success' },
+    storage: health?.storage ?? { throughput: '4.2', status: 'info' },
+  });
+
   async function refreshDashboard() {
     if (IS_BROWSER) return;
     loading = true;
@@ -62,7 +69,7 @@
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Activity Feed -->
-      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col shadow-premium">
+      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col shadow-card">
         <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center">
            <div class="text-[10px] font-bold uppercase tracking-widest text-text-muted flex items-center gap-2">
               <Activity size={12} />
@@ -70,7 +77,7 @@
            </div>
            <Button variant="secondary" size="sm" onclick={refreshDashboard}>
             <RefreshCw size={14} class="mr-1 {loading ? 'animate-spin' : ''}" />
-            Refresh Stack
+            Refresh
           </Button>
         </div>
         <div class="flex-1 overflow-auto p-2 space-y-1">
@@ -83,6 +90,11 @@
                     <span class="text-[11px] font-bold text-text-heading group-hover:text-accent transition-colors">{item.message}</span>
                     <span class="text-[9px] text-text-muted font-mono">{item.details || 'System Broadcast'}</span>
                  </div>
+              </div>
+           {:else}
+              <div class="flex flex-col items-center justify-center py-12 opacity-25">
+                <Activity size={32} />
+                <span class="text-[10px] font-bold uppercase tracking-widest mt-3">No events</span>
               </div>
            {/each}
         </div>
@@ -115,28 +127,28 @@
                    <div class="flex flex-col gap-1">
                       <span class="text-[9px] text-text-muted font-bold uppercase tracking-widest">Compute Load</span>
                       <div class="flex items-end gap-2">
-                         <span class="text-2xl font-bold font-mono">{healthScores.compute?.usage || '14'}%</span>
-                         <Badge variant={healthScores.compute?.status || 'success'} size="xs">NOMINAL</Badge>
+                         <span class="text-2xl font-bold font-mono">{healthScores.compute.usage}%</span>
+                         <Badge variant={healthScores.compute.status} size="xs">NOMINAL</Badge>
                       </div>
                    </div>
                    <div class="flex flex-col gap-1">
                       <span class="text-[9px] text-text-muted font-bold uppercase tracking-widest">Net Latency</span>
                       <div class="flex items-end gap-2">
-                         <span class="text-2xl font-bold font-mono">{healthScores.network?.latency || '2'}ms</span>
-                         <Badge variant={healthScores.network?.status || 'success'} size="xs">IDEAL</Badge>
+                         <span class="text-2xl font-bold font-mono">{healthScores.network.latency}ms</span>
+                         <Badge variant={healthScores.network.status} size="xs">IDEAL</Badge>
                       </div>
                    </div>
                    <div class="flex flex-col gap-1">
                       <span class="text-[9px] text-text-muted font-bold uppercase tracking-widest">Active I/O</span>
                       <div class="flex items-end gap-2">
-                         <span class="text-2xl font-bold font-mono">{healthScores.storage?.throughput || '4.2'}<span class="text-xs">MB/s</span></span>
-                         <Badge variant={healthScores.storage?.status || 'info'} size="xs">BURSTING</Badge>
+                         <span class="text-2xl font-bold font-mono">{healthScores.storage.throughput}<span class="text-xs">MB/s</span></span>
+                         <Badge variant={healthScores.storage.status} size="xs">BURSTING</Badge>
                       </div>
                    </div>
                 </div>
             </div>
 
-            <!-- Fake Graph Wireframe -->
+            <!-- Decorative graph wireframe -->
             <div class="absolute bottom-0 right-0 w-64 h-32 opacity-10 blur-sm pointer-events-none">
                <svg viewBox="0 0 100 100" class="w-full h-full text-accent fill-current">
                   <path d="M0 80 Q 20 20, 40 50 T 80 10 T 100 80 V 100 H 0 Z" />

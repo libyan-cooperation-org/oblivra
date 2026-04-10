@@ -23,15 +23,15 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Correlation Depth" value="L4" trend="Deep Scan" variant="accent" />
-      <KPI title="Fusion Confidence" value="98.2%" trend="Optimal" variant="success" />
-      <KPI title="Platform Latency" value="12ms" trend="Low" variant="success" />
-      <KPI title="Active Witnesses" value="4" trend="Distributed" variant="success" />
+      <KPI label="Correlation Depth" value="L4" trendValue="Deep Scan" variant="accent" />
+      <KPI label="Fusion Confidence" value="98.2%" trendValue="Optimal" variant="success" />
+      <KPI label="Platform Latency" value="12ms" trendValue="Low" variant="success" />
+      <KPI label="Active Witnesses" value="4" trendValue="Distributed" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Fusion Layer Overview -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col shadow-premium gap-6">
+      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col shadow-card gap-6">
          <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2 flex justify-between items-center">
             Mission Correlation Layers
             <Badge variant="info" size="xs">Auto-Syncing</Badge>
@@ -75,7 +75,7 @@
             </div>
             <div class="flex-1 h-32 flex items-end justify-between px-2 gap-1">
                {#each Array(12) as _, i}
-                  <div class="flex-1 bg-accent/20 rounded-t-sm border-x border-t border-accent/10" style="height: {20 + Math.random() * 80}%"></div>
+                  <div class="flex-1 bg-accent/20 rounded-t-sm border-x border-t border-accent/10" style="height: {20 + Math.sin(i * 0.8) * 30 + 40}%"></div>
                {/each}
             </div>
             <div class="flex justify-between text-[8px] text-text-muted font-bold uppercase">
