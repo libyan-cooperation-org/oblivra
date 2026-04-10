@@ -185,45 +185,45 @@ func (s *SIEMService) TestConnection() error {
 }
 
 // GetFailedLoginsByHost fetches aggregated login failure analytics for the ThreatMap ECharts visualization
-func (s *SIEMService) GetFailedLoginsByHost(hostID string) ([]map[string]interface{}, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+func (s *SIEMService) GetFailedLoginsByHost(ctx context.Context, hostID string) ([]map[string]interface{}, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return s.repo.GetFailedLoginsByHost(ctx, hostID)
+	return s.repo.GetFailedLoginsByHost(searchCtx, hostID)
 }
 
 // GetHostEvents grabs raw parsed anomalies mapped to a specific internal SSH server UUID
-func (s *SIEMService) GetHostEvents(hostID string, limit int) ([]database.HostEvent, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+func (s *SIEMService) GetHostEvents(ctx context.Context, hostID string, limit int) ([]database.HostEvent, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return s.repo.GetHostEvents(ctx, hostID, limit)
+	return s.repo.GetHostEvents(searchCtx, hostID, limit)
 }
 
 // GetRiskScoreByHost calculates a 0-100 score of how compromised this host might be
-func (s *SIEMService) GetRiskScoreByHost(hostID string) (int, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+func (s *SIEMService) GetRiskScoreByHost(ctx context.Context, hostID string) (int, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return s.repo.CalculateRiskScore(ctx, hostID)
+	return s.repo.CalculateRiskScore(searchCtx, hostID)
 }
 
 // SearchHostEvents performs a global search across all host anomaly events
-func (s *SIEMService) SearchHostEvents(query string, limit int) ([]database.HostEvent, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 20*time.Second) // Search gets a bit more time
+func (s *SIEMService) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, 20*time.Second) // Search gets a bit more time
 	defer cancel()
-	return s.repo.SearchHostEvents(ctx, query, limit)
+	return s.repo.SearchHostEvents(searchCtx, query, limit)
 }
 
 // GetGlobalThreatStats returns high-level dashboard metrics
-func (s *SIEMService) GetGlobalThreatStats() (map[string]interface{}, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+func (s *SIEMService) GetGlobalThreatStats(ctx context.Context) (map[string]interface{}, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return s.repo.GetGlobalThreatStats(ctx)
+	return s.repo.GetGlobalThreatStats(searchCtx)
 }
 
 // GetEventTrend returns security event counts over time
-func (s *SIEMService) GetEventTrend(days int) ([]map[string]interface{}, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+func (s *SIEMService) GetEventTrend(ctx context.Context, days int) ([]map[string]interface{}, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	return s.repo.GetEventTrend(ctx, days)
+	return s.repo.GetEventTrend(searchCtx, days)
 }
 
 // AnalyzeEvent uses AI to analyze a specific log entry
@@ -234,22 +234,14 @@ func (s *SIEMService) AnalyzeEvent(rawLog string) (*AIResponse, error) {
 }
 
 // ExecuteOQL parses and executes a Sovereign Query Language string
-func (s *SIEMService) ExecuteOQL(query string) (*oql.QueryResult, error) {
+func (s *SIEMService) ExecuteOQL(ctx context.Context, query string) (*oql.QueryResult, error) {
 	s.log.Info("Executing OQL: %s", query)
 	
-	// We need a DataSource for the executor.
-	// We'll use a bridge that queries our repo.
-	// For now, we'll try to find if we can use BadgerSource if repo is Badger-backed.
-	// But according to internal/database/siem.go, it's SQL-backed (likely SQLite).
-	
-	// If it's SQL-backed, we might need a SQLSource for OQL.
-	// Let's check if SQLSource exists.
-	
-	// For MVP, we'll use the InMemSource but populated with recent events from the repo.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Enforce call-site context for tenant isolation
+	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	events, err := s.repo.SearchHostEvents(ctx, "", 1000) // Get last 1000 events to query against
+	events, err := s.repo.SearchHostEvents(searchCtx, "", 1000) // Get last 1000 events for this tenant
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch events for OQL: %w", err)
 	}
@@ -265,10 +257,11 @@ func (s *SIEMService) ExecuteOQL(query string) (*oql.QueryResult, error) {
 			"source_ip":  e.SourceIP,
 			"user":       e.User,
 			"raw_log":    e.RawLog,
+			"tenant_id":  e.TenantID,
 		}
 	}
 
-	return s.oqlExecutor.Execute(ctx, query, rows, nil)
+	return s.oqlExecutor.Execute(searchCtx, query, rows, nil)
 }
 
 func (s *SIEMService) suggestRemediation(hostID, sessionID, threatType string) {

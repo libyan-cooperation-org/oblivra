@@ -119,7 +119,7 @@ func containsIgnoreCase(s, substr string) bool {
 }
 
 // Execute runs a command on multiple hosts concurrently
-func (s *MultiExecService) Execute(command string, hostIDs []string, timeoutSeconds int) (string, error) {
+func (s *MultiExecService) Execute(ctx context.Context, command string, hostIDs []string, timeoutSeconds int) (string, error) {
 	if len(hostIDs) == 0 {
 		return "", fmt.Errorf("no hosts specified")
 	}
@@ -134,10 +134,12 @@ func (s *MultiExecService) Execute(command string, hostIDs []string, timeoutSeco
 		timeout = 30 * time.Second
 	}
 
+	tenantID := database.TenantFromContext(ctx)
+
 	// Initialize job
 	results := make([]MultiExecResult, len(hostIDs))
 	for i, hostID := range hostIDs {
-		host, err := s.hosts.GetByID(context.Background(), hostID)
+		host, err := s.hosts.GetByID(ctx, hostID)
 		if err != nil {
 			results[i] = MultiExecResult{
 				HostID:    hostID,
@@ -157,6 +159,7 @@ func (s *MultiExecService) Execute(command string, hostIDs []string, timeoutSeco
 
 	job := &MultiExecJob{
 		ID:        jobID,
+		TenantID:  tenantID,
 		Command:   command,
 		HostIDs:   hostIDs,
 		Results:   results,
@@ -169,10 +172,10 @@ func (s *MultiExecService) Execute(command string, hostIDs []string, timeoutSeco
 	s.pruneJobs() // cap memory usage to maxJobHistory entries
 	s.mu.Unlock()
 
-	s.log.Info("Starting multi-exec job %s: command=%q hosts=%d", jobID, command, len(hostIDs))
+	s.log.Info("Starting multi-exec job %s: command=%q hosts=%d (Tenant: %s)", jobID, command, len(hostIDs), tenantID)
 
 	// Execute concurrently
-	go s.executeAll(job, command, timeout)
+	go s.executeAll(ctx, job, command, timeout)
 
 	return jobID, nil
 }
@@ -200,7 +203,7 @@ func (s *MultiExecService) prepareSSHConfig(host *database.Host, password []byte
 	return cfg
 }
 
-func (s *MultiExecService) executeAll(job *MultiExecJob, command string, timeout time.Duration) {
+func (s *MultiExecService) executeAll(ctx context.Context, job *MultiExecJob, command string, timeout time.Duration) {
 	var wg sync.WaitGroup
 	// Execute with concurrency limiting
 	sem := make(chan struct{}, s.maxConcurrency)
@@ -214,7 +217,7 @@ func (s *MultiExecService) executeAll(job *MultiExecJob, command string, timeout
 		go func(index int, hID string) {
 			defer wg.Done()
 			defer func() { <-sem }() // Release worker slot
-			s.executeOnHost(job, index, hID, command, timeout)
+			s.executeOnHost(ctx, job, index, hID, command, timeout)
 		}(i, hostID)
 	}
 
@@ -252,6 +255,7 @@ func (s *MultiExecService) executeAll(job *MultiExecJob, command string, timeout
 }
 
 func (s *MultiExecService) executeOnHost(
+	ctx context.Context,
 	job *MultiExecJob,
 	index int,
 	hostID string,
@@ -271,7 +275,7 @@ func (s *MultiExecService) executeOnHost(
 
 	start := time.Now()
 
-	host, err := s.hosts.GetByID(context.Background(), hostID)
+	host, err := s.hosts.GetByID(ctx, hostID)
 	if err != nil {
 		job.mu.Lock()
 		job.Results[index].Status = "error"

@@ -19,7 +19,8 @@
       "@lib/*": ["./src/lib/*"],
       "@pages/*": ["./src/pages/*"],
       "@styles/*": ["./src/styles/*"],
-      "@assets/*": ["./src/assets/*"]
+      "@assets/*": ["./src/assets/*"],
+      "@wailsjs/*": ["./wailsjs/*"]
     },
     "baseUrl": ".",
     "types": ["svelte"]

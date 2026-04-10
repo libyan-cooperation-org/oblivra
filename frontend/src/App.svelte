@@ -1,143 +1,205 @@
-<!--
-  OBLIVRA — Root App Component (Svelte 5)
-
-  Initializes bridge, stores, and events, then renders the layout shell
-  with all routes wired through the hash router.
--->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { initBridge } from '@lib/bridge';
+  import { onMount, getContext, setContext } from 'svelte';
+  import RouterView from '@components/RouterView.svelte';
+  import { initBridge, APP_CONTEXT } from '@lib/bridge';
   import { appStore } from '@lib/stores/app.svelte';
   import { toastStore } from '@lib/stores/toast.svelte';
-  import { APP_CONTEXT } from '@lib/context';
-
-  // Layout
-  import AppLayout from '@components/layout/AppLayout.svelte';
-  import RouterView from '@components/layout/Router.svelte';
-  import type { RouteDefinition } from '@components/layout/Router.svelte';
+  import Sidebar from '@components/layout/CommandRail.svelte';
+  import TopBar from '@components/layout/TitleBar.svelte';
+  import CommandPalette from '@components/ui/CommandPalette.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
-
-  // UI
   import LoadingScreen from '@components/ui/LoadingScreen.svelte';
   import ErrorScreen from '@components/ui/ErrorScreen.svelte';
 
-  // Pages — migrated
+  // ── Pages
   import Dashboard from '@pages/Dashboard.svelte';
+  import TerminalPage from '@pages/TerminalPage.svelte';
+  import PasswordVault from '@pages/PasswordVault.svelte';
+  import RecordingsPage from '@pages/RecordingsPage.svelte';
+  import SIEMPanel from '@pages/SIEMPanel.svelte';
+  import AlertDashboard from '@pages/AlertDashboard.svelte';
+  import AlertManagement from '@pages/AlertManagement.svelte';
+  import OfflineUpdate from '@pages/OfflineUpdate.svelte';
+  import PlaybookBuilder from '@pages/PlaybookBuilder.svelte';
+  import TasksPage from '@pages/TasksPage.svelte';
+  import FeaturesPage from '@pages/FeaturesPage.svelte';
+  import LicensePage from '@pages/LicensePage.svelte';
+  import SimulationPanel from '@pages/SimulationPanel.svelte';
+  import ThreatHunter from '@pages/ThreatHunter.svelte';
+  import ThreatIntelPanel from '@pages/ThreatIntelPanel.svelte';
+  import CredentialIntel from '@pages/CredentialIntel.svelte';
+  import OpsCenter from '@pages/OpsCenter.svelte';
+  import TunnelsPage from '@pages/TunnelsPage.svelte';
+  import SSHBookmarks from '@pages/SSHBookmarks.svelte';
+  import SIEMSearch from '@pages/SIEMSearch.svelte';
+  import CompliancePage from '@pages/CompliancePage.svelte';
+  import ComplianceCenter from '@pages/ComplianceCenter.svelte';
+  import IdentityAdmin from '@pages/IdentityAdmin.svelte';
+  import EscalationCenter from '@pages/EscalationCenter.svelte';
+  import PurpleTeam from '@pages/PurpleTeam.svelte';
+  import ExecutiveDashboard from '@pages/ExecutiveDashboard.svelte';
+  import ExecutiveDash from '@pages/ExecutiveDash.svelte';
+  import ResponseReplay from '@pages/ResponseReplay.svelte';
+  import TemporalIntegrity from '@pages/TemporalIntegrity.svelte';
+  import TopologyPage from '@pages/TopologyPage.svelte';
+  import NetworkMap from '@pages/NetworkMap.svelte';
+  import ThreatGraph from '@pages/ThreatGraph.svelte';
+  import ThreatMap from '@pages/ThreatMap.svelte';
+  import GlobalTopology from '@pages/GlobalTopology.svelte';
+  import MitreHeatmap from '@pages/MitreHeatmap.svelte';
+  import SessionPlayback from '@pages/SessionPlayback.svelte';
+  import TerminalForensics from '@pages/TerminalForensics.svelte';
+  import SnippetsPage from '@pages/SnippetsPage.svelte';
+  import NotesPage from '@pages/NotesPage.svelte';
+  import FleetDashboard from '@pages/FleetDashboard.svelte';
+  import UEBAPanel from '@pages/UEBAPanel.svelte';
+  import UEBAOverview from '@pages/UEBAOverview.svelte';
+  import NDROverview from '@pages/NDROverview.svelte';
+  import EnrichmentViewer from '@pages/EnrichmentViewer.svelte';
+  import AgentConsole from '@pages/AgentConsole.svelte';
+  import IncidentResponse from '@pages/IncidentResponse.svelte';
+  import VaultManager from '@pages/VaultManager.svelte';
+  import RuntimeTrust from '@pages/RuntimeTrust.svelte';
+  import ForensicsPage from '@pages/ForensicsPage.svelte';
+  import RansomwareUI from '@pages/RansomwareUI.svelte';
+  import DataDestruction from '@pages/DataDestruction.svelte';
+  import LineageExplorer from '@pages/LineageExplorer.svelte';
+  import DecisionInspector from '@pages/DecisionInspector.svelte';
+  import OQLDashboard from '@pages/OQLDashboard.svelte';
+  import SOARPanel from '@pages/SOARPanel.svelte';
+  import EvidenceLedger from '@pages/EvidenceLedger.svelte';
+  import ChainOfCustody from '@pages/ChainOfCustody.svelte';
+  import FusionDashboard from '@pages/FusionDashboard.svelte';
+  import Settings from '@pages/Settings.svelte';
+  import PluginManager from '@pages/PluginManager.svelte';
+  import TeamDashboard from '@pages/TeamDashboard.svelte';
+  import SyncPage from '@pages/SyncPage.svelte';
+  import ConfigRisk from '@pages/ConfigRisk.svelte';
+  import EntityView from '@pages/EntityView.svelte';
+  import AIAssistantPage from '@pages/AIAssistantPage.svelte';
+  import DevelopmentPage from '@pages/DevelopmentPage.svelte';
 
-  // Pages — placeholder for unmigrated
-  import Placeholder from '@pages/Placeholder.svelte';
+  // ── Types
+  interface RouteDefinition {
+    path: string;
+    component: any;
+  }
+
+  // ── Shell state
+  let showCommandPalette = $state(false);
 
   // ── App state
   let ready = $state(false);
   let error = $state<string | null>(null);
 
-  // ── Route definitions — ALL 60+ routes
+  // ── Route definitions — Unified & Cleaned
   const routes: RouteDefinition[] = [
-    // Root
+    // Root & General
     { path: '/', component: Dashboard },
-
-    // Dashboard (migrated)
     { path: '/dashboard', component: Dashboard },
+    { path: '/monitoring', component: Dashboard },
+    { path: '/analytics', component: ExecutiveDash },
+    { path: '/executive', component: ExecutiveDash },
 
-    // SIEM & Alerts
-    { path: '/siem', component: Placeholder },
-    { path: '/siem-search', component: Placeholder },
-    { path: '/alerts', component: Placeholder },
-    { path: '/alert-management', component: Placeholder },
+    // SIEM & Intelligence
+    { path: '/siem', component: SIEMPanel },
+    { path: '/siem-search', component: SIEMSearch },
+    { path: '/alerts', component: AlertDashboard },
+    { path: '/alert-management', component: AlertManagement },
+    { path: '/threat-intel', component: ThreatIntelPanel },
+    { path: '/threat-intel-dashboard', component: ThreatIntelPanel },
+    { path: '/threat-hunter', component: ThreatHunter },
+    { path: '/threat-graph', component: ThreatGraph },
+    { path: '/threat-map', component: ThreatMap },
+    { path: '/ueba', component: UEBAOverview },
+    { path: '/ueba-overview', component: UEBAOverview },
+    { path: '/ndr', component: NDROverview },
+    { path: '/ndr-overview', component: NDROverview },
+    { path: '/enrichment', component: EnrichmentViewer },
+    { path: '/credentials', component: CredentialIntel },
 
-    // Monitoring & Topology
-    { path: '/monitoring', component: Placeholder },
-    { path: '/topology', component: Placeholder },
-    { path: '/mitre-heatmap', component: Placeholder },
+    // Operations & Terminal
+    { path: '/ops', component: OpsCenter },
+    { path: '/terminal', component: TerminalPage },
+    { path: '/ssh', component: SSHBookmarks },
+    { path: '/tunnels', component: TunnelsPage },
+    { path: '/recordings', component: RecordingsPage },
+    { path: '/session-playback', component: SessionPlayback },
+    { path: '/tasks', component: TasksPage },
+    { path: '/snippets', component: SnippetsPage },
+    { path: '/notes', component: NotesPage },
+    { path: '/agent-console', component: AgentConsole },
 
-    // Operations
-    { path: '/ops', component: Placeholder },
-    { path: '/terminal', component: Placeholder },
-    { path: '/tunnels', component: Placeholder },
-    { path: '/hosts', component: Placeholder },
-    { path: '/recordings', component: Placeholder },
-    { path: '/snippets', component: Placeholder },
-    { path: '/notes', component: Placeholder },
+    // Fleet & Workspace
+    { path: '/fleet', component: FleetDashboard },
+    { path: '/fleet-management', component: FleetDashboard },
+    { path: '/hosts', component: FleetDashboard },
+    { path: '/soc', component: FleetDashboard },
+    { path: '/agents', component: FleetDashboard },
+    { path: '/workspace', component: Dashboard },
+    { path: '/fusion', component: FusionDashboard },
 
-    // SOC / Fleet (browser)
-    { path: '/soc', component: Placeholder },
-    { path: '/agents', component: Placeholder },
-    { path: '/fleet', component: Placeholder },
-    { path: '/fleet-management', component: Placeholder },
+    // Security & Incident Response
+    { path: '/response', component: IncidentResponse },
+    { path: '/escalation', component: EscalationCenter },
+    { path: '/playbook-builder', component: PlaybookBuilder },
+    { path: '/purple-team', component: PurpleTeam },
+    { path: '/war-mode', component: WarMode },
+    { path: '/data-destruction', component: DataDestruction },
+    { path: '/ransomware', component: RansomwareUI },
+    { path: '/ransomware-ui', component: RansomwareUI },
+    { path: '/simulation', component: SimulationPanel },
 
-    // Incident Response
-    { path: '/response', component: Placeholder },
-    { path: '/escalation', component: Placeholder },
-    { path: '/playbook-builder', component: Placeholder },
+    // Forensics & Audit
+    { path: '/forensics', component: ForensicsPage },
+    { path: '/remote-forensics', component: ForensicsPage },
+    { path: '/terminal-forensics', component: TerminalForensics },
+    { path: '/lineage', component: LineageExplorer },
+    { path: '/decisions', component: DecisionInspector },
+    { path: '/oql', component: OQLDashboard },
+    { path: '/evidence', component: EvidenceLedger },
+    { path: '/ledger', component: EvidenceLedger },
+    { path: '/chain-of-custody', component: ChainOfCustody },
+    { path: '/soar', component: SOARPanel },
+    { path: '/temporal-integrity', component: TemporalIntegrity },
+    { path: '/response-replay', component: ResponseReplay },
 
-    // Intelligence
-    { path: '/ueba', component: Placeholder },
-    { path: '/ueba-overview', component: Placeholder },
-    { path: '/threat-hunter', component: Placeholder },
-    { path: '/threat-intel', component: Placeholder },
-    { path: '/threat-intel-dashboard', component: Placeholder },
-    { path: '/enrichment', component: Placeholder },
-    { path: '/ndr', component: Placeholder },
-    { path: '/ndr-overview', component: Placeholder },
-    { path: '/purple-team', component: Placeholder },
-    { path: '/graph', component: Placeholder },
-    { path: '/credentials', component: Placeholder },
+    // Topology
+    { path: '/topology', component: TopologyPage },
+    { path: '/network-map', component: NetworkMap },
+    { path: '/global-topology', component: GlobalTopology },
+    { path: '/mitre-heatmap', component: MitreHeatmap },
 
-    // Governance & Compliance
-    { path: '/compliance', component: Placeholder },
-    { path: '/governance', component: Placeholder },
-    { path: '/vault', component: Placeholder },
-    { path: '/trust', component: Placeholder },
-    { path: '/forensics', component: Placeholder },
-    { path: '/remote-forensics', component: Placeholder },
-    { path: '/ransomware', component: Placeholder },
-    { path: '/ransomware-ui', component: Placeholder },
+    // Governance, Trust & Identity
+    { path: '/compliance', component: CompliancePage },
+    { path: '/governance', component: CompliancePage },
+    { path: '/vault', component: VaultManager },
+    { path: '/trust', component: RuntimeTrust },
+    { path: '/runtime-trust', component: RuntimeTrust },
+    { path: '/identity', component: IdentityAdmin },
+    { path: '/identity-admin', component: IdentityAdmin },
 
-    // Identity (browser)
-    { path: '/identity', component: Placeholder },
-    { path: '/identity-admin', component: Placeholder },
+    // Management
+    { path: '/settings', component: Settings },
+    { path: '/plugins', component: PluginManager },
+    { path: '/team', component: TeamDashboard },
+    { path: '/sync', component: SyncPage },
+    { path: '/offline-update', component: OfflineUpdate },
+    { path: '/license', component: LicensePage },
+    { path: '/features', component: FeaturesPage },
+    { path: '/risk', component: ConfigRisk },
+    { path: '/entity', component: EntityView },
+    { path: '/ai-assistant', component: AIAssistantPage },
 
-    // War Mode & Security
-    { path: '/war-mode', component: Placeholder },
-    { path: '/data-destruction', component: Placeholder },
-
-    // Audit Trail
-    { path: '/temporal-integrity', component: Placeholder },
-    { path: '/lineage', component: Placeholder },
-    { path: '/decisions', component: Placeholder },
-    { path: '/ledger', component: Placeholder },
-    { path: '/response-replay', component: Placeholder },
-
-    // Executive & Analytics
-    { path: '/executive', component: Placeholder },
-    { path: '/analytics', component: Placeholder },
-    { path: '/simulation', component: Placeholder },
-
-    // AI & Workspace
-    { path: '/ai-assistant', component: Placeholder },
-    { path: '/workspace', component: Placeholder },
-    { path: '/fusion', component: Placeholder },
-
-    // System
-    { path: '/settings', component: Placeholder },
-    { path: '/plugins', component: Placeholder },
-    { path: '/team', component: Placeholder },
-    { path: '/sync', component: Placeholder },
-    { path: '/offline-update', component: Placeholder },
-    { path: '/license', component: Placeholder },
-    { path: '/features', component: Placeholder },
-    { path: '/risk', component: Placeholder },
-    { path: '/entity', component: Placeholder },
-
-    // Catch-all fallback
-    { path: '*', component: Placeholder },
+    // Fallback
+    { path: '*', component: DevelopmentPage },
   ];
 
   onMount(async () => {
     try {
       await initBridge();
 
-      // Hook global system events to toast notifications
+      // Hook global system events
       const rt = (window as any).runtime;
       if (rt && APP_CONTEXT !== 'browser') {
         rt.EventsOn('system.error', (msg: string) => {
@@ -148,27 +210,52 @@
         });
       }
 
-      // Initialize the app store (event subscriptions, initial state)
+      // Initialize the app store
       await appStore.init();
-
       ready = true;
-    } catch (err) {
-      error = `${err}`;
+    } catch (e: any) {
+      console.error('App init failed:', e);
+      error = e.message || 'Failed to initialize OBLIVRA core.';
     }
   });
+
+  function togglePalette() {
+    showCommandPalette = !showCommandPalette;
+  }
+
+  // Handle global shortcuts
+  function onKeyDown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      togglePalette();
+    }
+  }
 </script>
 
-{#if ready}
-  <div class="h-full w-full animate-fade-in">
-    <AppLayout>
-      {#snippet children()}
-        <RouterView {routes} />
-      {/snippet}
-    </AppLayout>
-    <ToastContainer />
-  </div>
-{:else if error}
-  <ErrorScreen message={error} />
-{:else}
-  <LoadingScreen />
-{/if}
+<svelte:window onkeydown={onKeyDown} />
+
+<main class="h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
+  {#if ready}
+    <div class="flex h-full w-full">
+      <Sidebar />
+      
+      <div class="relative flex flex-1 flex-col overflow-hidden">
+        <TopBar />
+        
+        <div class="flex-1 overflow-auto relative">
+          <RouterView {routes} />
+        </div>
+      </div>
+      
+      {#if showCommandPalette}
+        <CommandPalette bind:open={showCommandPalette} />
+      {/if}
+      
+      <ToastContainer />
+    </div>
+  {:else if error}
+    <ErrorScreen message={error} />
+  {:else}
+    <LoadingScreen />
+  {/if}
+</main>

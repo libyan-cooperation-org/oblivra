@@ -26,6 +26,7 @@
     "golden-layout": "^2.6.0",
     "lodash": "^4.17.23",
     "postcss": "^8.5.8",
+    "lucide-svelte": "^0.479.0",
     "svelte": "^5.55.2",
     "tailwindcss": "^4.2.1",
     "xterm-addon-search": "^0.13.0",

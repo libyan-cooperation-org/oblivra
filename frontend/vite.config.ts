@@ -14,9 +14,11 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
       '@components': resolve(__dirname, 'src/components'),
       '@lib': resolve(__dirname, 'src/lib'),
+      '@core': resolve(__dirname, 'src/core'),
       '@pages': resolve(__dirname, 'src/pages'),
       '@styles': resolve(__dirname, 'src/styles'),
       '@assets': resolve(__dirname, 'src/assets'),
+      '@wailsjs': resolve(__dirname, 'wailsjs'),
     },
   },
 

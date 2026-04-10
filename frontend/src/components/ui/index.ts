@@ -1,56 +1,22 @@
-/* ═══════════════════════════════════════════════════════════════
-   OBLIVRA Shared Component Library — Barrel Export
-   ═══════════════════════════════════════════════════════════════
-   
-   Import any design-system component from a single path:
-   
-     import { Table, Badge, KPI, PageLayout, Panel, SearchBar } from '@components/ui';
-   
-   Every component wraps the .ob-* CSS classes from components.css,
-   ensuring design system consistency across all pages.
-   ═══════════════════════════════════════════════════════════════ */
-
-// ── Data Display ──────────────────────────────────────────────
-export { Table } from './Table';
-export type { Column, SortDir } from './Table';
-
-export { Badge, StatusDot, normalizeSeverity } from './Badge';
-
-export { KPI, KPIGrid } from './KPI';
-
-export { Sparkline } from './Sparkline';
-export { Histogram } from './Histogram';
-
-// ── Layout ────────────────────────────────────────────────────
-export { PageLayout, Notice, CodeBlock, Progress } from './PageLayout';
-
-export { Panel, SectionHeader } from './Panel';
-
-export { SearchBar, Toolbar, ToolbarSpacer, TabBar } from './SearchBar';
-
-// ── Overlays ──────────────────────────────────────────────────
-export { Modal, Dropdown, FormField, FormRow } from './Modal';
-export { ModalSystem, showModal } from './ModalSystem';
-export type { ModalAction, ModalOptions } from './ModalSystem';
-
-// ── State ─────────────────────────────────────────────────────
-export { EmptyState } from './EmptyState';
-
-export {
-    Skeleton,
-    LoadingState,
-    ErrorState,
-    KeyValue,
-    CountBadge,
-    formatRelativeTime,
-    formatTimestamp,
-} from './Utilities';
-
-// ── Legacy (existing components, re-exported for convenience) ─
-export { Card, Button as TacticalButton } from './TacticalComponents';
-
-export { CommandPalette } from './CommandPalette';
-export { QuickSwitcher } from './QuickSwitcher';
-export { ToastContainer } from './Toast';
-export { Button } from './Button';
-export { Input, Select, TextArea } from './Input';
+/**
+ * OBLIVRA — UI Component Barrel Export
+ *
+ * Central index for all shared UI primitives.
+ * Import from '@components/ui' in page components.
+ */
+export { default as Button } from './Button.svelte';
+export { default as Input } from './Input.svelte';
+export { default as Modal } from './Modal.svelte';
+export { default as Badge } from './Badge.svelte';
+export { default as DataTable } from './DataTable.svelte';
+export { default as KPI } from './KPI.svelte';
+export { default as EmptyState } from './EmptyState.svelte';
+export { default as SearchBar } from './SearchBar.svelte';
+export { default as PageLayout } from './PageLayout.svelte';
+export { default as Tabs } from './Tabs.svelte';
+export { default as Spinner } from './Spinner.svelte';
+export { default as Chart } from './Chart.svelte';
+export { default as LoadingScreen } from './LoadingScreen.svelte';
+export { default as ErrorScreen } from './ErrorScreen.svelte';
+export { default as CommandPalette } from './CommandPalette.svelte';
+export { default as Toggle } from './Toggle.svelte';

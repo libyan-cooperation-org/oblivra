@@ -5,7 +5,6 @@ import (
 	"embed"
 	"flag"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,13 +12,8 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/isolation"
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/linux"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
-
+	"github.com/wailsapp/wails/v3/pkg/application"
+						
 	"github.com/kingknull/oblivrashell/internal/app"
 )
 
@@ -43,137 +37,116 @@ func main() {
 		log.Fatalf("FATAL: %v", err)
 	}
 
-	application := app.New()
+	oblivraApp := app.New()
 
-	log.Println("[DEBUG] About to call wails.Run")
-	err := wails.Run(&options.App{
-		Title:     "OblivraShell",
-		Width:     1280,
-		Height:    800,
-		MinWidth:  900,
-		MinHeight: 600,
+	
+log.Println("[DEBUG] About to call application.New")
+app := application.New(application.Options{
+Name:        "OblivraShell",
+Description: "OBLIVRA Enterprise Core",
+Services: []application.Service{
+application.NewService(oblivraApp.HostService),
+			application.NewService(oblivraApp.SSHService),
+			application.NewService(oblivraApp.VaultService),
+			application.NewService(oblivraApp.SessionService),
+			application.NewService(oblivraApp.SettingsService),
+			application.NewService(oblivraApp.SnippetService),
+			application.NewService(oblivraApp.BroadcastService),
+			application.NewService(oblivraApp.MultiExecService),
+			application.NewService(oblivraApp.PluginService),
+			application.NewService(oblivraApp.SecurityService),
+			application.NewService(oblivraApp.ComplianceService),
+			application.NewService(oblivraApp.TeamService),
+			application.NewService(oblivraApp.SIEMService),
+			application.NewService(oblivraApp.LocalService),
+			application.NewService(oblivraApp.TelemetryService),
+			application.NewService(oblivraApp.AIService),
+			application.NewService(oblivraApp.AlertingService),
+			application.NewService(oblivraApp.HealthService),
+			application.NewService(oblivraApp.MetricsService),
+			application.NewService(oblivraApp.TunnelService),
+			application.NewService(oblivraApp.ShareService),
+			application.NewService(oblivraApp.RecordingService),
+			application.NewService(oblivraApp.LogSourceService),
+			application.NewService(oblivraApp.WorkspaceService),
+			application.NewService(oblivraApp.NotesService),
+			application.NewService(oblivraApp.UpdaterService),
+			application.NewService(oblivraApp.SyncService),
+			application.NewService(oblivraApp.FileService),
+			application.NewService(oblivraApp.DiscoveryService),
+			application.NewService(oblivraApp.AgentService),
+			application.NewService(oblivraApp.GovernanceService),
+			application.NewService(oblivraApp.ForensicsService),
+			application.NewService(oblivraApp.PolicyService),
+			application.NewService(oblivraApp.IncidentService),
+			application.NewService(oblivraApp.PlaybookService),
+			application.NewService(oblivraApp.SimulationService),
+			application.NewService(oblivraApp.UEBAService),
+			application.NewService(oblivraApp.GraphService),
+			application.NewService(oblivraApp.NDRService),
+			application.NewService(oblivraApp.RiskService),
+			application.NewService(oblivraApp.TrustService),
+			application.NewService(oblivraApp.CredentialIntel),
+			application.NewService(oblivraApp.AnalyticsService),
+			application.NewService(oblivraApp.DisasterService),
+			application.NewService(oblivraApp.TemporalService),
+			application.NewService(oblivraApp.LineageService),
+			application.NewService(oblivraApp.DecisionService),
+			application.NewService(oblivraApp.CounterfactualService),
+			application.NewService(oblivraApp.TailingService),
+			application.NewService(oblivraApp.SyntheticService),
+			application.NewService(oblivraApp.IdentityService),
+			application.NewService(oblivraApp.ObservabilityService),
+			application.NewService(oblivraApp.DataLifecycleService),
+			application.NewService(oblivraApp.TransferManager),
+			application.NewService(oblivraApp.NetworkIsolatorService),
+			application.NewService(oblivraApp.LedgerService),
+			application.NewService(oblivraApp.DiagnosticsService),
+			application.NewService(oblivraApp.FusionService),
+			application.NewService(oblivraApp.LicensingService),
+			application.NewService(oblivraApp.BookmarkService),
+			application.NewService(oblivraApp.CommandHistory),
+			application.NewService(oblivraApp.OperatorService),
+			application.NewService(oblivraApp.SessionPersistence),
+},
+Assets: application.AssetOptions{
+Handler: application.AssetFileServerFS(assets),
+},
+Mac: application.MacOptions{
+ApplicationShouldTerminateAfterLastWindowClosed: true,
+},
+OnShutdown: func() {
+oblivraApp.Shutdown(context.Background())
+},
+})
 
-		AssetServer: &assetserver.Options{
-			Assets: assets,
-			Middleware: func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					// SECURITY: Strict Content Security Policy
-					// 1. default-src 'self': Only allow assets from our own domain/wails protocol
-					// 2. script-src 'self' 'unsafe-eval': Wails/React/Solid-JS requirements
-					// 3. connect-src 'self' wails://* ws://localhost:* http://localhost:*: Allow API and WebSocket connections
-					// 4. style-src 'self' 'unsafe-inline' https://fonts.googleapis.com
-					// 5. font-src 'self' data: https://fonts.gstatic.com
-					csp := "default-src 'self'; " +
-						"script-src 'self' 'unsafe-eval' 'unsafe-inline' wails://*; " +
-						"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-						"font-src 'self' data: https://fonts.gstatic.com; " +
-						"img-src 'self' data: wails://*; " +
-						"connect-src 'self' wails://* ws://localhost:* http://localhost:*;"
-					w.Header().Set("Content-Security-Policy", csp)
-					next.ServeHTTP(w, r)
-				})
-			},
-		},
+	oblivraApp.Startup(context.Background())
+	go func() {
+		time.Sleep(1 * time.Second)
+		oblivraApp.DomReady(context.Background())
+	}()
 
-		BackgroundColour: &options.RGBA{R: 13, G: 17, B: 23, A: 1},
-		Frameless:        true,
+app.Window.NewWithOptions(application.WebviewWindowOptions{
+Title: "OblivraShell",
+Width: 1280,
+Height: 800,
+MinWidth: 900,
+MinHeight: 600,
+Frameless: true,
+BackgroundColour: application.NewRGBA(13, 17, 23, 255),
+Mac: application.MacWindow{
+InvisibleTitleBarHeight: 50,
+Backdrop:                application.MacBackdropTranslucent,
+TitleBar:                application.MacTitleBarHiddenInset,
+},
+Windows: application.WindowsWindow{
+BackdropType: application.Mica,
+},
+})
 
-		OnStartup:  application.Startup,
-		OnShutdown: application.Shutdown,
-		OnDomReady: application.DomReady,
+    log.Println("[DEBUG] application init complete")
+err := app.Run()
 
-		Bind: []interface{}{
-			// application, // REMOVED: Redundant with individual service bindings and causes type resolution bloat
-			application.HostService,
-			application.SSHService,
-			application.VaultService,
-			application.SessionService,
-			application.SettingsService,
-			application.SnippetService,
-			application.BroadcastService,
-			application.MultiExecService,
-			application.PluginService,
-			application.SecurityService,
-			application.ComplianceService,
-			application.TeamService,
-			application.SIEMService,
-			application.LocalService,
-			application.TelemetryService,
-			application.AIService,
-			application.AlertingService,
-			application.HealthService,
-			application.MetricsService,
-			application.TunnelService,
-			application.ShareService,
-			application.RecordingService,
-			application.LogSourceService,
-			application.WorkspaceService,
-			application.NotesService,
-			application.UpdaterService,
-			application.SyncService,
-			application.FileService,
-			application.DiscoveryService,
-			application.AgentService,
-			application.GovernanceService,
-			application.ForensicsService,
-			application.PolicyService,
-			application.IncidentService,
-			application.PlaybookService,
-			application.SimulationService,
-			application.UEBAService,
-			application.GraphService,
-			application.NDRService,
-			application.RiskService,
-			application.TrustService,
-			application.CredentialIntel,
-			application.AnalyticsService,
-			application.DisasterService,
-			application.TemporalService,
-			application.LineageService,
-			application.DecisionService,
-			application.CounterfactualService,
-			application.TailingService,
-			application.SyntheticService,
-			application.IdentityService,
-			application.ObservabilityService,
-			application.DataLifecycleService,
-			application.TransferManager,
-			application.NetworkIsolatorService,
-			application.LedgerService,
-			application.DiagnosticsService,
-			application.FusionService,
-			application.LicensingService,
-			application.BookmarkService,
-			application.CommandHistory,
-			application.OperatorService,
-			application.SessionPersistence,
-			// NOTE: MemorySecurity and DeterministicResponse are intentionally
-			// not exposed to the Wails frontend (no UI binding needed), but they ARE
-			// initialized and registered in the ServiceRegistry for internal lifecycle management.
-		},
-
-		Windows: &windows.Options{
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			Theme:                windows.Dark,
-			BackdropType:         windows.Mica,
-		},
-
-		Mac: &mac.Options{
-			TitleBar:             mac.TitleBarHiddenInset(),
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-		},
-
-		Linux: &linux.Options{
-			WindowIsTranslucent: false,
-		},
-
-		Debug: options.Debug{
-			OpenInspectorOnStartup: false,
-		},
-	})
-	log.Println("[DEBUG] wails.Run completed")
 
 	if err != nil {
 		log.Fatal("Error:", err.Error())
@@ -242,14 +215,14 @@ func serverCmd(args []string) {
 		log.Fatalf("FATAL: %v", err)
 	}
 
-	application := app.New()
+	oblivraApp := app.New()
 	
 	// Create context that listens for interrupt signals
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// In server mode, we don't have Wails calling Startup, so we do it manually.
-	application.Startup(ctx)
+	oblivraApp.Startup(ctx)
 
 	log.Printf("[SERVER] OBLIVRA Headless Core active on port %d\n", *port)
 	log.Println("[SERVER] Press Ctrl+C to shut down")
@@ -259,7 +232,7 @@ func serverCmd(args []string) {
 	
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	application.Shutdown(shutdownCtx)
+	oblivraApp.Shutdown(shutdownCtx)
 }
 
 func workerCmd(args []string) {

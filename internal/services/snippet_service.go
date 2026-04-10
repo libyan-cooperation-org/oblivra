@@ -54,15 +54,15 @@ func (s *SnippetService) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (s *SnippetService) List() ([]database.Snippet, error) {
-	return s.repo.List(context.Background())
+func (s *SnippetService) List(ctx context.Context) ([]database.Snippet, error) {
+	return s.repo.List(ctx)
 }
 
-func (s *SnippetService) Get(id string) (database.Snippet, error) {
-	return s.repo.Get(context.Background(), id)
+func (s *SnippetService) Get(ctx context.Context, id string) (database.Snippet, error) {
+	return s.repo.Get(ctx, id)
 }
 
-func (s *SnippetService) Create(title, command, description string, tags, variables []string) (database.Snippet, error) {
+func (s *SnippetService) Create(ctx context.Context, title, command, description string, tags, variables []string) (database.Snippet, error) {
 	if title == "" || command == "" {
 		return database.Snippet{}, fmt.Errorf("title and command are required")
 	}
@@ -76,7 +76,7 @@ func (s *SnippetService) Create(title, command, description string, tags, variab
 		Variables:   variables,
 	}
 
-	if err := s.repo.Create(context.Background(), snippet); err != nil {
+	if err := s.repo.Create(ctx, snippet); err != nil {
 		s.log.Error("Failed to create snippet: %v", err)
 		return database.Snippet{}, err
 	}
@@ -84,8 +84,8 @@ func (s *SnippetService) Create(title, command, description string, tags, variab
 	return *snippet, nil
 }
 
-func (s *SnippetService) Update(id, title, command, description string, tags, variables []string) (database.Snippet, error) {
-	snippet, err := s.repo.Get(context.Background(), id)
+func (s *SnippetService) Update(ctx context.Context, id, title, command, description string, tags, variables []string) (database.Snippet, error) {
+	snippet, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return database.Snippet{}, err
 	}
@@ -96,7 +96,7 @@ func (s *SnippetService) Update(id, title, command, description string, tags, va
 	snippet.Tags = tags
 	snippet.Variables = variables
 
-	if err := s.repo.Update(context.Background(), &snippet); err != nil {
+	if err := s.repo.Update(ctx, &snippet); err != nil {
 		s.log.Error("Failed to update snippet %s: %v", id, err)
 		return database.Snippet{}, err
 	}
@@ -104,8 +104,8 @@ func (s *SnippetService) Update(id, title, command, description string, tags, va
 	return snippet, nil
 }
 
-func (s *SnippetService) Delete(id string) error {
-	if err := s.repo.Delete(context.Background(), id); err != nil {
+func (s *SnippetService) Delete(ctx context.Context, id string) error {
+	if err := s.repo.Delete(ctx, id); err != nil {
 		s.log.Error("Failed to delete snippet %s: %v", id, err)
 		return err
 	}
@@ -114,8 +114,8 @@ func (s *SnippetService) Delete(id string) error {
 }
 
 // ShareToTeam saves a copy of the snippet to the team vault
-func (s *SnippetService) ShareToTeam(snippetID string) error {
-	snippet, err := s.repo.Get(context.Background(), snippetID)
+func (s *SnippetService) ShareToTeam(ctx context.Context, snippetID string) error {
+	snippet, err := s.repo.Get(ctx, snippetID)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (s *SnippetService) ShareToTeam(snippetID string) error {
 
 	// Save snippet as secret in team vault
 	data, _ := json.Marshal(snippet)
-	_, err = s.teamSvc.AddSecret(snippet.Title, "snippet", string(data))
+	_, err = s.teamSvc.AddSecret(ctx, snippet.Title, "snippet", string(data))
 	if err != nil {
 		return fmt.Errorf("save to team vault: %w", err)
 	}
@@ -178,8 +178,8 @@ func (s *SnippetService) ExtractVariables(command string) []string {
 
 // ExecuteSnippet runs a snippet on an active SSH session after replacing variables.
 // It optionally applies sudo prefixing for known privileged commands.
-func (s *SnippetService) ExecuteSnippet(snippetID string, sessionID string, variables map[string]string, autoSudo bool) error {
-	snippet, err := s.repo.Get(context.Background(), snippetID)
+func (s *SnippetService) ExecuteSnippet(ctx context.Context, snippetID string, sessionID string, variables map[string]string, autoSudo bool) error {
+	snippet, err := s.repo.Get(ctx, snippetID)
 	if err != nil {
 		return fmt.Errorf("load snippet: %w", err)
 	}
@@ -199,7 +199,7 @@ func (s *SnippetService) ExecuteSnippet(snippetID string, sessionID string, vari
 		return fmt.Errorf("execute on session %s: %w", sessionID, err)
 	}
 
-	go s.repo.IncrementUseCount(context.Background(), snippetID)
+	go s.repo.IncrementUseCount(ctx, snippetID)
 	return nil
 }
 
@@ -243,8 +243,8 @@ func (s *SnippetService) shouldApplySudo(command string) bool {
 }
 
 // ExportJSON returns all snippets as a JSON byte array
-func (s *SnippetService) ExportJSON() ([]byte, error) {
-	snippets, err := s.repo.List(context.Background())
+func (s *SnippetService) ExportJSON(ctx context.Context) ([]byte, error) {
+	snippets, err := s.repo.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +252,7 @@ func (s *SnippetService) ExportJSON() ([]byte, error) {
 }
 
 // ImportJSON adds snippets from a JSON byte array
-func (s *SnippetService) ImportJSON(data []byte) error {
+func (s *SnippetService) ImportJSON(ctx context.Context, data []byte) error {
 	var snippets []database.Snippet
 	if err := json.Unmarshal(data, &snippets); err != nil {
 		return err
@@ -260,7 +260,7 @@ func (s *SnippetService) ImportJSON(data []byte) error {
 
 	for _, snippet := range snippets {
 		snippet.ID = uuid.New().String() // Assign new IDs to avoid collisions during import
-		if err := s.repo.Create(context.Background(), &snippet); err != nil {
+		if err := s.repo.Create(ctx, &snippet); err != nil {
 			s.log.Error("Failed to import snippet %s: %v", snippet.Title, err)
 		}
 	}

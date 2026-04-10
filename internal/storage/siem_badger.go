@@ -36,11 +36,11 @@ func NewBadgerSIEMRepository(store *HotStore, searchEngine **search.SearchEngine
 // IP Index: idx:ip:{source_ip}:{timestamp_ns}:{event_id} -> JSON(HostEvent)
 
 func formatEventKey(tenantID, hostID string, ts time.Time, id int64) []byte {
-	return []byte(fmt.Sprintf("event:%s:%s:%020d:%d", tenantID, hostID, ts.UnixNano(), id))
+	return []byte(fmt.Sprintf("tenant:%s:events:%020d:%d", tenantID, ts.UnixNano(), id))
 }
 
 func formatIPKey(tenantID, ip string, ts time.Time, id int64) []byte {
-	return []byte(fmt.Sprintf("idx:ip:%s:%s:%020d:%d", tenantID, ip, ts.UnixNano(), id))
+	return []byte(fmt.Sprintf("tenant:%s:idx:ip:%s:%020d:%d", tenantID, ip, ts.UnixNano(), id))
 }
 
 // InsertHostEvent records a new security anomaly.
@@ -85,7 +85,6 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 	// 3. Dual-write to Bleve for full-text search
 	if r.search != nil && *r.search != nil {
-		// FIX: Include TenantID in docID to prevent cross-tenant collisions
 		docID := fmt.Sprintf("event_%s_%s_%d", event.TenantID, event.HostID, event.ID)
 		searchData := map[string]interface{}{
 			"tenant":     event.TenantID,
@@ -97,7 +96,7 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 			"timestamp":  ts.UnixNano(),
 		}
 		// We ignore error here so ingestion doesn't fail if Bleve is temporarily locked/busy
-		(*r.search).Index(docID, "siem_event", searchData)
+		(*r.search).Index(event.TenantID, docID, "siem_event", searchData)
 	}
 
 	return nil
@@ -107,15 +106,20 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit int) ([]database.HostEvent, error) {
 	tenantID := database.TenantFromContext(ctx)
 
-	prefix := []byte(fmt.Sprintf("event:%s:%s:", tenantID, hostID))
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 	var events []database.HostEvent
 
-	err := r.store.ReverseIteratePrefix(prefix, limit, func(key, value []byte) error {
+	err := r.store.ReverseIteratePrefix(prefix, limit*10, func(key, value []byte) error {
+		if limit > 0 && len(events) >= limit {
+			return nil
+		}
 		var e database.HostEvent
 		if err := json.Unmarshal(value, &e); err != nil {
 			return err
 		}
-		events = append(events, e)
+		if e.HostID == hostID {
+			events = append(events, e)
+		}
 		return nil
 	})
 
@@ -131,7 +135,7 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 		tenantQuery := fmt.Sprintf("+tenant:%s %s", tenantID, query)
 
 		// Attempt to hit Bleve first for actual full-text performance
-		results, err := (*r.search).Search(tenantQuery, limit, 0)
+		results, err := (*r.search).Search(tenantID, tenantQuery, limit, 0)
 		if err == nil {
 			var events []database.HostEvent
 			for _, res := range results {
@@ -165,7 +169,7 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 	}
 
 	// Fallback to slow BadgerDB prefix scan if Bleve is offline or locked
-	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 	var events []database.HostEvent
 	qLower := strings.ToLower(query)
 
@@ -197,7 +201,8 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 
 // GetFailedLoginsByHost aggregates invalid login counts per source IP
 func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID string) ([]map[string]interface{}, error) {
-	prefix := []byte(fmt.Sprintf("event:%s:", hostID))
+	tenantID := database.TenantFromContext(ctx)
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	// ip -> user -> {attempts, last_attempt}
 	type stats struct {
@@ -218,7 +223,7 @@ func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID
 			return nil
 		}
 
-		if e.EventType == "failed_login" {
+		if e.EventType == "failed_login" && e.HostID == hostID {
 			if agg[e.SourceIP] == nil {
 				agg[e.SourceIP] = make(map[string]*stats)
 			}
@@ -258,7 +263,7 @@ func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID
 // CalculateRiskScore heuristically calculates risk of a host based on event frequency over 24h
 func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID string) (int, error) {
 	tenantID := database.TenantFromContext(ctx)
-	prefix := []byte(fmt.Sprintf("event:%s:%s:", tenantID, hostID))
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	score := 0
 	uniqueIPs := make(map[string]bool)
@@ -276,7 +281,7 @@ func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID st
 			return nil
 		}
 
-		if e.EventType == "failed_login" {
+		if e.EventType == "failed_login" && e.HostID == hostID {
 			uniqueIPs[e.SourceIP] = true
 			totalAttempts++
 			if e.User == "root" {
@@ -324,10 +329,10 @@ func (r *BadgerSIEMRepository) GetEventTrend(ctx context.Context, days int) ([]m
 	}
 
 	tenantID := database.TenantFromContext(ctx)
-	prefix := []byte(fmt.Sprintf("event:%s:", tenantID))
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	r.store.ReverseIteratePrefix(prefix, 0, func(key, value []byte) error {
-		// Key format: event:{tenant_id}:{host_id}:{timestamp_ns}:{id}
+		// Key format: tenant:{tenant_id}:events:{timestamp_ns}:{id}
 		parts := bytes.Split(key, []byte(":"))
 		if len(parts) >= 5 {
 			tsNano, err := strconv.ParseInt(string(parts[3]), 10, 64)

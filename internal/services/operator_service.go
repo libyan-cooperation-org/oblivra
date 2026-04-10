@@ -62,8 +62,7 @@ func NewOperatorService(
 }
 
 // GetContext returns the full security context for a host.
-// This powers the "anomaly banner" on the terminal tab bar.
-func (s *OperatorService) GetContext(hostID string) (*OperatorContext, error) {
+func (s *OperatorService) GetContext(ctx context.Context, hostID string) (*OperatorContext, error) {
 	if hostID == "" || hostID == "local" {
 		return &OperatorContext{
 			HostID:    "local",
@@ -71,8 +70,6 @@ func (s *OperatorService) GetContext(hostID string) (*OperatorContext, error) {
 			RiskLevel: "none",
 		}, nil
 	}
-
-	ctx := context.Background()
 
 	// Get host info
 	host, err := s.hosts.GetByID(ctx, hostID)
@@ -168,14 +165,13 @@ func (s *OperatorService) GetContext(hostID string) (*OperatorContext, error) {
 }
 
 // GetBannerText returns a one-line status string for the terminal tab bar.
-// This is the lightweight version of GetContext for frequent polling.
-func (s *OperatorService) GetBannerText(hostID string) string {
+func (s *OperatorService) GetBannerText(ctx context.Context, hostID string) string {
 	if hostID == "" || hostID == "local" {
 		return ""
 	}
 
-	riskScore, _ := s.siem.CalculateRiskScore(context.Background(), hostID)
-	events, _ := s.siem.GetHostEvents(context.Background(), hostID, 5)
+	riskScore, _ := s.siem.CalculateRiskScore(ctx, hostID)
+	events, _ := s.siem.GetHostEvents(ctx, hostID, 5)
 
 	if riskScore >= 80 {
 		return fmt.Sprintf("🔴 CRITICAL RISK (%d) — %d events", riskScore, len(events))

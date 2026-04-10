@@ -8,6 +8,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/monitoring"
 	"github.com/kingknull/oblivrashell/internal/notifications"
+	"context"
 )
 
 // Trigger defines a pattern-matching alert rule
@@ -170,7 +171,7 @@ func (ae *AlertEngine) GetHistory() []AlertEvent {
 }
 
 // ScanStream checks a line of SSH output against all triggers
-func (ae *AlertEngine) ScanStream(sessionID, hostLabel, line string) {
+func (ae *AlertEngine) ScanStream(ctx context.Context, sessionID, hostLabel, line string) {
 	ae.mu.Lock()
 	defer ae.mu.Unlock()
 
@@ -215,7 +216,7 @@ func (ae *AlertEngine) ScanStream(sessionID, hostLabel, line string) {
 
 		// Persist to SQLite
 		if ae.analytics != nil {
-			ae.analytics.SaveAlertEvent(t.ID, t.Name, t.Severity, hostLabel, sessionID, truncateStr(line, 500), event.Sent)
+			ae.analytics.SaveAlertEvent(ctx, t.ID, t.Name, t.Severity, hostLabel, sessionID, truncateStr(line, 500), event.Sent)
 		}
 
 		// Keep in-memory buffer too
@@ -227,7 +228,7 @@ func (ae *AlertEngine) ScanStream(sessionID, hostLabel, line string) {
 }
 
 // ScanTelemetry checks real-time host metrics against resource thresholds
-func (ae *AlertEngine) ScanTelemetry(hostID string, t monitoring.HostTelemetry) {
+func (ae *AlertEngine) ScanTelemetry(ctx context.Context, hostID string, t monitoring.HostTelemetry) {
 	ae.mu.Lock()
 	defer ae.mu.Unlock()
 
@@ -287,7 +288,7 @@ func (ae *AlertEngine) ScanTelemetry(hostID string, t monitoring.HostTelemetry) 
 
 		// Persist
 		if ae.analytics != nil {
-			ae.analytics.SaveAlertEvent(mt.ID, mt.Name, mt.Severity, hostLabel, "", event.LogLine, event.Sent)
+			ae.analytics.SaveAlertEvent(ctx, mt.ID, mt.Name, mt.Severity, hostLabel, "", event.LogLine, event.Sent)
 		}
 
 		ae.history = append(ae.history, event)

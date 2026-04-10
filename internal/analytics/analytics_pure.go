@@ -85,6 +85,7 @@ func (e *AnalyticsEngine) bootstrap(db *sql.DB) error {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS terminal_logs (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP,
+		tenant_id  TEXT NOT NULL DEFAULT 'default_tenant',
 		session_id TEXT NOT NULL,
 		host       TEXT NOT NULL,
 		output     TEXT NOT NULL
@@ -94,21 +95,25 @@ func (e *AnalyticsEngine) bootstrap(db *sql.DB) error {
 	}
 
 	// Create indexes for common query patterns
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_tenant ON terminal_logs(tenant_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_host ON terminal_logs(host)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_session ON terminal_logs(session_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON terminal_logs(timestamp DESC)`)
 
 	// Create app_config table for persistent settings
 	db.Exec(`CREATE TABLE IF NOT EXISTS app_config (
-		key TEXT PRIMARY KEY,
+		key TEXT NOT NULL,
+		tenant_id TEXT NOT NULL DEFAULT 'default_tenant',
 		value TEXT NOT NULL,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY(key, tenant_id)
 	)`)
 
 	// Create alert_history table
 	db.Exec(`CREATE TABLE IF NOT EXISTS alert_history (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+		tenant_id TEXT NOT NULL DEFAULT 'default_tenant',
 		trigger_id TEXT,
 		name TEXT,
 		severity TEXT,
@@ -117,11 +122,13 @@ func (e *AnalyticsEngine) bootstrap(db *sql.DB) error {
 		log_line TEXT,
 		sent INTEGER DEFAULT 0
 	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_alert_hist_tenant ON alert_history(tenant_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_alert_hist_ts ON alert_history(timestamp DESC)`)
 
 	// Create session_recordings
 	db.Exec(`CREATE TABLE IF NOT EXISTS session_recordings (
 		id TEXT PRIMARY KEY,
+		tenant_id TEXT NOT NULL DEFAULT 'default_tenant',
 		session_id TEXT NOT NULL,
 		host_label TEXT NOT NULL,
 		started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -131,6 +138,7 @@ func (e *AnalyticsEngine) bootstrap(db *sql.DB) error {
 		rows INTEGER NOT NULL,
 		status TEXT DEFAULT 'in_progress'
 	)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_session_rec_tenant ON session_recordings(tenant_id)`)
 
 	// Create recording_frames
 	db.Exec(`CREATE TABLE IF NOT EXISTS recording_frames (

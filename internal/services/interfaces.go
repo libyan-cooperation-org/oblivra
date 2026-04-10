@@ -7,7 +7,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/ssh"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // Service defines a standard interface for application services
@@ -39,7 +39,9 @@ func EmitEvent(ctx context.Context, eventName string, optionalData ...interface{
 			// Do nothing on panic, it's just a test context lacking Wails bindings
 		}
 	}()
-	runtime.EventsEmit(ctx, eventName, optionalData...)
+	if app := application.Get(); app != nil {
+		app.Event.Emit(eventName, optionalData...)
+	}
 }
 
 // SessionExecutor defines the interface for interacting with active SSH/Terminal sessions.

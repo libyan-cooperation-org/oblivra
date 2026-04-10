@@ -62,6 +62,10 @@ class AppStore {
             this.vaultUnlocked = false;
         });
 
+        subscribe('security:fido2', (data: { message: string }) => {
+            this.notify(data.message || 'Security Key Required', 'info', 'Touch your security key to authorize.');
+        });
+
         subscribe('host:list_updated', () => {
             this.refreshHosts();
         });
@@ -210,7 +214,26 @@ class AppStore {
         }
     }
 
-    connectToHost(hostId: string) {
+    async connectToLocal() {
+        if (IS_BROWSER) {
+            this.notify('Local shell requires the desktop binary.', 'error');
+            return;
+        }
+        try {
+            const { StartLocalSession } = await import('../../../wailsjs/go/services/LocalService');
+            const session = await StartLocalSession();
+            if (session) {
+                this.addSession(session);
+                this.setActiveSession(session.id);
+                this.setActiveNavTab('terminal');
+                push('/terminal');
+            }
+        } catch (e: any) {
+            this.notify('Failed to start local shell', 'error', e.message);
+        }
+    }
+
+    async connectToHost(hostId: string) {
         if (IS_BROWSER) {
             this.notify('SSH connections require the desktop binary.', 'error');
             return;
@@ -221,40 +244,21 @@ class AppStore {
             this.notify(`Host not found: ${hostId}. Please add it first.`, 'error');
             return;
         }
-        const targetId = host.id;
-        this.activeNavTab = 'terminal';
-        // Navigate to terminal — handled by the router
-        window.location.hash = '#/terminal';
-        const existing = this.sessions.find((s) => s.hostId === targetId && s.status === 'active');
-        if (existing) {
-            this.activeSessionId = existing.id;
-            return;
+        
+        try {
+            const { Connect } = await import('../../../wailsjs/go/services/SSHService');
+            const session = await Connect(host.id);
+            if (session) {
+                this.addSession(session);
+                this.setActiveSession(session.id);
+                this.setActiveNavTab('terminal');
+                push('/terminal');
+            }
+        } catch (e: any) {
+            this.notify(`Connection failed to ${host.label}`, 'error', e.message);
         }
-        import('../../../wailsjs/go/services/SSHService').then(({ Connect }) => {
-            Connect(targetId).catch((err: unknown) => {
-                const errorMsg = err instanceof Error ? err.message : String(err);
-                this.notify(`Failed to connect to ${host?.label || targetId}`, 'error', errorMsg);
-            });
-        });
     }
 
-    connectToLocal() {
-        if (IS_BROWSER) {
-            this.notify('Local terminal requires the desktop binary.', 'error');
-            return;
-        }
-        this.activeNavTab = 'terminal';
-        window.location.hash = '#/terminal';
-        import('../../../wailsjs/go/services/LocalService').then(({ StartLocalSession }) => {
-            StartLocalSession().catch((err: unknown) => {
-                this.notify(
-                    'Local shell failed to start',
-                    'error',
-                    err instanceof Error ? err.message : String(err)
-                );
-            });
-        });
-    }
 
     notify(message: string, type: Notification['type'] = 'info', details?: string, duration = 5000) {
         const id = Math.random().toString(36).substring(2, 9);

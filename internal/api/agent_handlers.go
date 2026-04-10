@@ -45,6 +45,9 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce maximum body size of 1MB to prevent JSON decoding OOM DoS
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
 	var events []AgentEvent
 	if err := json.NewDecoder(r.Body).Decode(&events); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid payload: %v", err), http.StatusBadRequest)
@@ -118,6 +121,9 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Enforce maximum body size of 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
 
 	var reg AgentRegistration
 	if err := json.NewDecoder(r.Body).Decode(&reg); err != nil {

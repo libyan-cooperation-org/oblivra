@@ -373,6 +373,16 @@ var migrations = []migration{
 			ALTER TABLE users ADD COLUMN encrypted_mfa_secret BLOB DEFAULT NULL;
 		`,
 	},
+	{
+		version: 14,
+		name:    "extend_tenants_for_isolation",
+		sql: `
+			ALTER TABLE tenants ADD COLUMN tier TEXT DEFAULT 'free';
+			ALTER TABLE tenants ADD COLUMN status TEXT DEFAULT 'Active';
+			ALTER TABLE tenants ADD COLUMN crypto_salt TEXT DEFAULT '';
+			ALTER TABLE tenants ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

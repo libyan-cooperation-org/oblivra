@@ -1,134 +1,90 @@
 ---
-description: Generate a new OBLIVRA page — follow these steps to create a consistent SOC page
+description: Generate a new OBLIVRA page — follow these steps to create a consistent SOC page using Svelte 5 and Tailwind CSS v4
 ---
 
-# Generate OBLIVRA Page
+# Generate OBLIVRA Page (Svelte 5)
 
 ## Prerequisites
 
-// turbo-all
+1.  **Read the design system first**:
+    Load `.agents/workflows/design-system.md` for full token reference and rules.
 
-1. **Read the design system first**:
-   Load `.agents/workflows/design-system.md` for full token reference, CSS classes, and rules.
+2.  **Understand the requirements**:
+    What data is being visualized? What actions are being taken? What Wails services are required?
 
-2. **Understand the user's page requirements**:
-   - What is this page for? (What problem does it solve for a SOC analyst?)
-   - What data does it display?
-   - What actions can the user take?
-   - Does it need backend (Wails) service calls?
+---
 
 ## Steps
 
-### Step 1: Create the CSS file
+### Step 1: Create the Component
+Create the page component at `frontend/src/pages/PageName.svelte`.
 
-Create `frontend/src/styles/{page-name}.css` with styles specific to this page.
+Use the standard Svelte 5 boiler-plate with runes:
+```svelte
+<script lang="ts">
+  import { KPI, Badge, DataTable, PageLayout, Button } from '@components/ui';
+  import { Shield, Zap, Activity } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
-Rules:
-- Use ONLY tokens from `variables.css`
-- Use existing `.ob-*` classes where possible
-- Only add new classes for truly unique patterns
-- Follow the naming pattern: `.{page-name}-{element}`
+  // State using runes
+  let loading = $state(true);
+  let error = $state<string | null>(null);
 
-### Step 2: Create the Component
+  // Derived state
+  const isHardened = $derived(appStore.systemStatus === 'hardened');
+</script>
 
-Create the page component at either:
-- `frontend/src/pages/PageName.tsx` — for standalone pages
-- `frontend/src/components/{domain}/PageName.tsx` — for domain-grouped components
+<PageLayout title="Page Title" subtitle="High-density description of the tactical module">
+  {#snippet toolbar()}
+    <Button variant="primary" size="sm">Primary Action</Button>
+  {/snippet}
 
-Follow this structure:
-```tsx
-import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { useApp } from '@core/store';
-import { IS_BROWSER } from '@core/context';
-import '../../styles/{page-name}.css';
+  <div class="flex flex-col h-full gap-6">
+    <!-- Pulse Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+      <KPI title="Metric" value="0.0" trend="Nominal" />
+    </div>
 
-export const PageName: Component = () => {
-    const [state] = useApp();
-    const [loading, setLoading] = createSignal(true);
-    const [error, setError] = createSignal<string | null>(null);
-
-    return (
-        <div class="ob-page">
-            {/* ob-page-header, then dense content */}
-        </div>
-    );
-};
+    <!-- Main Content Grid -->
+    <div class="flex-1 min-h-0 bg-surface-1 border border-border-primary rounded-md overflow-hidden">
+      <!-- Content here (DataTable, Charts, etc.) -->
+    </div>
+  </div>
+</PageLayout>
 ```
 
-### Step 3: Register the Route
+### Step 2: Register the Route
+Add to `frontend/src/App.svelte` in the `routes` array:
+```typescript
+import PageName from '@pages/PageName.svelte';
 
-Add to `frontend/src/index.tsx`:
-```tsx
-import { PageName } from './pages/PageName';
-// ...
-<Route path="/page-name" component={PageName} />
+const routes = [
+  // ...
+  { path: '/page-name', component: PageName },
+];
 ```
 
-### Step 4: Add to CommandRail
+### Step 3: Link in Sidebar/Navigation
+Update `frontend/src/components/shell/Sidebar.svelte` to include the new navigation item in the appropriate tactical section.
 
-Add to `frontend/src/components/layout/CommandRail.tsx`:
-1. Add route to `routeMap`
-2. Add nav item to the appropriate section (observe/operate/intel/govern/system)
-3. Add lazy panel import to `panelImports`
+---
 
-### Step 5: Verify
+## Design Rules
 
-- Check: Does every label answer "What is broken?" or "Where do I act?"
-- Check: Is all data in `font-mono`? Are section headers `uppercase 10px 700`?
-- Check: No hardcoded colors? No border-radius > 6px?
-- Check: `IS_BROWSER` guard on all Wails calls?
-- Check: Using existing `.ob-*` CSS classes?
+1.  **High Density**: Use `compact` variants for DataTables. Avoid excessive padding.
+2.  **Monochrome-Accent**: Use `bg-surface-1/2/3`, `border-border-primary/secondary`, and `text-text-heading/secondary/muted`. Use `accent` or `error` sparingly for emphasis.
+3.  **Typography**: Use `font-mono` for all technical data, IDs, and timestamps. Use `uppercase tracking-widest` for section headers.
+4.  **No Placeholders**: Never use generic placeholders. Use `lucide-svelte` icons and generate high-fidelity mock data if backend bindings are pending.
+5.  **Reactivity**: Use Svelte 5 runes (`$state`, `$derived`, `$effect`) exclusively.
 
-## Design Patterns by Page Type
+---
 
-### Data Table Page (SIEM Search, Fleet, Logs)
-```
-┌─ Page Header (title + filters/actions) ─────────────┐
-├─ Toolbar (search bar + filter pills) ────────────────┤
-├─ Dense Table (.ob-table) ────────────────────────────┤
-│  th: timestamp | hostname | severity | message       │
-│  td: rows with severity color strips                 │
-│  onclick: expand detail panel (right side)           │
-├──────────────────────────────────────────────────────┤
-│ Status: "Showing 1,247 of 89,312 events"            │
-└──────────────────────────────────────────────────────┘
-```
+## Component Checklist
 
-### Dashboard Page (Alerts, Executive, Health)
-```
-┌─ Page Header ────────────────────────────────────────┐
-├─ KPI Grid (.ob-stat-grid-4) ─────────────────────────┤
-│  [Critical: 3] [High: 12] [Resolved: 847] [MTTD: 4m]│
-├─ Tab Bar (.ob-tabs) ─────────────────────────────────┤
-│  Active | Investigating | Resolved                    │
-├─ Content Grid ───────────────────────────────────────┤
-│  [Alert Cards with severity strips]                   │
-│  [Each card: title, host, timestamp, actions]         │
-└──────────────────────────────────────────────────────┘
-```
-
-### Detail/Inspector Page (Entity View, Decision Log)
-```
-┌─ Page Header + Breadcrumb ───────────────────────────┐
-├──────────────────┬───────────────────────────────────┤
-│ Sidebar List     │ Detail Panel                       │
-│ (scrollable)     │ ┌─ Header (entity name + status) ─┤
-│                  │ ├─ Metadata Grid ─────────────────┤
-│ [item] ◄ active  │ ├─ Related Items Table ───────────┤
-│ [item]           │ ├─ Action Bar ────────────────────┤
-│ [item]           │ └─────────────────────────────────┤
-└──────────────────┴───────────────────────────────────┘
-```
-
-### Form/Config Page (Settings, Vault)
-```
-┌─ Page Header ────────────────────────────────────────┐
-├─ Section Header (UPPERCASE) ─────────────────────────┤
-├─ Form Group (.ob-form) ──────────────────────────────┤
-│  Label + Input rows                                   │
-├─ Section Header (UPPERCASE) ─────────────────────────┤
-├─ Form Group ─────────────────────────────────────────┤
-├─ Action Bar (bottom, sticky) ────────────────────────┤
-│  [Cancel] [Save Changes]                              │
-└──────────────────────────────────────────────────────┘
-```
+- [ ] Uses `PageLayout` with title and subtitle.
+- [ ] Includes `toolbar` snippet for primary actions.
+- [ ] Uses `KPI` components for top-level metrics.
+- [ ] Uses `DataTable` for list-based data.
+- [ ] Technical data is in `font-mono`.
+- [ ] Adheres to the monochrome-accent color palette.
+- [ ] Includes `IS_BROWSER` guards for Wails bridge calls.

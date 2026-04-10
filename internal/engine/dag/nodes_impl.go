@@ -34,6 +34,7 @@ func (n *SIEMNode) Process(ctx context.Context, evt *Event) ([]*Event, error) {
 	}
 
 	hostEvent := &database.HostEvent{
+		TenantID:  evt.TenantID,
 		HostID:    evt.Host,
 		Timestamp: evt.Timestamp,
 		EventType: evt.EventType,
@@ -72,12 +73,17 @@ func (n *AnalyticsNode) Process(ctx context.Context, evt *Event) ([]*Event, erro
 		return nil, nil
 	}
 
+	tenantID := evt.TenantID
+	if tenantID == "" {
+		tenantID = "default_tenant"
+	}
+
 	sessionID := evt.SessionId
 	if sessionID == "" {
 		sessionID = "syslog"
 	}
 
-	n.analytics.Ingest(sessionID, evt.Host, evt.RawLine)
+	n.analytics.Ingest(database.WithTenant(ctx, tenantID), sessionID, evt.Host, evt.RawLine)
 	return nil, nil // Leaf node
 }
 

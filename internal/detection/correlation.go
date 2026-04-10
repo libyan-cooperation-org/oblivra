@@ -109,16 +109,18 @@ func (e *CorrelationEngine) evaluate(rule CrossSourceRule, evt Event) {
 	// 2. Resolve group key
 	groupKey := resolveGroupKey(rule.GroupBy, evt)
 
+	stateKey := evt.TenantID + ":" + rule.ID
+
 	// 3. Get or create per-rule state LRU
 	e.stateMu.Lock()
-	if e.state[rule.ID] == nil {
+	if e.state[stateKey] == nil {
 		window := time.Duration(rule.WindowSec) * time.Second
 		if window == 0 {
 			window = 5 * time.Minute
 		}
-		e.state[rule.ID] = expirable.NewLRU[string, *correlationState](10000, nil, window)
+		e.state[stateKey] = expirable.NewLRU[string, *correlationState](10000, nil, window)
 	}
-	lru := e.state[rule.ID]
+	lru := e.state[stateKey]
 	e.stateMu.Unlock()
 
 	// 4. Get or create correlation state for this group key
@@ -150,16 +152,18 @@ func (e *CorrelationEngine) evaluate(rule CrossSourceRule, evt Event) {
 		return
 	}
 
+	dedupKey := evt.TenantID + ":" + rule.ID
+
 	// 6. Deduplication check
 	e.stateMu.Lock()
-	if e.dedup[rule.ID] == nil {
+	if e.dedup[dedupKey] == nil {
 		dedup := time.Duration(rule.DedupWindowSec) * time.Second
 		if dedup == 0 {
 			dedup = 10 * time.Minute
 		}
-		e.dedup[rule.ID] = expirable.NewLRU[string, time.Time](10000, nil, dedup)
+		e.dedup[dedupKey] = expirable.NewLRU[string, time.Time](10000, nil, dedup)
 	}
-	dedupLRU := e.dedup[rule.ID]
+	dedupLRU := e.dedup[dedupKey]
 	e.stateMu.Unlock()
 
 	if _, alreadyFired := dedupLRU.Get(groupKey); alreadyFired {

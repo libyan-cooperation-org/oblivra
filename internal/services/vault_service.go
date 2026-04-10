@@ -116,11 +116,11 @@ func (s *VaultService) IsSetup() bool {
 }
 
 // GetPassword retrieves a password by ID and decrypts it into a volatile, mutable byte slice.
-func (s *VaultService) GetPassword(id string) ([]byte, error) {
+func (s *VaultService) GetPassword(ctx context.Context, id string) ([]byte, error) {
 	if s.vault == nil || !s.vault.IsUnlocked() {
 		return nil, vault.ErrLocked
 	}
-	cred, err := s.creds.GetByID(context.Background(), id)
+	cred, err := s.creds.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -132,11 +132,11 @@ func (s *VaultService) GetPassword(id string) ([]byte, error) {
 }
 
 // GetPrivateKey retrieves a private key by ID and decrypts it
-func (s *VaultService) GetPrivateKey(id string) ([]byte, string, error) {
+func (s *VaultService) GetPrivateKey(ctx context.Context, id string) ([]byte, string, error) {
 	if s.vault == nil || !s.vault.IsUnlocked() {
 		return nil, "", vault.ErrLocked
 	}
-	cred, err := s.creds.GetByID(context.Background(), id)
+	cred, err := s.creds.GetByID(ctx, id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -273,7 +273,8 @@ func (s *VaultService) postUnlock() (retErr error) {
 		s.log.Error("Failed to migrate database after unlock: %v", err)
 	}
 	if s.audit != nil {
-		if err := s.audit.InitIntegrity(context.Background()); err != nil {
+		// Audit integrity uses the global search or system context since it's infrastructure.
+		if err := s.audit.InitIntegrity(database.WithGlobalSearch(s.ctx)); err != nil {
 			s.log.Error("Failed to initialize audit integrity tree after unlock: %v", err)
 		}
 	}
@@ -345,12 +346,12 @@ func (s *VaultService) SetupWithTPM(password string, yubiKeySerial string, pcr i
 
 // Credential Management
 
-func (s *VaultService) ListCredentials(typeFilter string) ([]database.Credential, error) {
+func (s *VaultService) ListCredentials(ctx context.Context, typeFilter string) ([]database.Credential, error) {
 	s.log.Debug("Listing credentials (filter: %s)", typeFilter)
-	return s.creds.List(context.Background(), typeFilter)
+	return s.creds.List(ctx, typeFilter)
 }
 
-func (s *VaultService) AddCredential(label, credType, rawData string) (string, error) {
+func (s *VaultService) AddCredential(ctx context.Context, label, credType, rawData string) (string, error) {
 	if !s.vault.IsUnlocked() {
 		return "", vault.ErrLocked
 	}
@@ -373,7 +374,7 @@ func (s *VaultService) AddCredential(label, credType, rawData string) (string, e
 		UpdatedAt:     now,
 	}
 
-	if err := s.creds.Create(context.Background(), cred); err != nil {
+	if err := s.creds.Create(ctx, cred); err != nil {
 		return "", err
 	}
 
@@ -381,7 +382,7 @@ func (s *VaultService) AddCredential(label, credType, rawData string) (string, e
 	return id, nil
 }
 
-func (s *VaultService) GenerateEd25519Key(label string) (string, error) {
+func (s *VaultService) GenerateEd25519Key(ctx context.Context, label string) (string, error) {
 	if !s.vault.IsUnlocked() {
 		return "", vault.ErrLocked
 	}
@@ -404,7 +405,7 @@ func (s *VaultService) GenerateEd25519Key(label string) (string, error) {
 		Bytes: privBytes,
 	})
 
-	_, err = s.AddCredential(label, "key", string(privPEM))
+	_, err = s.AddCredential(ctx, label, "key", string(privPEM))
 	if err != nil {
 		return "", err
 	}
@@ -418,12 +419,12 @@ func (s *VaultService) GenerateEd25519Key(label string) (string, error) {
 	return string(ssh.MarshalAuthorizedKey(sshPub)), nil
 }
 
-func (s *VaultService) GetDecryptedCredential(id string) (string, error) {
+func (s *VaultService) GetDecryptedCredential(ctx context.Context, id string) (string, error) {
 	if !s.vault.IsUnlocked() {
 		return "", vault.ErrLocked
 	}
 
-	cred, err := s.creds.GetByID(context.Background(), id)
+	cred, err := s.creds.GetByID(ctx, id)
 	if err != nil {
 		return "", err
 	}
@@ -442,9 +443,9 @@ func (s *VaultService) GetDecryptedCredential(id string) (string, error) {
 	return string(decrypted), nil
 }
 
-func (s *VaultService) DeleteCredential(id string) error {
+func (s *VaultService) DeleteCredential(ctx context.Context, id string) error {
 	s.log.Info("Deleting credential: %s", id)
-	if err := s.creds.Delete(context.Background(), id); err != nil {
+	if err := s.creds.Delete(ctx, id); err != nil {
 		return err
 	}
 	s.bus.Publish(eventbus.EventCredentialDeleted, id)
@@ -481,12 +482,12 @@ func (s *VaultService) GeneratePassword(length int, includeSymbols bool) string 
 }
 
 // UpdateCredential modifies an existing credential's label, type, or data
-func (s *VaultService) UpdateCredential(id, label, credType, rawData string) error {
+func (s *VaultService) UpdateCredential(ctx context.Context, id, label, credType, rawData string) error {
 	if !s.vault.IsUnlocked() {
 		return vault.ErrLocked
 	}
 
-	cred, err := s.creds.GetByID(context.Background(), id)
+	cred, err := s.creds.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -505,7 +506,7 @@ func (s *VaultService) UpdateCredential(id, label, credType, rawData string) err
 		cred.EncryptedData = encrypted
 	}
 
-	if err := s.creds.Update(context.Background(), cred); err != nil {
+	if err := s.creds.Update(ctx, cred); err != nil {
 		return err
 	}
 
@@ -526,12 +527,12 @@ type CredentialHealth struct {
 }
 
 // PasswordHealthAudit scans all credentials and returns a health report
-func (s *VaultService) PasswordHealthAudit() ([]CredentialHealth, error) {
+func (s *VaultService) PasswordHealthAudit(ctx context.Context) ([]CredentialHealth, error) {
 	if !s.vault.IsUnlocked() {
 		return nil, vault.ErrLocked
 	}
 
-	creds, err := s.creds.List(context.Background(), "")
+	creds, err := s.creds.List(ctx, "")
 	if err != nil {
 		return nil, err
 	}

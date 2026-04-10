@@ -70,7 +70,7 @@ func main() {
 	var totalCreated int64
 	for t := 0; t < numTenants; t++ {
 		tenantID := fmt.Sprintf("tenant_%03d", t)
-		ctx := database.WithTenantID(context.Background(), tenantID)
+		ctx := database.WithTenant(context.Background(), tenantID)
 
 		for c := 0; c < credsPerTenant; c++ {
 			cred := &database.Credential{
@@ -100,7 +100,7 @@ func main() {
 		go func(idx int) {
 			defer wg.Done()
 			tenantID := fmt.Sprintf("tenant_%03d", idx)
-			ctx := database.WithTenantID(context.Background(), tenantID)
+			ctx := database.WithTenant(context.Background(), tenantID)
 			res := tenantResult{TenantID: tenantID, Isolated: true}
 
 			opStart := time.Now()

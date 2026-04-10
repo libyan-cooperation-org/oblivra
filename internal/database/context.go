@@ -10,8 +10,8 @@ const (
 	GlobalSearchKey contextKey = "global_search"
 )
 
-// WithTenantID returns a new context with the given tenant ID.
-func WithTenantID(ctx context.Context, tenantID string) context.Context {
+// WithTenant returns a new context with the given tenant ID.
+func WithTenant(ctx context.Context, tenantID string) context.Context {
 	return context.WithValue(ctx, tenantConfigKey, tenantID)
 }
 

@@ -26,13 +26,15 @@ func (s *BadgerSource) Fetch(ctx context.Context, search SearchExpr, timeRange T
 		return nil, fmt.Errorf("badger hot store not initialized")
 	}
 
-	prefix := []byte(fmt.Sprintf("event:%s:", s.TenantID))
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", s.TenantID))
 	
 	// Optimization: Determine if we can use a specialized index
 	if ip, ok := findIPInSearch(search); ok {
-		prefix = []byte(fmt.Sprintf("idx:ip:%s:%s:", s.TenantID, ip))
-	} else if h, ok := findHostInSearch(search); ok {
-		prefix = []byte(fmt.Sprintf("event:%s:%s:", s.TenantID, h))
+		prefix = []byte(fmt.Sprintf("tenant:%s:idx:ip:%s:", s.TenantID, ip))
+	} else if _, ok := findHostInSearch(search); ok {
+		// Key scheme for events is tenant:{id}:events:{ts}:{uuid}, so we can't use host in prefix directly
+		// unless we had a secondary host index. For now, we fallback to tenant events prefix.
+		prefix = []byte(fmt.Sprintf("tenant:%s:events:", s.TenantID))
 	}
 
 	var rows []Row

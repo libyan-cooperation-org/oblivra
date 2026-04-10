@@ -89,15 +89,13 @@ func (s *IncidentService) AssignIncident(ctx context.Context, id string, owner s
 }
 
 // GetTimeline reconstructs the event sequence for an incident.
-// For now, it returns the most recent audit logs.
-// In a follow-up, we can add specific tag filtering to AuditStore.
 func (s *IncidentService) GetTimeline(ctx context.Context, incidentID string) ([]database.AuditLog, error) {
-	return s.audit.GetRecent(context.Background(), 100)
+	return s.audit.GetRecent(ctx, 100)
 }
 
 // GetEvidence retrieves all forensic artifacts linked to an incident.
 func (s *IncidentService) GetEvidence(ctx context.Context, incidentID string) ([]database.EvidenceItem, error) {
-	return s.evidence.ListByIncident(context.Background(), incidentID)
+	return s.evidence.ListByIncident(ctx, incidentID)
 }
 
 // GetByRuleAndGroup proxy for detection engine.

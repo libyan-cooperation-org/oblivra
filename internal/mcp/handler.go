@@ -2,10 +2,13 @@ package mcp
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +28,7 @@ type Handler struct {
 	engine    ExecutionEngine
 	integrity StateProvider
 	log       *logger.Logger
+	hmacKey   []byte // Secret used to sign approval tokens
 }
 
 // StateProvider defines the interface for state hashing
@@ -34,11 +38,15 @@ type StateProvider interface {
 
 // NewHandler creates a new MCP handler
 func NewHandler(registry *ToolRegistry, engine ExecutionEngine, integrity StateProvider, log *logger.Logger) *Handler {
+	key := make([]byte, 32)
+	rand.Read(key) // Generate a secure ephemeral key for token signing 
+
 	return &Handler{
 		registry:  registry,
 		engine:    engine,
 		integrity: integrity,
 		log:       log.WithPrefix("mcp"),
+		hmacKey:   key,
 	}
 }
 
@@ -156,9 +164,22 @@ func (h *Handler) HandleRequest(ctx context.Context, req MCPRequest) MCPResponse
 	return h.finalize(resp, req)
 }
 
+// GenerateApprovalToken creates a cryptographically verifiable token.
+func (h *Handler) GenerateApprovalToken(approvalID, actorID string) string {
+	mac := hmac.New(sha256.New, h.hmacKey)
+	mac.Write([]byte(approvalID + ":" + actorID))
+	signature := hex.EncodeToString(mac.Sum(nil))
+	return fmt.Sprintf("approved:%s:%s:%s", approvalID, actorID, signature)
+}
+
 func (h *Handler) validateApproval(token string, userID string) bool {
-	// Placeholder: In production, this would verify a signed token from a SOAR/Approval service
-	return token == "approved-" + userID
+	parts := strings.Split(token, ":")
+	if len(parts) != 4 || parts[0] != "approved" || parts[2] != userID {
+		return false
+	}
+	approvalID := parts[1]
+	expected := h.GenerateApprovalToken(approvalID, userID)
+	return hmac.Equal([]byte(token), []byte(expected))
 }
 
 func (h *Handler) finalize(resp MCPResponse, req MCPRequest) MCPResponse {

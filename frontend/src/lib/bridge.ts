@@ -9,7 +9,7 @@
  * Also provides rpcGuard() — a per-method debounce that prevents
  * accidental double-fires and rate-limits destructive Wails RPC calls.
  */
-import { APP_CONTEXT } from './context';
+export { APP_CONTEXT } from './context';
 
 // Conditionally import Wails runtime — only safe when running inside Wails.
 // In browser mode window.runtime doesn't exist, so these are no-ops.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/search"
 )
@@ -19,6 +20,7 @@ import (
 // LogEntry represents a single terminal log record
 type LogEntry struct {
 	Timestamp string
+	TenantID  string
 	SessionID string
 	Host      string
 	Output    string
@@ -72,7 +74,7 @@ func (e *AnalyticsEngine) backgroundWriter(ctx context.Context) {
 			return
 		}
 
-		stmt, err := tx.Prepare("INSERT INTO terminal_logs (timestamp, session_id, host, output) VALUES (?, ?, ?, ?)")
+		stmt, err := tx.Prepare("INSERT INTO terminal_logs (timestamp, tenant_id, session_id, host, output) VALUES (?, ?, ?, ?, ?)")
 		if err != nil {
 			tx.Rollback()
 			return
@@ -81,7 +83,7 @@ func (e *AnalyticsEngine) backgroundWriter(ctx context.Context) {
 		searchBatch := make(map[string]interface{})
 
 		for _, entry := range batch {
-			stmt.Exec(entry.Timestamp, entry.SessionID, entry.Host, entry.Output)
+			stmt.Exec(entry.Timestamp, entry.TenantID, entry.SessionID, entry.Host, entry.Output)
 
 			// Buffer for Bleve batching
 			if e.searchEngine != nil {
@@ -99,7 +101,7 @@ func (e *AnalyticsEngine) backgroundWriter(ctx context.Context) {
 
 		// High-performance search indexing
 		if len(searchBatch) > 0 {
-			if err := e.searchEngine.BatchIndex(searchBatch, "terminal_log"); err != nil {
+			if err := e.searchEngine.BatchIndex("global", searchBatch, "terminal_log"); err != nil {
 				e.log.Error("[ANALYTICS] Bleve batch index failed: %v", err)
 			}
 		}
@@ -192,7 +194,8 @@ func (e *AnalyticsEngine) backgroundFrameWriter(ctx context.Context) {
 }
 
 // Ingest queues a log entry for async batch writing
-func (e *AnalyticsEngine) Ingest(sessionID, host, output string) {
+func (e *AnalyticsEngine) Ingest(ctx context.Context, sessionID, host, output string) {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	if !e.opened {
 		e.mu.RUnlock()
@@ -203,6 +206,7 @@ func (e *AnalyticsEngine) Ingest(sessionID, host, output string) {
 	select {
 	case e.ingestCh <- LogEntry{
 		Timestamp: time.Now().Format(time.RFC3339),
+		TenantID:  tenantID,
 		SessionID: sessionID,
 		Host:      host,
 		Output:    output,
@@ -215,7 +219,8 @@ func (e *AnalyticsEngine) Ingest(sessionID, host, output string) {
 
 // Search executes a query against the analytics store.
 // Uses Bleve for 'lucene' mode if available, otherwise falls back to SQL mapping.
-func (e *AnalyticsEngine) Search(rawQuery string, mode string, limit, offset int) ([]map[string]interface{}, error) {
+func (e *AnalyticsEngine) Search(ctx context.Context, rawQuery string, mode string, limit, offset int) ([]map[string]interface{}, error) {
+	tenantID := database.TenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
 	}
@@ -224,7 +229,7 @@ func (e *AnalyticsEngine) Search(rawQuery string, mode string, limit, offset int
 
 	// 1. Try Bleve fast-path for lucene queries
 	if mode == "lucene" && e.searchEngine != nil {
-		bleveResults, err := e.searchEngine.Search(rawQuery, limit, offset)
+		bleveResults, err := e.searchEngine.Search(tenantID, rawQuery, limit, offset)
 		if err == nil {
 			var formatResults []map[string]interface{}
 			for _, hit := range bleveResults {
@@ -259,6 +264,13 @@ func (e *AnalyticsEngine) Search(rawQuery string, mode string, limit, offset int
 	}
 	if err != nil {
 		return nil, fmt.Errorf("transpile query: %w", err)
+	}
+
+	// Structural Tenant Isolation: Append WHERE clause if not present, or inject into args.
+	// For raw SQL, we must ensure tenant_id matches.
+	if mode == "sql" {
+		sqlQuery = fmt.Sprintf("SELECT * FROM (%s) WHERE tenant_id = ?", sqlQuery)
+		args = append(args, tenantID)
 	}
 
 	rows, err := e.db.Query(sqlQuery, args...)
@@ -360,28 +372,31 @@ func (e *AnalyticsEngine) runInitialRetention() {
 }
 
 // SaveConfig stores a JSON blob under a key in app_config
-func (e *AnalyticsEngine) SaveConfig(key string, value string) error {
+func (e *AnalyticsEngine) SaveConfig(ctx context.Context, key string, value string) error {
+	tenantID := database.TenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return fmt.Errorf("analytics engine not opened")
 	}
 	_, err := e.db.Exec(
-		"INSERT INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-		key, value)
+		"INSERT INTO app_config (key, tenant_id, value, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key, tenant_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+		key, tenantID, value)
 	return err
 }
 
 // LoadConfig retrieves a JSON blob by key from app_config
-func (e *AnalyticsEngine) LoadConfig(key string) (string, error) {
+func (e *AnalyticsEngine) LoadConfig(ctx context.Context, key string) (string, error) {
+	tenantID := database.TenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return "", fmt.Errorf("analytics engine not opened")
 	}
 	var value string
-	err := e.db.QueryRow("SELECT value FROM app_config WHERE key = ?", key).Scan(&value)
+	err := e.db.QueryRow("SELECT value FROM app_config WHERE key = ? AND tenant_id = ?", key, tenantID).Scan(&value)
 	return value, err
 }
 
 // SaveAlertEvent writes an alert event to the alert_history table
-func (e *AnalyticsEngine) SaveAlertEvent(triggerID, name, severity, host, sessionID, logLine string, sent bool) {
+func (e *AnalyticsEngine) SaveAlertEvent(ctx context.Context, triggerID, name, severity, host, sessionID, logLine string, sent bool) {
+	tenantID := database.TenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return
 	}
@@ -390,18 +405,19 @@ func (e *AnalyticsEngine) SaveAlertEvent(triggerID, name, severity, host, sessio
 		sentInt = 1
 	}
 	e.db.Exec(
-		"INSERT INTO alert_history (trigger_id, name, severity, host, session_id, log_line, sent) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		triggerID, name, severity, host, sessionID, logLine, sentInt)
+		"INSERT INTO alert_history (tenant_id, trigger_id, name, severity, host, session_id, log_line, sent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		tenantID, triggerID, name, severity, host, sessionID, logLine, sentInt)
 }
 
 // GetAlertHistory returns the last N alert events from the database
-func (e *AnalyticsEngine) GetAlertHistory(limit int) ([]map[string]interface{}, error) {
+func (e *AnalyticsEngine) GetAlertHistory(ctx context.Context, limit int) ([]map[string]interface{}, error) {
+	tenantID := database.TenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
 	}
 	rows, err := e.db.Query(
-		"SELECT timestamp, trigger_id, name, severity, host, session_id, log_line, sent FROM alert_history ORDER BY timestamp DESC LIMIT ?",
-		limit)
+		"SELECT timestamp, trigger_id, name, severity, host, session_id, log_line, sent FROM alert_history WHERE tenant_id = ? ORDER BY timestamp DESC LIMIT ?",
+		tenantID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +445,7 @@ func (e *AnalyticsEngine) GetAlertHistory(limit int) ([]map[string]interface{}, 
 }
 
 // IngestFrame queues a TTY frame for async batch writing
-func (e *AnalyticsEngine) IngestFrame(recordingID string, timestamp float64, frameType string, data string) {
+func (e *AnalyticsEngine) IngestFrame(ctx context.Context, recordingID string, timestamp float64, frameType string, data string) {
 	e.mu.RLock()
 	if !e.opened {
 		e.mu.RUnlock()
@@ -451,7 +467,8 @@ func (e *AnalyticsEngine) IngestFrame(recordingID string, timestamp float64, fra
 }
 
 // SaveRecording stores recording metadata
-func (e *AnalyticsEngine) SaveRecording(id, sessionID, hostLabel string, cols, rows int, duration float64, eventCount int, status string) error {
+func (e *AnalyticsEngine) SaveRecording(ctx context.Context, id, sessionID, hostLabel string, cols, rows int, duration float64, eventCount int, status string) error {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -459,25 +476,26 @@ func (e *AnalyticsEngine) SaveRecording(id, sessionID, hostLabel string, cols, r
 	}
 
 	_, err := e.db.Exec(`
-		INSERT INTO session_recordings (id, session_id, host_label, duration, event_count, cols, rows, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO session_recordings (id, tenant_id, session_id, host_label, duration, event_count, cols, rows, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET 
 			duration = excluded.duration, 
 			event_count = excluded.event_count,
 			status = excluded.status
-	`, id, sessionID, hostLabel, duration, eventCount, cols, rows, status)
+	`, id, tenantID, sessionID, hostLabel, duration, eventCount, cols, rows, status)
 	return err
 }
 
 // GetRecordingMeta retrieves metadata for a specific recording
-func (e *AnalyticsEngine) GetRecordingMeta(id string) (map[string]interface{}, error) {
+func (e *AnalyticsEngine) GetRecordingMeta(ctx context.Context, id string) (map[string]interface{}, error) {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
 	}
 
-	row := e.db.QueryRow(`SELECT id, session_id, host_label, started_at, duration, event_count, cols, rows, status FROM session_recordings WHERE id = ?`, id)
+	row := e.db.QueryRow(`SELECT id, session_id, host_label, started_at, duration, event_count, cols, rows, status FROM session_recordings WHERE id = ? AND tenant_id = ?`, id, tenantID)
 	var rid, sid, host, started, status string
 	var dur float64
 	var count, cols, rows int
@@ -499,14 +517,15 @@ func (e *AnalyticsEngine) GetRecordingMeta(id string) (map[string]interface{}, e
 }
 
 // ListRecordings returns all recorded sessions
-func (e *AnalyticsEngine) ListRecordings() ([]map[string]interface{}, error) {
+func (e *AnalyticsEngine) ListRecordings(ctx context.Context) ([]map[string]interface{}, error) {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
 	}
 
-	rows, err := e.db.Query(`SELECT id, host_label, started_at, duration, event_count, status FROM session_recordings ORDER BY started_at DESC`)
+	rows, err := e.db.Query(`SELECT id, host_label, started_at, duration, event_count, status FROM session_recordings WHERE tenant_id = ? ORDER BY started_at DESC`, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -533,23 +552,32 @@ func (e *AnalyticsEngine) ListRecordings() ([]map[string]interface{}, error) {
 }
 
 // DeleteRecording removes a recording and all its frames
-func (e *AnalyticsEngine) DeleteRecording(id string) error {
+func (e *AnalyticsEngine) DeleteRecording(ctx context.Context, id string) error {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
 		return fmt.Errorf("analytics engine not opened")
 	}
 
-	_, err := e.db.Exec(`DELETE FROM session_recordings WHERE id = ?`, id)
+	_, err := e.db.Exec(`DELETE FROM session_recordings WHERE id = ? AND tenant_id = ?`, id, tenantID)
 	return err
 }
 
 // GetRecordingFrames returns all frames for a recording ordered by timestamp
-func (e *AnalyticsEngine) GetRecordingFrames(recordingID string) ([]map[string]interface{}, error) {
+func (e *AnalyticsEngine) GetRecordingFrames(ctx context.Context, recordingID string) ([]map[string]interface{}, error) {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
+	}
+
+	// Double check tenant owns recording
+	var exists int
+	err := e.db.QueryRow("SELECT COUNT(*) FROM session_recordings WHERE id = ? AND tenant_id = ?", recordingID, tenantID).Scan(&exists)
+	if err != nil || exists == 0 {
+		return nil, fmt.Errorf("access denied or recording not found")
 	}
 
 	rows, err := e.db.Query(`SELECT timestamp, type, data FROM recording_frames WHERE recording_id = ? ORDER BY timestamp ASC`, recordingID)
@@ -579,7 +607,8 @@ func (e *AnalyticsEngine) GetRecordingFrames(recordingID string) ([]map[string]i
 }
 
 // SearchRecordings executes a forensic search across all sessions using FTS5
-func (e *AnalyticsEngine) SearchRecordings(query string) ([]map[string]interface{}, error) {
+func (e *AnalyticsEngine) SearchRecordings(ctx context.Context, query string) ([]map[string]interface{}, error) {
+	tenantID := database.TenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -591,12 +620,12 @@ func (e *AnalyticsEngine) SearchRecordings(query string) ([]map[string]interface
 		SELECT r.id, r.host_label, r.started_at, snippet(recording_frames_fts, 0, '<b>', '</b>', '...', 10) as highlight
 		FROM recording_frames_fts f
 		JOIN session_recordings r ON f.recording_id = r.id
-		WHERE recording_frames_fts MATCH ?
+		WHERE recording_frames_fts MATCH ? AND r.tenant_id = ?
 		GROUP BY r.id
 		ORDER BY r.started_at DESC
 		LIMIT 100
 	`
-	rows, err := e.db.Query(sqlQuery, query)
+	rows, err := e.db.Query(sqlQuery, query, tenantID)
 	if err != nil {
 		return nil, err
 	}

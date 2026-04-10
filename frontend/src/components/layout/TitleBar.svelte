@@ -20,7 +20,7 @@
   onMount(async () => {
     if (IS_BROWSER) return;
     try {
-      const { WindowIsMaximised } = await import('../../../wailsjs/runtime/runtime');
+      const { WindowIsMaximised } = await import('@wailsjs/runtime/runtime.js');
       const checkMax = async () => {
         const max = await WindowIsMaximised();
         isMaximized = max;
@@ -32,15 +32,15 @@
   });
 
   async function windowClose() {
-    const r = await import('../../../wailsjs/runtime/runtime');
+    const r = await import('@wailsjs/runtime/runtime.js');
     r.Quit();
   }
   async function windowMinimize() {
-    const r = await import('../../../wailsjs/runtime/runtime');
+    const r = await import('@wailsjs/runtime/runtime.js');
     r.WindowMinimise();
   }
   async function windowToggleMax() {
-    const r = await import('../../../wailsjs/runtime/runtime');
+    const r = await import('@wailsjs/runtime/runtime.js');
     r.WindowToggleMaximise();
   }
 </script>
@@ -56,16 +56,19 @@
         class="w-3 h-3 rounded-full bg-[#ff5f57] border-none cursor-pointer hover:brightness-120 hover:scale-110 transition-all duration-fast"
         onclick={windowClose}
         title="Close"
+        aria-label="Close OBLIVRA"
       ></button>
       <button
         class="w-3 h-3 rounded-full bg-[#ffbd2e] border-none cursor-pointer hover:brightness-120 hover:scale-110 transition-all duration-fast"
         onclick={windowMinimize}
         title="Minimize"
+        aria-label="Minimize Window"
       ></button>
       <button
         class="w-3 h-3 rounded-full bg-[#28c840] border-none cursor-pointer hover:brightness-120 hover:scale-110 transition-all duration-fast"
         onclick={windowToggleMax}
         title={isMaximized ? 'Restore' : 'Maximize'}
+        aria-label={isMaximized ? 'Restore Window' : 'Maximize Window'}
       ></button>
     </div>
   {/if}

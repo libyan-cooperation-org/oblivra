@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -72,9 +73,9 @@ func (r *BenchmarkRunner) RunBenchmark(filePath string) (*BenchmarkResult, error
 		preHistory := len(r.engine.GetHistory())
 		
 		if e.Type == "log" {
-			r.engine.ScanStream(e.SessionID, e.Host, e.Payload)
+			r.engine.ScanStream(context.Background(), e.SessionID, e.Host, e.Payload)
 		} else if e.Type == "telemetry" && e.Telemetry != nil {
-			r.engine.ScanTelemetry(e.Host, *e.Telemetry)
+			r.engine.ScanTelemetry(context.Background(), e.Host, *e.Telemetry)
 		}
 
 		postHistory := r.engine.GetHistory()
@@ -109,17 +110,17 @@ func (m *mockNotifier) GetConfig() notifications.NotificationConfig { return m.c
 
 type mockAnalytics struct{}
 func (m *mockAnalytics) Open(dbPath string, encryptionKey []byte) error { return nil }
-func (m *mockAnalytics) Ingest(sessionID, host, output string) {}
-func (m *mockAnalytics) Search(rawQuery string, mode string, limit, offset int) ([]map[string]interface{}, error) { return nil, nil }
+func (m *mockAnalytics) Ingest(ctx context.Context, sessionID, host, output string) {}
+func (m *mockAnalytics) Search(ctx context.Context, rawQuery string, mode string, limit, offset int) ([]map[string]interface{}, error) { return nil, nil }
 func (m *mockAnalytics) Close() error { return nil }
-func (m *mockAnalytics) SaveConfig(key string, value string) error { return nil }
-func (m *mockAnalytics) LoadConfig(key string) (string, error) { return "", nil }
-func (m *mockAnalytics) SaveAlertEvent(triggerID, name, severity, host, sessionID, logLine string, sent bool) {}
-func (m *mockAnalytics) GetAlertHistory(limit int) ([]map[string]interface{}, error) { return nil, nil }
-func (m *mockAnalytics) IngestFrame(recordingID string, timestamp float64, frameType string, data string) {}
-func (m *mockAnalytics) SaveRecording(id, sessionID, hostLabel string, cols, rows int, duration float64, eventCount int, status string) error { return nil }
-func (m *mockAnalytics) GetRecordingMeta(id string) (map[string]interface{}, error) { return nil, nil }
-func (m *mockAnalytics) ListRecordings() ([]map[string]interface{}, error) { return nil, nil }
-func (m *mockAnalytics) DeleteRecording(id string) error { return nil }
-func (m *mockAnalytics) GetRecordingFrames(recordingID string) ([]map[string]interface{}, error) { return nil, nil }
-func (m *mockAnalytics) SearchRecordings(query string) ([]map[string]interface{}, error) { return nil, nil }
+func (m *mockAnalytics) SaveConfig(ctx context.Context, key string, value string) error { return nil }
+func (m *mockAnalytics) LoadConfig(ctx context.Context, key string) (string, error) { return "", nil }
+func (m *mockAnalytics) SaveAlertEvent(ctx context.Context, triggerID, name, severity, host, sessionID, logLine string, sent bool) {}
+func (m *mockAnalytics) GetAlertHistory(ctx context.Context, limit int) ([]map[string]interface{}, error) { return nil, nil }
+func (m *mockAnalytics) IngestFrame(ctx context.Context, recordingID string, timestamp float64, frameType string, data string) {}
+func (m *mockAnalytics) SaveRecording(ctx context.Context, id, sessionID, hostLabel string, cols, rows int, duration float64, eventCount int, status string) error { return nil }
+func (m *mockAnalytics) GetRecordingMeta(ctx context.Context, id string) (map[string]interface{}, error) { return nil, nil }
+func (m *mockAnalytics) ListRecordings(ctx context.Context) ([]map[string]interface{}, error) { return nil, nil }
+func (m *mockAnalytics) DeleteRecording(ctx context.Context, id string) error { return nil }
+func (m *mockAnalytics) GetRecordingFrames(ctx context.Context, recordingID string) ([]map[string]interface{}, error) { return nil, nil }
+func (m *mockAnalytics) SearchRecordings(ctx context.Context, query string) ([]map[string]interface{}, error) { return nil, nil }

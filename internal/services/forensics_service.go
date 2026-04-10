@@ -74,9 +74,19 @@ func NewForensicsService(store database.EvidenceStore, v *vault.Vault, bus *even
 	// Set persistence hook
 	svc.locker.OnPersist = func(item *forensics.EvidenceItem) error {
 		dbItem := svc.mapDomainToDB(item)
-		if err := svc.store.Create(context.Background(), &dbItem); err != nil {
+
+		// Create a system-level context since this might be called async, 
+		// but use the tenant ID stored in the item if present.
+		tenantID := item.Metadata["tenant_id"]
+		if tenantID == "" {
+			tenantID = "default_tenant"
+		}
+		ctx := database.WithTenant(svc.ctx, tenantID)
+		dbItem.TenantID = tenantID
+
+		if err := svc.store.Create(ctx, &dbItem); err != nil {
 			// If create fails, it might already exist; try update
-			if err := svc.store.Update(context.Background(), &dbItem); err != nil {
+			if err := svc.store.Update(ctx, &dbItem); err != nil {
 				return err
 			}
 		}
@@ -84,6 +94,7 @@ func NewForensicsService(store database.EvidenceStore, v *vault.Vault, bus *even
 		// Save chain entries
 		for _, entry := range item.ChainOfCustody {
 			dbEntry := database.ChainEntry{
+				TenantID:     tenantID,
 				EvidenceID:   item.ID,
 				Action:       string(entry.Action),
 				Actor:        entry.Actor,
@@ -92,10 +103,7 @@ func NewForensicsService(store database.EvidenceStore, v *vault.Vault, bus *even
 				PreviousHash: entry.PreviousHash,
 				EntryHash:    entry.EntryHash,
 			}
-			// AddChainEntry is idempotent in our logic — it appends.
-			// Ideally, we'd only add the NEW entry.
-			// For simplicity since we only append:
-			_ = svc.store.AddChainEntry(context.Background(), &dbEntry)
+			_ = svc.store.AddChainEntry(ctx, &dbEntry)
 		}
 		return nil
 	}
@@ -111,15 +119,17 @@ func (s *ForensicsService) Start(ctx context.Context) error {
 	// Subscribe to vault unlock to load existing evidence
 	s.bus.Subscribe(eventbus.EventVaultUnlocked, func(e eventbus.Event) {
 		s.log.Info("Vault unlocked detected, loading evidence items...")
-		// Load existing items from store
-		items, err := s.store.ListAll(context.Background())
+		// Load existing items from store using global search during startup
+		ctx := database.WithGlobalSearch(s.ctx)
+		items, err := s.store.ListAll(ctx)
 		if err != nil {
 			s.log.Error("Failed to load evidence: %v", err)
 			return
 		}
 
 		for _, dbItem := range items {
-			chain, err := s.store.GetChain(context.Background(), dbItem.ID)
+			ctxItem := database.WithTenant(s.ctx, dbItem.TenantID)
+			chain, err := s.store.GetChain(ctxItem, dbItem.ID)
 			if err != nil {
 				s.log.Error("Failed to load chain for %s: %v", dbItem.ID, err)
 				continue
@@ -141,6 +151,7 @@ func (s *ForensicsService) Stop(ctx context.Context) error {
 
 // CollectEvidence creates a new evidence item for an incident.
 func (s *ForensicsService) CollectEvidence(
+	ctx context.Context,
 	incidentID string,
 	evidenceType string,
 	name string,
@@ -150,6 +161,8 @@ func (s *ForensicsService) CollectEvidence(
 ) (map[string]interface{}, error) {
 	// Decode base64 data from frontend
 	data := []byte(dataBase64) // In production, decode from base64
+
+	tenantID := database.TenantFromContext(ctx)
 
 	item, err := s.locker.Collect(
 		incidentID,
@@ -163,12 +176,19 @@ func (s *ForensicsService) CollectEvidence(
 		return nil, fmt.Errorf("collect evidence: %w", err)
 	}
 
-	s.log.Info("Evidence collected: %s for incident %s", item.ID, incidentID)
+	// Attach tenant identity to metadata so persistence hook can resolve it
+	if item.Metadata == nil {
+		item.Metadata = make(map[string]string)
+	}
+	item.Metadata["tenant_id"] = tenantID
+
+	s.log.Info("Evidence collected: %s for incident %s (Tenant: %s)", item.ID, incidentID, tenantID)
 	s.bus.Publish("forensics:collected", map[string]interface{}{
 		"id":          item.ID,
 		"incident_id": incidentID,
 		"type":        evidenceType,
 		"name":        name,
+		"tenant_id":   tenantID,
 	})
 
 	return map[string]interface{}{
@@ -180,7 +200,7 @@ func (s *ForensicsService) CollectEvidence(
 }
 
 // TransferEvidence records a custody transfer.
-func (s *ForensicsService) TransferEvidence(itemID string, toActor string, notes string) error {
+func (s *ForensicsService) TransferEvidence(ctx context.Context, itemID string, toActor string, notes string) error {
 	if err := s.locker.Transfer(itemID, toActor, notes); err != nil {
 		return err
 	}
@@ -189,7 +209,7 @@ func (s *ForensicsService) TransferEvidence(itemID string, toActor string, notes
 }
 
 // AnalyzeEvidence records an analysis action.
-func (s *ForensicsService) AnalyzeEvidence(itemID string, analyst string, notes string) error {
+func (s *ForensicsService) AnalyzeEvidence(ctx context.Context, itemID string, analyst string, notes string) error {
 	if err := s.locker.Analyze(itemID, analyst, notes); err != nil {
 		return err
 	}
@@ -198,7 +218,7 @@ func (s *ForensicsService) AnalyzeEvidence(itemID string, analyst string, notes 
 }
 
 // SealEvidence marks evidence as sealed — no further modifications.
-func (s *ForensicsService) SealEvidence(itemID string, sealer string, notes string) error {
+func (s *ForensicsService) SealEvidence(ctx context.Context, itemID string, sealer string, notes string) error {
 	if err := s.locker.Seal(itemID, sealer, notes); err != nil {
 		return err
 	}
@@ -211,7 +231,7 @@ func (s *ForensicsService) SealEvidence(itemID string, sealer string, notes stri
 }
 
 // VerifyEvidence checks the chain-of-custody integrity.
-func (s *ForensicsService) VerifyEvidence(itemID string) (map[string]interface{}, error) {
+func (s *ForensicsService) VerifyEvidence(ctx context.Context, itemID string) (map[string]interface{}, error) {
 	valid, err := s.locker.Verify(itemID)
 	if err != nil {
 		return nil, err
@@ -226,14 +246,12 @@ func (s *ForensicsService) VerifyEvidence(itemID string) (map[string]interface{}
 }
 
 // AnalyzeFile conducts a deep forensic entropy analysis.
-func (s *ForensicsService) AnalyzeFile(itemID string) (*forensics.ForensicReport, error) {
+func (s *ForensicsService) AnalyzeFile(ctx context.Context, itemID string) (*forensics.ForensicReport, error) {
 	item, err := s.locker.Get(itemID)
 	if err != nil {
 		return nil, err
 	}
 
-	// In a real scenario, we'd read the actual data from storage.
-	// For now, we use the item's metadata or simulated data if empty.
 	data := item.Data
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no raw data available for analysis in item %s", itemID)
@@ -243,12 +261,12 @@ func (s *ForensicsService) AnalyzeFile(itemID string) (*forensics.ForensicReport
 }
 
 // GetEvidence returns a single evidence item with full chain of custody.
-func (s *ForensicsService) GetEvidence(itemID string) (*forensics.EvidenceItem, error) {
+func (s *ForensicsService) GetEvidence(ctx context.Context, itemID string) (*forensics.EvidenceItem, error) {
 	return s.locker.Get(itemID)
 }
 
 // ListEvidence returns all evidence for an incident.
-func (s *ForensicsService) ListEvidence(incidentID string) []*forensics.EvidenceItem {
+func (s *ForensicsService) ListEvidence(ctx context.Context, incidentID string) []*forensics.EvidenceItem {
 	if incidentID == "" {
 		return s.locker.ListAll()
 	}
@@ -264,15 +282,16 @@ func (s *ForensicsService) IsHardwareRooted() bool {
 }
 
 // AcquireDiskImage performs a raw disk acquisition and stores it in the evidence locker.
-// [CAUTION] Requires admin privileges. Desktop-only operation.
-func (s *ForensicsService) AcquireDiskImage(devicePath string, incidentID string) (map[string]interface{}, error) {
+func (s *ForensicsService) AcquireDiskImage(ctx context.Context, devicePath string, incidentID string) (map[string]interface{}, error) {
 	s.log.Warn("[FORENSICS] 🔴 Starting disk acquisition: device=%s incident=%s", devicePath, incidentID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Hour)
+	// Use a longer timeout for disk IO, but preserve tenant context
+	tenantID := database.TenantFromContext(ctx)
+	acquireCtx, cancel := context.WithTimeout(ctx, 4*time.Hour)
 	defer cancel()
 
 	var buf bytes.Buffer
-	if err := s.collector.AcquireDisk(ctx, devicePath, &buf); err != nil {
+	if err := s.collector.AcquireDisk(acquireCtx, devicePath, &buf); err != nil {
 		return nil, fmt.Errorf("disk acquisition failed: %w", err)
 	}
 
@@ -292,9 +311,14 @@ func (s *ForensicsService) AcquireDiskImage(devicePath string, incidentID string
 		return nil, fmt.Errorf("evidence collection failed: %w", err)
 	}
 
+	if item.Metadata == nil {
+		item.Metadata = make(map[string]string)
+	}
+	item.Metadata["tenant_id"] = tenantID
+
 	s.log.Info("[FORENSICS] ✅ Disk image acquired: id=%s sha256=%s size=%d", item.ID, sha256Hex, len(data))
 	s.bus.Publish("forensics:disk_acquired", map[string]interface{}{
-		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex,
+		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex, "tenant_id": tenantID,
 	})
 
 	return map[string]interface{}{
@@ -307,15 +331,15 @@ func (s *ForensicsService) AcquireDiskImage(devicePath string, incidentID string
 }
 
 // AcquireMemoryDump captures the physical memory of the local machine.
-// [CAUTION] Requires admin privileges. Desktop-only operation.
-func (s *ForensicsService) AcquireMemoryDump(incidentID string) (map[string]interface{}, error) {
+func (s *ForensicsService) AcquireMemoryDump(ctx context.Context, incidentID string) (map[string]interface{}, error) {
 	s.log.Warn("[FORENSICS] 🔴 Starting memory dump for incident=%s", incidentID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	tenantID := database.TenantFromContext(ctx)
+	acquireCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	var buf bytes.Buffer
-	if err := s.collector.AcquireMemory(ctx, &buf); err != nil {
+	if err := s.collector.AcquireMemory(acquireCtx, &buf); err != nil {
 		return nil, fmt.Errorf("memory dump failed: %w", err)
 	}
 
@@ -335,9 +359,14 @@ func (s *ForensicsService) AcquireMemoryDump(incidentID string) (map[string]inte
 		return nil, fmt.Errorf("evidence collection failed: %w", err)
 	}
 
+	if item.Metadata == nil {
+		item.Metadata = make(map[string]string)
+	}
+	item.Metadata["tenant_id"] = tenantID
+
 	s.log.Info("[FORENSICS] ✅ Memory dump acquired: id=%s sha256=%s size=%d", item.ID, sha256Hex, len(data))
 	s.bus.Publish("forensics:memory_acquired", map[string]interface{}{
-		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex,
+		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex, "tenant_id": tenantID,
 	})
 
 	return map[string]interface{}{

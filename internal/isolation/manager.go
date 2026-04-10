@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/wailsapp/wails/v2/pkg/logger"
+	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
 type WorkerType string
@@ -21,10 +21,10 @@ const (
 type ProcessManager struct {
 	mu      sync.RWMutex
 	workers map[WorkerType]*exec.Cmd
-	log     logger.Logger
+	log     *logger.Logger
 }
 
-func NewProcessManager(l logger.Logger) *ProcessManager {
+func NewProcessManager(l *logger.Logger) *ProcessManager {
 	return &ProcessManager{
 		workers: make(map[WorkerType]*exec.Cmd),
 		log:     l,

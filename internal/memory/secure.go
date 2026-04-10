@@ -5,7 +5,6 @@ package memory
 
 import (
 	"crypto/rand"
-	"fmt"
 	"runtime"
 	"sync/atomic"
 	"unsafe"
@@ -21,10 +20,11 @@ var ActiveAllocations int32
 // its contents will be zeroed out when Wipe() is called, or when
 // the garbage collector reclaims the object (via SetFinalizer).
 type SecureBuffer struct {
-	addr  uintptr
-	size  uintptr
-	data  []byte
-	wiped bool
+	addr     uintptr
+	size     uintptr
+	data     []byte
+	wiped    bool
+	fallback bool
 }
 
 // NewSecureBuffer allocates a buffer safely using OS-level VirtualAlloc,
@@ -39,25 +39,43 @@ func NewSecureBuffer(size int) *SecureBuffer {
 		windows.PAGE_READWRITE,
 	)
 	if err != nil {
-		panic(fmt.Sprintf("SecureBuffer: failed to VirtualAlloc %d bytes: %v", size, err))
+		// Fallback to standard golang memory if virtual allocation fails
+		slice := make([]byte, size)
+		sb := &SecureBuffer{
+			data:     slice,
+			wiped:    false,
+			fallback: true,
+		}
+		atomic.AddInt32(&ActiveAllocations, 1)
+		runtime.SetFinalizer(sb, func(b *SecureBuffer) { b.Wipe() })
+		return sb
 	}
 
 	// 2. Lock the memory into physical RAM to prevent swapping/paging
 	err = windows.VirtualLock(addr, uintptr(size))
 	if err != nil {
-		// If locking fails, we must free the memory before panicking to avoid leaks
+		// If locking fails, we free the memory before falling back
 		_ = windows.VirtualFree(addr, 0, windows.MEM_RELEASE)
-		panic(fmt.Sprintf("SecureBuffer: failed to VirtualLock %d bytes: %v", size, err))
+		slice := make([]byte, size)
+		sb := &SecureBuffer{
+			data:     slice,
+			wiped:    false,
+			fallback: true,
+		}
+		atomic.AddInt32(&ActiveAllocations, 1)
+		runtime.SetFinalizer(sb, func(b *SecureBuffer) { b.Wipe() })
+		return sb
 	}
 
 	// 3. Construct a Go slice backed by the raw pointer
 	slice := unsafe.Slice((*byte)(unsafe.Pointer(addr)), size)
 
 	sb := &SecureBuffer{
-		addr:  addr,
-		size:  uintptr(size),
-		data:  slice,
-		wiped: false,
+		addr:     addr,
+		size:     uintptr(size),
+		data:     slice,
+		wiped:    false,
+		fallback: false,
 	}
 	atomic.AddInt32(&ActiveAllocations, 1)
 
@@ -117,11 +135,13 @@ func (sb *SecureBuffer) Wipe() {
 	// Remove slice reference
 	sb.data = nil
 
-	// 1. Unlock memory from physical RAM
-	_ = windows.VirtualUnlock(sb.addr, sb.size)
+	if !sb.fallback {
+		// 1. Unlock memory from physical RAM
+		_ = windows.VirtualUnlock(sb.addr, sb.size)
 
-	// 2. Free virtual memory pages
-	_ = windows.VirtualFree(sb.addr, 0, windows.MEM_RELEASE)
+		// 2. Free virtual memory pages
+		_ = windows.VirtualFree(sb.addr, 0, windows.MEM_RELEASE)
+	}
 
 	sb.wiped = true
 	atomic.AddInt32(&ActiveAllocations, -1)

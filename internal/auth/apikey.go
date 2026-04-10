@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
@@ -70,6 +71,9 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 
 		// Inject the IdentityUser under the unified UserContextKey
 		ctx := ContextWithUser(r.Context(), identityUser)
+
+		// Also inject the tenant_id string key for database repositories
+		ctx = database.WithTenant(ctx, identityUser.TenantID)
 
 		// Authorized, proceed to handler
 		next.ServeHTTP(w, r.WithContext(ctx))

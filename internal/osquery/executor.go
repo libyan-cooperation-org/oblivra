@@ -1,9 +1,9 @@
 package osquery
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strings"
 )
 
 type SSHExecutor interface {
@@ -19,9 +19,10 @@ func NewExecutor(ssh SSHExecutor) *Executor {
 }
 
 func (e *Executor) Run(sessionID, query string) ([]map[string]interface{}, error) {
-	safeQuery := strings.ReplaceAll(query, "\"", "\\\"")
-
-	cmd := fmt.Sprintf("osqueryi --json \"%s\"", safeQuery)
+	// Mitigate SSH shell command injection by transmitting the query as base64
+	// and decoding it directly into osqueryi, bypassing shell metacharacter evaluation.
+	encodedQuery := base64.StdEncoding.EncodeToString([]byte(query))
+	cmd := fmt.Sprintf("echo %s | base64 -d | osqueryi --json", encodedQuery)
 
 	// Create a temporary channel or mechanism to capture output from this specific command execution.
 	// We'll rely on the SSH service's exec capability. If SSHService.Exec doesn't exist, we must add it.

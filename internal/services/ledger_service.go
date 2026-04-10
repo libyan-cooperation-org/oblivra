@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/kingknull/oblivrashell/internal/ledger"
-	"github.com/wailsapp/wails/v2/pkg/logger"
+	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
 type LedgerService struct {
 	ctx   context.Context
-	log   logger.Logger
+	log   *logger.Logger
 	chain *ledger.Chain
 }
 
@@ -20,9 +20,9 @@ func NewLedgerService() *LedgerService {
 }
 
 // RegisterCtx supports the interface check in ServiceRegistry
-func (s *LedgerService) RegisterCtx(ctx context.Context, logger logger.Logger) {
+func (s *LedgerService) RegisterCtx(ctx context.Context, log *logger.Logger) {
 	s.ctx = ctx
-	s.log = logger
+	s.log = log
 	s.log.Info("LedgerService initialized with Genesis Block")
 }
 

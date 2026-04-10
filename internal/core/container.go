@@ -312,7 +312,7 @@ func (c *Container) initPlatform() error {
 	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
-	c.Platform.APIService = services.NewAPIService(8080, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {

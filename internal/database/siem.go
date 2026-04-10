@@ -2,8 +2,8 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
+	"strings"
 )
 
 type SIEMRepository struct {
@@ -16,11 +16,17 @@ func NewSIEMRepository(db DatabaseStore) *SIEMRepository {
 
 // InsertHostEvent records a new security anomaly
 func (r *SIEMRepository) InsertHostEvent(ctx context.Context, event *HostEvent) error {
+	tenantID := TenantFromContext(ctx)
+	if event.TenantID != "" {
+		tenantID = event.TenantID
+	}
+
 	query := `
-		INSERT INTO host_events (host_id, event_type, source_ip, user, raw_log)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO host_events (tenant_id, host_id, event_type, source_ip, user, raw_log)
+		VALUES (?, ?, ?, ?, ?, ?)
 	`
 	result, err := r.db.ReplicatedExecContext(ctx, query,
+		tenantID,
 		event.HostID,
 		event.EventType,
 		event.SourceIP,
@@ -48,11 +54,12 @@ func (r *SIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit
 	query := `
 		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log 
 		FROM host_events
-		WHERE host_id = ?
+		WHERE host_id = ? AND tenant_id = ?
 		ORDER BY timestamp DESC
 		LIMIT ?
 	`
-	rows, err := conn.QueryContext(ctx, query, hostID, limit)
+	tenantID := TenantFromContext(ctx)
+	rows, err := conn.QueryContext(ctx, query, hostID, tenantID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query host events: %w", err)
 	}
@@ -76,15 +83,17 @@ func (r *SIEMRepository) SearchHostEvents(ctx context.Context, query string, lim
 		return nil, err
 	}
 
+	tenantID := TenantFromContext(ctx)
+
 	sqlQuery := `
 		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log 
 		FROM host_events
-		WHERE raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?
+		WHERE (raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?) AND tenant_id = ?
 		ORDER BY timestamp DESC
 		LIMIT ?
 	`
 	likeQuery := "%" + query + "%"
-	rows, err := conn.QueryContext(ctx, sqlQuery, likeQuery, likeQuery, likeQuery, limit)
+	rows, err := conn.QueryContext(ctx, sqlQuery, likeQuery, likeQuery, likeQuery, tenantID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("search host events: %w", err)
 	}
@@ -108,14 +117,16 @@ func (r *SIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID strin
 		return nil, fmt.Errorf("query failed logins: %w", err)
 	}
 
+	tenantID := TenantFromContext(ctx)
+
 	query := `
 		SELECT source_ip, user, COUNT(id) as attempts, MAX(timestamp) as last_attempt
 		FROM host_events
-		WHERE host_id = ? AND event_type = 'failed_login'
+		WHERE host_id = ? AND event_type = 'failed_login' AND tenant_id = ?
 		GROUP BY source_ip, user
 		ORDER BY attempts DESC
 	`
-	rows, err := conn.QueryContext(ctx, query, hostID)
+	rows, err := conn.QueryContext(ctx, query, hostID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed logins: %w", err)
 	}
@@ -145,14 +156,16 @@ func (r *SIEMRepository) CalculateRiskScore(ctx context.Context, hostID string) 
 		return 0, fmt.Errorf("query risk stats: %w", err)
 	}
 
+	tenantID := TenantFromContext(ctx)
+
 	// 1. Get failed login stats for the last 24h (or the available window)
 	query := `
 		SELECT source_ip, user, COUNT(id) as attempts
 		FROM host_events
-		WHERE host_id = ? AND event_type = 'failed_login'
+		WHERE host_id = ? AND event_type = 'failed_login' AND tenant_id = ?
 		GROUP BY source_ip, user
 	`
-	rows, err := conn.QueryContext(ctx, query, hostID)
+	rows, err := conn.QueryContext(ctx, query, hostID, tenantID)
 	if err != nil {
 		return 0, fmt.Errorf("query risk stats: %w", err)
 	}
@@ -305,10 +318,17 @@ func (r *SIEMRepository) AggregateHostEvents(ctx context.Context, query string, 
 		return nil, fmt.Errorf("invalid facet field: %s", facetField)
 	}
 
-	whereClause := ""
+	tenantID := TenantFromContext(ctx)
+	whereParts := []string{"tenant_id = ?"}
+	args := []interface{}{tenantID}
+
 	if query != "" {
-		whereClause = "WHERE raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?"
+		whereParts = append(whereParts, "(raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?)")
+		likeQuery := "%" + query + "%"
+		args = append(args, likeQuery, likeQuery, likeQuery)
 	}
+
+	whereClause := "WHERE " + strings.Join(whereParts, " AND ")
 
 	sqlQuery := fmt.Sprintf(`
 		SELECT %s, COUNT(id) as count 
@@ -319,13 +339,7 @@ func (r *SIEMRepository) AggregateHostEvents(ctx context.Context, query string, 
 		LIMIT 15
 	`, sanitizedField, whereClause, sanitizedField)
 
-	var rows *sql.Rows
-	if whereClause != "" {
-		likeQuery := "%" + query + "%"
-		rows, err = conn.QueryContext(ctx, sqlQuery, likeQuery, likeQuery, likeQuery)
-	} else {
-		rows, err = conn.QueryContext(ctx, sqlQuery)
-	}
+	rows, err := conn.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("aggregate host events: %w", err)
 	}
@@ -347,8 +361,9 @@ func (r *SIEMRepository) AggregateHostEvents(ctx context.Context, query string, 
 
 // CreateSavedSearch stores a reusable SIEM query
 func (r *SIEMRepository) CreateSavedSearch(ctx context.Context, search *SavedSearch) error {
-	query := `INSERT INTO saved_searches (name, query) VALUES (?, ?)`
-	result, err := r.db.ReplicatedExecContext(ctx, query, search.Name, search.Query)
+	tenantID := TenantFromContext(ctx)
+	query := `INSERT INTO saved_searches (tenant_id, name, query) VALUES (?, ?, ?)`
+	result, err := r.db.ReplicatedExecContext(ctx, query, tenantID, search.Name, search.Query)
 	if err != nil {
 		return err
 	}
@@ -367,8 +382,9 @@ func (r *SIEMRepository) GetSavedSearches(ctx context.Context) ([]SavedSearch, e
 		return nil, err
 	}
 
-	query := `SELECT id, name, query, timestamp FROM saved_searches ORDER BY name ASC`
-	rows, err := conn.QueryContext(ctx, query)
+	tenantID := TenantFromContext(ctx)
+	query := `SELECT id, name, query, created_at FROM saved_searches WHERE tenant_id = ? ORDER BY name ASC`
+	rows, err := conn.QueryContext(ctx, query, tenantID)
 	if err != nil {
 		return nil, err
 	}

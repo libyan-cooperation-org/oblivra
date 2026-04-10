@@ -57,7 +57,11 @@ func NewQueryPlanner(limits QueryLimits) *QueryPlanner {
 
 // Plan estimates the cost of a search query and returns a QueryCost.
 // query is the raw search string; mode is "logql"|"lucene"|"sql".
-func (p *QueryPlanner) Plan(query, mode string, timeRangeSecs int64) (*QueryCost, error) {
+func (p *QueryPlanner) Plan(tenantID, query, mode string, timeRangeSecs int64) (*QueryCost, error) {
+	if !strings.Contains(query, "tenant:"+tenantID) && !strings.Contains(query, "tenant="+tenantID) && !strings.Contains(query, "tenant: "+tenantID) && !strings.Contains(query, "tenant = "+tenantID) {
+		return nil, fmt.Errorf("sandbox violation: query must contain TenantID predicate (tenant:%s or tenant=%s)", tenantID, tenantID)
+	}
+
 	cost := &QueryCost{}
 
 	// Estimate rows based on time range

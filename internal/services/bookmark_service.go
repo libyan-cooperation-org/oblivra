@@ -82,8 +82,8 @@ func NewBookmarkService(
 }
 
 // ListAll returns all SSH host bookmarks.
-func (s *BookmarkService) ListAll() ([]BookmarkEntry, error) {
-	hosts, err := s.hosts.GetAll(context.Background())
+func (s *BookmarkService) ListAll(ctx context.Context) ([]BookmarkEntry, error) {
+	hosts, err := s.hosts.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list hosts: %w", err)
 	}
@@ -91,8 +91,8 @@ func (s *BookmarkService) ListAll() ([]BookmarkEntry, error) {
 }
 
 // GetFavorites returns only bookmarks marked as favorites.
-func (s *BookmarkService) GetFavorites() ([]BookmarkEntry, error) {
-	hosts, err := s.hosts.GetFavorites(context.Background())
+func (s *BookmarkService) GetFavorites(ctx context.Context) ([]BookmarkEntry, error) {
+	hosts, err := s.hosts.GetFavorites(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get favorites: %w", err)
 	}
@@ -100,8 +100,8 @@ func (s *BookmarkService) GetFavorites() ([]BookmarkEntry, error) {
 }
 
 // Search finds bookmarks matching a query (hostname, label, tags).
-func (s *BookmarkService) Search(query string) ([]BookmarkEntry, error) {
-	hosts, err := s.hosts.Search(context.Background(), query)
+func (s *BookmarkService) Search(ctx context.Context, query string) ([]BookmarkEntry, error) {
+	hosts, err := s.hosts.Search(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
 	}
@@ -109,8 +109,8 @@ func (s *BookmarkService) Search(query string) ([]BookmarkEntry, error) {
 }
 
 // GetByTag returns bookmarks with a specific tag.
-func (s *BookmarkService) GetByTag(tag string) ([]BookmarkEntry, error) {
-	hosts, err := s.hosts.GetByTag(context.Background(), tag)
+func (s *BookmarkService) GetByTag(ctx context.Context, tag string) ([]BookmarkEntry, error) {
+	hosts, err := s.hosts.GetByTag(ctx, tag)
 	if err != nil {
 		return nil, fmt.Errorf("get by tag: %w", err)
 	}
@@ -118,12 +118,12 @@ func (s *BookmarkService) GetByTag(tag string) ([]BookmarkEntry, error) {
 }
 
 // GetAllTags returns all unique tags used across bookmarks.
-func (s *BookmarkService) GetAllTags() ([]string, error) {
-	return s.hosts.GetAllTags(context.Background())
+func (s *BookmarkService) GetAllTags(ctx context.Context) ([]string, error) {
+	return s.hosts.GetAllTags(ctx)
 }
 
 // Create adds a new SSH host bookmark. Password is encrypted via Vault.
-func (s *BookmarkService) Create(input BookmarkCreateInput) (*BookmarkEntry, error) {
+func (s *BookmarkService) Create(ctx context.Context, input BookmarkCreateInput) (*BookmarkEntry, error) {
 	if input.Hostname == "" {
 		return nil, fmt.Errorf("hostname is required")
 	}
@@ -142,6 +142,7 @@ func (s *BookmarkService) Create(input BookmarkCreateInput) (*BookmarkEntry, err
 
 	host := &database.Host{
 		ID:         uuid.New().String(),
+		TenantID:   database.TenantFromContext(ctx),
 		Label:      input.Label,
 		Hostname:   input.Hostname,
 		Port:       input.Port,
@@ -164,7 +165,7 @@ func (s *BookmarkService) Create(input BookmarkCreateInput) (*BookmarkEntry, err
 		host.HasPassword = true
 	}
 
-	if err := s.hosts.Create(context.Background(), host); err != nil {
+	if err := s.hosts.Create(ctx, host); err != nil {
 		return nil, fmt.Errorf("create host: %w", err)
 	}
 
@@ -178,8 +179,8 @@ func (s *BookmarkService) Create(input BookmarkCreateInput) (*BookmarkEntry, err
 }
 
 // Update modifies an existing bookmark.
-func (s *BookmarkService) Update(id string, input BookmarkCreateInput) (*BookmarkEntry, error) {
-	host, err := s.hosts.GetByID(context.Background(), id)
+func (s *BookmarkService) Update(ctx context.Context, id string, input BookmarkCreateInput) (*BookmarkEntry, error) {
+	host, err := s.hosts.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("host not found: %w", err)
 	}
@@ -219,7 +220,7 @@ func (s *BookmarkService) Update(id string, input BookmarkCreateInput) (*Bookmar
 		host.HasPassword = true
 	}
 
-	if err := s.hosts.Update(context.Background(), host); err != nil {
+	if err := s.hosts.Update(ctx, host); err != nil {
 		return nil, fmt.Errorf("update host: %w", err)
 	}
 
@@ -229,8 +230,8 @@ func (s *BookmarkService) Update(id string, input BookmarkCreateInput) (*Bookmar
 }
 
 // Delete removes a bookmark permanently.
-func (s *BookmarkService) Delete(id string) error {
-	if err := s.hosts.Delete(context.Background(), id); err != nil {
+func (s *BookmarkService) Delete(ctx context.Context, id string) error {
+	if err := s.hosts.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete host: %w", err)
 	}
 	s.log.Info("[BOOKMARKS] Deleted: %s", id)
@@ -239,13 +240,13 @@ func (s *BookmarkService) Delete(id string) error {
 }
 
 // ToggleFavorite toggles the favorite status of a bookmark.
-func (s *BookmarkService) ToggleFavorite(id string) (bool, error) {
-	return s.hosts.ToggleFavorite(context.Background(), id)
+func (s *BookmarkService) ToggleFavorite(ctx context.Context, id string) (bool, error) {
+	return s.hosts.ToggleFavorite(ctx, id)
 }
 
 // GetCount returns the total number of bookmarks.
-func (s *BookmarkService) GetCount() (int, error) {
-	return s.hosts.Count(context.Background())
+func (s *BookmarkService) GetCount(ctx context.Context) (int, error) {
+	return s.hosts.Count(ctx)
 }
 
 // ──────────────────────────────────────────────

@@ -55,65 +55,91 @@ func (s *AnalyticsService) Stop(ctx context.Context) error {
 }
 
 // SearchLogs executes queries against the local Analytics Engine.
-func (s *AnalyticsService) SearchLogs(query string, mode string, limit int, offset int) ([]map[string]interface{}, error) {
+func (s *AnalyticsService) SearchLogs(ctx context.Context, query string, mode string, limit int, offset int) ([]map[string]interface{}, error) {
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
-	return s.engine.Search(query, mode, limit, offset)
+	tenantID := "default_tenant"
+	if id, ok := ctx.Value("tenant_id").(string); ok {
+		tenantID = id
+	}
+	return s.engine.Search(tenantID, query, mode, limit, offset)
 }
 
 // GetRecordingFrames retrieves the full TTY frame sequence for a session.
-func (s *AnalyticsService) GetRecordingFrames(sessionID string) ([]map[string]interface{}, error) {
+func (s *AnalyticsService) GetRecordingFrames(ctx context.Context, sessionID string) ([]map[string]interface{}, error) {
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
-	return s.engine.GetRecordingFrames(sessionID)
+	tenantID := "default_tenant"
+	if id, ok := ctx.Value("tenant_id").(string); ok {
+		tenantID = id
+	}
+	return s.engine.GetRecordingFrames(tenantID, sessionID)
 }
 
 // SaveDashboard stores a dashboard layout as JSON.
-func (s *AnalyticsService) SaveDashboard(id string, layoutJSON string) error {
+func (s *AnalyticsService) SaveDashboard(ctx context.Context, id string, layoutJSON string) error {
 	if s.engine == nil {
 		return fmt.Errorf("analytics engine not localized")
 	}
-	return s.engine.SaveConfig("dashboard_"+id, layoutJSON)
+	tenantID := "default_tenant"
+	if tid, ok := ctx.Value("tenant_id").(string); ok {
+		tenantID = tid
+	}
+	return s.engine.SaveConfig(tenantID, "dashboard_"+id, layoutJSON)
 }
 
 // LoadDashboard retrieves a saved dashboard layout.
-func (s *AnalyticsService) LoadDashboard(id string) (string, error) {
+func (s *AnalyticsService) LoadDashboard(ctx context.Context, id string) (string, error) {
 	if s.engine == nil {
 		return "", fmt.Errorf("analytics engine not localized")
 	}
-	return s.engine.LoadConfig("dashboard_" + id)
+	tenantID := "default_tenant"
+	if tid, ok := ctx.Value("tenant_id").(string); ok {
+		tenantID = tid
+	}
+	return s.engine.LoadConfig(tenantID, "dashboard_"+id)
 }
 
 // RunWidgetQuery executes a dashboard widget query.
-func (s *AnalyticsService) RunWidgetQuery(query string, limit int) ([]map[string]interface{}, error) {
+func (s *AnalyticsService) RunWidgetQuery(ctx context.Context, query string, limit int) ([]map[string]interface{}, error) {
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
-	return s.engine.Search(query, "sql", limit, 0)
+	tenantID := "default_tenant"
+	if id, ok := ctx.Value("tenant_id").(string); ok {
+		tenantID = id
+	}
+	return s.engine.Search(tenantID, query, "sql", limit, 0)
 }
 
 // RunOsquery executes an osquery-style query (stub — osquery integration planned for Phase 6).
-func (s *AnalyticsService) RunOsquery(query string) ([]map[string]interface{}, error) {
+func (s *AnalyticsService) RunOsquery(ctx context.Context, query string) ([]map[string]interface{}, error) {
 	return nil, fmt.Errorf("osquery integration not yet available — planned for Phase 6 Agent Framework")
 }
 
 // RunOQL executes an OQL query. It prefers BadgerDB for system-wide SIEM logs
 // but falls back to SQLite for terminal-specific telemetry if needed.
-func (s *AnalyticsService) RunOQL(query string) (*oql.QueryResult, error) {
+func (s *AnalyticsService) RunOQL(ctx context.Context, query string) (*oql.QueryResult, error) {
 	if s.oqlExecutor == nil {
 		return nil, fmt.Errorf("OQL executor not initialized")
 	}
 
+	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	tenantID := "default_tenant" // Safest fallback
+	if id, ok := ctx.Value("tenant_id").(string); ok {
+		tenantID = id
+	}
+
 	// 1. If we have a HotStore, use the optimized BadgerSource
 	if s.hotStore != nil {
-		// Create a source for the current execution (Tenant context should be used in production)
-		source := oql.NewBadgerSource(s.hotStore, "GLOBAL")
+		source := oql.NewBadgerSource(s.hotStore, tenantID)
 		s.oqlExecutor.SetSource(source)
 		
-		// Passing nil for data triggers the Source.Fetch() path in the executor
-		return s.oqlExecutor.Execute(context.Background(), query, nil, nil)
+		return s.oqlExecutor.Execute(searchCtx, query, nil, nil)
 	}
 
 	// 2. Fallback to SQLite terminal logs for in-memory processing
@@ -122,7 +148,7 @@ func (s *AnalyticsService) RunOQL(query string) (*oql.QueryResult, error) {
 	}
 
 	// Fetch raw logs from SQLite to feed into the OQL engine
-	data, err := s.engine.Search("SELECT timestamp, session_id, host, output FROM terminal_logs ORDER BY timestamp DESC LIMIT 50000", "sql", 50000, 0)
+	data, err := s.engine.Search(tenantID, "SELECT timestamp, session_id, host, output FROM terminal_logs ORDER BY timestamp DESC LIMIT 50000", "sql", 50000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch raw data for OQL fallback: %w", err)
 	}
@@ -132,7 +158,7 @@ func (s *AnalyticsService) RunOQL(query string) (*oql.QueryResult, error) {
 		rows[i] = oql.Row(d)
 	}
 
-	return s.oqlExecutor.Execute(context.Background(), query, rows, nil)
+	return s.oqlExecutor.Execute(searchCtx, query, rows, nil)
 }
 // GetEntityEnrichment provides real-time context (GeoIP, Threat Intel) for a specific entity.
 func (s *AnalyticsService) GetEntityEnrichment(entityID string, entityType string) (*EntityEnrichment, error) {

@@ -98,7 +98,6 @@ func (s *AlertingService) Start(ctx context.Context) error {
 
 	// Listen for heuristic security alerts from SIEMService
 	s.bus.Subscribe("security.alert", func(e eventbus.Event) {
-		// ... (omitted for brevity in prompt, but keep original content)
 		data, ok := e.Data.(map[string]interface{})
 		if !ok {
 			return
@@ -107,11 +106,19 @@ func (s *AlertingService) Start(ctx context.Context) error {
 		hostID, _ := data["host_id"].(string)
 		score, _ := data["score"].(int)
 		msg, _ := data["message"].(string)
+		tenantID, _ := data["tenant_id"].(string)
+
+		if tenantID == "" {
+			tenantID = "default_tenant"
+		}
+
+		// Create a tenant-scoped context for incident generation
+		ctx := database.WithTenant(s.ctx, tenantID)
 
 		ruleID := "heuristic_risk"
 		groupKey := hostID
 
-		incident, err := s.incidents.GetByRuleAndGroup(s.ctx, ruleID, groupKey)
+		incident, err := s.incidents.GetByRuleAndGroup(ctx, ruleID, groupKey)
 		if err != nil {
 			s.log.Error("Failed to lookup incident: %v", err)
 			return
@@ -122,6 +129,7 @@ func (s *AlertingService) Start(ctx context.Context) error {
 			isNew = true
 			incident = &database.Incident{
 				ID:          fmt.Sprintf("INC-%d", time.Now().UnixNano()),
+				TenantID:    tenantID,
 				RuleID:      ruleID,
 				GroupKey:    groupKey,
 				Status:      "New",
@@ -136,7 +144,7 @@ func (s *AlertingService) Start(ctx context.Context) error {
 		incident.LastSeenAt = time.Now().Format(time.RFC3339)
 		incident.EventCount++
 
-		if err := s.incidents.Upsert(s.ctx, incident); err != nil {
+		if err := s.incidents.Upsert(ctx, incident); err != nil {
 			s.log.Error("Failed to upsert heuristic incident: %v", err)
 		}
 
@@ -155,14 +163,21 @@ func (s *AlertingService) Start(ctx context.Context) error {
 				}
 			}()
 
-			if s.evaluator == nil || s.incidents == nil || s.ctx == nil {
-				return
-			}
-
 			evt, ok := e.Data.(database.HostEvent)
 			if !ok {
 				return
 			}
+
+			if s.evaluator == nil || s.incidents == nil || s.ctx == nil {
+				return
+			}
+
+			// Create a tenant-scoped context for the detection lifecycle
+			tenantID := evt.TenantID
+			if tenantID == "" {
+				tenantID = "default_tenant"
+			}
+			ctx := database.WithTenant(s.ctx, tenantID)
 
 			// Run event through the YAML detection state machine
 			detEvt := detection.Event{
@@ -184,7 +199,7 @@ func (s *AlertingService) Start(ctx context.Context) error {
 					}
 				}
 
-				incident, err := s.incidents.GetByRuleAndGroup(s.ctx, match.RuleID, groupKey)
+				incident, err := s.incidents.GetByRuleAndGroup(ctx, match.RuleID, groupKey)
 				if err != nil {
 					s.log.Error("Failed to get active incident for %s: %v", match.RuleID, err)
 					continue
@@ -195,6 +210,7 @@ func (s *AlertingService) Start(ctx context.Context) error {
 					isNew = true
 					incident = &database.Incident{
 						ID:              fmt.Sprintf("INC-%d", time.Now().UnixNano()),
+						TenantID:        tenantID,
 						RuleID:          match.RuleID,
 						GroupKey:        groupKey,
 						Status:          "New",
@@ -211,7 +227,7 @@ func (s *AlertingService) Start(ctx context.Context) error {
 				incident.LastSeenAt = time.Now().Format(time.RFC3339)
 				incident.EventCount++
 
-				if err := s.incidents.Upsert(s.ctx, incident); err != nil {
+				if err := s.incidents.Upsert(ctx, incident); err != nil {
 					s.log.Error("Failed to upsert detection incident: %v", err)
 				}
 
@@ -395,7 +411,10 @@ func (s *AlertingService) CheckGlobalSecurityThresholds() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// For global threats, we iterate through all tenants or use a system-level context.
+	// Since thresholds like "100 failures across fleet" are infrastructure-level,
+	// we use a global search context.
+	ctx, cancel := context.WithTimeout(database.WithGlobalSearch(s.ctx), 10*time.Second)
 	defer cancel()
 
 	stats, err := s.siemRepo.GetGlobalThreatStats(ctx)
@@ -423,8 +442,12 @@ func (s *AlertingService) loadPersistedConfig() {
 		return
 	}
 
+	// Configuration loading is considered a system-level operation on start.
+	// We use the service's lifetime context (usually default tenant)
+	ctx := database.WithGlobalSearch(s.ctx)
+
 	// Load notification config
-	if data, err := s.analytics.LoadConfig(configKeyNotification); err == nil {
+	if data, err := s.analytics.LoadConfig(ctx, configKeyNotification); err == nil {
 		var cfg notifications.NotificationConfig
 		if json.Unmarshal([]byte(data), &cfg) == nil {
 			s.notifier.UpdateConfig(cfg)
@@ -433,7 +456,7 @@ func (s *AlertingService) loadPersistedConfig() {
 	}
 
 	// Load metric triggers
-	if data, err := s.analytics.LoadConfig(configKeyMetricTrigs); err == nil {
+	if data, err := s.analytics.LoadConfig(ctx, configKeyMetricTrigs); err == nil {
 		var mTriggers []analytics.MetricTrigger
 		if json.Unmarshal([]byte(data), &mTriggers) == nil {
 			s.alerts.SetMetricTriggers(mTriggers)
@@ -442,7 +465,7 @@ func (s *AlertingService) loadPersistedConfig() {
 	}
 
 	// Load custom triggers
-	if data, err := s.analytics.LoadConfig(configKeyTriggers); err == nil {
+	if data, err := s.analytics.LoadConfig(ctx, configKeyTriggers); err == nil {
 		var triggers []persistedTrigger
 		if json.Unmarshal([]byte(data), &triggers) == nil {
 			for _, t := range triggers {
@@ -453,7 +476,7 @@ func (s *AlertingService) loadPersistedConfig() {
 	}
 }
 
-func (s *AlertingService) persistTriggers() {
+func (s *AlertingService) persistTriggers(ctx context.Context) {
 	if s.analytics == nil {
 		return
 	}
@@ -469,36 +492,36 @@ func (s *AlertingService) persistTriggers() {
 		})
 	}
 	if data, err := json.Marshal(custom); err == nil {
-		s.analytics.SaveConfig(configKeyTriggers, string(data))
+		s.analytics.SaveConfig(ctx, configKeyTriggers, string(data))
 	}
 }
 
-func (s *AlertingService) persistNotificationConfig() {
+func (s *AlertingService) persistNotificationConfig(ctx context.Context) {
 	if s.analytics == nil {
 		return
 	}
 	cfg := s.notifier.GetConfig()
 	if data, err := json.Marshal(cfg); err == nil {
-		s.analytics.SaveConfig(configKeyNotification, string(data))
+		s.analytics.SaveConfig(ctx, configKeyNotification, string(data))
 	}
 }
 
 // --- Alert Triggers ---
 
-func (s *AlertingService) AddTrigger(id, name, pattern, severity string) error {
+func (s *AlertingService) AddTrigger(ctx context.Context, id, name, pattern, severity string) error {
 	err := s.alerts.AddTrigger(id, name, pattern, severity)
 	if err != nil {
 		return err
 	}
 	s.log.Info("Alert trigger added: %s (%s)", name, severity)
-	s.persistTriggers()
+	s.persistTriggers(ctx)
 	return nil
 }
 
-func (s *AlertingService) RemoveTrigger(id string) {
+func (s *AlertingService) RemoveTrigger(ctx context.Context, id string) {
 	s.alerts.RemoveTrigger(id)
 	s.log.Info("Alert trigger removed: %s", id)
-	s.persistTriggers()
+	s.persistTriggers(ctx)
 }
 
 func (s *AlertingService) GetTriggers() []analytics.Trigger {
@@ -511,17 +534,17 @@ func (s *AlertingService) GetMetricTriggers() []analytics.MetricTrigger {
 	return s.alerts.GetMetricTriggers()
 }
 
-func (s *AlertingService) UpdateMetricTrigger(mt analytics.MetricTrigger) {
+func (s *AlertingService) UpdateMetricTrigger(ctx context.Context, mt analytics.MetricTrigger) {
 	s.alerts.UpdateMetricTrigger(mt)
-	s.persistMetricTriggers()
+	s.persistMetricTriggers(ctx)
 }
 
-func (s *AlertingService) RemoveMetricTrigger(id string) {
+func (s *AlertingService) RemoveMetricTrigger(ctx context.Context, id string) {
 	s.alerts.RemoveMetricTrigger(id)
-	s.persistMetricTriggers()
+	s.persistMetricTriggers(ctx)
 }
 
-func (s *AlertingService) persistMetricTriggers() {
+func (s *AlertingService) persistMetricTriggers(ctx context.Context) {
 	if s.analytics == nil {
 		return
 	}
@@ -534,17 +557,17 @@ func (s *AlertingService) persistMetricTriggers() {
 		custom = append(custom, t)
 	}
 	if data, err := json.Marshal(custom); err == nil {
-		s.analytics.SaveConfig(configKeyMetricTrigs, string(data))
+		s.analytics.SaveConfig(ctx, configKeyMetricTrigs, string(data))
 	}
 }
 
 // --- Alert History (now from SQLite) ---
 
-func (s *AlertingService) GetAlertHistory() []map[string]interface{} {
+func (s *AlertingService) GetAlertHistory(ctx context.Context) []map[string]interface{} {
 	if s.analytics == nil {
 		return nil
 	}
-	history, err := s.analytics.GetAlertHistory(500)
+	history, err := s.analytics.GetAlertHistory(ctx, 500)
 	if err != nil {
 		s.log.Error("Failed to load alert history: %v", err)
 		return nil
@@ -570,9 +593,9 @@ func (s *AlertingService) GetRuleVerifications() []detection.ValidationResult {
 
 // --- Notification Config ---
 
-func (s *AlertingService) UpdateNotificationConfig(cfg notifications.NotificationConfig) {
+func (s *AlertingService) UpdateNotificationConfig(ctx context.Context, cfg notifications.NotificationConfig) {
 	s.notifier.UpdateConfig(cfg)
-	s.persistNotificationConfig()
+	s.persistNotificationConfig(ctx)
 	s.log.Info("Notification config updated and persisted")
 }
 
@@ -589,23 +612,19 @@ func (s *AlertingService) TestNotification() {
 // --- Incident Management ---
 
 // ListIncidents retrieves security incidents filtered by status
-func (s *AlertingService) ListIncidents(status string, limit int) ([]database.Incident, error) {
+func (s *AlertingService) ListIncidents(ctx context.Context, status string, limit int) ([]database.Incident, error) {
 	if s.incidents == nil {
 		return nil, fmt.Errorf("incident store not initialized")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	return s.incidents.Search(ctx, status, "", limit)
 }
 
 // UpdateIncidentStatus transitions an incident to a new status
-func (s *AlertingService) UpdateIncidentStatus(id string, status string, reason string) error {
+func (s *AlertingService) UpdateIncidentStatus(ctx context.Context, id string, status string, reason string) error {
 	if s.incidents == nil {
 		return fmt.Errorf("incident store not initialized")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	err := s.incidents.UpdateStatus(ctx, id, status, reason)
 	if err == nil {

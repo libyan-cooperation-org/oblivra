@@ -115,12 +115,13 @@ func (s *CanaryService) autoDeployIfNeeded(ctx context.Context, hostID string) {
 
 	s.log.Info("[CANARY] Auto-deploying canaries to host %s", hostID)
 
-	// Standard deployment paths — chosen to be attractive to ransomware scanners
-	// but not to interfere with real system files.
+	// Standard deployment paths — chosen to be attractive to ransomware scanners.
+	// We use randomized suffixes for world-writable directories to prevent symlink privilege escalation attacks.
+	suffix := time.Now().UnixNano()
 	deployPaths := []string{
-		"/tmp/.oblivra_canary",
+		fmt.Sprintf("/tmp/.oblivra_canary_%d", suffix),
 		"/home/.oblivra_canary",
-		"/var/tmp/.oblivra_canary",
+		fmt.Sprintf("/var/tmp/.oblivra_canary_%d", suffix),
 	}
 
 	var deployed []string

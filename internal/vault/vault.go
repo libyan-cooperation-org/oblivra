@@ -477,6 +477,19 @@ func (v *Vault) AccessMasterKey(fn func(key []byte) error) error {
 	return err
 }
 
+// GetTenantKey derives a 32-byte AES-256 key for a specific tenant from the master key.
+func (v *Vault) GetTenantKey(tenantID string) ([]byte, error) {
+	v.mu.RLock()
+	if !v.unlocked || v.masterKey == nil {
+		v.mu.RUnlock()
+		return nil, ErrLocked
+	}
+	master := v.masterKey.Bytes()
+	v.mu.RUnlock()
+
+	return DeriveSubKey(master, "tenant:"+tenantID, 32)
+}
+
 func (v *Vault) GetPassword(id string) ([]byte, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()

@@ -1,6 +1,7 @@
 package sharing
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"github.com/kingknull/oblivrashell/internal/database"
 
 	"github.com/google/uuid"
 	"github.com/kingknull/oblivrashell/internal/analytics"
@@ -26,6 +28,7 @@ type RecordingManager struct {
 // ActiveRecording represents a currently running recording
 type ActiveRecording struct {
 	ID         string    `json:"id"`
+	TenantID   string    `json:"tenant_id"`
 	SessionID  string    `json:"session_id"`
 	HostLabel  string    `json:"host_label"`
 	StartedAt  string    `json:"started_at"`
@@ -57,7 +60,7 @@ func NewRecordingManager(ana analytics.Engine, v vault.Provider) *RecordingManag
 }
 
 // StartRecording begins a new session recording in the analytics store
-func (m *RecordingManager) StartRecording(sessionID, hostLabel string, cols, rows int) (*ActiveRecording, error) {
+func (m *RecordingManager) StartRecording(tenantID, sessionID, hostLabel string, cols, rows int) (*ActiveRecording, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -65,6 +68,7 @@ func (m *RecordingManager) StartRecording(sessionID, hostLabel string, cols, row
 
 	recording := &ActiveRecording{
 		ID:        id,
+		TenantID:  tenantID,
 		SessionID: sessionID,
 		HostLabel: hostLabel,
 		StartedAt: time.Now().Format(time.RFC3339),
@@ -74,7 +78,8 @@ func (m *RecordingManager) StartRecording(sessionID, hostLabel string, cols, row
 	}
 
 	// Save initial metadata for crash recovery
-	err := m.analytics.SaveRecording(id, sessionID, hostLabel, cols, rows, 0, 0, "in_progress")
+	ctx := database.WithTenant(context.Background(), tenantID)
+	err := m.analytics.SaveRecording(ctx, id, sessionID, hostLabel, cols, rows, 0, 0, "in_progress")
 	if err != nil {
 		return nil, fmt.Errorf("pre-create recording: %w", err)
 	}
@@ -95,7 +100,8 @@ func (m *RecordingManager) RecordOutput(sessionID string, data []byte) {
 	}
 
 	timestamp := time.Since(parseTime(recording.StartedAt)).Seconds()
-	m.analytics.IngestFrame(recording.ID, timestamp, "o", string(data))
+	ctx := database.WithTenant(context.Background(), recording.TenantID)
+	m.analytics.IngestFrame(ctx, recording.ID, timestamp, "o", string(data))
 	recording.EventCount++
 }
 
@@ -110,7 +116,8 @@ func (m *RecordingManager) RecordInput(sessionID string, data []byte) {
 	}
 
 	timestamp := time.Since(parseTime(recording.StartedAt)).Seconds()
-	m.analytics.IngestFrame(recording.ID, timestamp, "i", string(data))
+	ctx := database.WithTenant(context.Background(), recording.TenantID)
+	m.analytics.IngestFrame(ctx, recording.ID, timestamp, "i", string(data))
 	recording.EventCount++
 }
 
@@ -132,7 +139,8 @@ func (m *RecordingManager) StopRecording(sessionID string) (*RecordingMetadata, 
 	duration := time.Since(parseTime(recording.StartedAt)).Seconds()
 
 	// Update final metadata and mark as completed
-	err := m.analytics.SaveRecording(recording.ID, recording.SessionID, recording.HostLabel, recording.Cols, recording.Rows, duration, recording.EventCount, "completed")
+	ctx := database.WithTenant(context.Background(), recording.TenantID)
+	err := m.analytics.SaveRecording(ctx, recording.ID, recording.SessionID, recording.HostLabel, recording.Cols, recording.Rows, duration, recording.EventCount, "completed")
 	if err != nil {
 		return nil, fmt.Errorf("finalize recording: %w", err)
 	}
@@ -156,8 +164,9 @@ func (m *RecordingManager) StopRecording(sessionID string) (*RecordingMetadata, 
 }
 
 // ListRecordings returns all saved recordings from the analytics store
-func (m *RecordingManager) ListRecordings() ([]RecordingMetadata, error) {
-	metas, err := m.analytics.ListRecordings()
+func (m *RecordingManager) ListRecordings(tenantID string) ([]RecordingMetadata, error) {
+	ctx := database.WithTenant(context.Background(), tenantID)
+	metas, err := m.analytics.ListRecordings(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -181,28 +190,32 @@ func (m *RecordingManager) ListRecordings() ([]RecordingMetadata, error) {
 }
 
 // DeleteRecording removes a recording and all its frames from the analytics store
-func (m *RecordingManager) DeleteRecording(id string) error {
-	return m.analytics.DeleteRecording(id)
+func (m *RecordingManager) DeleteRecording(tenantID, id string) error {
+	ctx := database.WithTenant(context.Background(), tenantID)
+	return m.analytics.DeleteRecording(ctx, id)
 }
 
 // GetRecordingFrames retrieves all frames for a recording ordered by timestamp
-func (m *RecordingManager) GetRecordingFrames(id string) ([]map[string]interface{}, error) {
-	return m.analytics.GetRecordingFrames(id)
+func (m *RecordingManager) GetRecordingFrames(tenantID, id string) ([]map[string]interface{}, error) {
+	ctx := database.WithTenant(context.Background(), tenantID)
+	return m.analytics.GetRecordingFrames(ctx, id)
 }
 
 // SearchRecordings executes a forensic search across all sessions
-func (m *RecordingManager) SearchRecordings(query string) ([]map[string]interface{}, error) {
-	return m.analytics.SearchRecordings(query)
+func (m *RecordingManager) SearchRecordings(tenantID, query string) ([]map[string]interface{}, error) {
+	ctx := database.WithTenant(context.Background(), tenantID)
+	return m.analytics.SearchRecordings(ctx, query)
 }
 
 // ExportRecording generates a signed Asciinema v2 file for compliance
-func (m *RecordingManager) ExportRecording(id, destPath string) error {
-	meta, err := m.analytics.GetRecordingMeta(id)
+func (m *RecordingManager) ExportRecording(tenantID, id, destPath string) error {
+	ctx := database.WithTenant(context.Background(), tenantID)
+	meta, err := m.analytics.GetRecordingMeta(ctx, id)
 	if err != nil {
 		return fmt.Errorf("get meta: %w", err)
 	}
 
-	frames, err := m.analytics.GetRecordingFrames(id)
+	frames, err := m.analytics.GetRecordingFrames(ctx, id)
 	if err != nil {
 		return fmt.Errorf("get frames: %w", err)
 	}
@@ -275,8 +288,9 @@ func (m *RecordingManager) ExportRecording(id, destPath string) error {
 }
 
 // GetRecordingMeta retrieves metadata for a specific recording
-func (m *RecordingManager) GetRecordingMeta(id string) (map[string]interface{}, error) {
-	return m.analytics.GetRecordingMeta(id)
+func (m *RecordingManager) GetRecordingMeta(tenantID, id string) (map[string]interface{}, error) {
+	ctx := database.WithTenant(context.Background(), tenantID)
+	return m.analytics.GetRecordingMeta(ctx, id)
 }
 
 

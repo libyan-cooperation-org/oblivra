@@ -9,7 +9,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -189,26 +188,12 @@ func (s *RESTServer) handleUEBAProfiles(w http.ResponseWriter, r *http.Request) 
 		profiles = append(profiles, map[string]interface{}{
 			"entity_id":            a.Hostname,
 			"entity_type":          "host",
-			"risk_score":           rand.Intn(100),
-			"baseline_established": true,
-			"anomaly_count":        rand.Intn(5),
+			"risk_score":           0,  // Feature gap: SIEM aggregation not implemented
+			"baseline_established": false,
+			"anomaly_count":        0,
 			"last_activity":        a.LastSeen,
 			"top_anomaly":          "",
 		})
-	}
-	// Seed synthetic user profiles if no agents
-	if len(profiles) == 0 {
-		for _, u := range []string{"admin", "analyst1", "svc-account", "user42"} {
-			profiles = append(profiles, map[string]interface{}{
-				"entity_id":            u,
-				"entity_type":          "user",
-				"risk_score":           rand.Intn(100),
-				"baseline_established": rand.Float32() > 0.3,
-				"anomaly_count":        rand.Intn(8),
-				"last_activity":        time.Now().Add(-time.Duration(rand.Intn(3600)) * time.Second).Format(time.RFC3339),
-				"top_anomaly":          []string{"off_hours_login", "mass_download", "lateral_movement", ""}[rand.Intn(4)],
-			})
-		}
 	}
 	s.jsonResponse(w, http.StatusOK, profiles)
 }
@@ -258,11 +243,11 @@ func (s *RESTServer) handleUEBAStats(w http.ResponseWriter, r *http.Request) {
 	s.agentsMu.RUnlock()
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"total_entities":     agentCount + 4, // agents + synthetic users
-		"high_risk_entities": rand.Intn(agentCount + 3),
-		"anomalies_24h":      rand.Intn(15),
-		"baselines_active":   agentCount + 4,
-		"models_trained":     3,
+		"total_entities":     agentCount,
+		"high_risk_entities": 0, // Feature gap
+		"anomalies_24h":      0, // Feature gap
+		"baselines_active":   0, // Feature gap
+		"models_trained":     0,
 	})
 }
 
@@ -409,7 +394,7 @@ func (s *RESTServer) handleRansomwareHosts(w http.ResponseWriter, r *http.Reques
 			"status":        status,
 			"canary_count":  3,
 			"last_scan":     a.LastSeen,
-			"entropy_score": 2.1 + rand.Float64()*3.0,
+			"entropy_score": 0.0, // Feature gap
 		})
 	}
 	if len(hosts) == 0 {

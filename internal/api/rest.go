@@ -80,6 +80,8 @@ type RESTServer struct {
 	// MCP - Protocol Phase 22.1
 	mcpRegistry *mcp.ToolRegistry
 	mcpHandler  *mcp.Handler
+
+	tenantRepo *database.TenantRepository
 }
 
 // AgentInfo tracks a registered agent.
@@ -101,7 +103,12 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+	var tenantRepo *database.TenantRepository
+	if db != nil {
+		tenantRepo = database.NewTenantRepository(db)
+	}
+
 	s := &RESTServer{
 		port:     port,
 		siem:     siem,
@@ -119,6 +126,7 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 		evidence: forensics.NewEvidenceLocker(forensics.NewHMACSigner([]byte("oblivra-evidence-hmac-key-v1")), log),
 		mcpRegistry: mcpRegistry,
 		mcpHandler:  mcpHandler,
+		tenantRepo:  tenantRepo,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -133,8 +141,6 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 				allowed := []string{
 					"http://" + host,
 					"https://" + host,
-					"http://localhost",
-					"https://localhost",
 					"wails://wails",
 				}
 				for _, a := range allowed {
@@ -228,6 +234,10 @@ func NewRESTServer(port int, siem database.SIEMStore, pipeline *ingest.Pipeline,
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.handleUsers)
 	mux.HandleFunc("/api/v1/roles", s.handleRoles)
+	
+	// Tenant isolation management endpoints (Phase 22.2)
+	mux.HandleFunc("/api/v1/admin/tenants", s.handleAdminTenants)
+	mux.HandleFunc("/api/v1/admin/tenants/", s.handleAdminTenantWipe)
 
 	// UEBA endpoints (Phase 10)
 	mux.HandleFunc("/api/v1/ueba/profiles", s.handleUEBAProfiles)
@@ -360,10 +370,6 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		// 2. CORS Headers — restrict to local Wails frontend origins
 		origin := r.Header.Get("Origin")
 		allowedOrigins := map[string]bool{
-			"http://localhost":        true,
-			"http://localhost:3000":   true, // Vite dev server (default port)
-			"http://localhost:5173":   true, // Vite dev server (alternate port)
-			"http://localhost:8080":   true, // Server serving own frontend
 			"https://wails.localhost": true,
 			"wails://wails":           true,
 		}
@@ -722,6 +728,7 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// For the MVP, we'll return the user and a placeholder token.
 	// In Phase 0.5, we'll implement full JWT/session persistence.
+	s.appendAuditEntry(user.Email, "login", "system", "success", r)
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"user":  user,
 		"token": "oblivra-dev-key", // Temporary: using dev-key to pass existing middleware
@@ -1546,11 +1553,12 @@ func (s *RESTServer) handleMCPExecute(w http.ResponseWriter, r *http.Request) {
 	resp := s.mcpHandler.HandleRequest(r.Context(), req)
 
 	status := http.StatusOK
-	if resp.Status == "denied" {
+	switch resp.Status {
+	case "denied":
 		status = http.StatusForbidden
-	} else if resp.Status == "error" {
+	case "error":
 		status = http.StatusInternalServerError
-	} else if resp.Status == "pending_approval" {
+	case "pending_approval":
 		status = http.StatusAccepted
 	}
 
@@ -1580,7 +1588,7 @@ func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
 	// 3. If threshold met, generate a one-time execution token
 
 	// MVP: Generate a simple HMAC-based token
-	token := fmt.Sprintf("approved-%s", req.ActorID) // Matches validateApproval in handler.go
+	token := s.mcpHandler.GenerateApprovalToken(req.ApprovalID, req.ActorID)
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"status": "approved",

@@ -12,12 +12,14 @@
   // ── Route map ──────────────────────────────────────────────────────────
   const routeMap: Record<string, string> = {
     dashboard: '/dashboard', siem: '/siem', alerts: '/alerts',
+    cases: '/cases', evidence: '/evidence', 'chain-of-custody': '/chain-of-custody',
     'alert-management': '/alert-management', 'siem-search': '/siem-search',
     topology: '/topology', health: '/monitoring', ops: '/ops',
     response: '/response', escalation: '/escalation',
     'playbook-builder': '/playbook-builder', ueba: '/ueba',
     'ueba-overview': '/ueba-overview', 'threat-hunter': '/threat-hunter',
     'threat-intel-dashboard': '/threat-intel-dashboard', enrichment: '/enrichment',
+    'threat-map': '/threat-map',
     ndr: '/ndr', 'ndr-overview': '/ndr-overview', 'purple-team': '/purple-team',
     graph: '/graph', ransomware: '/ransomware', 'ransomware-ui': '/ransomware-ui',
     simulation: '/simulation', compliance: '/compliance', vault: '/vault',
@@ -32,6 +34,7 @@
     snippets: '/snippets', notes: '/notes', sync: '/sync',
     agents: '/agents', 'fleet-management': '/fleet-management',
     identity: '/identity', 'identity-admin': '/identity-admin', soc: '/soc',
+    ssh: '/ssh',
   };
 
   type NavContext = 'both' | 'desktop' | 'browser';
@@ -105,11 +108,13 @@
     { id: 'recordings', icon: 'recordings', label: 'Recs', context: 'desktop' },
     { id: 'topology', icon: 'topology', label: 'Net' },
     { id: 'mitre-heatmap', icon: 'mitre', label: 'Mitre' },
+    { id: 'threat-map', icon: 'topology', label: 'Map' },
     { id: 'health', icon: 'health', label: 'Health' },
   ];
 
   const operate: NavItem[] = [
     { id: 'terminal', icon: 'terminal', label: 'Shell', context: 'desktop' },
+    { id: 'ssh', icon: 'vault', label: 'SSH', context: 'desktop' },
     { id: 'tunnels', icon: 'tunnels', label: 'Tunnels', context: 'desktop' },
     { id: 'hosts', icon: 'hosts', label: 'Hosts' },
     { id: 'agents', icon: 'agents', label: 'Agents', context: 'browser' },
@@ -121,6 +126,8 @@
     { id: 'snippets', icon: 'snippets', label: 'Snips', context: 'desktop' },
     { id: 'notes', icon: 'notes', label: 'Notes', context: 'desktop' },
     { id: 'ai-assistant', icon: 'ai', label: 'AI Shell' },
+    { id: 'cases', icon: 'forensics', label: 'Cases' },
+    { id: 'ledger', icon: 'security', label: 'Ledger' },
     { id: 'response', icon: 'response', label: 'SOAR' },
   ];
 
@@ -431,7 +438,7 @@
   </button>
 
   {#if auditOpen}
-    <div class="cr-flyout" style="top: {flyoutTop}px;" role="menu" onmouseleave={() => auditOpen = false}>
+    <div class="cr-flyout" style="top: {flyoutTop}px;" role="menu" tabindex="-1" onmouseleave={() => auditOpen = false}>
       <div class="cr-flyout-header">AUDIT TRAIL</div>
       {#each auditItems as item}
         <button

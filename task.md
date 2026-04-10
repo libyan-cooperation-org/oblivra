@@ -76,7 +76,7 @@
 > [!IMPORTANT]
 > **Every production-exposed capability MUST have a frontend UI OR an API workflow.**
 > Internal engines (e.g. enrichment pipeline, policy logic) do not require immediate UI.
-> No service is "done" until it has a corresponding SolidJS component, an API endpoint, or a route in `index.tsx`.
+> No service is "done" until it has a corresponding Svelte 5 component, an API endpoint, or a route in `App.svelte`.
 
 > [!CAUTION]
 > **ARCHITECTURAL GRADUATION POLICY after Phase 10.**
@@ -116,7 +116,7 @@
 - [x] Workspace manager (`workspace_service.go`) 🖥️
 - [x] AI assistant — error explanation, command gen (`ai_service.go`) 🏗️
 - [x] Theme engine with custom themes (`theme_service.go`) 🏗️
-- [x] Settings & configuration UI (`settings_service.go`, `pages/Settings.tsx`) 🏗️
+- [x] Settings & configuration UI (`settings_service.go`, `pages/Settings.svelte`) 🏗️
 - [x] Command palette & quick switcher (`frontend/src/components/ui/`) 🏗️
 - [x] Auto-updater service (`updater_service.go`) 🖥️
 
@@ -125,13 +125,13 @@
 - [x] Sync service (`sync_service.go`) 🏗️
 
 ### Ops & Monitoring
-- [x] Unified Ops Center — multi-syntax search (LogQL, Lucene, SQL, Osquery) (`pages/OpsCenter.tsx`) 🏗️
-- [x] Splunk-style analytics dashboard (`pages/SplunkDashboard.tsx`) 🏗️
+- [x] Unified Ops Center — multi-syntax search (LogQL, Lucene, SQL, Osquery) (`pages/OpsCenter.svelte`) 🏗️
+- [x] Splunk-style analytics dashboard (`pages/SplunkDashboard.svelte`) 🏗️
 - [x] Customizable widget dashboard (`frontend/src/components/dashboard/`) 🏗️
 - [x] Network discovery service (`discovery_service.go`, `worker_discovery.go`) 🏗️
-- [x] Global topology visualization (`pages/GlobalTopology.tsx`) 🏗️
-- [x] Bandwidth monitor chart (`frontend/src/components/charts/BandwidthMonitor.tsx`) 🏗️
-- [x] Fleet heatmap (`frontend/src/components/fleet/FleetHeatmap.tsx`) 🌐
+- [x] Global topology visualization (`pages/GlobalTopology.svelte`) 🏗️
+- [x] Bandwidth monitor chart (`frontend/src/components/charts/BandwidthMonitor.svelte`) 🏗️
+- [x] Fleet heatmap (`frontend/src/components/fleet/FleetHeatmap.svelte`) 🌐
 - [x] Osquery integration — live forensics (`internal/osquery/`) 🏗️
 - [x] Log source manager (`logsource_service.go`, `internal/logsources/`) 🏗️
 - [x] Health & metrics service (`health_service.go`, `metrics_service.go`) 🏗️
@@ -139,7 +139,7 @@
 
 ### Infrastructure
 - [x] Plugin framework with Lua sandbox (`internal/plugin/`, `plugin_service.go`) 🏗️
-- [x] Plugin manager UI (`pages/PluginManager.tsx`) 🏗️
+- [x] Plugin manager UI (`pages/PluginManager.svelte`) 🏗️
 - [x] Event bus pub/sub (`internal/eventbus/`) 🏗️
 - [x] Output batcher (`output_batcher.go`) 🏗️
 - [x] Hardening module (`hardening.go`) 🏗️
@@ -181,13 +181,13 @@
 
 ## Phase 0.3: Web Dashboard / Enterprise Platform (MVP) ✅ 🌐
 
-- [x] Initialize `frontend-web/` (Bun + Vite + SolidJS)
+- [x] Initialize `frontend-web/` (Bun + Vite + Svelte 5)
 - [x] Tailwind CSS and design tokens
 - [x] `APP_CONTEXT` detection (Wails vs. Browser)
-- [x] `/api/v1/auth/login` + `Login.tsx` + `AuthService.ts`
-- [x] `Onboarding.tsx` wizard + `FleetService.ts`
-- [x] `SIEMSearch.tsx` (Lucene queries, live paginated results) 🏗️
-- [x] `AlertManagement.tsx` (WebSocket feed, status workflow) 🏗️
+- [x] `/api/v1/auth/login` + `Login.svelte` + `AuthService.ts`
+- [x] `Onboarding.svelte` wizard + `FleetService.ts`
+- [x] `SIEMSearch.svelte` (Lucene queries, live paginated results) 🏗️
+- [x] `AlertManagement.svelte` (WebSocket feed, status workflow) 🏗️
 
 ---
 
@@ -208,17 +208,17 @@
 
 - [x] `context.ts` — `APP_CONTEXT` detection, `IS_DESKTOP`, `IS_BROWSER`, `IS_HYBRID` exports
 - [x] `isRouteAvailable()`, `getServiceCapabilities()`, `configureHybridMode()` / `disconnectHybridMode()`
-- [x] `ContextRoute.tsx` route guard (desktop/web/any context scoping)
+- [x] `ContextRoute.svelte` route guard (desktop/web/any context scoping)
 - [x] `RouteGuard` component — wraps routes, shows `UnavailableScreen` with context hint
 - [x] `ContextBadge` — status bar pill (DESKTOP/HYBRID/BROWSER), click opens server connection panel
 - [x] `api.ts` BASE_URL (localhost for Desktop, same-origin for Browser)
-- [x] `GlobalFleetChart.tsx` 🌐
-- [x] `FleetManagement.tsx` — agent fleet console 🌐
-- [x] `IdentityAdmin.tsx` — User/Role/Provider admin 🌐
-- [x] `SIEMSearch.tsx` full-text SIEM query page 🏗️
+- [x] `GlobalFleetChart.svelte` 🌐
+- [x] `FleetManagement.svelte` — agent fleet console 🌐
+- [x] `IdentityAdmin.svelte` — User/Role/Provider admin 🌐
+- [x] `SIEMSearch.svelte` full-text SIEM query page 🏗️
 - [x] Desktop → remote OBLIVRA Server connection (Backend API Proxy)
-- [x] `CommandRail.tsx` — context classification on all nav items; locked items show `⊘`
-- [x] `AppLayout.tsx` — `isDrawerVisible()` replaces hardcoded allowlist
+- [x] `CommandRail.svelte` — context classification on all nav items; locked items show `⊘`
+- [x] `AppLayout.svelte` — `isDrawerVisible()` replaces hardcoded allowlist
 - [x] Route availability matrix: 60+ routes classified (desktop-only, browser-only, both)
 - [x] `docs/architecture/desktop_vs_browser.md` — context detection spec, route matrix
 
@@ -277,7 +277,7 @@
 - [x] Multi-level escalation chains (Analyst → Lead → Manager → CISO) 🌐
 - [x] Time-based escalation + SLA breach detection 🌐
 - [x] On-call rotation schedules + acknowledgment API 🌐
-- [x] `EscalationCenter.tsx` — Policies, Active, On-Call, History tabs 🌐
+- [x] `EscalationCenter.svelte` — Policies, Active, On-Call, History tabs 🌐
 
 ### 2.2 — Headless REST API
 - [x] `internal/api/rest.go` with full HTTP router 🌐
@@ -286,9 +286,17 @@
 - [x] User accounts + RBAC (`internal/auth/`) 🌐
 - [x] TLS for all external listeners 🌐
 
+#### 🔍 OQL & Engine
+- [x] `oql.ts` centralized evaluator
+- [x] Real-time telemetry filtering logich in `SIEMPanel.svelte` 🏗️
+- [x] `AlertDashboard.svelte` (filtering, ack, status) 🏗️
+- [x] Prometheus-compatible `/metrics` endpoint 🌐
+- [x] Liveness + readiness probes 🌐
+- [x] All services: JSON structured logging
+
 ### 2.3 — Web UI Hardening
-- [x] Real-time streaming search in `SIEMPanel.tsx` 🏗️
-- [x] `AlertDashboard.tsx` (filtering, ack, status) 🏗️
+- [x] Real-time streaming search in `SIEMPanel.svelte` 🏗️
+- [x] `AlertDashboard.svelte` (filtering, ack, status) 🏗️
 - [x] Prometheus-compatible `/metrics` endpoint 🌐
 - [x] Liveness + readiness probes 🌐
 - [x] All services: JSON structured logging
@@ -302,14 +310,14 @@
 - [x] Offline rule ingestion (JSON, OpenIOC) 🏗️
 - [x] `MatchEngine` O(1) IP/Hash lookups 🏗️
 - [x] IOC Matcher integrated into `IngestionService` 🏗️
-- [x] `ThreatIntelPanel.tsx` + `ThreatIntelDashboard.tsx` 🏗️
+- [x] `ThreatIntelPanel.svelte` + `ThreatIntelDashboard.svelte` 🏗️
 
 ### 3.2 — Enrichment Pipeline
 - [x] GeoIP module (MaxMind offline DB, `internal/enrich/geoip.go`)
 - [x] DNS Enrichment (ASN, PTR records, `internal/enrich/dns.go`)
 - [x] Asset/User Mapping
 - [x] Enrichment Pipeline orchestrator (`internal/enrich/pipeline.go`)
-- [x] `EnrichmentViewer.tsx` — GeoIP, DNS/ASN, asset mapping, IOC correlation 🌐
+- [x] `EnrichmentViewer.svelte` — GeoIP, DNS/ASN, asset mapping, IOC correlation 🌐
 
 ### 3.3 — Advanced Parsing
 - [x] Windows Event Log parser (`internal/ingest/parsers/windows.go`) 🏗️
@@ -328,7 +336,7 @@
 - [x] 82 YAML detection rules across all 12 tactics, 45+ techniques 🏗️
 - [x] MITRE ATT&CK technique mapper (`internal/detection/mitre.go`) 🏗️
 - [x] Correlation engine (`internal/detection/correlation.go`) 🏗️
-- [x] MITRE ATT&CK heatmap (`MitreHeatmap.tsx`) 🏗️
+- [x] MITRE ATT&CK heatmap (`MitreHeatmap.svelte`) 🏗️
 - [s] Recruit 10 design partners (0 recruited; pilot agreement pending)
 - [v] Validate: <5% false positives, 30+ ATT&CK techniques
 
@@ -337,13 +345,26 @@
 - [ ] Compliance Artifacts: pre-built legal templates (DPA, BAA, SCCs) and compatibility matrices 🌐
 
 ### 4.5 — Hardening Sprint ✅
-- [x] `SIEMPanel.tsx` decoupled sub-components
+- [x] `SIEMPanel.svelte` decoupled sub-components
 - [x] Bounded Queue buffering on `eventbus.Bus`
 - [x] SIEM Database Query Timeouts (10s contexts)
 - [x] Incident Aggregation in Alert Dashboard
 - [x] Regex Timeouts / Safe Parsing (ReDoS prevention)
 - [x] Role-Based Access controls on destructive alert endpoints
 - [x] API key auth + RBAC + TLS
+- [x] Built-in attack simulator (MITRE ATT&CK technique replay)
+- [x] Detection coverage score + technique gap report
+- [x] Continuous detection validation (scheduled self-test)
+- [x] `PurpleTeam.svelte`
+
+#### 🛠️ Component & Page Hardening
+- [x] `CommandPalette` (hostname fix, ARIA roles, tabindex)
+- [x] `SIEMSearch` (OQL Parser integration, layout stabilization)
+- [x] `Settings` (Form binding resolution, a11y warnings)
+- [x] `DataTable` (ARIA roles, keyboard sorting, aria-sort)
+- [x] `Badge` & `KPI` (Standardized a11y roles)
+- [x] `SearchBar` (Keyboard navigation, a11y roles)
+- [x] `VaultLocked` & `Login` (Barrier UI, MFA bridge, browser auth)
 
 ---
 
@@ -352,7 +373,7 @@
 - [x] LRU/TTL bounded memory for `internal/detection/correlation.go`
 - [x] Asynchronous value log GC for BadgerDB
 - [x] Incident Aggregation: mutable DB records (New/Active/Investigating/Closed)
-- [x] `SIEMPanel.tsx` + Wails app → SolidJS Router (`@solidjs/router`)
+- [x] `SIEMPanel.svelte` + Wails app → `svelte-routing`
 - [x] Pre-compiled binary release workflow (GitHub Actions)
 - [x] Zero-dependency `docker-compose.yml` deployment
 
@@ -367,8 +388,8 @@
 - [x] PDF/HTML reporting engine (`internal/compliance/report.go`)
 - [x] Forensics service Wails integration (`internal/app/forensics_service.go`)
 - [x] Compliance evaluator engine (`internal/compliance/evaluator.go`)
-- [x] `EvidenceVault.tsx` — chain-of-custody browser, verify, seal, export 🏗️
-- [x] `RegulatorPortal.tsx` — read-only audit log + compliance package generation 🌐
+- [x] `EvidenceVault.svelte` — chain-of-custody browser, verify, seal, export 🏗️
+- [x] `RegulatorPortal.svelte` — read-only audit log + compliance package generation 🌐
 - [s] Validate: external audit pass (self-audited only)
 
 ### 6.5 — Legal-Grade Digital Evidence 🏗️
@@ -406,7 +427,7 @@
 - [x] Goroutine watchdog
 - [x] Internal deadlock detection (`runtime.SetMutexProfileFraction`)
 - [x] Self-health anomaly alerts via event bus
-- [x] `SelfMonitor.tsx`
+- [x] `SelfMonitor.svelte`
 
 #### Disaster & War-Mode Architecture
 - [x] Air-gap replication node mode
@@ -421,7 +442,7 @@
 - [x] Legal hold mode
 - [x] Data destruction workflow (cryptographic wipe + audit trail)
 - [x] Audit log of audit log access (meta-audit)
-- [x] `ComplianceCenter.tsx` — Governance tab with real-time scoring
+- [x] `ComplianceCenter.svelte` — Governance tab with real-time scoring
 
 ### 🔵 Tier 3: Strategic
 
@@ -437,8 +458,8 @@
 - [ ] Service-level privilege separation design doc
 
 #### AI Governance
-- [x] Sovereign Tactical UI Overhaul (design tokens, `global.css`, `CommandRail.tsx`, `AppLayout.tsx`)
-- [x] Tactical dashboards refactor (`Dashboard.tsx`, `FleetDashboard.tsx`, `SIEMPanel.tsx`, `AlertDashboard.tsx`)
+- [x] Sovereign Tactical UI Overhaul (design tokens, `global.css`, `CommandRail.svelte`, `AppLayout.svelte`)
+- [x] Tactical dashboards refactor (`Dashboard.svelte`, `FleetDashboard.svelte`, `SIEMPanel.svelte`, `AlertDashboard.svelte`)
 - [x] System-wide Prop Type & Accessibility Audit
 - [x] Agent Hardening: PII Redaction + Goroutine Leak Audits
 - [x] Architecture Boundary Enforcement (`tests/architecture_test.go`)
@@ -449,7 +470,7 @@
 - [x] Built-in attack simulator (MITRE ATT&CK technique replay)
 - [x] Detection coverage score + technique gap report
 - [x] Continuous detection validation (scheduled self-test)
-- [x] `PurpleTeam.tsx`
+- [x] `PurpleTeam.svelte`
 
 #### Certification Readiness
 - [ ] ISO 27001 organizational certification alignment
@@ -502,7 +523,7 @@
 - [v] Zstd compression + offline buffering (local WAL) 🏗️
 - [v] Edge filtering + PII redaction 🏗️
 - [v] Agent registration + heartbeat API 🌐
-- [v] `AgentConsole.tsx` + fleet-wide config push 🌐
+- [v] `AgentConsole.svelte` + fleet-wide config push 🌐
 - [x] eBPF collector (`internal/agent/ebpf_collector_linux.go` — kprobe/tracepoint, epoll ring-buffer, 4 probes, /proc fallback) 🏗️
 - [x] Agent mutex-guarded fleet map (`agentsMu sync.RWMutex` in `RESTServer`)
 - [x] `GET /api/v1/agents` — full fleet list with status 🌐
@@ -524,8 +545,8 @@
 - [v] Rollback Integrity: state-aware recovery 🏗️
 - [x] Jira/ServiceNow integration (`internal/incident/integrations.go`) 🌐
 - [v] Deterministic Execution Service 🏗️
-- [x] `PlaybookBuilder.tsx` — visual SOAR builder, step canvas, action palette, execute-against-incident 🏗️
-- [x] `PlaybookMetrics.tsx` — MTTR, success/failure rates, bottleneck identification 🏗️
+- [x] `PlaybookBuilder.svelte` — visual SOAR builder, step canvas, action palette, execute-against-incident 🏗️
+- [x] `PlaybookMetrics.svelte` — MTTR, success/failure rates, bottleneck identification 🏗️
 - [x] `GET/POST /api/v1/playbooks` — CRUD; `POST /api/v1/playbooks/run`; `GET /api/v1/playbooks/metrics` 🌐
 
 ### Playbook Marketplace / Community Library
@@ -541,7 +562,7 @@
 - [x] Canary file deployment (`canary_deployment_service.go`) 🏗️
 - [v] Honeypot infrastructure 🏗️
 - [x] Automated network isolation (`network_isolator_service.go`) 🏗️
-- [x] `RansomwareCenter.tsx` — defense layers, host status, isolation controls, event log 🏗️
+- [x] `RansomwareCenter.svelte` — defense layers, host status, isolation controls, event log 🏗️
 - [x] `GET /api/v1/ransomware/events|hosts|stats` + `POST /api/v1/ransomware/isolate` 🌐
 
 ### Immutable Backup Verification
@@ -561,22 +582,22 @@
 - [v] Per-user/entity behavioral baselines (persistence in BadgerDB) 🏗️
 - [v] Isolation Forest anomaly detection (deterministic seeding) 🏗️
 - [v] Identity Threat Detection & Response (EMA behavior tracking) 🏗️
-- [v] Threat hunting interface (`ThreatHunter.tsx`) 🏗️
-- [x] `UEBADashboard.tsx` — risk heatmap, entity drill-down, anomaly feed 🏗️
+- [v] Threat hunting interface (`ThreatHunter.svelte`) 🏗️
+- [x] `UEBADashboard.svelte` — risk heatmap, entity drill-down, anomaly feed 🏗️
 - [x] `GET /api/v1/ueba/profiles|anomalies|stats` 🌐
 
 ### 10.5 — Peer Group Behavioral Analysis ✅
 - [x] Auto-cluster by role, department, access patterns; dynamic recalculation; min-N validation
 - [x] Aggregate behavioral statistics; deviation scoring (σ from group centroid)
 - [x] "First for peer group" alerts; composite individual × peer anomaly scoring
-- [x] `PeerAnalytics.tsx` — peer group explorer, σ-deviation outlier detection, risk comparison bars
+- [x] `PeerAnalytics.svelte` — peer group explorer, σ-deviation outlier detection, risk comparison bars
 - [x] `GET /api/v1/ueba/peer-groups` + `GET /api/v1/ueba/peer-deviations` 🌐
 
 ### 10.6 — Multi-Stage Attack Fusion Engine ✅
 - [x] Kill chain tactic mapping; sliding window progression tracking; 3+ stage alert
 - [x] Campaign clustering by shared entities; confidence scoring
 - [x] Bayesian probabilistic scoring; seeded campaign data for demo
-- [x] `FusionDashboard.tsx` — kill chain visualization, campaign cluster graph, confidence scores
+- [x] `FusionDashboard.svelte` — kill chain visualization, campaign cluster graph, confidence scores
 - [x] `GET /api/v1/fusion/campaigns` + `GET /api/v1/fusion/campaigns/{id}/kill-chain` 🌐
 
 ---
@@ -589,9 +610,9 @@
 - [x] HTTP proxy log parser — normalized inspection 🌐
 - [x] eBPF network probes (extend agent) 🏗️
 - [x] Lateral movement detection 🌐
-- [x] `NDRDashboard.tsx` — flow table, anomaly cards, protocol stats 🌐
+- [x] `NDRDashboard.svelte` — flow table, anomaly cards, protocol stats 🌐
 - [x] `LateralMovementEngine` — multi-hop connection correlation 🌐
-- [x] `NetworkMap.tsx` — topology visualization 🌐
+- [x] `NetworkMap.svelte` — topology visualization 🌐
 - [x] `GET /api/v1/ndr/flows|alerts|protocols` 🌐
 - [x] Validate: lateral movement <5 min, 90%+ C2 identification
 
@@ -606,8 +627,8 @@
 - [x] `IdentityService` — user CRUD, local login, MFA, RBAC checking
 - [x] `GET /api/v1/users` + `GET /api/v1/roles` 🌐
 - [x] Data lifecycle management — `lifecycle_service.go` (7 retention policies, legal hold, 6h purge loop)
-- [x] `ExecutiveDashboard.tsx` — KPIs, posture, compliance badges
-- [x] `PasswordVault.tsx` — full credential vault manager
+- [x] `ExecutiveDashboard.svelte` — KPIs, posture, compliance badges
+- [x] `PasswordVault.svelte` — full credential vault manager
 - [x] Validate: 50+ tenants, 99.9% uptime
 
 ---
@@ -659,7 +680,7 @@
 ## Phase 18: Loose Ends Closed ✅
 
 - [x] AI Assistant wired (`/ai-assistant`, Ollama status badge, 3 modes)
-- [x] `MitreHeatmap.tsx` fully wired (`/mitre-heatmap`)
+- [x] `MitreHeatmap.svelte` fully wired (`/mitre-heatmap`)
 - [x] OTel → Grafana Tempo pipeline (`docker-compose.yml` extended)
 - [x] `ops/` config directory: `prometheus.yml`, `tempo.yml`, Grafana datasources + pre-built dashboard
 
@@ -669,7 +690,7 @@
 
 - [x] `README.md` fully rewritten (accurate stack, architecture diagram, build instructions)
 - [x] `CHANGELOG.md v1.1.0` — complete entry covering Phases 11–19
-- [x] `DiagnosticsModal.tsx` — live ingest EPS, goroutines, heap, GC, event bus drops, health grade
+- [x] `DiagnosticsModal.svelte` — live ingest EPS, goroutines, heap, GC, event bus drops, health grade
 - [x] Sigma hot-reload — `fsnotify v1.8.0` watcher, 500ms debounce, `ReloadSigmaRules()` Wails method
 - [x] Unlock bug — all 3 root causes fixed (HasKeychainEntry, VaultUnlock path, polling loop → event subscription)
 
@@ -757,7 +778,7 @@
 
 - [x] **Purge node_modules from git** — `git rm -r --cached frontend/node_modules frontend-web/node_modules`
 - [x] **Wails RPC bridge rate limiting** — per-method debounce on `NuclearDestruction`, `Unlock`, `DeleteHost`
-- [x] **Browser mode: VaultGuard + store.tsx Wails crash** — `IS_BROWSER` guards on all Wails imports
+- [x] **Browser mode: VaultGuard + store.svelte Wails crash** — `IS_BROWSER` guards on all Wails imports
 - [x] **S0: Dark-site URL eradication** — `internal/sync/engine.go`: removed hardcoded `https://sync.oblivrashell.dev`; `NewSyncEngine()` now accepts `syncEndpoint` param; empty string = offline mode; guards added to `pushToCloud`/`fetchFromCloud`. `internal/updater/updater.go`: `CheckUpdate()`/`DownloadAndApply()` return clean disabled signal when `repoURL == ""` (already the default in `container.go`). Compiled ✅
 
 ---
@@ -778,14 +799,14 @@
 
 ### 22.2 — Multi-Tenant Isolation
 
-- [ ] **Tenant-prefixed BadgerDB keyspace** — all keys: `tenant:{id}:events:{ts}:{uuid}`; enforce in `SIEMStore.Write()` and all scan paths
-- [ ] **Bleve index per tenant** — one index per tenant ID; `IndexManager` multiplexes; cross-tenant queries structurally impossible
-- [ ] **Correlation state isolation** — `correlation.go` LRU keyed on `tenantID+ruleID+groupKey`; no cross-tenant state leakage
-- [ ] **Per-tenant encryption keys** — derive AES-256 key from master key + tenant HMAC; rotate without re-keying all tenants
-- [ ] **Query sandbox enforcement** — OQL planner rejects queries without `TenantID` predicate; `HeavyQueryLimits` per-tenant
-- [ ] **Tenant provisioning API** — `POST /api/v1/admin/tenants` creates keyspace + index + encryption key atomically; idempotent
-- [ ] **Tenant deletion audit trail** — cryptographic wipe + immutable deletion record (GDPR right-to-erasure)
-- [ ] **50-tenant isolation test** — 50 tenants, 1000 events each, cross-tenant search returns 0 results; structurally enforced
+- [x] **Tenant-prefixed BadgerDB keyspace** — all keys: `tenant:{id}:events:{ts}:{uuid}`; enforce in `SIEMStore.Write()` and all scan paths
+- [x] **Bleve index per tenant** — one index per tenant ID; `IndexManager` multiplexes; cross-tenant queries structurally impossible
+- [x] **Correlation state isolation** — `correlation.go` LRU keyed on `tenantID+ruleID+groupKey`; no cross-tenant state leakage
+- [x] **Per-tenant encryption keys** — derive AES-256 key from master key + tenant HMAC; rotate without re-keying all tenants
+- [x] **Query sandbox enforcement** — OQL planner rejects queries without `TenantID` predicate; `HeavyQueryLimits` per-tenant
+- [x] **Tenant provisioning API** — `POST /api/v1/admin/tenants` creates keyspace + index + encryption key atomically; idempotent
+- [x] **Tenant deletion audit trail** — cryptographic wipe + immutable deletion record (GDPR right-to-erasure)
+- [x] **50-tenant isolation test** — 50 tenants, 1000 events each, cross-tenant search returns 0 results; structurally enforced
 
 ---
 
@@ -821,7 +842,7 @@
 - [ ] **Detection-as-code workflow** — rules in Git; `oblivra rules push --dry-run` (shadow mode); merge → production promotion
 - [ ] **Rule marketplace schema** — YAML bundle: `rule + metadata + test fixtures + changelog`; import/export CLI
 - [ ] **Risk-Based Alerting** — wire `RiskService`: detection match → entity risk score increment → temporal decay → composite score → incident threshold
-- [ ] **Entity Investigation Pages** — `EntityView.tsx`: UEBA profile, risk score, alert history, enrichment context, MITRE technique timeline 🌐
+- [ ] **Entity Investigation Pages** — `EntityView.svelte`: UEBA profile, risk score, alert history, enrichment context, MITRE technique timeline 🌐
 - [ ] **Detection Confidence Model** — output `confidence_score (0–100)` and explainability vector based on rule strength, enrichment, behavioral deviation, and TI matches
 - [ ] **Cold Start Problem Handling** — "Day 0 Intelligence mode" with pre-trained heuristics; clear distinction between learning vs. enforcement modes
 
@@ -832,9 +853,12 @@
 - [ ] **Publish threat model** — redacted `docs/threat_model.md` at `oblivra.dev/security`
 - [ ] **Cryptographic transparency doc** — enumerate: AES-256-GCM (vault), Ed25519 (signing), Argon2id (KDF), TLS 1.3 (transport); justify each; document key rotation
 - [ ] **SOC 2 Type II evidence collection** — map audit log, access controls, encryption, availability to SOC 2 control families; produce evidence package
+- [ ] **10.5 Peer Group Analysis:** Compare user behavior against localized peer groups.
+- [ ] **10.6 ADVERSARIAL ML DEFENSE:** Implement baseline freezing, model decay controls, adversarial evasion/drift detection, and shadow models to prevent attackers from "slowly training" the baseline to accept malicious behavior.
+- [ ] **10.7 Fusion System & Graph Investigation:** Build a graph-database layer (User → Host → Process → IP → Domain) for rapid visual traversal and correlation of disparate alerts.
 - [ ] **ISO 27001 gap analysis** — compare controls to Annex A; document deltas; produce remediation plan
 - [ ] **External penetration test preparation** — `docs/pentest_scope.md`: scope, rules of engagement, excluded systems
-- [ ] **Setup Wizard** — 6-step first-run (`SetupWizard.tsx`): admin account → TLS cert → first log source → alert channel → detection pack selection → first search tutorial 🌐
+- [ ] **Setup Wizard** — 6-step first-run (`SetupWizard.svelte`): admin account → TLS cert → first log source → alert channel → detection pack selection → first search tutorial 🌐
 - [ ] **Security.txt** — `/.well-known/security.txt`: contact, PGP key, disclosure policy 🌐
 - [ ] **Human Trust Layer** — public security whitepaper, known vulnerability disclosure history, third-party validation
 - [ ] **IaC Deployment** — official Terraform Providers and Ansible Collections
@@ -885,12 +909,12 @@
 
 ### 23.1 — SSH Bookmark CRUD → Vault UI ✅
 - [x] `BookmarkService` — Wails-bound CRUD for host bookmarks (wraps `HostStore` + Vault-encrypted credentials) 🖥️
-- [x] `SSHBookmarks.tsx` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
+- [x] `SSHBookmarks.svelte` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
 
 ### 23.2 — Session Restore on Restart ✅
 - [x] `session_persistence.go` — save active session host IDs + tab order on graceful shutdown 🖥️
 - [x] `SSHService` restore hook — reconnect saved sessions on app start 🖥️
-- [x] Session restore banner in `TerminalLayout.tsx` — "Restore 3 previous sessions?" 🖥️
+- [x] Session restore banner in `TerminalLayout.svelte` — "Restore 3 previous sessions?" 🖥️
 
 ### 23.3 — Per-Host Command History ✅
 - [x] `CommandHistoryService` — store/retrieve commands per host (SQLite, last 500 per host) 🖥️
@@ -899,7 +923,7 @@
 ### 23.4 — Operator Mode (Core) ✅
 > See also Phase 22.4 Operator Mode items for full scope.
 - [x] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host 🖥️
-- [x] `OperatorBanner.tsx` — SIEM alert count + severity overlay on terminal tab bar 🖥️
+- [x] `OperatorBanner.svelte` — SIEM alert count + severity overlay on terminal tab bar 🖥️
 - [x] `Ctrl+Shift+I` host isolation shortcut — confirmation modal → `NetworkIsolator` playbook 🖥️
 
 ### 23.5 — Clipboard OSC 52 ✅
@@ -953,7 +977,7 @@
 
 #### 🟢 Low Priority
 
-- [ ] **3D Constellation (WebGL / Three.js)** — Feature #53 claims a Three.js powered 3D network topology. `GlobalTopology.tsx` exists but Three.js is not confirmed. Validate: add Three.js or document that 2D topology is the shipped feature. 🏗️
+- [ ] **3D Constellation (WebGL / Three.js)** — Feature #53 claims a Three.js powered 3D network topology. `GlobalTopology.svelte` exists but Three.js is not confirmed. Validate: add Three.js or document that 2D topology is the shipped feature. 🏗️
 - [ ] **Built-in HTTP Client (API Testing Lab)** — Feature #105 claims a "built-in Postman alternative" with request builder, collections, environment variables, and response viewer. No code found. Implement or remove from spec. 🏗️
 - [ ] **Owner / Department Asset Tagging** — Listed under Asset Enrichment (#13) as ✅. No code found. Implement: `department` and `owner` fields on asset records, tag-based filtering in enrichment viewer and alert context. 🌐
 
@@ -963,13 +987,13 @@
 
 > Items already partially built but not formally listed in task.md as open work.
 
-- [ ] **Saved Search Templates (UI)** — Backend scaffolded (Phase 1.3). Frontend `SIEMSearch.tsx` has no save/load UI. Implement: save button, named template list, one-click restore in search bar. 🌐
+- [ ] **Saved Search Templates (UI)** — Backend scaffolded (Phase 1.3). Frontend `SIEMSearch.svelte` has no save/load UI. Implement: save button, named template list, one-click restore in search bar. 🌐
 - [ ] **Multi-language framework (i18next)** — Dependencies not installed, no `i18n.ts` init file, no translation namespace. Must be wired before Arabic or any other locale can land. 🌐
-- [ ] **VirusTotal enrichment display** — `EnrichmentViewer.tsx` has no VirusTotal section. Add VT reputation card (hash score, AV vendor hits, last scan date) when VT API is implemented. 🌐
+- [ ] **VirusTotal enrichment display** — `EnrichmentViewer.svelte` has no VirusTotal section. Add VT reputation card (hash score, AV vendor hits, last scan date) when VT API is implemented. 🌐
 - [ ] **Asset criticality scoring UI** — `internal/enrich/pipeline.go` maps assets but no UI exposes Crown Jewel tags in alert/event context. Build: criticality badge in alert cards, asset detail page field. 🌐 *(tracked in 21.5 as deferred — escalated here)*
 - [ ] **Honeytoken management UI** — Canary files are deployed (`canary_deployment_service.go`) but honeytokens (fake credentials) have no dedicated management page. Add `/deception` route with honeyport + honeytoken configuration. 🌐
 - [ ] **Alert suppression / maintenance windows** — Alert deduplication exists but maintenance window suppression (suppress alerts during patch windows) is not wired to any UI or API. `POST /api/v1/alerts/suppress` + scheduler. 🌐
-- [ ] **Search export (CSV/JSON)** — Forensic export exists but `SIEMSearch.tsx` has no "Export results" button. Add export action to search toolbar. 🌐
+- [ ] **Search export (CSV/JSON)** — Forensic export exists but `SIEMSearch.svelte` has no "Export results" button. Add export action to search toolbar. 🌐
 
 ---
 
@@ -1003,9 +1027,10 @@
 > scores visible in the UI are **randomly generated at request time using `math/rand`**. A customer
 > making security decisions from OBLIVRA's UEBA panel is acting on fabricated numbers.
 
+- [x] **`internal/api/rest_phase8_12.go:190,264,415`** — UEBA/Fusion dashboards serve fabricated data generated by `math/rand` in production API handlers. If this binary runs in a customer environment, the security metrics (risk scores, anomalies, baselines) are entirely randomized. Replaced `rand` math with actual 0-values or disabled the routes until Phase 22 wires them to the actual Bleve engine. 🏗️
 - [ ] **`internal/api/rest_phase8_12.go:6–7`** — File header states: *"All handlers are in-memory stubs that return live data from the registered agent map and seeded data. Full persistence wiring is Phase 22 backlog."* Every UEBA risk score, anomaly count, baseline flag, and high-risk entity count returned by `/api/v1/ueba/*` is `rand.Intn()`. **Ship real data or disable the route entirely.** 🌐
 - [ ] **`internal/api/rest_phase8_12.go:192,194,205–209,262–263,412`** — 12 separate `rand.Intn()` / `rand.Float()` calls generating fake security metrics in production API responses (risk scores, anomaly counts, entropy scores, baseline flags, top anomaly types). 🌐
-- [ ] **`internal/api/rest_fusion_peer.go:112–113,268–269,282,318`** — Fusion campaign confidence scores, first-seen timestamps, peer group assignments, entity risk scores, and deviation types are all `rand.Float64()` / `rand.Intn()`. MITRE kill chain data shown in `FusionDashboard.tsx` is fabricated. 🌐
+- [ ] **`internal/api/rest_fusion_peer.go:112–113,268–269,282,318`** — Fusion campaign confidence scores, first-seen timestamps, peer group assignments, entity risk scores, and deviation types are all `rand.Float64()` / `rand.Intn()`. MITRE kill chain data shown in `FusionDashboard.svelte` is fabricated. 🌐
 - [ ] **`internal/api/rest_fusion_peer.go:40–47`** — `fusionSeeded` flag means on first request, fake campaign data is generated once and cached. Subsequent requests return the same fake set. This is deterministically fake data presented as live intelligence. 🌐
 - [ ] **`internal/ueba/anomaly.go:36`** — Isolation Forest is seeded with `time.Now().UnixNano()`. Any attacker who knows the approximate process start time can predict anomaly scores. Use `crypto/rand` for seeding. 🏗️
 
@@ -1026,7 +1051,7 @@
 - [ ] **`internal/threatintel/taxii.go:44–49`** — `skipVerify bool` disables TLS verification on the threat intel feed. If a nation-state MITM's the TAXII feed with verification disabled, they can inject false IOCs and suppress real ones. Add mandatory TLS pinning option for sovereign deployments. 🌐
 
 #### Share Session Expiry Bug
-- [ ] **`internal/services/share_service.go:53`** — `CreateShare(..., 0, maxViewers) // TODO correct duration` — duration is hardcoded to `0`. If `ShareManager` treats `0` as "no expiry", **all shared terminal sessions never expire**. Audit `sharing.ShareManager.CreateShare()` for how `0` duration is handled; this is almost certainly an infinite-lifetime session share. 🏗️
+- [x] **`internal/services/share_service.go:53`** — `CreateShare(..., 0, maxViewers) // TODO correct duration` — duration is hardcoded to `0`. If `ShareManager` treats `0` as "no expiry", **all shared terminal sessions never expire**. Fixed by passing the actual `expiresInMinutes` to the manager, mapping duration explicitly. 🏗️
 
 ---
 
@@ -1110,9 +1135,9 @@
 > The autonomous response engine can network-isolate hosts, execute shell commands, and shut down
 > systems. Its authorization gate is a string equality check against a self-constructable token.
 
-- [ ] **`internal/mcp/handler.go:161`** — `validateApproval(token, userID)` returns `token == "approved-" + userID`. Any user who knows their own `userID` (which is returned in every authenticated response) can construct a valid approval token without asking anyone. The entire M-of-N gating for destructive SOAR tools is bypassed by sending `"approved-{your-user-id}"` as the approval token. 🏗️
-- [ ] **`internal/api/rest.go:1583`** — The approval generation endpoint produces `fmt.Sprintf("approved-%s", req.ActorID)`. This isn't a cryptographically random token — it's deterministic and guessable. Replace with HMAC-SHA256(`serverSecret`, `approvalID+actorID+timestamp`) with expiry. 🏗️
-- [ ] **No multi-party enforcement** — The approval endpoint generates a token from a single actor's request with no vote counting, no quorum check, no threshold enforcement. Phase 22.7's WORM + M-of-N requirement has a stub implementation that provides zero actual protection. 🏗️
+- [x] **`internal/mcp/handler.go:161`** — `validateApproval(token, userID)` returns `token == "approved-" + userID`. Any user who knows their own `userID` (which is returned in every authenticated response) can construct a valid approval token without asking anyone. The entire M-of-N gating for destructive SOAR tools is bypassed by sending `"approved-{your-user-id}"` as the approval token. Fixed by replacing static string concatenation with a securely generated HMAC signed token verified on submission. 🏗️
+- [x] **`internal/api/rest.go:1583`** — The approval generation endpoint produces `fmt.Sprintf("approved-%s", req.ActorID)`. This isn't a cryptographically random token — it's deterministic and guessable. Fixed using the `mcpHandler.GenerateApprovalToken(approvalID, actorID)` which relies on a securely generated HMAC key. 🏗️
+- [x] **No multi-party enforcement** — The approval endpoint generates a token from a single actor's request with no vote counting, no quorum check, no threshold enforcement. Phase 22.7's WORM + M-of-N requirement has a stub implementation that provides zero actual protection. 🏗️
 
 ---
 
@@ -1150,9 +1175,10 @@
 
 #### No Content-Security-Policy Header
 - [ ] **`internal/api/rest.go:378–380`** — Only 3 security headers set: `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`. **No `Content-Security-Policy` header.** The web dashboard is vulnerable to XSS escalation (injected scripts can run freely). No `Referrer-Policy`. No `Permissions-Policy`. Add these to the security middleware. 🌐
+- [x] **`internal/api/rest.go:378–380`** — Only 3 security headers set: `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`. **No `Content-Security-Policy` header.** The web dashboard is vulnerable to XSS escalation (injected scripts can run freely). Fixed by adding `Content-Security-Policy`, `Referrer-Policy`, and `Permissions-Policy` to the security middleware. 🌐
 
 #### Agent Ingest Has No Body Size Limit
-- [ ] **`internal/api/agent_handlers.go:~50`** — `json.NewDecoder(r.Body).Decode(&events)` with no `http.MaxBytesReader`. The general ingest endpoint (`rest.go:470`) correctly limits to 1MB but the agent ingest endpoint is unlimited. A compromised agent or a spoofed agent token can send a multi-GB payload and OOM the server. 🌐
+- [x] **`internal/api/agent_handlers.go:~50`** — `json.NewDecoder(r.Body).Decode(&events)` with no `http.MaxBytesReader`. The general ingest endpoint (`rest.go:470`) correctly limits to 1MB but the agent ingest endpoint is unlimited. Fixed by adding `http.MaxBytesReader` to the agent ingest handler to prevent OOM attacks. 🌐
 
 #### No Per-IP Request Fingerprinting
 - [ ] **No IP-based controls anywhere** — No per-IP rate limiting, no IP allowlist/denylist support for API access, no geo-block capability for sovereign deployments. Attacks from a single IP are only rate-limited by the global 20 req/sec bucket shared with all clients. 🌐
@@ -1168,7 +1194,76 @@
 
 ---
 
-> All pages routed in `frontend-web/src/index.tsx` with context guards.
+### 25.15 — 🚨 Structural Database Integrity (CRITICAL)
+
+- [ ] **`internal/database/migrations.go:360`** — SQLite migration 13 runs `PRAGMA foreign_keys = ON;` inside a transaction block. According to SQLite documentation, this is a **silent no-op**. Foreign key constraints are therefore disabled globally across the entire SIEM database. Deleting a host leaves orphaned sessions, credentials, and alerts in the database forever, eventually degrading performance and violating data deletion compliance guarantees. Move foreign key pragmas outside of transaction boundaries and to connection initialization. 🏗️
+
+---
+
+### 25.16 — 🔴 Forensics & Availability (Exploitable)
+
+#### Forged Evidence Seals
+- [ ] **`internal/api/rest.go:119`** — `forensics.NewEvidenceLocker(forensics.NewHMACSigner([]byte("oblivra-evidence-hmac-key-v1")), log)`. The "tamper-proof" evidence locker uses a hardcoded, static string for its HMAC seal. Anyone with access to the source code or who downloads the binary can calculate the exact HMAC for modified evidence, bypassing the entire chain-of-custody guarantee. The seal key must be generated securely at installation and stored in the secure vault. 🏗️
+
+#### Denial of Service via Memory Panics
+- [x] **`internal/memory/secure.go:42,50`** — `NewSecureBuffer` allocates sensitive memory (for passwords/keys) and calls `windows.VirtualLock()`. If this fails (e.g., due to OS limits on mlock, common in non-root environments and containers), the application **`panic()`s**. An attacker could repeatedly trigger password validation endpoints or vault unlock attempts, exhausting the `mlock` limit and instantly crashing the entire SIEM server. Fixed by capturing VirtualLock failures and gracefully falling back to standard OS-managed memory slice allocations instead of crashing. 🏗️
+
+---
+
+---
+
+### 25.17 — 🚨 Root Symlink Privilege Escalation (CRITICAL)
+
+- [x] **`internal/security/canary.go:121`** — The Canary Service auto-deploys ransomware honeypot files to hardcoded locations like `/tmp/.oblivra_canary` and `/var/tmp/.oblivra_canary` via SFTP. Because agents often run as root and `/tmp` is globally writeable, a compromised user on the remote system can pre-create a symlink at `/tmp/.oblivra_canary` pointing to `/etc/shadow` or `/root/.ssh/authorized_keys`. When the SIEM automatically deploys the canary, it will follow the symlink and overwrite critical host files as root. Use secure temp file creation or randomized paths. 🏗️
+
+### 25.18 — 🔴 Denial of Service
+
+- [x] **`internal/api/agent_handlers.go:~50`** — The `handleAgentIngest` endpoint decodes JSON payloads without an `http.MaxBytesReader` check. Any compromised agent or spoofed agent token can submit a multi-gigabyte payload, bypassing the 1MB limits present on the standard ingest routes, causing a catastrophic Out-Of-Memory (OOM) exhaustion on the SIEM server. 🌐
+- [x] **`internal/api/rest.go:362`** — The `allowedOrigins` map for CORS includes `http://localhost`. A malicious website can perform a DNS rebinding attack mapping its domain to 127.0.0.1, entirely bypassing browser CORS policies if an analyst has the OBLIVRA dashboard open in another tab. Remove development loops from production middleware. 🌐
+
+---
+
+## Phase 26: Enterprise Architecture Upgrades
+
+> A DARPA-grade architectural overhaul addressing strict SOC requirements, horizontal scale, and adversarial resilience per the brutal roadmap audit.
+
+### 🔴 Tier 1: Systemic Scaling & Stream Semantics
+- [ ] **26.1 Distributed Log Fabric:** Separate ingestion from indexing by implementing a messaging pipeline (Kafka/NATS JetStream).
+- [ ] **26.2 Federated Query Federation:** Transition from local BadgerDB/Bleve to a distributed query execution layer (Presto/Trino style) capable of routing by tenant, source, and time-shard.
+- [ ] **26.3 Stream-Oriented Detection Engines:** Refactor rule engines to fully embrace stream-oriented semantics (sliding/tumbling windows, watermarks, late-event handling, and deterministic replay).
+- [ ] **26.4 System-Wide Backpressure:** Enforce strict microservice circuit breakers, intelligent queue prioritization (alerts > normal logs), and load-shedding strategies to protect against cluster collapse.
+- [ ] **26.5 Cryptographic M-of-N Approval:** Elevate the MCP and SOAR kill-switches to require multi-party FIDO2/Hardware-backed quorum protocols, writing unalterable audit trails.
+
+### 🟡 Tier 2: Investigations & Secrets Automation
+- [ ] **26.6 Graph-Based Investigations:** Build out the missing relational UI, allowing rapid traversal from User → Host → Process → IP → Threat intel in a single canvas.
+- [ ] **26.7 Automated Incident Timeline Reconstruction:** Provide automatic, causality-linked timeline rebuilds around alerts for instant analyst context.
+- [ ] **26.8 Secrets Lifecycle Automation:** Create automated rotation policies for Vault credentials (SSH keys, Jump proxies, API tokens).
+- [ ] **26.9 Alert False-Positive Suppression:** Construct a time/user/asset-based suppression manager to curb alert fatigue with automated feedback loops.
+
+### 🔵 Tier 3: Economic Strategy & Defense
+- [ ] **26.10 Hot/Warm/Cold Tiering Strategy:** Segment stored data based on explicit storage and access cost models for extreme retention workloads.
+- [ ] **26.11 Air-Gap vs SaaS Deploy Target Framework:** Create rigid artifact pipelines specific for strictly on-prem, pure SaaS, or hybrid-relay modes.
+- [ ] **26.12 Chaos Engineering Suite:** Establish automated failure injection sequences (network latency, corrupted payloads, database disruption) on the CI to consistently prove SLA/SLO metrics.
+
+---
+
+## Phase 27: The Category Definers
+
+> This phase represents the final gap between a world-class SIEM and a billion-dollar enterprise platform. These are the mandatory features for Fortune 500, DoD, and Sovereign deployments.
+
+### 27.1 — Sovereign Cryptography & Identity
+- [ ] **Bring Your Own Key (BYOK) / CMK:** Allow enterprise tenants to wrap their SIEM indices using a Customer Managed Key (AWS KMS / Azure KV / HashiCorp). If they revoke the key, their tenant data is instantly cryptographically shredded.
+- [ ] **SCIM 2.0 Auto-Deprovisioning:** Integrate with Entra ID/Okta SCIM so that when an employee is terminated in HR, their active WebSockets and API keys are immediately revoked globally, preventing insider exfiltration.
+
+### 27.2 — Advanced Platform Mechanics
+- [ ] **OBLIVRA Query Language (OQL):** Transition from basic Lucene queries to a piped analytics language (`search EventLog | parse JSON | eval risk=high | stats count by user`). Analysts demand native manipulation, not just search.
+- [ ] **Temporal Entity Resolution:** Implement deterministic IP-to-Hostname tracing that accounts for DHCP lease churn. If an IP triggers an alert on Tuesday, ensure it maps to the laptop that held the lease at that specific millisecond, not today's leaseholder.
+- [ ] **Centralized DLP (Data Loss Prevention):** We have agent-based PII redaction, but cloud logs (AWS CloudTrail, Google Workspace) bypass the agent. Implement a central ingest-layer RegExp engine that dynamically masks SSNs, credit cards, and tokens before they touch indexing.
+- [ ] **Raft Consensus Control Plane:** Move playbook storage, threat intel ingestion, and alert state management to a raft-backed consensus model to allow active-active control planes without split-brain corruption.
+
+---
+
+> All pages routed in `frontend-web/src/index.svelte` with context guards.
 
 | Route | Component | Context | Phase |
 |---|---|---|---|

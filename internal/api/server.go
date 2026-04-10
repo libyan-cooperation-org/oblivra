@@ -222,7 +222,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use tenant-scoped context for all DB operations
-	ctx := database.WithTenantID(r.Context(), database.DefaultTenantID)
+	ctx := database.WithTenant(r.Context(), database.DefaultTenantID)
 	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE tenant_id = ?`
 	rows, err := s.db.DB().QueryContext(ctx, query, database.DefaultTenantID)
 	if err != nil {
@@ -269,7 +269,7 @@ func (s *Server) handleHostAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := database.WithTenantID(r.Context(), database.DefaultTenantID)
+	ctx := database.WithTenant(r.Context(), database.DefaultTenantID)
 	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE id = ? AND tenant_id = ?`
 	row := s.db.DB().QueryRowContext(ctx, query, id, database.DefaultTenantID)
 
@@ -319,7 +319,7 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	execCtx := database.WithTenantID(r.Context(), database.DefaultTenantID)
+	execCtx := database.WithTenant(r.Context(), database.DefaultTenantID)
 	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE id = ? AND tenant_id = ?`
 	row := s.db.DB().QueryRowContext(execCtx, query, req.HostID, database.DefaultTenantID)
 

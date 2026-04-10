@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -50,7 +51,8 @@ func (s *ShareService) CreateShare(sessionID, hostLabel, mode, createdBy string,
 		fromMode = sharing.ShareObserve
 	}
 
-	_, link, err := s.shareManager.CreateShare(sessionID, hostLabel, fromMode, createdBy, 0, maxViewers) // TODO correct duration
+	duration := time.Duration(expiresInMinutes) * time.Minute
+	_, link, err := s.shareManager.CreateShare(sessionID, hostLabel, fromMode, createdBy, duration, maxViewers)
 	if err != nil {
 		s.log.Error("Failed to create share for session %s: %v", sessionID, err)
 		return "", err

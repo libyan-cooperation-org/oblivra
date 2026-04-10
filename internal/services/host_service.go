@@ -48,9 +48,9 @@ func NewHostService(db database.DatabaseStore, v vault.Provider, repo database.H
 	}
 }
 
-func (s *HostService) ListHosts() ([]database.Host, error) {
+func (s *HostService) ListHosts(ctx context.Context) ([]database.Host, error) {
 	s.log.Debug("Fetching all hosts")
-	return s.hosts.GetAll(s.ctx)
+	return s.hosts.GetAll(ctx)
 }
 
 func (s *HostService) Start(ctx context.Context) error {
@@ -85,7 +85,12 @@ func (s *HostService) startPolling() {
 }
 
 func (s *HostService) pollHosts() {
-	hosts, err := s.ListHosts()
+	// For polling, we use a background context or a system-level context.
+	// Since health checks are global infrastructure, they use the global search key
+	// or iterate through all tenants. For now, we use the service's lifetime context.
+	ctx := database.WithGlobalSearch(s.ctx)
+
+	hosts, err := s.hosts.GetAll(ctx)
 	if err != nil {
 		s.log.Error("Failed to fetch hosts for polling: %v", err)
 		return
@@ -138,13 +143,13 @@ func (s *HostService) pollHosts() {
 	}
 }
 
-func (s *HostService) Create(host database.Host) (*database.Host, error) {
+func (s *HostService) Create(ctx context.Context, host database.Host) (*database.Host, error) {
 	if host.ID == "" {
 		host.ID = uuid.New().String()
 	}
 	s.log.Info("Creating host: %s (%s)", host.Label, host.Hostname)
 
-	if err := s.hosts.Create(s.ctx, &host); err != nil {
+	if err := s.hosts.Create(ctx, &host); err != nil {
 		return nil, err
 	}
 
@@ -152,11 +157,11 @@ func (s *HostService) Create(host database.Host) (*database.Host, error) {
 	return &host, nil
 }
 
-func (s *HostService) Update(host database.Host) (*database.Host, error) {
+func (s *HostService) Update(ctx context.Context, host database.Host) (*database.Host, error) {
 	s.log.Info("Updating host: %s (hostname: %s, tenant from ctx: %s)",
-		host.ID, host.Hostname, database.TenantFromContext(s.ctx))
+		host.ID, host.Hostname, database.TenantFromContext(ctx))
 
-	if err := s.hosts.Update(s.ctx, &host); err != nil {
+	if err := s.hosts.Update(ctx, &host); err != nil {
 		s.log.Error("Failed to update host %s: %v", host.ID, err)
 		return nil, err
 	}
@@ -165,11 +170,11 @@ func (s *HostService) Update(host database.Host) (*database.Host, error) {
 	return &host, nil
 }
 
-func (s *HostService) Delete(id string) error {
+func (s *HostService) Delete(ctx context.Context, id string) error {
 	s.log.Info("Deleting host: %s (tenant from ctx: %s)",
-		id, database.TenantFromContext(s.ctx))
+		id, database.TenantFromContext(ctx))
 
-	if err := s.hosts.Delete(s.ctx, id); err != nil {
+	if err := s.hosts.Delete(ctx, id); err != nil {
 		s.log.Error("Failed to delete host %s: %v", id, err)
 		return err
 	}
@@ -178,15 +183,15 @@ func (s *HostService) Delete(id string) error {
 	return nil
 }
 
-func (s *HostService) ToggleFavorite(id string) error {
+func (s *HostService) ToggleFavorite(ctx context.Context, id string) error {
 	s.log.Debug("Toggling favorite: %s", id)
-	_, err := s.hosts.ToggleFavorite(s.ctx, id)
+	_, err := s.hosts.ToggleFavorite(ctx, id)
 	return err
 }
 
 // WakeHost sends a WOL Magic Packet to the host if a MAC tag exists
-func (s *HostService) WakeHost(id string) error {
-	host, err := s.hosts.GetByID(s.ctx, id)
+func (s *HostService) WakeHost(ctx context.Context, id string) error {
+	host, err := s.hosts.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -208,7 +213,7 @@ func (s *HostService) WakeHost(id string) error {
 }
 
 // ImportSSHConfig reads the user's local ~/.ssh/config file and bulk-imports the host declarations into the database
-func (s *HostService) ImportSSHConfig() (int, error) {
+func (s *HostService) ImportSSHConfig(ctx context.Context) (int, error) {
 	s.log.Info("Starting bulk import from local ~/.ssh/config")
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -287,7 +292,7 @@ func (s *HostService) ImportSSHConfig() (int, error) {
 
 	count := 0
 	for _, h := range hosts {
-		if _, err := s.Create(h); err == nil {
+		if _, err := s.Create(ctx, h); err == nil {
 			count++
 		}
 	}

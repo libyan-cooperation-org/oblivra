@@ -11,6 +11,9 @@
   import TitleBar from './TitleBar.svelte';
   import StatusBar from './StatusBar.svelte';
   import CommandRail from './CommandRail.svelte';
+  import CommandPalette from '@components/ui/CommandPalette.svelte';
+  import AddHostModal from '@components/sidebar/AddHostModal.svelte';
+  import TransferDrawer from '@components/terminal/TransferDrawer.svelte';
 
   interface Props {
     children: Snippet;
@@ -19,10 +22,27 @@
   let { children }: Props = $props();
 
   let showTransferDrawer = $state(false);
+  let showCommandPalette = $state(false);
+  let showAddHostModal = $state(false);
 
   // Global keyboard shortcuts
   function handleKeyDown(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
+    
+    // Command Palette (Cmd+K or Cmd+P)
+    if (mod && (e.key.toLowerCase() === 'k' || e.key.toLowerCase() === 'p')) {
+      e.preventDefault();
+      showCommandPalette = !showCommandPalette;
+      return;
+    }
+
+    // Add Host (Cmd+N)
+    if (mod && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      showAddHostModal = true;
+      return;
+    }
+
     if (!mod) return;
 
     if (e.shiftKey && e.key.toLowerCase() === 'f') {
@@ -79,7 +99,23 @@
   </div>
 
   <!-- Status Bar -->
-  {#if !appStore.focusMode}
-    <StatusBar onToggleTransfers={() => showTransferDrawer = !showTransferDrawer} />
-  {/if}
+    {#if !appStore.focusMode}
+      <StatusBar onToggleTransfers={() => showTransferDrawer = !showTransferDrawer} />
+    {/if}
+
+  <!-- Global UI Overlays -->
+  <CommandPalette
+    open={showCommandPalette}
+    onClose={() => showCommandPalette = false}
+  />
+
+  <AddHostModal
+    open={showAddHostModal}
+    onClose={() => showAddHostModal = false}
+  />
+
+  <TransferDrawer
+    open={showTransferDrawer}
+    onClose={() => showTransferDrawer = false}
+  />
 </div>

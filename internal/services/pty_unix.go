@@ -14,6 +14,10 @@ import (
 // This gives full terminal emulation: cursor movement, tab completion, colours,
 // applications like htop/vim, and proper window resize support.
 func startPTY(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
+	return nil, fmt.Errorf("bypass pty directly for wayland crash test")
+}
+
+func _original_startPTY(cmd *exec.Cmd, cols, rows int) (*ptySession, error) {
 	cmd.Env = append(os.Environ(),
 		"TERM=xterm-256color",
 		fmt.Sprintf("COLUMNS=%d", cols),

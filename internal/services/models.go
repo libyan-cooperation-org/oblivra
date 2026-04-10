@@ -61,6 +61,7 @@ type MultiExecResult struct {
 // MultiExecJob tracks a multi-host execution job
 type MultiExecJob struct {
 	ID        string            `json:"id"`
+	TenantID  string            `json:"tenant_id"`
 	Command   string            `json:"command"`
 	HostIDs   []string          `json:"host_ids"`
 	Results   []MultiExecResult `json:"results"`
