@@ -3,9 +3,8 @@
   Data provenance and forensic lineage: Tracing the origin and transformation of security telemetry.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, Chart } from '@components/ui';
+  import { KPI, PageLayout, Button } from '@components/ui';
   import { Network, Share2, Activity, Zap, Database, Search, ShieldCheck } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
 
   const lineageNodes = [
     { id: 'L-01', type: 'Ingress', source: 'edge-gw-01', time: '12:00:01' },
@@ -23,20 +22,19 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Tracked Events" value="1.4M" trend="Historical" />
-      <KPI title="Lineage Depth" value="L12" trend="Millisecond" variant="accent" />
-      <KPI title="Integrity Proof" value="VERIFIED" trend="Signed" variant="success" />
-      <KPI title="Audit Stability" value="100%" trend="Optimal" variant="success" />
+      <KPI label="Tracked Events" value="1.4M" trend="stable" trendValue="Historical" />
+      <KPI label="Lineage Depth" value="L12" trend="stable" trendValue="Millisecond" variant="accent" />
+      <KPI label="Integrity Proof" value="VERIFIED" trend="stable" trendValue="Signed" variant="success" />
+      <KPI label="Audit Stability" value="100%" trend="stable" trendValue="Optimal" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-4 gap-6">
-       <!-- Lineage Visualization (Mock) -->
-       <div class="lg:col-span-3 bg-surface-1 border border-border-primary rounded-md relative overflow-hidden flex flex-col shadow-premium group">
+       <div class="lg:col-span-3 bg-surface-1 border border-border-primary rounded-md relative overflow-hidden flex flex-col shadow-card group">
           <div class="absolute inset-0 opacity-[0.03] pointer-events-none grayscale flex items-center justify-center">
              <Share2 size={600} />
           </div>
           
-          <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-text-muted">
+          <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted">
              Evidence Provenance Chain
           </div>
           
@@ -52,7 +50,7 @@
                       </div>
                       <div class="flex flex-col">
                          <span class="text-[9px] font-bold text-accent uppercase tracking-widest">{node.type}</span>
-                         <span class="text-[11px] font-bold text-text-heading">{node.source || node.logic || node.sink}</span>
+                         <span class="text-[11px] font-bold text-text-heading">{node.source ?? node.logic ?? node.sink}</span>
                          <span class="text-[8px] font-mono text-text-muted">{node.time}</span>
                       </div>
                    </div>
@@ -66,12 +64,11 @@
           </div>
        </div>
 
-       <!-- Lineage Metadata -->
        <div class="flex flex-col gap-6">
-          <div class="bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col items-center justify-center text-center gap-3 border-dashed shadow-sm">
+          <div class="bg-surface-1 border border-border-primary border-dashed rounded-md p-6 flex flex-col items-center justify-center text-center gap-3 shadow-card">
              <Network size={32} class="text-accent opacity-40" />
              <h4 class="text-xs font-bold text-text-heading uppercase tracking-widest">Temporal Consistency</h4>
-             <p class="text-[10px] text-text-muted max-w-[180px]">Each transition in the lineage chain is cryptographically hashed and linked to the previous state block.</p>
+             <p class="text-[10px] text-text-muted max-w-[180px]">Each transition is cryptographically hashed and linked to the previous state block.</p>
           </div>
 
           <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4 space-y-4">
@@ -82,7 +79,7 @@
              <div class="space-y-4">
                 {#each Array(3) as _, i}
                    <div class="flex justify-between items-center text-[10px]">
-                      <span class="text-text-secondary">Logic Block {i+1}</span>
+                      <span class="text-text-secondary">Logic Block {i + 1}</span>
                       <span class="font-bold text-success">NOMINAL</span>
                    </div>
                 {/each}

@@ -6,9 +6,7 @@
   import { onMount } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { IS_BROWSER } from '@lib/context';
-  import { KPI, Badge, DataTable, PageLayout, Button, SearchBar, Tabs } from '@components/ui';
-
-
+  import { KPI, Badge, DataTable, PageLayout, Button, Input, Tabs } from '@components/ui';
 
   const siemTabs = [
     { id: 'feed', label: 'Live Feed', icon: '📡' },
@@ -42,21 +40,18 @@
       logs = mockLogs;
       return;
     }
-    
     loading = true;
     try {
       const { ExecuteOQL } = await import('@wailsjs/go/services/SIEMService.js');
       const query = searchQuery || 'severity:>=info';
       const result = await ExecuteOQL(query);
-      
-      // Map OQL results to UI table format
       if (result && result.Events) {
         logs = result.Events.map((ev: any) => ({
           id: ev.ID,
           time: new Date(ev.Timestamp).toLocaleString(),
           type: ev.Severity || 'info',
           host: ev.HostName || 'unknown',
-          message: ev.Message || ev.RawData || 'No message'
+          message: ev.Message || ev.RawData || 'No message',
         }));
       }
     } catch (err) {
@@ -66,14 +61,9 @@
     }
   }
 
-  onMount(() => {
-    refreshLogs();
-  });
+  onMount(() => { refreshLogs(); });
 
-  // ── Stats simulation ──────────────────────────────────────────────────
   let eps = $state(1420);
-  let epsTrend = $state('+12%');
-  
   $effect(() => {
     const interval = setInterval(() => {
       eps = 1400 + Math.floor(Math.random() * 50);
@@ -85,31 +75,30 @@
 <PageLayout title="SIEM Console" subtitle="Unified event orchestration and threat detection">
   {#snippet toolbar()}
     <div class="flex items-center gap-3">
-      <Input variant="search" placeholder="Search events..." bind:value={searchQuery} onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && refreshLogs()} />
+      <Input variant="search" placeholder="Search events..." bind:value={searchQuery}
+        onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && refreshLogs()} />
       <Button variant="secondary" size="sm" onclick={refreshLogs}>Refresh</Button>
       <Button variant="cta" size="sm" onclick={() => appStore.notify('Feed Paused', 'warning')}>Pause Feed</Button>
     </div>
   {/snippet}
 
   <div class="flex flex-col h-full gap-5">
-    <!-- Top KPI Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0 px-1 pt-1">
-      <KPI label="Event Rate" value="{eps} EPS" trend="stable" trendValue={epsTrend} />
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+      <KPI label="Event Rate" value="{eps} EPS" trend="stable" trendValue="+12%" />
       <KPI label="Storage Index" value="98.2%" trend="stable" trendValue="optimal" variant="success" />
       <KPI label="Active Agents" value="41" trend="up" trendValue="+3" variant="critical" />
       <KPI label="Data Hygiene" value="99.9%" trend="stable" trendValue="verified" variant="success" />
     </div>
 
-    <!-- Main Content Area -->
-    <div class="flex-1 min-h-0 flex flex-col bg-surface-1 border border-border-primary rounded-md overflow-hidden shadow-sm">
+    <div class="flex-1 min-h-0 flex flex-col bg-surface-1 border border-border-primary rounded-md overflow-hidden shadow-card">
       <Tabs tabs={siemTabs} bind:active={activeTab} />
 
       <div class="flex-1 overflow-hidden">
         {#if activeTab === 'feed'}
           <div class="h-full flex flex-col relative">
             {#if loading}
-              <div class="absolute inset-0 bg-surface-1/50 backdrop-blur-xs z-10 flex items-center justify-center">
-                <div class="flex items-center gap-3 px-4 py-2 bg-surface-2 border border-border-primary rounded-md shadow-lg animate-in fade-in zoom-in duration-300">
+              <div class="absolute inset-0 bg-surface-1/50 z-10 flex items-center justify-center">
+                <div class="flex items-center gap-3 px-4 py-2 bg-surface-2 border border-border-primary rounded-md shadow-lg">
                   <span class="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></span>
                   <span class="text-xs font-bold text-text-muted uppercase tracking-widest">Executing OQL Query...</span>
                 </div>
@@ -118,7 +107,7 @@
             <DataTable data={logs} columns={logColumns} striped compact>
               {#snippet render({ col, row, value })}
                 {#if col.key === 'type'}
-                  <Badge variant={value === 'error' ? 'critical' : value === 'warning' ? 'warning' : 'info'}>
+                  <Badge variant={value === 'error' || value === 'critical' ? 'critical' : value === 'warning' ? 'warning' : 'info'}>
                     {value}
                   </Badge>
                 {:else if col.key === 'time'}
@@ -126,7 +115,7 @@
                 {:else if col.key === 'host'}
                   <span class="font-bold text-accent cursor-pointer hover:underline">{value}</span>
                 {:else if col.key === 'message'}
-                  <span class="whitespace-pre-wrap font-mono text-[11px] {value.toLowerCase().includes('exploit') ? 'text-error font-bold' : 'text-text-secondary'}">
+                  <span class="whitespace-pre-wrap font-mono text-[11px] {String(value).toLowerCase().includes('exploit') ? 'text-error font-bold' : 'text-text-secondary'}">
                     {value}
                   </span>
                 {:else}
@@ -162,24 +151,23 @@
           <div class="flex flex-col items-center justify-center h-full p-12 text-center opacity-40 bg-surface-2/30">
             <span class="text-4xl mb-4">🚧</span>
             <div class="text-sm font-bold text-text-heading">Advanced Visualization Module</div>
-            <div class="text-xs text-text-muted mt-1 max-w-sm">We are currently integrating the sovereign-grade mapping engine for real-time attribution.</div>
+            <div class="text-xs text-text-muted mt-1 max-w-sm">Integrating the sovereign-grade mapping engine for real-time attribution.</div>
           </div>
         {/if}
       </div>
 
-      <!-- Action Footer -->
       <div class="px-4 py-1.5 border-t border-border-primary bg-surface-2 flex items-center justify-between">
         <div class="flex gap-4">
           <div class="text-[9px] font-bold text-text-muted uppercase flex items-center gap-2">
             <span class="w-1.5 h-1.5 rounded-full bg-status-online"></span>
-            Correlation: 🟢 Optimal
+            Correlation: OPTIMAL
           </div>
           <div class="text-[9px] font-bold text-text-muted uppercase flex items-center gap-2">
             <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
             Queue: 128 MB
           </div>
         </div>
-        <div class="text-[9px] font-mono text-text-muted">ID: node-alpha-01</div>
+        <div class="text-[9px] font-mono text-text-muted">node-alpha-01</div>
       </div>
     </div>
   </div>

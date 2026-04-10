@@ -3,18 +3,25 @@
   Inspecting autonomous platform decisions: Transparency and audit trails for SOAR and AI orchestration.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Shield, Target, Activity, Zap, Layers, Globe, Cpu, Clock, Search, Eye } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { KPI, PageLayout, Button, DataTable } from '@components/ui';
+  import { Activity, Zap, Globe, Eye } from 'lucide-svelte';
 
   const decisions = [
     { id: 'D-101', action: 'Terminate Process 1422', reason: 'High Entropy Exit', confidence: 0.98, time: '2m ago' },
     { id: 'D-102', action: 'BGP Route Sever', reason: 'Anomalous Egress', confidence: 0.94, time: '14m ago' },
     { id: 'D-103', action: 'Rotate Vault Keys', reason: 'Policy Trigger', confidence: 1.0, time: '1h ago' },
   ];
+
+  const columns = [
+    { key: 'action', label: 'Orchestrated Action' },
+    { key: 'reason', label: 'Logic Reason', width: '200px' },
+    { key: 'confidence', label: 'Confidence', width: '120px' },
+    { key: 'time', label: 'Delta', width: '80px' },
+    { key: 'action_btn', label: '', width: '60px' },
+  ];
 </script>
 
-<PageLayout title="Decision Inspector" subtitle="Autonomous transparency: Auditing cognitive decisions, automated containment actions and platform-wide SOAR orchestration">
+<PageLayout title="Decision Inspector" subtitle="Autonomous transparency: Auditing cognitive decisions and automated containment actions">
   {#snippet toolbar()}
      <Button variant="secondary" size="sm">Logic Re-Evaluation</Button>
      <Button variant="primary" size="sm" icon="🧠">Decision Audit</Button>
@@ -29,48 +36,40 @@
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Decision Registry -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-premium">
-         <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-text-muted">
+      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-card">
+         <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted">
             Cognitive Decision Ledger
          </div>
          <div class="flex-1 overflow-auto">
-            <DataTable data={decisions} columns={[
-              { key: 'action', label: 'Orchestrated Action' },
-              { key: 'reason', label: 'Logic Reason', width: '200px' },
-              { key: 'confidence', label: 'Confidence', width: '100px' },
-              { key: 'time', label: 'Delta', width: '80px' },
-              { key: 'action_btn', label: '', width: '60px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
-                {#if column.key === 'confidence'}
+            <DataTable data={decisions} {columns} compact>
+              {#snippet render({ col, row, value })}
+                {#if col.key === 'confidence'}
                    <div class="flex items-center gap-2">
                       <div class="flex-1 h-1 bg-surface-3 rounded-full overflow-hidden w-12">
                          <div class="h-full bg-accent" style="width: {row.confidence * 100}%"></div>
                       </div>
                       <span class="text-[10px] font-mono opacity-60">{(row.confidence * 100).toFixed(0)}%</span>
                    </div>
-                {:else if column.key === 'action'}
+                {:else if col.key === 'action'}
                    <div class="flex items-center gap-2">
                       <Zap size={14} class="text-accent opacity-70" />
-                      <span class="text-[11px] font-bold text-text-heading">{row.action}</span>
+                      <span class="text-[11px] font-bold text-text-heading">{value}</span>
                    </div>
-                {:else if column.key === 'action_btn'}
+                {:else if col.key === 'action_btn'}
                    <Button variant="ghost" size="xs"><Eye size={12} /></Button>
                 {:else}
-                  <span class="text-[11px] text-text-secondary">{row[column.key]}</span>
+                  <span class="text-[11px] text-text-secondary">{value}</span>
                 {/if}
               {/snippet}
             </DataTable>
          </div>
       </div>
 
-      <!-- Logic Synthesis Insights -->
       <div class="flex flex-col gap-6">
-         <div class="bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col items-center justify-center text-center gap-3 border-dashed shadow-sm">
+         <div class="bg-surface-1 border border-border-primary border-dashed rounded-md p-6 flex flex-col items-center justify-center text-center gap-3 shadow-card">
             <Globe size={32} class="text-accent opacity-40" />
             <h4 class="text-xs font-bold text-text-heading uppercase tracking-widest">Global Correlation</h4>
-            <p class="text-[10px] text-text-muted max-w-[150px]">Decisions are synchronized across regional clusters to ensure uniform containment logic.</p>
+            <p class="text-[10px] text-text-muted max-w-[150px]">Decisions are synchronized across regional clusters for uniform containment logic.</p>
          </div>
 
          <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4 space-y-4">
@@ -78,9 +77,9 @@
                <Activity size={12} />
                Decision Engine Entropy
             </div>
-            <div class="flex-1 h-32 flex items-end justify-between px-2 gap-1">
+            <div class="h-32 flex items-end justify-between px-2 gap-1">
                {#each Array(10) as _, i}
-                  <div class="flex-1 bg-accent/20 rounded-t-sm" style="height: {20 + Math.random() * 80}%"></div>
+                  <div class="flex-1 bg-accent/20 rounded-t-sm" style="height: {20 + Math.sin(i * 0.7) * 35 + 40}%"></div>
                {/each}
             </div>
          </div>
