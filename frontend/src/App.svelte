@@ -4,6 +4,7 @@
   import { initBridge, APP_CONTEXT } from '@lib/bridge';
   import { appStore } from '@lib/stores/app.svelte';
   import { toastStore } from '@lib/stores/toast.svelte';
+  import { crisisStore } from '@lib/stores/crisis.svelte';
   import Sidebar from '@components/layout/CommandRail.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
@@ -92,6 +93,18 @@
   // ── App state
   let ready = $state(false);
   let error = $state<string | null>(null);
+
+  // ── Crisis Mode: apply/remove CSS class on <main> reactively ──────
+  let mainEl = $state<HTMLElement | null>(null);
+
+  $effect(() => {
+    if (!mainEl) return;
+    if (crisisStore.active) {
+      mainEl.classList.add('crisis-mode-active');
+    } else {
+      mainEl.classList.remove('crisis-mode-active');
+    }
+  });
 
   // ── Route definitions — Unified & Cleaned
   const routes: RouteDefinition[] = [
@@ -211,8 +224,10 @@
         });
       }
 
-      // Initialize the app store
+      // Initialize stores
       await appStore.init();
+      crisisStore.init();
+
       ready = true;
     } catch (e: any) {
       console.error('App init failed:', e);
@@ -230,28 +245,56 @@
       e.preventDefault();
       togglePalette();
     }
+    // Escape stands down Crisis Mode banner (does not disarm)
+    if (e.key === 'Escape' && crisisStore.active && !showCommandPalette) {
+      // intentionally not standing down — user must explicitly stand down
+    }
   }
 </script>
 
 <svelte:window onkeydown={onKeyDown} />
 
-<main class="h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
+<main
+  bind:this={mainEl}
+  class="h-screen w-screen overflow-hidden bg-background text-foreground font-sans transition-colors duration-slow"
+>
   {#if ready}
     <div class="flex h-full w-full">
       <Sidebar />
-      
+
       <div class="relative flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        
+
+        <!-- Crisis Mode Banner -->
+        {#if crisisStore.active}
+          <div
+            class="crisis-banner flex items-center justify-between px-4 py-1.5 bg-error/10 border-b border-error/40 text-[10px] font-mono shrink-0"
+            role="alert"
+            aria-live="assertive"
+          >
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-error animate-pulse shrink-0"></span>
+              <span class="font-extrabold uppercase tracking-widest text-error">CRISIS MODE ACTIVE</span>
+              {#if crisisStore.reason}
+                <span class="text-text-muted opacity-60">— {crisisStore.reason}</span>
+              {/if}
+            </div>
+            <button
+              class="text-text-muted hover:text-text-secondary transition-colors border border-border-primary rounded-sm px-2 py-0.5 hover:border-border-hover"
+              onclick={() => crisisStore.standDown()}
+            >Stand Down</button>
+          </div>
+        {/if}
+
         <div class="flex-1 overflow-auto relative">
           <RouterView {routes} />
         </div>
       </div>
-      
+
       {#if showCommandPalette}
         <CommandPalette bind:open={showCommandPalette} />
       {/if}
-      
+
       <ToastContainer />
     </div>
   {:else if error}
@@ -260,3 +303,16 @@
     <LoadingScreen />
   {/if}
 </main>
+
+<style>
+  /* Crisis Mode — shell-level visual shift */
+  :global(main.crisis-mode-active) {
+    --surface-1: #1f0e0e;
+    --surface-2: #2a1111;
+    --surface-3: #3a1818;
+    --bg-primary: #1a0a0a;
+  }
+  :global(main.crisis-mode-active .cr-rail) {
+    border-right-color: rgba(224, 64, 64, 0.25) !important;
+  }
+</style>

@@ -1,36 +1,51 @@
 /**
- * context.ts — Dual-Context Substrate (Phase 0.5)
- *
- * Provides a single authoritative source for detecting whether OBLIVRA is
- * running inside the Wails Desktop runtime or as a standalone Browser web app.
- *
- * Usage:
- *   import { getAppContext, isDesktop, isWeb } from './context';
- *   if (isWeb()) { ... }
+ * OBLIVRA — Web Context
+ * Detects whether running inside Wails Desktop or browser.
+ * Pure TypeScript — no framework dependency.
  */
 
-/** The two execution contexts OBLIVRA supports. */
-export type AppContext = 'desktop' | 'web';
+export type AppContext = 'desktop' | 'browser' | 'hybrid';
 
-/**
- * Detects the current execution context.
- *
- * - 'desktop' if running inside the Wails runtime (window.__WAILS__ is present)
- *   or if the app was built with VITE_APP_CONTEXT=desktop.
- * - 'web'     in all other cases (standard browser, Electron-less, CI, etc.)
- */
-export function getAppContext(): AppContext {
-  // 1. Build-time override from Vite env variable
-  //    Set VITE_APP_CONTEXT=desktop when building the Wails bundle.
-  if (import.meta.env.VITE_APP_CONTEXT === 'desktop') return 'desktop';
-
-  // 2. Runtime detection — Wails injects a global marker on load.
-  //    We use `window.__WAILS__` as the canonical sentinel.
-  if (typeof window !== 'undefined' && '__WAILS__' in window) return 'desktop';
-
-  return 'web';
+function detectContext(): AppContext {
+  const isWails = !!(window as any).__WAILS__ || !!(window as any).runtime;
+  if (!isWails) return 'browser';
+  const remoteServer = localStorage.getItem('oblivra:remote_server');
+  if (remoteServer && remoteServer.trim() !== '') return 'hybrid';
+  return 'desktop';
 }
 
-/** Convenience helpers — avoids inline comparisons throughout the code. */
-export const isDesktop = (): boolean => getAppContext() === 'desktop';
-export const isWeb = (): boolean => getAppContext() === 'web';
+export const APP_CONTEXT: AppContext = detectContext();
+export const IS_DESKTOP = APP_CONTEXT === 'desktop';
+export const IS_BROWSER = APP_CONTEXT === 'browser';
+export const IS_HYBRID  = APP_CONTEXT === 'hybrid';
+
+// Legacy helpers used by services/api.ts
+export const isDesktop = (): boolean => IS_DESKTOP;
+export const isWeb     = (): boolean => IS_BROWSER;
+
+export interface ServiceCapabilities {
+  localTerminal:    boolean;
+  osKeychain:       boolean;
+  localSftp:        boolean;
+  enterpriseAuth:   boolean;
+  agentFleet:       boolean;
+  clustering:       boolean;
+  socCollaboration: boolean;
+  remoteServer:     boolean;
+  remoteServerUrl:  string | null;
+}
+
+export function getServiceCapabilities(): ServiceCapabilities {
+  const remoteUrl = localStorage.getItem('oblivra:remote_server') ?? null;
+  return {
+    localTerminal:    IS_DESKTOP || IS_HYBRID,
+    osKeychain:       IS_DESKTOP,
+    localSftp:        IS_DESKTOP || IS_HYBRID,
+    enterpriseAuth:   IS_BROWSER || IS_HYBRID,
+    agentFleet:       IS_BROWSER || IS_HYBRID,
+    clustering:       IS_BROWSER || IS_HYBRID,
+    socCollaboration: IS_BROWSER || IS_HYBRID,
+    remoteServer:     IS_HYBRID,
+    remoteServerUrl:  IS_HYBRID ? remoteUrl : null,
+  };
+}
