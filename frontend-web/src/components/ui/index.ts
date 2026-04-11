@@ -1,2 +1,2 @@
-export * from './AppLogo';
-export * from './LoadingScreen';
+export { default as AppLogo }     from './AppLogo.svelte';
+export { default as LoadingScreen } from './LoadingScreen.svelte';
