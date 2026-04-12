@@ -42,14 +42,14 @@ type unifiedForensicEngine struct {
 
 func (e *unifiedForensicEngine) IsolateHost(hostID string, reason string) error {
 	// Try Agent first, then SSH fallback
-	if err := e.agents.ToggleQuarantine(context.Background(), hostID, true); err == nil {
+	if err := e.agents.ToggleQuarantine(hostID, true); err == nil {
 		return nil
 	}
 	return e.isolator.IsolateHost(hostID, reason)
 }
 
 func (e *unifiedForensicEngine) KillProcess(hostID string, pid int) error {
-	return e.agents.KillProcess(context.Background(), hostID, pid)
+	return e.agents.KillProcess(hostID, pid)
 }
 
 // APIService manages the standalone REST API server lifecycle.

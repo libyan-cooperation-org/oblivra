@@ -1,10 +1,12 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import * as echarts from 'echarts';
-    import { nodesList, edgesList } from '$lib/stores/graph.svelte';
+    import { appStore } from '@lib/stores/app.svelte';
+    import { nodesList, edgesList } from '@lib/stores/graph.svelte';
     import { Shield, Activity, User, Monitor, Network, Info, Trash2, Crosshair } from 'lucide-svelte';
-    import { initGraphSync } from '$lib/graph-sync';
-    import { ToggleQuarantine, KillProcess } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice';
+    import { initGraphSync } from '@lib/graph-sync';
+    import { KillProcess } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice';
+    import { IsolateHost } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/networkisolatorservice';
 
     let chartDom: HTMLElement;
     let myChart: echarts.ECharts;
@@ -126,8 +128,8 @@
         if (!selectedNode || selectedNode.category !== 'host') return;
         const hostID = selectedNode.id.split(':').pop(); // Simple extraction
         try {
-            await ToggleQuarantine(hostID, true);
-            console.info(`[graph] Issued quarantine for ${hostID}`);
+            await IsolateHost(hostID, "Manual Analyst Override from Threat Graph");
+            console.info(`[graph] Issued isolation for ${hostID}`);
         } catch (err) {
             console.error(`[graph] Isolation failed:`, err);
         }

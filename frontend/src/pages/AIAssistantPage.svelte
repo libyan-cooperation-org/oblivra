@@ -80,12 +80,18 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
 
   async function executeIsolation() {
     isIsolating = true;
-    // Simulate isolation logic
-    setTimeout(() => {
+    try {
+        if (!IS_BROWSER) {
+            const { IsolateHost } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/networkisolatorservice');
+            await IsolateHost(contextData.activeHost, "Analyst requested immediate isolation via Cortex UI.");
+        }
+        appStore.notify('Isolation Successful', 'success', `Host ${contextData.activeHost} has been isolated.`);
+    } catch (err) {
+        appStore.notify('Isolation Failed', 'error', (err as Error).message);
+    } finally {
         isIsolating = false;
         showIsolateModal = false;
-        appStore.notify('Isolation Successful', 'success', `Host ${contextData.activeHost} has been isolated.`);
-    }, 2000);
+    }
   }
 
   function setMode(mode: string) {

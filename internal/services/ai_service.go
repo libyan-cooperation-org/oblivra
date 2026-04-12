@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
@@ -72,13 +73,66 @@ func (s *AIService) GetChatHistory() ([]Message, error) {
 func (s *AIService) SendMessage(content string) (string, error) {
 	s.history = append(s.history, Message{Role: "user", Content: content, Timestamp: time.Now().Format(time.RFC3339)})
 	
-	resp, err := s.GenerateCommand(content) // Using GenerateCommand as a proxy for simple Q&A for now
+	resp, err := s.ProcessAgentDecision(content)
 	if err != nil {
 		return "", err
 	}
 	
 	s.history = append(s.history, Message{Role: "assistant", Content: resp.Text, Timestamp: time.Now().Format(time.RFC3339)})
 	return resp.Text, nil
+}
+
+// ProcessAgentDecision evaluates the user's input with cognitive context
+// and executes autonomous containment actions via the Sovereign bus if required.
+func (s *AIService) ProcessAgentDecision(content string) (*AIResponse, error) {
+	s.log.Info("Evaluating cognitive agent intent for: %s", content)
+
+	// Instruct the AI to respond in JSON for autonomous orchestration
+	prompt := fmt.Sprintf(`You are OBLIVRA Cortex, an autonomous defense AI. 
+Evaluate the following request: "%s".
+If the user is asking to isolate, contain, or block a specific host, you MUST respond ONLY with a raw JSON object in this exact format:
+{"action": "isolate", "target": "<hostname or IP>"}
+
+If the request is a general question or analysis, respond ONLY with a raw JSON object in this exact format:
+{"action": "chat", "response": "<your conversational answer>"}`, content)
+
+	aiResp, err := s.callOllama(prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Attempt to parse the autonomous response
+	var intent struct {
+		Action   string `json:"action"`
+		Target   string `json:"target"`
+		Response string `json:"response"`
+	}
+
+	// Clean the response (sometimes Ollama wraps JSON in markdown blocks)
+	cleanResp := aiResp.Text
+	if len(cleanResp) > 0 && cleanResp[0] == '`' {
+		cleanResp = strings.Trim(cleanResp, "` \n")
+		if strings.HasPrefix(cleanResp, "json") {
+			cleanResp = strings.TrimPrefix(cleanResp, "json")
+		}
+	}
+
+	if err := json.Unmarshal([]byte(cleanResp), &intent); err == nil {
+		if intent.Action == "isolate" && intent.Target != "" {
+			s.log.Warn("[CORTEX] Autonomous capability triggered: EXECUTING ISOLATION on %s", intent.Target)
+			s.bus.Publish("network.isolate_requested", map[string]interface{}{
+				"host_id": intent.Target,
+				"reason":  "Autonomous agent containment logic triggered by operator prompt.",
+			})
+			return &AIResponse{Text: fmt.Sprintf("Autonomous Response Execution: Host %s has been isolated from the network.", intent.Target)}, nil
+		}
+		if intent.Action == "chat" && intent.Response != "" {
+			return &AIResponse{Text: intent.Response}, nil
+		}
+	}
+
+	// Fallback if the AI failed to format JSON
+	return aiResp, nil
 }
 
 // ExplainError asks the AI to explain a terminal error

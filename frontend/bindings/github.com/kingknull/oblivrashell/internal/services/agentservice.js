@@ -69,6 +69,26 @@ export function Stop() {
     return $Call.ByID(389238984);
 }
 
+/**
+ * KillProcess sends a termination signal for a specific process on a remote agent
+ * @param {string} agentID
+ * @param {number} pid
+ * @returns {$CancellablePromise<void>}
+ */
+export function KillProcess(agentID, pid) {
+    return $Call.ByName("main.AgentService.KillProcess", agentID, pid);
+}
+
+/**
+ * ToggleQuarantine isolates or restores an agent's network access
+ * @param {string} agentID
+ * @param {boolean} enabled
+ * @returns {$CancellablePromise<void>}
+ */
+export function ToggleQuarantine(agentID, enabled) {
+    return $Call.ByName("main.AgentService.ToggleQuarantine", agentID, enabled);
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = $models.AgentDTO.createFrom;

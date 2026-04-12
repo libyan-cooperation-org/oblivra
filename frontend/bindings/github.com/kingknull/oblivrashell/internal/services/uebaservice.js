@@ -36,6 +36,16 @@ export function GetProfiles() {
 }
 
 /**
+ * GetAnomalies returns the recent anomalies.
+ * @returns {$CancellablePromise<any[]>}
+ */
+export function GetAnomalies() {
+    return $Call.ByName("main.UEBAService.GetAnomalies").then(/** @type {($result: any) => any} */(($result) => {
+        return $Create.Array($Create.Any)($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<string>}
  */
 export function Name() {

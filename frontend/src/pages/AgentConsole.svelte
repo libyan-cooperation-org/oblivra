@@ -55,14 +55,15 @@
 
 <PageLayout title="Agent Inspect: prod-web-01" subtitle="Real-time telemetry and atomic control for endpoint AG-01">
   {#snippet toolbar()}
-       <div class="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/30 rounded-full">
-          <div class="w-1.5 h-1.5 rounded-full {agent?.status === 'online' ? 'bg-accent animate-pulse' : 'bg-text-muted'}"></div>
-          <span class="text-[9px] font-bold text-accent uppercase tracking-widest">{agent?.status === 'online' ? 'Live Stream Active' : 'Disconnected'}</span>
-       </div>
-       <Button variant="secondary" size="sm" onclick={() => agentStore.refresh()}>
-        <RefreshCw size={14} class="mr-1 {agentStore.loading ? 'animate-spin' : ''}" />
-        Refresh
-      </Button>
+    <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/30 rounded-full">
+            <div class="w-1.5 h-1.5 rounded-full {agent?.status === 'online' ? 'bg-accent animate-pulse' : 'bg-text-muted'}"></div>
+            <span class="text-[9px] font-bold text-accent uppercase tracking-widest">{agent?.status === 'online' ? 'Live Stream Active' : 'Disconnected'}</span>
+        </div>
+        <Button variant="secondary" size="sm" onclick={() => agentStore.refresh()}>
+            <RefreshCw size={14} class="mr-1 inline align-middle {agentStore.loading ? 'animate-spin' : ''}" />
+            Refresh
+        </Button>
     </div>
   {/snippet}
 

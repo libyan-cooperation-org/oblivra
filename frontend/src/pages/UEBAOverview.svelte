@@ -8,7 +8,7 @@
   import { Shield, Activity, Fingerprint, Network, AlertTriangle } from 'lucide-svelte';
   import type { EChartsOption } from 'echarts';
   import { GetProfiles, GetAnomalies } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/uebaservice';
-  import { subscribe } from '$lib/bridge';
+  import { subscribe } from '@lib/bridge';
 
   let profiles = $state<any[]>([]);
   let anomalies = $state<any[]>([]);

@@ -71,8 +71,20 @@ func (ex *Executor) SetSource(s DataSource) {
 	ex.Source = s
 }
 
+// defaultOQLTimeout is the maximum wall-clock time a single OQL query may run.
+// Can be overridden at startup; 30 s is a safe production default.
+const defaultOQLTimeout = 30 * time.Second
+
 // Execute parses, type-checks, optimizes, and executes an OQL query.
+// A 30-second deadline is applied if the caller's context has no deadline yet.
 func (ex *Executor) Execute(ctx context.Context, input string, data []Row, ectx *EvalContext) (*QueryResult, error) {
+	// AUD-04: Enforce a hard query timeout to prevent runaway executions.
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultOQLTimeout)
+		defer cancel()
+	}
+
 	start := time.Now()
 	prof := NewQueryProfile()
 
@@ -1284,40 +1296,186 @@ func (ex *Executor) execPredict(ctx context.Context, c *PredictCommand, rows []R
 	return rows, nil
 }
 
-func (ex *Executor) execAnomalyDetection(_ context.Context, c *AnomalyDetectionCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
-	if len(rows) < 4 {
-		return rows, nil
+// interpolatedQuantile returns the p-th quantile of a sorted slice using
+// linear interpolation (NIST recommended method). p must be in [0, 1].
+func interpolatedQuantile(sorted []float64, p float64) float64 {
+	n := len(sorted)
+	if n == 0 {
+		return 0
 	}
+	if n == 1 {
+		return sorted[0]
+	}
+	h := p * float64(n-1)
+	lo := int(h)
+	hi := lo + 1
+	if hi >= n {
+		return sorted[n-1]
+	}
+	return sorted[lo] + (h-float64(lo))*(sorted[hi]-sorted[lo])
+}
 
-	if len(c.Fields) == 0 {
-		return rows, nil
+// fieldAnomalyStats holds pre-computed statistics for a single field.
+type fieldAnomalyStats struct {
+	name  string
+	mean  float64
+	stdDev float64
+	q1    float64
+	q3    float64
+	iqr   float64
+	lower float64
+	upper float64
+}
+
+// computeFieldStats derives IQR and Z-score parameters for a field.
+func computeFieldStats(name string, vals []float64) fieldAnomalyStats {
+	sorted := make([]float64, len(vals))
+	copy(sorted, vals)
+	sort.Float64s(sorted)
+
+	q1 := interpolatedQuantile(sorted, 0.25)
+	q3 := interpolatedQuantile(sorted, 0.75)
+	iqr := q3 - q1
+
+	var sum float64
+	for _, v := range vals {
+		sum += v
 	}
-	field := c.Fields[0].Canonical()
-	vals := make([]float64, 0, len(rows))
-	for _, row := range rows {
-		if v, ok := ToNumber(row[field]); ok {
-			vals = append(vals, v)
+	mean := sum / float64(len(vals))
+
+	var variance float64
+	for _, v := range vals {
+		diff := v - mean
+		variance += diff * diff
+	}
+	stdDev := 0.0
+	if len(vals) > 1 {
+		stdDev = variance / float64(len(vals)-1) // sample variance
+		if stdDev > 0 {
+			// Use math.Sqrt equivalent via Newton's method to avoid importing math
+			x := stdDev
+			for i := 0; i < 50; i++ {
+				x = (x + stdDev/x) / 2
+			}
+			stdDev = x
 		}
 	}
 
-	if len(vals) < 4 {
+	return fieldAnomalyStats{
+		name:   name,
+		mean:   mean,
+		stdDev: stdDev,
+		q1:     q1,
+		q3:     q3,
+		iqr:    iqr,
+		lower:  q1 - 1.5*iqr,
+		upper:  q3 + 1.5*iqr,
+	}
+}
+
+// clamp restricts a float64 to [min, max].
+func clamp(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+// execAnomalyDetection implements multi-field behavioral anomaly detection.
+// AUD-02: Replaces the previous single-field approximation with:
+//   - Interpolated Tukey quartiles (not index-based)
+//   - Per-field is_anomaly_<field> tagging
+//   - Normalized anomaly score clamped to [-1, +1]
+//   - Z-score method support (method=zscore)
+func (ex *Executor) execAnomalyDetection(_ context.Context, c *AnomalyDetectionCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
+	if len(rows) < 4 || len(c.Fields) == 0 {
 		return rows, nil
 	}
 
-	// Calculate Quartiles
-	sort.Float64s(vals)
-	q1 := vals[len(vals)/4]
-	q3 := vals[3*len(vals)/4]
-	iqr := q3 - q1
-	lower := q1 - 1.5*iqr
-	upper := q3 + 1.5*iqr
+	useZScore := strings.EqualFold(c.Method, "zscore")
 
+	// Phase 1: collect numeric values per field
+	fieldVals := make(map[string][]float64, len(c.Fields))
+	for _, f := range c.Fields {
+		name := f.Canonical()
+		fieldVals[name] = make([]float64, 0, len(rows))
+		for _, row := range rows {
+			if v, ok := ToNumber(row[name]); ok {
+				fieldVals[name] = append(fieldVals[name], v)
+			}
+		}
+	}
+
+	// Phase 2: compute per-field statistics
+	statsByField := make(map[string]fieldAnomalyStats, len(c.Fields))
+	for _, f := range c.Fields {
+		name := f.Canonical()
+		vals := fieldVals[name]
+		if len(vals) < 4 {
+			continue
+		}
+		statsByField[name] = computeFieldStats(name, vals)
+	}
+
+	if len(statsByField) == 0 {
+		return rows, nil
+	}
+
+	// Phase 3: annotate each row
 	for _, row := range rows {
 		prof.TrackRowIn()
-		if v, ok := ToNumber(row[field]); ok {
-			isAnomaly := v < lower || v > upper
-			row["is_anomaly"] = isAnomaly
-			row["anomaly_score"] = (v - q1) / (iqr + 0.00001) // Simple score
+		var totalScore float64
+		var scoredFields int
+		rowIsAnomaly := false
+
+		for _, f := range c.Fields {
+			name := f.Canonical()
+			stats, hasStats := statsByField[name]
+			if !hasStats {
+				continue
+			}
+			v, ok := ToNumber(row[name])
+			if !ok {
+				// Missing field: tag as indeterminate
+				row["is_anomaly_"+name] = false
+				continue
+			}
+
+			var fieldAnomaly bool
+			var score float64
+
+			if useZScore {
+				if stats.stdDev > 0 {
+					z := (v - stats.mean) / stats.stdDev
+					fieldAnomaly = z > 3.0 || z < -3.0 // 3-sigma rule
+					score = clamp(z/3.0, -1.0, 1.0)
+				}
+			} else {
+				// IQR Tukey method
+				fieldAnomaly = v < stats.lower || v > stats.upper
+				fence := stats.iqr + 0.00001
+				rawScore := (v - stats.q1) / fence
+				score = clamp(rawScore/3.0, -1.0, 1.0) // normalize to [-1,1]
+			}
+
+			row["is_anomaly_"+name] = fieldAnomaly
+			row["anomaly_score_"+name] = score
+			if fieldAnomaly {
+				rowIsAnomaly = true
+			}
+			totalScore += score
+			scoredFields++
+		}
+
+		// Composite tags
+		row["is_anomaly"] = rowIsAnomaly
+		if scoredFields > 0 {
+			row["anomaly_score"] = clamp(totalScore/float64(scoredFields), -1.0, 1.0)
+		} else {
+			row["anomaly_score"] = 0.0
 		}
 		prof.TrackRowOut()
 	}

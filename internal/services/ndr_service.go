@@ -66,6 +66,10 @@ func (s *NDRService) Start(ctx context.Context) error {
 		s.lateralEngine.ProcessFlow(flow)
 		// Legacy inline check retained for compatibility
 		s.detectLateralMovement(flow)
+		
+		if s.ctx != nil {
+			EmitEvent("ndr:flow", flow)
+		}
 	})
 
 	s.bus.Subscribe("ndr.dns_query", func(event eventbus.Event) {
@@ -120,22 +124,11 @@ func (s *NDRService) Stop(ctx context.Context) error {
 	return nil
 }
 
-// GetLiveTraffic returns a snapshot of recent network flows (simulation for Phase 11).
+// GetLiveTraffic returns a snapshot of recent network flows.
 func (s *NDRService) GetLiveTraffic() ([]ndr.NetworkFlow, error) {
+	// Return the in-memory cache of recent flows
 	// In production, this would query the HotStore or an in-memory cache of recent flows.
-	return []ndr.NetworkFlow{
-		{
-			Timestamp:  time.Now().Format(time.RFC3339),
-			SourceIP:   "192.168.1.10",
-			SourcePort: 44321,
-			DestIP:     "8.8.8.8",
-			DestPort:   53,
-			Protocol:   "UDP",
-			BytesSent:  128,
-			BytesRecv:  256,
-			AppName:    "DNS",
-		},
-	}, nil
+	return s.flowHistory, nil
 }
 
 

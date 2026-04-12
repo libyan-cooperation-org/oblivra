@@ -392,6 +392,12 @@ func (c *Container) initPlatform() error {
 		c.Log.Info("[CONTAINER] Graph engine wired into ingest pipeline (entity extraction active)")
 	}
 
+	// Wire the CampaignBuilder into GraphService so the frontend can query clusters.
+	if c.Intel.GraphService != nil && c.Intel.CampaignBuilder != nil {
+		c.Intel.GraphService.SetCampaignBuilder(c.Intel.CampaignBuilder)
+		c.Log.Info("[CONTAINER] CampaignBuilder wired into GraphService (GetActiveClusters active)")
+	}
+
 	// LicensingService — pubKeyHex injected at build time via ldflags.
 	// In dev/community builds the key is empty; the manager defaults to Community tier.
 	if c.Product.SettingsService != nil {

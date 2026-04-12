@@ -70,3 +70,50 @@ func (s *GraphService) AddEdge(from, to string, edgeType string) error {
 	})
 	return nil
 }
+
+// SetCampaignBuilder wires the campaign builder after container init.
+// Called by the container once both GraphEngine and CampaignBuilder exist.
+func (s *GraphService) SetCampaignBuilder(cb interface{ GetActiveClusters() []detection.CampaignCluster }) {
+	s.campaignBuilder = cb
+}
+
+// GetActiveClusters returns all active entity clusters tracked by the
+// CampaignBuilder. Each cluster represents a group of related entities
+// (user, host, IP) that have interacted within the correlation window,
+// along with which ATT&CK tactics have been observed across those edges.
+// Wails-bound: called by FusionDashboard.tsx for the campaign cluster graph.
+func (s *GraphService) GetActiveClusters() []map[string]interface{} {
+	if s.campaignBuilder == nil {
+		return []map[string]interface{}{}
+	}
+
+	clusters := s.campaignBuilder.GetActiveClusters()
+	out := make([]map[string]interface{}, 0, len(clusters))
+	for _, c := range clusters {
+		entities := make([]string, 0, len(c.Entities))
+		for e := range c.Entities {
+			entities = append(entities, e)
+		}
+		tactics := make([]string, 0, len(c.TacticHits))
+		for t := range c.TacticHits {
+			tactics = append(tactics, t)
+		}
+		out = append(out, map[string]interface{}{
+			"cluster_id": c.ClusterID,
+			"entities":   entities,
+			"tactics":    tactics,
+			"tactic_hits": c.TacticHits,
+			"edge_count":  c.EdgeCount,
+			"first_seen":  c.FirstSeen,
+			"last_seen":   c.LastSeen,
+		})
+	}
+	return out
+}
+
+// GetRichEdges returns all integrity-chained graph edges for audit export.
+// Each edge carries an EdgeHash = SHA-256(NodeA + NodeB + EdgeType + EventHash)
+// allowing forensic verification that graph data was not tampered with.
+func (s *GraphService) GetRichEdges() []graph.RichEdge {
+	return s.engine.GetRichEdges()
+}

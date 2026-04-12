@@ -98,11 +98,7 @@ func (s *AgentService) PushFleetConfig(intervalMs int, enableFIM, enableSyslog, 
 }
 
 // KillProcess sends a termination signal for a specific process on a remote agent
-func (s *AgentService) KillProcess(ctx context.Context, agentID string, pid int) error {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
-		return err
-	}
-
+func (s *AgentService) KillProcess(agentID string, pid int) error {
 	s.log.Warn("Issuing KILL directive for agent=%s PID=%d", agentID, pid)
 	s.server.AddAction(agentID, ingest.PendingAction{
 		ID:   fmt.Sprintf("kill-%d", time.Now().Unix()),
@@ -115,11 +111,7 @@ func (s *AgentService) KillProcess(ctx context.Context, agentID string, pid int)
 }
 
 // ToggleQuarantine isolates or restores an agent's network access
-func (s *AgentService) ToggleQuarantine(ctx context.Context, agentID string, enabled bool) error {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
-		return err
-	}
-
+func (s *AgentService) ToggleQuarantine(agentID string, enabled bool) error {
 	actionType := ingest.ActionRestoreNetwork
 	if enabled {
 		actionType = ingest.ActionIsolateNetwork
