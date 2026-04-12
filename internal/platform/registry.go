@@ -26,6 +26,12 @@ func (r *Registry) Register(s Service) error {
 	return nil
 }
 
+// Get returns a service by name.
+func (r *Registry) Get(name string) (Service, bool) {
+	svc, exists := r.services[name]
+	return svc, exists
+}
+
 // GetServices returns all registered services.
 func (r *Registry) GetServices() map[string]Service {
 	return r.services
