@@ -25,7 +25,7 @@ export class DashboardStore {
   constructor() {
     if (!IS_BROWSER) {
       this.refresh();
-      setInterval(() => this.refresh(), 30000);
+      setInterval(() => this.refresh(), 5000);
     }
   }
 

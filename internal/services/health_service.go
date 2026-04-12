@@ -130,6 +130,20 @@ func (s *HealthService) GetAllHealth() map[string]interface{} {
 		}
 	}
 	result["services"] = servicesHealth
+	
+	// 3. Overall System Status
+	status := "Operational"
+	if s.registry != nil {
+		if vault, err := s.registry.Get("vault-service"); err == nil && vault != nil {
+			// Type assertion for IsUnlocked (assuming VaultService implements it)
+			if vs, ok := vault.(interface{ IsUnlocked() bool }); ok {
+				if !vs.IsUnlocked() {
+					status = "Locked"
+				}
+			}
+		}
+	}
+	result["Status"] = status
 
 	return result
 }

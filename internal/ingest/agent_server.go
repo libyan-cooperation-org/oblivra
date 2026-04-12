@@ -95,6 +95,12 @@ func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caF
 		caFile:         caFile,
 		activeAgents:   make(map[string]AgentInfo),
 		pendingActions: make(map[string][]PendingAction),
+		desiredConfig: FleetConfig{
+			Interval:       10 * time.Second,
+			EnableSyslog:   true,
+			EnableMetrics:  true,
+			EnableEventLog: true,
+		},
 	}
 }
 
