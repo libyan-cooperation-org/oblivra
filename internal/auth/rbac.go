@@ -97,6 +97,10 @@ func (e *RBACEngine) HasPermission(user *IdentityUser, required string) bool {
 
 // Enforce checks permission and returns an error if denied
 func (e *RBACEngine) Enforce(user *IdentityUser, required string) error {
+	if user == nil {
+		e.log.Warn("RBAC DENY: no user in context, denied=%s", required)
+		return fmt.Errorf("access denied: no authenticated user context found")
+	}
 	if !e.HasPermission(user, required) {
 		e.log.Warn("RBAC DENY: user=%s role=%s denied=%s", user.Email, user.RoleName, required)
 		return fmt.Errorf("access denied: requires permission '%s'", required)

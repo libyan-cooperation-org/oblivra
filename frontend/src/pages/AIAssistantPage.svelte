@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { KPI, PageLayout, Badge, Button, DataTable, Modal } from '@components/ui';
-  import { Bot, Terminal, Send, Sparkles, Activity, ShieldCheck, Database, Zap, Cpu, Search, AlertTriangle, ShieldAlert } from 'lucide-svelte';
+  import { PageLayout, Badge, Button, Modal } from '@components/ui';
+  import { Bot, Terminal, Send, Sparkles, Activity, ShieldCheck, Database, Zap, Search, AlertTriangle, ShieldAlert } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { IS_BROWSER } from '@lib/context';
 
@@ -104,6 +104,22 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
 </script>
 
 <PageLayout title="OBLIVRA / Cortex AI" subtitle="Autonomous Agentic Intelligence & Tactical Orchestration">
+  {#snippet toolbar()}
+    <div class="flex items-center gap-3">
+      <Badge variant="success" dot>SOVEREIGNTY: OPTIMAL</Badge>
+      <div class="h-4 w-px bg-border-primary mx-1"></div>
+      <div class="flex items-center gap-1">
+        {#each ['Analyst', 'Hunter', 'Response'] as mode}
+          <button 
+            class="px-3 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-all {activeMode === mode ? 'bg-accent text-inverted shadow-glow' : 'text-text-muted hover:text-text-primary'}"
+            onclick={() => setMode(mode)}
+          >
+            {mode}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/snippet}
   <div class="flex h-full gap-4 overflow-hidden">
     <!-- LEFT PANEL: Agent Identity & Intelligence -->
     <div class="w-80 flex flex-col gap-4 overflow-auto">
@@ -174,21 +190,21 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
             <div class="pt-2">
                <div class="text-text-muted text-[9px] uppercase font-bold mb-3">Capabilities</div>
                <div class="grid grid-cols-2 gap-2">
-                  <Button variant="ghost" size="xs" class="bg-surface-2 hover:bg-accent/10 border-border-primary text-[9px]">
+                  <Button variant="ghost" size="sm" class="bg-surface-2 hover:bg-accent/10 border-border-primary text-[9px]">
                      <Search size={10} class="mr-1.5" /> INVESTIGATE
                   </Button>
-                  <Button variant="ghost" size="xs" class="bg-surface-2 hover:bg-accent/10 border-border-primary text-[9px]">
+                  <Button variant="ghost" size="sm" class="bg-surface-2 hover:bg-accent/10 border-border-primary text-[9px]">
                      <Zap size={10} class="mr-1.5 text-accent" /> CORRELATE
                   </Button>
                   <Button 
                      variant="ghost" 
-                     size="xs" 
+                     size="sm" 
                      class="bg-surface-2 hover:bg-critical/10 border-border-primary text-critical/80 text-[9px]"
                      onclick={handleIsolateRequest}
                   >
                      <ShieldCheck size={10} class="mr-1.5" /> ISOLATE
                   </Button>
-                  <Button variant="ghost" size="xs" class="bg-surface-2 hover:bg-accent/10 border-border-primary text-[9px]">
+                  <Button variant="ghost" size="sm" class="bg-surface-2 hover:bg-accent/10 border-border-primary text-[9px]">
                      <Database size={10} class="mr-1.5" /> DUMP
                   </Button>
                </div>
@@ -216,7 +232,7 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
                    {#if msg.Role === 'assistant'}
                       <div class="px-4 py-2 bg-accent/5 border-b border-accent/10 flex items-center justify-between">
                          <div class="text-[8px] font-black text-accent uppercase tracking-[0.2em]">Cortex Strategy Synthesis</div>
-                         <Badge variant="success" size="xs" class="px-1 py-0 h-3 text-[7px]" dot>SECURE</Badge>
+                         <Badge variant="success" size="xs" dot>SECURE</Badge>
                       </div>
                    {/if}
                    <div class="p-4">
@@ -256,7 +272,7 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
                   bind:value={query}
                   disabled={loading}
                 />
-                <Button variant="accent" size="sm" type="submit" disabled={loading} class="h-8 w-8 !p-0">
+                <Button variant="primary" size="sm" type="submit" disabled={loading} class="h-8 w-8 !p-0">
                    <Send size={14} class={loading ? 'animate-pulse' : ''} />
                 </Button>
              </form>
@@ -274,7 +290,7 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
        </div>
     </div>
   </div>
-</PageLayout>
+
 
 <Modal 
   open={showIsolateModal} 
@@ -309,22 +325,7 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
   {/snippet}
 </Modal>
 
-{#snippet toolbar()}
-  <div class="flex items-center gap-3">
-    <Badge variant="success" dot>SOVEREIGNTY: OPTIMAL</Badge>
-    <div class="h-4 w-px bg-border-primary mx-1"></div>
-    <div class="flex items-center gap-1">
-      {#each ['Analyst', 'Hunter', 'Response'] as mode}
-        <button 
-          class="px-3 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition-all {activeMode === mode ? 'bg-accent text-inverted shadow-glow' : 'text-text-muted hover:text-text-primary'}"
-          onclick={() => setMode(mode)}
-        >
-          {mode}
-        </button>
-      {/each}
-    </div>
-  </div>
-{/snippet}
+</PageLayout>
 
 
 <style>

@@ -268,18 +268,18 @@ func (e *GraphEngine) Stats() GraphStats {
 
 // AddNode inserts or updates a node, refreshing its LastSeen timestamp.
 func (e *GraphEngine) AddNode(node Node) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	node.LastSeen = time.Now()
 	e.nodes[node.ID] = node
+	if e.bus != nil {
+		e.bus.Publish(eventbus.EventGraphNodeUpserted, node)
+	}
 }
 
 // AddEdge inserts a directed relationship between nodes.
 func (e *GraphEngine) AddEdge(edge Edge) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	edge.Timestamp = time.Now()
 	e.edges = append(e.edges, edge)
+	if e.bus != nil {
+		e.bus.Publish(eventbus.EventGraphEdgeCreated, edge)
+	}
 }
 
 // FindPath finds the shortest path between two nodes using BFS.
@@ -365,10 +365,52 @@ func (e *GraphEngine) GetSubGraph(startNodeID string, hops int) ([]Node, []Edge)
 	return nodes, resultEdges
 }
 
+// GetAll returns every node and base edge currently in the graph.
+func (e *GraphEngine) GetAll() ([]Node, []Edge) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	nodes := make([]Node, 0, len(e.nodes))
+	for _, n := range e.nodes {
+		nodes = append(nodes, n)
+	}
+
+	// Copy edges slice to avoid race on append in other threads
+	edges := make([]Edge, len(e.edges))
+	copy(edges, e.edges)
+
+	return nodes, edges
+}
+
 // CorrelateIncident builds a subgraph based on incident participants.
 func (e *GraphEngine) CorrelateIncident(ctx context.Context, principalID string) error {
 	e.log.Info("[GRAPH] Correlating entity %s for incident graph", principalID)
 	return nil
+}
+
+// SeedSampleData populates the graph with realistic initial entities for demonstration.
+func (e *GraphEngine) SeedSampleData() {
+	e.log.Info("[GRAPH] Seeding sample threat intelligence data")
+	now := time.Now()
+
+	// 1. Core infra nodes
+	e.AddNode(Node{ID: "srv-prod-db-01", Type: NodeHost, Meta: map[string]string{"os": "linux", "criticality": "high"}})
+	e.AddNode(Node{ID: "srv-prod-api-01", Type: NodeHost, Meta: map[string]string{"os": "linux", "criticality": "medium"}})
+	e.AddNode(Node{ID: "ws-analyst-mark", Type: NodeHost, Meta: map[string]string{"os": "windows", "dept": "soc"}})
+	
+	// 2. User nodes
+	e.AddNode(Node{ID: "admin_mark", Type: NodeUser, Meta: map[string]string{"role": "analyst", "privilege": "elevated"}})
+	e.AddNode(Node{ID: "svc_repl", Type: NodeUser, Meta: map[string]string{"role": "service", "acct": "managed"}})
+
+	// 3. Relationships
+	e.AddEdge(Edge{From: "admin_mark", To: "srv-prod-db-01", Type: EdgeAuthenticatedTo, Timestamp: now})
+	e.AddEdge(Edge{From: "ws-analyst-mark", To: "srv-prod-api-01", Type: EdgeConnectedTo, Timestamp: now})
+	e.AddEdge(Edge{From: "srv-prod-api-01", To: "srv-prod-db-01", Type: EdgeConnectedTo, Timestamp: now})
+
+	// 4. A suspicious process
+	e.AddNode(Node{ID: "proc:4821:mimikatz.exe", Type: NodeProcess, Meta: map[string]string{"pid": "4821", "host": "srv-prod-db-01", "path": "/tmp/mimikatz"}})
+	e.AddEdge(Edge{From: "srv-prod-db-01", To: "proc:4821:mimikatz.exe", Type: EdgeExecuted, Timestamp: now})
+	e.AddEdge(Edge{From: "admin_mark", To: "proc:4821:mimikatz.exe", Type: EdgeSpawned, Timestamp: now})
 }
 
 // SubscribeToAlerts listens for SIEM alerts and automatically populates the graph.

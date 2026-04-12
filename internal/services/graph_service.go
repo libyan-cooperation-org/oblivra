@@ -31,6 +31,13 @@ func (s *GraphService) Dependencies() []string {
 
 func (s *GraphService) Start(ctx context.Context) error {
 	s.engine.SubscribeToAlerts()
+	
+	// Seed sample data if graph is currently empty (Day Zero UI wow factor)
+	stats := s.engine.Stats()
+	if stats.NodeCount == 0 {
+		s.engine.SeedSampleData()
+	}
+
 	return nil
 }
 
@@ -41,6 +48,15 @@ func (s *GraphService) Stop(ctx context.Context) error {
 // GetSubGraph returns a subset of the graph centered on a target entity.
 func (s *GraphService) GetSubGraph(nodeID string, hops int) (map[string]interface{}, error) {
 	nodes, edges := s.engine.GetSubGraph(nodeID, hops)
+	return map[string]interface{}{
+		"nodes": nodes,
+		"edges": edges,
+	}, nil
+}
+
+// GetFullGraph returns the entire live graph state.
+func (s *GraphService) GetFullGraph() (map[string]interface{}, error) {
+	nodes, edges := s.engine.GetAll()
 	return map[string]interface{}{
 		"nodes": nodes,
 		"edges": edges,

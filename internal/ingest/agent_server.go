@@ -108,6 +108,8 @@ func (s *AgentServer) Start() error {
 		MinVersion: tls.VersionTLS13,
 	}
 
+	s.log.Debug("Configured TLS Cert: %q, Key: %q", s.certFile, s.keyFile)
+
 	// Enable mTLS if CA is provided
 	if s.caFile != "" {
 		caCert, err := os.ReadFile(s.caFile)

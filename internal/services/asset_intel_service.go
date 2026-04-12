@@ -110,24 +110,30 @@ func (s *AssetIntelService) CalculateUserCriticality(ctx context.Context, user *
 
 	// 1. Role/Type based
 	uType := strings.ToLower(user.UserType)
-	if uType == "admin" || uType == "superuser" {
+	switch uType {
+	case "admin", "superuser":
 		score = 9
 		reasons = append(reasons, "Privileged administrative account")
-	} else if uType == "service" {
+	case "service":
 		score = 6
 		reasons = append(reasons, "Service account with automated access")
-	} else if uType == "executive" || uType == "vip" {
+	case "executive", "vip":
 		score = 8
 		reasons = append(reasons, "High-profile identity (Executive/VIP)")
 	}
 
 	// 2. Department based
 	dept := strings.ToLower(user.Department)
-	if dept == "it" || dept == "security" || dept == "engineering" {
-		if score < 5 { score = 5 }
+	switch dept {
+	case "it", "security", "engineering":
+		if score < 5 {
+			score = 5
+		}
 		reasons = append(reasons, fmt.Sprintf("Sensitive department access (%s)", user.Department))
-	} else if dept == "finance" || dept == "hr" {
-		if score < 6 { score = 6 }
+	case "finance", "hr":
+		if score < 6 {
+			score = 6
+		}
 		reasons = append(reasons, "Access to sensitive organizational data")
 	}
 

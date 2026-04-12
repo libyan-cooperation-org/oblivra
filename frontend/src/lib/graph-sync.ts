@@ -32,6 +32,23 @@ export function initGraphSync() {
 }
 
 /**
+ * Loads the entire graph from the backend.
+ * Typically called on mount to populate the initial view.
+ */
+export async function refreshFullGraph() {
+    try {
+        const service = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/graphservice') as any;
+        const result = await service.GetFullGraph();
+        
+        if (result && result.nodes && result.edges) {
+            graphStore.setSubGraph(result.nodes, result.edges);
+        }
+    } catch (err) {
+        console.error('[graph-sync] Failed to refresh full graph:', err);
+    }
+}
+
+/**
  * Loads a subgraph centered on a specific entity.
  * Uses the Wails bridge to call GraphService.GetSubGraph.
  */

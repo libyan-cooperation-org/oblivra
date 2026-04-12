@@ -37,7 +37,7 @@ func newTestVaultService(t *testing.T) (*services.VaultService, func()) {
 		t.Fatalf("vault.New: %v", err)
 	}
 
-	svc := services.NewVaultService(v, db, nil, nil, credRepo, auditRepo, nil, bus, log)
+	svc := services.NewVaultService(v, db, nil, nil, credRepo, auditRepo, nil, nil, bus, log)
 	ctx := context.WithValue(context.Background(), "test", "true")
 	svc.Start(ctx) //nolint:errcheck
 

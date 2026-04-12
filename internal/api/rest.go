@@ -32,6 +32,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/mcp"
+	"github.com/kingknull/oblivrashell/internal/ueba"
 )
 
 // IdentityProvider defines the subset of IdentityService required by the REST API.
@@ -54,6 +55,12 @@ type IdentityProvider interface {
 	UpdateConnector(ctx context.Context, c *database.IdentityConnector) error
 	DeleteConnector(ctx context.Context, id string) error
 	TriggerSync(ctx context.Context, id string) error
+}
+
+// UEBAProvider allows the REST API to fetch behavioral analytics without importing the services package.
+type UEBAProvider interface {
+	GetProfiles() []*ueba.EntityProfile
+	GetAnomalies() []map[string]interface{}
 }
 
 // ReportingProvider defines the subset of ReportService required by the REST API.
@@ -126,6 +133,7 @@ type RESTServer struct {
 	enrichLimiter *ingest.EnrichmentLimiter // #9: protects GeoIP/DNS/TI from stalling ingestion
 	replayer      *ingest.EventReplayer   // #3: allows on-demand logic verification
 	graphEngine   *graph.GraphEngine
+	ueba          UEBAProvider
 }
 
 // AgentInfo tracks a registered agent.
@@ -147,7 +155,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -177,6 +185,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		enrichLimiter: ingest.NewEnrichmentLimiter(500), // 500 enrichment calls/sec max across all tenants
 		replayer:      ingest.NewEventReplayer(log),
 		graphEngine:   graphEngine,
+		ueba:          ueba,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -349,6 +358,9 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/agentless/status", s.stubHandler(s.handleAgentlessStatus))
 	mux.HandleFunc("/api/v1/agentless/collectors", s.stubHandler(s.handleAgentlessCollectors))
 
+	// Security & Hardening routes
+	s.initSecurityRoutes(mux)
+	
 	var handler http.Handler = mux
 
 	// Wrap entire mux with Authentication middleware if provided, BUT exclude
@@ -363,7 +375,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		}
 
 		if s.auth != nil {
-			s.auth.Middleware(mux).ServeHTTP(w, r)
+			// Auth -> Tenant Isolation chain
+			s.auth.Middleware(s.tenantMiddleware(mux)).ServeHTTP(w, r)
 		} else {
 			mux.ServeHTTP(w, r)
 		}

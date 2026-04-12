@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -465,48 +464,7 @@ func (s *SSHService) PushCredential(ctx context.Context, sessionID string, crede
 	return session.Write(payload)
 }
 
-func (s *SSHService) handleSystemCommand(sessionID string, cmd string) error {
-	s.log.Info("Handling system command for session %s: %s", sessionID, cmd)
-	parts := strings.Fields(cmd)
-	if len(parts) == 0 {
-		return nil
-	}
 
-	action := parts[0]
-	// args := parts[1:]
-
-	var output string
-	switch action {
-	case "/search":
-		output = "\n\x1b[36mOBLIVRA System:\x1b[0m Executing SIEM search (Bleve-backed)...\n"
-		// Logic: Placeholder for SIEM search result summary
-		output += "Found 4 matches in last 5 minutes. Check SIEM Dashboard for details.\n"
-	case "/alert":
-		output = "\n\x1b[31mOBLIVRA System:\x1b[0m Checking alert status...\n"
-		output += "Last Alert: High Severity - Brute Force Detected (10.0.0.5)\n"
-	case "/graph":
-		output = "\n\x1b[35mOBLIVRA System:\x1b[0m querying Security Graph...\n"
-		output += "Entity: admin | 12 Neighbors | 3 Attack Paths Detected\n"
-	case "/help":
-		output = "\n\x1b[32mOBLIVRA Command Help:\x1b[0m\n/search [query] - SIEM Search\n/alert - Recent Alerts\n/graph [entity] - Graph Lookup\n/help - Show this guide\n"
-	default:
-		output = fmt.Sprintf("\n\x1b[33mOBLIVRA System:\x1b[0m Unknown command: %s\n", action)
-	}
-
-	session, ok := s.manager.Get(sessionID)
-	if ok {
-		session.Write([]byte(output))
-		// Also emit to frontend for rich rendering if overlay is active
-		if s.ctx != nil {
-			EmitEvent("session.system_output", map[string]string{
-				"sessionId": sessionID,
-				"content":   output,
-			})
-		}
-	}
-
-	return nil
-}
 
 // Exec runs a non-interactive command on an active session and returns output
 func (s *SSHService) Exec(sessionID string, cmd string) (string, error) {

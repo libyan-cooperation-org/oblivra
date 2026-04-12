@@ -112,9 +112,7 @@ If the request is a general question or analysis, respond ONLY with a raw JSON o
 	cleanResp := aiResp.Text
 	if len(cleanResp) > 0 && cleanResp[0] == '`' {
 		cleanResp = strings.Trim(cleanResp, "` \n")
-		if strings.HasPrefix(cleanResp, "json") {
-			cleanResp = strings.TrimPrefix(cleanResp, "json")
-		}
+		cleanResp = strings.TrimPrefix(cleanResp, "json")
 	}
 
 	if err := json.Unmarshal([]byte(cleanResp), &intent); err == nil {

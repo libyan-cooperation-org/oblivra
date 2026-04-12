@@ -175,26 +175,13 @@ func (s *RESTServer) handleUEBAProfiles(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// Return profiles derived from the registered agent fleet + synthetic users
-	s.agentsMu.RLock()
-	agents := make([]*AgentInfo, 0, len(s.agents))
-	for _, a := range s.agents {
-		agents = append(agents, a)
+	
+	if s.ueba == nil {
+		s.jsonResponse(w, http.StatusOK, []interface{}{})
+		return
 	}
-	s.agentsMu.RUnlock()
 
-	var profiles []map[string]interface{}
-	for _, a := range agents {
-		profiles = append(profiles, map[string]interface{}{
-			"entity_id":            a.Hostname,
-			"entity_type":          "host",
-			"risk_score":           0,  // Feature gap: SIEM aggregation not implemented
-			"baseline_established": false,
-			"anomaly_count":        0,
-			"last_activity":        a.LastSeen,
-			"top_anomaly":          "",
-		})
-	}
+	profiles := s.ueba.GetProfiles()
 	s.jsonResponse(w, http.StatusOK, profiles)
 }
 
@@ -204,31 +191,22 @@ func (s *RESTServer) handleUEBAAnomalies(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	limit := 50
-	fmt.Sscanf(r.URL.Query().Get("limit"), "%d", &limit)
 
-	// Query SIEM for anomaly events if available
-	var anomalies []map[string]interface{}
-	if s.siem != nil {
-		ctx := r.Context()
-		events, _ := s.siem.SearchHostEvents(ctx, "EventType:anomaly", limit)
-		for _, e := range events {
-			anomalies = append(anomalies, map[string]interface{}{
-				"id":         e.ID,
-				"tenant_id":  e.TenantID,
-				"host_id":    e.HostID,
-				"timestamp":  e.Timestamp,
-				"event_type": e.EventType,
-				"source_ip":  e.SourceIP,
-				"location":   e.Location,
-				"user":       e.User,
-				"raw_log":    e.RawLog,
-			})
-		}
+	if s.ueba == nil {
+		s.jsonResponse(w, http.StatusOK, []interface{}{})
+		return
 	}
-	if len(anomalies) == 0 {
-		anomalies = []map[string]interface{}{}
+
+	anomalies := s.ueba.GetAnomalies()
+	// Apply limit if requested
+	limit := len(anomalies)
+	if qLimit := r.URL.Query().Get("limit"); qLimit != "" {
+		fmt.Sscanf(qLimit, "%d", &limit)
 	}
+	if limit < len(anomalies) {
+		anomalies = anomalies[:limit]
+	}
+
 	s.jsonResponse(w, http.StatusOK, anomalies)
 }
 

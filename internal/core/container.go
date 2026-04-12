@@ -222,7 +222,9 @@ func (c *Container) initSIEM(_ context.Context) error {
 	})
 	pipeline.SetIntegrityTree(merkleTree)
 
-	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, "", "", "", c.Log), c.Infra.Bus, c.Log)
+	certFile := filepath.Join(platform.ConfigDir(), "cert.pem")
+	keyFile := filepath.Join(platform.ConfigDir(), "key.pem")
+	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
@@ -369,7 +371,7 @@ func (c *Container) initPlatform() error {
 	// Audit Repository (Persistence)
 	auditRepo := database.NewAuditRepository(c.Infra.DB)
 	
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {

@@ -69,7 +69,7 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, settings *SettingsService, identity *IdentityService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
+func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, settings *SettingsService, identity *IdentityService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -101,7 +101,7 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
-	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
+	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server: server,

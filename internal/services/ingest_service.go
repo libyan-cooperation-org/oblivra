@@ -56,6 +56,11 @@ func (s *IngestService) Start(ctx context.Context) error {
 		s.pipeline.Start()
 	}
 
+	// Auto-start ingestion servers on boot (Sovereign Mode)
+	if err := s.StartSyslogServer(); err != nil {
+		s.log.Error("Failed to auto-start ingestion servers: %v", err)
+	}
+
 	// EMERGENCY LISTENERS
 	s.bus.Subscribe(eventbus.EventType("disaster:killswitch"), func(event eventbus.Event) {
 		s.log.Warn("🚨 IngestService: Emergency Kill-Switch received. Stopping external ingestion.")

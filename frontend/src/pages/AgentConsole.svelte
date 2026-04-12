@@ -71,7 +71,7 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <KPI label="Agent OS" value={agent?.version || 'N/A'} trend="stable" />
       <KPI label="Last Heartbeat" value={agent?.last_seen ? new Date(agent.last_seen).toLocaleTimeString() : 'Never'} trend="stable" variant="success" />
-      <KPI label="Remote IP" value={agent?.remote_address || '0.0.0.0'} trend="stable" variant="info" />
+      <KPI label="Remote IP" value={agent?.remote_address || '0.0.0.0'} trend="stable" variant="accent" />
       <KPI label="Status" value={agent?.status || 'Offline'} variant={agent?.status === 'online' ? 'success' : 'critical'} />
     </div>
 
@@ -82,16 +82,16 @@
             Process Inventory & Resource Attribution
          </div>
          <div class="flex-1 overflow-auto">
-            <DataTable data={processes} {columns} compact>
+            <DataTable data={processes} columns={columns as any} compact>
               {#snippet render({ col, row, value })}
                 {#if col.key === 'risk'}
-                   <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'medium' ? 'warning' : 'info'}>
+                   <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'medium' ? 'warning' : 'muted'}>
                      {value}
                    </Badge>
                 {:else if col.key === 'name'}
                    <code class="text-[11px] font-bold text-text-heading">{value}</code>
-                {:else if col.key === 'actions'}
-                   <Button variant="danger" size="xs" onclick={() => killProc(row.pid)}>Kill</Button>
+                {:else if (col.key as any) === 'actions'}
+                   <Button variant="danger" size="sm" onclick={() => killProc(row.pid)}>Kill</Button>
                 {:else}
                   <span class="text-[11px] text-text-secondary">{value}</span>
                 {/if}

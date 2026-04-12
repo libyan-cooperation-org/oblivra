@@ -5,12 +5,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Shield, Zap, Activity, Crosshair, Network, Router } from 'lucide-svelte';
+  import { Shield, Activity, Crosshair, Network, Router } from 'lucide-svelte';
   import { GetLiveTraffic } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/ndrservice';
   import { subscribe } from '@lib/bridge';
 
   let trafficFlows = $state<any[]>([]);
-  let loading = $state(true);
 
   // Compute stats based on the flow array
   let monitoredFlowsCount = $derived(trafficFlows.length);
@@ -21,14 +20,11 @@
   let unsubFlow: () => void;
 
   async function loadData() {
-    loading = true;
     try {
       const flows = await GetLiveTraffic();
       trafficFlows = (flows || []).reverse(); // Newest first
     } catch (err) {
       console.error('[ndr] failed to load traffic flows:', err);
-    } finally {
-      loading = false;
     }
   }
 
@@ -67,7 +63,7 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
       <KPI label="Mesh Throughput" value={totalBytesStr} variant="accent" />
       <KPI label="Monitored Flows" value={monitoredFlowsCount.toString()} variant="success" />
-      <KPI label="Unique Endpoints" value={uniqueDests.toString()} variant="info" />
+      <KPI label="Unique Endpoints" value={uniqueDests.toString()} variant="accent" />
       <KPI label="DPI Status" value="ACTIVE" variant="success" />
     </div>
 
@@ -82,12 +78,12 @@
             </div>
          </div>
          <div class="flex-1 overflow-auto">
-            <DataTable data={trafficFlows} {columns} compact>
+            <DataTable data={trafficFlows} columns={columns as any} compact>
               {#snippet render({ value, col, row })}
                 {#if col.key === 'protocol'}
                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{value}</span>
                 {:else if col.key === 'app_name'}
-                   <Badge variant={value === 'DNS' || value === 'HTTP' ? 'info' : 'muted'}>{value || 'UNKNOWN'}</Badge>
+                   <Badge variant={value === 'DNS' || value === 'HTTP' ? 'accent' : 'muted'}>{value || 'UNKNOWN'}</Badge>
                 {:else if col.key === 'src_ip' || col.key === 'dest_ip'}
                    <div class="flex items-center gap-2">
                       <div class="w-1.5 h-1.5 rounded-full bg-blue-500/40"></div>
@@ -97,8 +93,8 @@
                    <span class="text-[10px] font-mono whitespace-nowrap">{(((row.bytes_sent || 0) + (row.bytes_recv || 0)) / 1024).toFixed(1)} KB</span>
                 {:else if col.key === 'action'}
                    <div class="flex gap-2">
-                      <Button variant="ghost" size="xs"><Activity size={12} /></Button>
-                      <Button variant="ghost" size="xs"><Crosshair size={12} /></Button>
+                      <Button variant="ghost" size="sm"><Activity size={12} /></Button>
+                      <Button variant="ghost" size="sm"><Crosshair size={12} /></Button>
                    </div>
                 {:else}
                   <span class="text-[11px] text-slate-400">{value}</span>

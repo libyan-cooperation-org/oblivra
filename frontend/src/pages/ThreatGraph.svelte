@@ -1,10 +1,9 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import * as echarts from 'echarts';
-    import { appStore } from '@lib/stores/app.svelte';
-    import { nodesList, edgesList } from '@lib/stores/graph.svelte';
+    import { nodesList, edgesList, type GraphNode, type GraphEdge } from '@lib/stores/graph.svelte';
     import { Shield, Activity, User, Monitor, Network, Info, Trash2, Crosshair } from 'lucide-svelte';
-    import { initGraphSync } from '@lib/graph-sync';
+    import { initGraphSync, refreshFullGraph } from '@lib/graph-sync';
     import { KillProcess } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice';
     import { IsolateHost } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/networkisolatorservice';
 
@@ -25,9 +24,9 @@
     function updateChart() {
         if (!myChart) return;
 
-        const data = nodesList.map(n => ({
+        const data = $nodesList.map((n: GraphNode) => ({
             id: n.id,
-            name: n.id.split(':').pop(), // Show short name
+            name: (n.id || "").split(':').pop(), // Show short name
             value: n.type,
             category: n.type,
             itemStyle: {
@@ -41,7 +40,7 @@
             meta: n.meta
         }));
 
-        const links = edgesList.map(e => ({
+        const links = $edgesList.map((e: GraphEdge) => ({
             source: e.from,
             target: e.to,
             label: {
@@ -100,6 +99,7 @@
     onMount(() => {
         myChart = echarts.init(chartDom, 'dark');
         unsubSync = initGraphSync();
+        refreshFullGraph();
 
         myChart.on('click', (params: any) => {
             if (params.dataType === 'node') {
@@ -119,14 +119,14 @@
 
     // Reactive update when store changes
     $effect(() => {
-        if (nodesList && edgesList) {
+        if ($nodesList && $edgesList) {
             updateChart();
         }
     });
 
     async function handleIsolate() {
         if (!selectedNode || selectedNode.category !== 'host') return;
-        const hostID = selectedNode.id.split(':').pop(); // Simple extraction
+        const hostID = selectedNode.id;
         try {
             await IsolateHost(hostID, "Manual Analyst Override from Threat Graph");
             console.info(`[graph] Issued isolation for ${hostID}`);
