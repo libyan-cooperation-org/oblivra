@@ -155,6 +155,7 @@ func (c *Container) initInfra() error {
 
 	c.Infra.CloudAssets = database.NewCloudAssetRepository(c.Infra.DB)
 	c.Infra.TenantRepo = database.NewTenantRepository(c.Infra.DB)
+	c.Infra.RBAC = auth.NewRBACEngine(c.Log)
 
 	return nil
 }
@@ -168,14 +169,13 @@ func (c *Container) initSecurity(_ context.Context) error {
 	roleRepo := database.NewRoleRepository(c.Infra.DB)
 	connectorRepo := database.NewIdentityConnectorRepository(c.Infra.DB, c.Infra.Vault)
 	reportRepo := database.NewReportRepository(c.Infra.DB)
-	rbacEngine := auth.NewRBACEngine(c.Log)
 
 	var hwProvider auth.HardwareRootedIdentity
 	if tpm, err := security.NewTPMManager(c.Log); err == nil {
 		hwProvider = auth.NewTPMIdentityProvider(tpm, 0x81000001)
 	}
 
-	c.Security.IdentityService = services.NewIdentityService(userRepo, roleRepo, connectorRepo, rbacEngine, hwProvider, c.Infra.Bus, c.Log)
+	c.Security.IdentityService = services.NewIdentityService(userRepo, roleRepo, connectorRepo, c.Infra.RBAC, hwProvider, c.Infra.Bus, c.Log)
 	c.Security.IdentitySyncService = services.NewIdentitySyncService(connectorRepo, c.Security.IdentityService, c.Infra.TenantRepo, c.Log)
 	
 	// ReportService depends on AnalyticsService which is initialized in initSIEM/initIntel
@@ -223,7 +223,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 	pipeline.SetIntegrityTree(merkleTree)
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, "", "", "", c.Log), c.Infra.Bus, c.Log)
-	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.Bus, c.Log)
+	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)
@@ -309,7 +309,7 @@ func (c *Container) initProduct() error {
 	credRepo := database.NewCredentialRepository(c.Infra.DB)
 	
 	c.Product.HostService = services.NewHostService(c.Infra.DB, c.Infra.Vault, hostRepo, c.Infra.Bus, c.Log)
-	c.Product.VaultService = services.NewVaultService(c.Infra.Vault, c.Infra.DB, c.Infra.AnalyticsEngine, &c.Infra.SearchEngine, credRepo, nil, c.Security.FIDO2Manager, c.Infra.Bus, c.Log)
+	c.Product.VaultService = services.NewVaultService(c.Infra.Vault, c.Infra.DB, c.Infra.AnalyticsEngine, &c.Infra.SearchEngine, credRepo, nil, c.Security.FIDO2Manager, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	c.Product.SessionService = services.NewSessionService(sessRepo, nil, c.Infra.Bus, c.Log)
 	
 	c.Product.SSHService = services.NewSSHService(c.Infra.DB, c.Infra.Vault, hostRepo, sessRepo, credRepo, nil, c.Infra.Bus, c.Log, nil, nil, c.Infra.TelemetryManager, nil, security.NewShellSanitizer(), nil)

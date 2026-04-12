@@ -12,6 +12,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/oql"
 	"github.com/kingknull/oblivrashell/internal/security"
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 )
 
@@ -29,6 +30,7 @@ type SIEMService struct {
 	log         *logger.Logger
 	lastRiskCheck *sync.Map
 	oqlExecutor   *oql.Executor
+	rbac          *auth.RBACEngine
 }
 
 func (s *SIEMService) Name() string { return "siem-service" }
@@ -39,7 +41,7 @@ func (s *SIEMService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, bus *eventbus.Bus, log *logger.Logger) *SIEMService {
+func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *SIEMService {
 	correlationEngine := detection.NewCorrelationEngine(bus, log.WithPrefix("correlation"))
 	return &SIEMService{
 		repo:          r,
@@ -48,6 +50,7 @@ func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai 
 		snippets:      snippets,
 		matcher:       matcher,
 		correlation:   correlationEngine,
+		rbac:          rbac,
 		bus:           bus,
 		log:           log.WithPrefix("siem"),
 		lastRiskCheck: &sync.Map{},
@@ -186,6 +189,9 @@ func (s *SIEMService) TestConnection() error {
 
 // GetFailedLoginsByHost fetches aggregated login failure analytics for the ThreatMap ECharts visualization
 func (s *SIEMService) GetFailedLoginsByHost(ctx context.Context, hostID string) ([]map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.GetFailedLoginsByHost(searchCtx, hostID)
@@ -193,6 +199,9 @@ func (s *SIEMService) GetFailedLoginsByHost(ctx context.Context, hostID string) 
 
 // GetHostEvents grabs raw parsed anomalies mapped to a specific internal SSH server UUID
 func (s *SIEMService) GetHostEvents(ctx context.Context, hostID string, limit int) ([]database.HostEvent, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.GetHostEvents(searchCtx, hostID, limit)
@@ -200,6 +209,9 @@ func (s *SIEMService) GetHostEvents(ctx context.Context, hostID string, limit in
 
 // GetRiskScoreByHost calculates a 0-100 score of how compromised this host might be
 func (s *SIEMService) GetRiskScoreByHost(ctx context.Context, hostID string) (int, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return 0, err
+	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.CalculateRiskScore(searchCtx, hostID)
@@ -207,13 +219,19 @@ func (s *SIEMService) GetRiskScoreByHost(ctx context.Context, hostID string) (in
 
 // SearchHostEvents performs a global search across all host anomaly events
 func (s *SIEMService) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
 	searchCtx, cancel := context.WithTimeout(ctx, 20*time.Second) // Search gets a bit more time
 	defer cancel()
 	return s.repo.SearchHostEvents(searchCtx, query, limit)
 }
 
-// GetGlobalThreatStats returns high-level dashboard metrics
+// GetGlobalThreatStats aggregates security data across all hosts for the Dashboard KPIs
 func (s *SIEMService) GetGlobalThreatStats(ctx context.Context) (map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.GetGlobalThreatStats(searchCtx)
@@ -221,6 +239,9 @@ func (s *SIEMService) GetGlobalThreatStats(ctx context.Context) (map[string]inte
 
 // GetEventTrend returns security event counts over time
 func (s *SIEMService) GetEventTrend(ctx context.Context, days int) ([]map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.GetEventTrend(searchCtx, days)
@@ -235,6 +256,9 @@ func (s *SIEMService) AnalyzeEvent(rawLog string) (*AIResponse, error) {
 
 // ExecuteOQL parses and executes a Sovereign Query Language string
 func (s *SIEMService) ExecuteOQL(ctx context.Context, query string) (*oql.QueryResult, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
 	s.log.Info("Executing OQL: %s", query)
 	
 	// Enforce call-site context for tenant isolation
@@ -301,14 +325,20 @@ func (s *SIEMService) suggestRemediation(hostID, sessionID, threatType string) {
 }
 
 // AggregateHostEvents exposes the Bleve/SQL facet aggregation capability to the UI
-func (s *SIEMService) AggregateHostEvents(query string, facetField string) (map[string]int, error) {
-	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+func (s *SIEMService) AggregateHostEvents(ctx context.Context, query string, facetField string) (map[string]int, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
+	searchCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	return s.repo.AggregateHostEvents(ctx, query, facetField)
+	return s.repo.AggregateHostEvents(searchCtx, query, facetField)
 }
 
 // CreateSavedSearch persists a given query so the user can recall it later
 func (s *SIEMService) CreateSavedSearch(search *database.SavedSearch) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(s.ctx), auth.PermSIEMWrite); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
 	defer cancel()
 	return s.repo.CreateSavedSearch(ctx, search)

@@ -19,6 +19,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/kingknull/oblivrashell/internal/search"
 	"github.com/kingknull/oblivrashell/internal/vault"
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -34,6 +35,7 @@ type VaultService struct {
 	fido2Manager FIDO2Provider
 	bus          *eventbus.Bus
 	log          *logger.Logger
+	rbac         *auth.RBACEngine
 	postMu       sync.Mutex // Guard against concurrent postUnlock
 }
 
@@ -49,7 +51,7 @@ func (s *VaultService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewVaultService(v vault.Provider, db database.DatabaseStore, analytics *analytics.AnalyticsEngine, searchPtr **search.SearchEngine, credRepo database.CredentialStore, auditRepo database.AuditStore, fido FIDO2Provider, bus *eventbus.Bus, log *logger.Logger) *VaultService {
+func NewVaultService(v vault.Provider, db database.DatabaseStore, analytics *analytics.AnalyticsEngine, searchPtr **search.SearchEngine, credRepo database.CredentialStore, auditRepo database.AuditStore, fido FIDO2Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *VaultService {
 	return &VaultService{
 		vault:        v,
 		db:           db,
@@ -58,6 +60,7 @@ func NewVaultService(v vault.Provider, db database.DatabaseStore, analytics *ana
 		creds:        credRepo,
 		audit:        auditRepo,
 		fido2Manager: fido,
+		rbac:         rbac,
 		bus:          bus,
 		log:          log.WithPrefix("vault_service"),
 	}
@@ -117,6 +120,9 @@ func (s *VaultService) IsSetup() bool {
 
 // GetPassword retrieves a password by ID and decrypts it into a volatile, mutable byte slice.
 func (s *VaultService) GetPassword(ctx context.Context, id string) ([]byte, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermVaultRead); err != nil {
+		return nil, err
+	}
 	if s.vault == nil || !s.vault.IsUnlocked() {
 		return nil, vault.ErrLocked
 	}
@@ -352,6 +358,9 @@ func (s *VaultService) ListCredentials(ctx context.Context, typeFilter string) (
 }
 
 func (s *VaultService) AddCredential(ctx context.Context, label, credType, rawData string) (string, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermVaultWrite); err != nil {
+		return "", err
+	}
 	if !s.vault.IsUnlocked() {
 		return "", vault.ErrLocked
 	}
@@ -420,6 +429,9 @@ func (s *VaultService) GenerateEd25519Key(ctx context.Context, label string) (st
 }
 
 func (s *VaultService) GetDecryptedCredential(ctx context.Context, id string) (string, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermVaultRead); err != nil {
+		return "", err
+	}
 	if !s.vault.IsUnlocked() {
 		return "", vault.ErrLocked
 	}

@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/kingknull/oblivrashell/internal/services"
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/cloud"
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/attestation"
@@ -47,6 +48,7 @@ type InfrastructureCluster struct {
 	Enrichment       *enrich.Pipeline
 	CloudAssets      database.CloudAssetStore
 	TenantRepo       *database.TenantRepository
+	RBAC             *auth.RBACEngine
 }
 
 // SecurityCluster holds identity, hardening, and trust services.

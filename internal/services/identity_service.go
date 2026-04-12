@@ -105,6 +105,9 @@ func (s *IdentityService) GetSecurityStats(ctx context.Context) (SecurityStats, 
 
 // CreateUser creates a new local user with a hashed password
 func (s *IdentityService) CreateUser(ctx context.Context, email, name, password, roleID string) (*database.User, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermUsersWrite); err != nil {
+		return nil, err
+	}
 	s.log.Info("Creating user: %s (%s)", name, email)
 
 	// Password policy enforcement
@@ -157,6 +160,9 @@ func validatePassword(password string) error {
 
 // ListUsers returns all users in the current tenant
 func (s *IdentityService) ListUsers(ctx context.Context) ([]database.User, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermUsersRead); err != nil {
+		return nil, err
+	}
 	return s.userRepo.ListUsers(ctx)
 }
 
@@ -172,6 +178,9 @@ func (s *IdentityService) GetUserByEmail(ctx context.Context, email string) (*da
 
 // UpdateUserRole assigns a new role to a user
 func (s *IdentityService) UpdateUserRole(ctx context.Context, userID, roleID string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermIdentityAdmin); err != nil {
+		return err
+	}
 	s.log.Info("Updating role for user %s to %s", userID, roleID)
 
 	user, err := s.userRepo.GetUserByID(ctx, userID)
@@ -231,6 +240,9 @@ func (s *IdentityService) GetUserByExternalID(ctx context.Context, extID string)
 
 // DeleteUser removes a user
 func (s *IdentityService) DeleteUser(ctx context.Context, id string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermUsersWrite); err != nil {
+		return err
+	}
 	s.log.Info("Deleting user: %s", id)
 	if err := s.userRepo.DeleteUser(ctx, id); err != nil {
 		return err
@@ -357,11 +369,17 @@ func (s *IdentityService) ValidateMFA(ctx context.Context, userID, code string) 
 
 // ListRoles returns all roles in the current tenant
 func (s *IdentityService) ListRoles(ctx context.Context) ([]database.Role, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermRolesRead); err != nil {
+		return nil, err
+	}
 	return s.roleRepo.ListRoles(ctx)
 }
 
 // CreateRole creates a new custom role
 func (s *IdentityService) CreateRole(ctx context.Context, name, description string, permissions []string) (*database.Role, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermRolesWrite); err != nil {
+		return nil, err
+	}
 	s.log.Info("Creating role: %s", name)
 
 	role := &database.Role{
@@ -381,6 +399,9 @@ func (s *IdentityService) CreateRole(ctx context.Context, name, description stri
 
 // UpdateRole modifies an existing role's permissions
 func (s *IdentityService) UpdateRole(ctx context.Context, roleID, name, description string, permissions []string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermRolesWrite); err != nil {
+		return err
+	}
 	role, err := s.roleRepo.GetRoleByID(ctx, roleID)
 	if err != nil {
 		return err
@@ -450,32 +471,29 @@ func (s *IdentityService) GetSAMLURL() (string, error) {
 
 // HandleOIDCCallback processes the OIDC authorization code
 func (s *IdentityService) HandleOIDCCallback(code string) (*database.User, error) {
-	s.log.Info("Processing OIDC callback with code: %s", code)
-	// Return the primary admin user for MVP validation
-	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(s.ctx), "admin@oblivra.org")
-	if err != nil {
-		return nil, fmt.Errorf("OIDC user mapping failed: %w", err)
-	}
-	return user, nil
+	s.log.Warn("OIDC Callback received but federated identity is not fully implemented. Denying.")
+	return nil, fmt.Errorf("OIDC login not implemented")
 }
 
 // HandleSAMLCallback processes the SAML assertion
 func (s *IdentityService) HandleSAMLCallback(data string) (*database.User, error) {
-	s.log.Info("Processing SAML callback")
-	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(s.ctx), "admin@oblivra.org")
-	if err != nil {
-		return nil, fmt.Errorf("SAML user mapping failed: %w", err)
-	}
-	return user, nil
+	s.log.Warn("SAML Callback received but federated identity is not fully implemented. Denying.")
+	return nil, fmt.Errorf("SAML login not implemented")
 }
 
 // Connector Management Methods (Phase 20.7)
 
 func (s *IdentityService) ListConnectors(ctx context.Context) ([]database.IdentityConnector, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermIdentityRead); err != nil {
+		return nil, err
+	}
 	return s.connectorRepo.List(ctx)
 }
 
 func (s *IdentityService) CreateConnector(ctx context.Context, c *database.IdentityConnector) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermIdentityWrite); err != nil {
+		return err
+	}
 	s.log.Info("Creating identity connector: %s (%s)", c.Name, c.Type)
 	return s.connectorRepo.Create(ctx, c)
 }

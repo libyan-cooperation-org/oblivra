@@ -312,9 +312,56 @@ func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID st
 	return score, nil
 }
 
-// GetGlobalThreatStats returns total counts of security events for the dashboard
+// GetGlobalThreatStats aggregates security data across all hosts for the Dashboard KPIs
 func (r *BadgerSIEMRepository) GetGlobalThreatStats(ctx context.Context) (map[string]interface{}, error) {
-	return nil, errors.New("not implemented in badger cache")
+	tenantID := database.TenantFromContext(ctx)
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
+
+	stats := map[string]interface{}{
+		"total_failed_logins": 0,
+		"unique_attacker_ips": 0,
+		"high_risk_hosts":    0,
+	}
+
+	failedLogins := 0
+	attackerIPs := make(map[string]bool)
+	hostFailures := make(map[string]int)
+
+	// Scan last 10000 events to get dashboard stats
+	err := r.store.ReverseIteratePrefix(prefix, 10000, func(key, value []byte) error {
+		if !bytes.Contains(value, []byte(`"event_type":"failed_login"`)) {
+			return nil
+		}
+
+		var e database.HostEvent
+		if err := json.Unmarshal(value, &e); err != nil {
+			return nil
+		}
+
+		if e.EventType == "failed_login" {
+			failedLogins++
+			attackerIPs[e.SourceIP] = true
+			hostFailures[e.HostID]++
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	highRiskCount := 0
+	for _, count := range hostFailures {
+		if count > 10 {
+			highRiskCount++
+		}
+	}
+
+	stats["total_failed_logins"] = failedLogins
+	stats["unique_attacker_ips"] = len(attackerIPs)
+	stats["high_risk_hosts"] = highRiskCount
+
+	return stats, nil
 }
 
 // GetEventTrend aggregates event counts over the last given days

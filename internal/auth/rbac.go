@@ -164,4 +164,12 @@ const (
 	PermMCPExecute  = "mcp:execute"
 	PermMCPSimulate = "mcp:simulate"
 	PermMCPApprove  = "mcp:approve"
+
+	PermVaultRead  = "vault:read"
+	PermVaultWrite = "vault:write"
+	PermVaultAdmin = "vault:admin"
+
+	PermIdentityRead  = "identity:read"
+	PermIdentityWrite = "identity:write"
+	PermIdentityAdmin = "identity:admin"
 )
