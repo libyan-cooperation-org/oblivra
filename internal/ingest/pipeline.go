@@ -12,6 +12,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
+	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
@@ -56,7 +57,6 @@ type IngestionPipeline interface {
 }
 
 // DiagnosticsUpdater is satisfied by services.DiagnosticsService.
-// Using an interface avoids an import cycle between ingest → services.
 type DiagnosticsUpdater interface {
 	UpdateIngestMetrics(eps, target, dropped int64, bufFill float64, workers int)
 	UpdateLoadStatus(status LoadStatus, message string)
@@ -71,6 +71,7 @@ type Pipeline struct {
 	bus         *eventbus.Bus
 	log         *logger.Logger
 	temporal    *temporal.IntegrityService
+	graphEngine *graph.GraphEngine
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -88,10 +89,11 @@ type Pipeline struct {
 	identityResolver dag.UserResolver
 }
 
-// SetDiagnosticsUpdater wires the diagnostics service into the pipeline.
-// Called by the container after both ingest and diagnostics are initialised.
-func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) {
-	p.diagnostics = d
+func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) { p.diagnostics = d }
+
+func (p *Pipeline) SetGraphEngine(g *graph.GraphEngine) {
+	p.graphEngine = g
+	p.dag = p.buildProductionDAG()
 }
 
 // SetLoadStatus updates the current operational state of the pipeline.
@@ -120,133 +122,124 @@ type Metrics struct {
 
 // NewPipeline creates a new high-throughput event pipeline.
 func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine, siem database.SIEMStore, bus *eventbus.Bus, log *logger.Logger, temporal *temporal.IntegrityService, mc *monitoring.MetricsCollector, labels map[string]string, evaluator *detection.Evaluator) *Pipeline {
-	ctx, cancel := context.WithCancel(context.Background())
-	p := &Pipeline{
-		buffer:    make(chan *events.SovereignEvent, bufferSize),
-		wal:       wal,
-		analytics: ae,
-		siem:      siem,
-		bus:       bus,
-		log:       log,
-		temporal:  temporal,
-		ctx:       ctx,
-		cancel:    cancel,
-		quota:     NewTenantQuotaManager(bufferSize, 0.70, mc), // Standard 70% max fair-share
-		metricsCollector: mc,
-		labels:           labels,
-		evaluator:        evaluator,
-	}
-	p.lastProcessed.Store(time.Now().Unix())
-	p.metrics.BufferCapacity = bufferSize
+ctx, cancel := context.WithCancel(context.Background())
+p := &Pipeline{
+buffer:    make(chan *events.SovereignEvent, bufferSize),
+wal:       wal,
+analytics: ae,
+siem:      siem,
+bus:       bus,
+log:       log,
+temporal:  temporal,
+ctx:       ctx,
+cancel:    cancel,
+quota:     NewTenantQuotaManager(bufferSize, 0.70, mc), // Standard 70% max fair-share
+metricsCollector: mc,
+labels:           labels,
+evaluator:        evaluator,
+}
+p.lastProcessed.Store(time.Now().Unix())
+p.metrics.BufferCapacity = bufferSize
 
-	// Initialize WASM engine
-	wasmPM, err := wasm.NewPluginManager(ctx)
-	if err != nil {
-		log.Error("[INGEST] Failed to initialize WASM engine: %v", err)
-	} else {
-		p.wasm = wasmPM
-	}
-
-	// Initialize Production DAG
-	p.dag = p.buildProductionDAG()
-
-	return p
+wasmPM, err := wasm.NewPluginManager(ctx)
+if err != nil {
+log.Error("[INGEST] Failed to initialize WASM engine: %v", err)
+} else {
+p.wasm = wasmPM
+}
+p.dag = p.buildProductionDAG()
+return p
 }
 
 // SetEvaluator injects a rule engine for shard-local detection.
 func (p *Pipeline) SetEvaluator(e *detection.Evaluator) {
-	p.evaluator = e
-	// Rebuild DAG to ensure the DetectionNode is active
-	p.dag = p.buildProductionDAG()
+p.evaluator = e
+// Rebuild DAG to ensure the DetectionNode is active
+p.dag = p.buildProductionDAG()
 }
 
 // SetIdentityResolver injects the identity service for event enrichment.
 func (p *Pipeline) SetIdentityResolver(r dag.UserResolver) {
-	p.identityResolver = r
-	// Rebuild DAG to ensure the IdentityEnrichmentNode is active
-	p.dag = p.buildProductionDAG()
+p.identityResolver = r
+// Rebuild DAG to ensure the IdentityEnrichmentNode is active
+p.dag = p.buildProductionDAG()
 }
 
 func (p *Pipeline) buildProductionDAG() *dag.Engine {
-	// Root: WASM Filter
-	wasmNode := &dag.Node{Processor: dag.NewWASMFilterNode(p.wasm, p.log)}
+wasmNode := &dag.Node{Processor: dag.NewWASMFilterNode(p.wasm, p.log)}
 
-	// Identity Enrichment — Early enrichment for downstream branches
-	var lastNode = wasmNode
-	if p.identityResolver != nil {
-		idNode := &dag.Node{Processor: dag.NewIdentityEnrichmentNode(p.identityResolver, p.log)}
-		wasmNode.Children = append(wasmNode.Children, idNode)
-		lastNode = idNode
+// Identity Enrichment — Early enrichment for downstream branches
+var lastNode = wasmNode
+if p.identityResolver != nil {
+idNode := &dag.Node{Processor: dag.NewIdentityEnrichmentNode(p.identityResolver, p.log)}
+wasmNode.Children = append(wasmNode.Children, idNode)
+lastNode = idNode
+}
+
+var graphNode *dag.Node
+if p.graphEngine != nil {
+graphNode = &dag.Node{Processor: dag.NewGraphNode(p.graphEngine, p.log)}
+lastNode.Children = append(lastNode.Children, graphNode)
+lastNode = graphNode
+}
+
+fanoutNode := &dag.Node{Processor: dag.NewMultiDestinationNode("Ingest_Fanout")}
+lastNode.Children = append(lastNode.Children, fanoutNode)
+
+// Shard-Local Detection Branch
+if p.evaluator != nil {
+detNode := &dag.Node{Processor: dag.NewDetectionNode(p.evaluator, p.bus, p.log)}
+fanoutNode.Children = append(fanoutNode.Children, detNode)
+}
+
 	}
 
-	// Branching Node: Fan out to SIEM, Analytics, and Detection
-	fanoutNode := &dag.Node{Processor: dag.NewMultiDestinationNode("Ingest_Fanout")}
-	lastNode.Children = append(lastNode.Children, fanoutNode)
-
-	// Shard-Local Detection Branch
-	if p.evaluator != nil {
-		detNode := &dag.Node{Processor: dag.NewDetectionNode(p.evaluator, p.bus, p.log)}
-		fanoutNode.Children = append(fanoutNode.Children, detNode)
-	}
-
-	// SIEM Branch: if isSecurityAnomaly
 	siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
 	siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}
 	siemCond.Children = append(siemCond.Children, siemDest)
 
-	// Analytics Branch: if NOT isSecurityAnomaly
 	analyticsCond := &dag.Node{Processor: dag.NewConditionNode("Is_Not_Security_Anomaly", func(evt *dag.Event) bool {
 		return !isSecurityAnomaly(evt)
 	})}
 	analyticsDest := &dag.Node{Processor: dag.NewAnalyticsNode(p.analytics)}
 	analyticsCond.Children = append(analyticsCond.Children, analyticsDest)
-
 	fanoutNode.Children = append(fanoutNode.Children, siemCond, analyticsCond)
 
 	return dag.NewEngine(wasmNode)
 }
 
-// Start begins processing the buffered queue in the background.
 func (p *Pipeline) Start() {
 	_, span := tracer.Start(p.ctx, "pipeline.Start")
 	defer span.End()
 
 	p.log.Info("[INGEST] Starting high-throughput pipeline (Buffer: %d, EPS target: %d)", p.metrics.BufferCapacity, EPSTarget)
 
-	// synchronous replay before accepting new events
 	if err := p.Replay(p.ctx); err != nil {
 		p.log.Error("[INGEST] WAL Replay failed: %v", err)
 	}
 
-	// Base worker pool: one worker per logical CPU core
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 2 {
 		numWorkers = 2
 	}
-
 	p.log.Info("[INGEST] Spawning %d base workers + adaptive controller (max %d workers)", numWorkers, numWorkers*4)
 
-	p.wg.Add(1) // for the metric collector
+	p.wg.Add(1)
 	go p.metricCollector()
 
 	for i := 0; i < numWorkers; i++ {
-		// wg.Add MUST be called before go, not inside the goroutine body,
-		// otherwise Shutdown()'s wg.Wait() can return before the worker starts.
 		p.wg.Add(1)
 		go p.worker()
 	}
 
-	// Launch the adaptive controller to scale workers and shed load automatically.
 	ac := NewAdaptiveController(p)
 	ac.Start()
-	// Stop the controller when the pipeline shuts down.
 	go func() {
 		<-p.ctx.Done()
 		ac.Stop()
 	}()
 }
 
-// Shutdown stops the pipeline and waits for all workers to drain the buffer.
 func (p *Pipeline) Shutdown() {
 	p.once.Do(func() {
 		p.log.Info("[INGEST] Shutting down pipeline, draining %d buffered events...", len(p.buffer))
@@ -259,7 +252,6 @@ func (p *Pipeline) Shutdown() {
 				p.log.Error("[INGEST] Failed to close WAL: %v", err)
 			}
 		}
-
 		if p.wasm != nil {
 			if err := p.wasm.Close(context.Background()); err != nil {
 				p.log.Error("[INGEST] Failed to close WASM engine: %v", err)
@@ -269,18 +261,40 @@ func (p *Pipeline) Shutdown() {
 	})
 }
 
-// Stop flushes remaining events and shuts down the pipeline.
-// Deprecated: Use Shutdown() instead.
-func (p *Pipeline) Stop() {
-	p.Shutdown()
+func (p *Pipeline) Stop() { p.Shutdown() }
+
+// QueueEvent validates and enqueues a SovereignEvent.
+
+// Validation stages (in order, cheapest first):
+//   1. Size limit — rejects oversized payloads before any allocation
+//   2. Null-byte / injection detection — rejects log-injection attempts
+//   3. UTF-8 validity — rejects malformed encodings
+//   4. Field sanitization — truncates unbounded fields before they grow
+//
+// Any rejection is counted in DroppedEvents and logged at WARN level so that
+// the operator can see it in DiagnosticsService / metrics without log spam.
+func (p *Pipeline) QueueEvent(evt *events.SovereignEvent) error {
+// ── Input validation ──────────────────────────────────────────────────────
+if evt.RawLine != "" {
+if err := ValidateRawLine(evt.RawLine); err != nil {
+p.metrics.DroppedEvents.Add(1)
+p.log.Warn("[INGEST] Rejected event from host=%q tenant=%q: %v (raw_len=%d)",
+evt.Host, evt.TenantID, err, len(evt.RawLine))
+return err
 }
 
-// QueueEvent pushes a SovereignEvent into the pipeline. Applies backpressure if full or quota exceeded.
-func (p *Pipeline) QueueEvent(evt *events.SovereignEvent) error {
-	// 1. Check if the tenant is already monopolising the buffer
-	if err := p.quota.CheckQuota(evt.TenantID); err != nil {
-		p.metrics.DroppedEvents.Add(1)
-		return err
+// Soft-sanitize individual fields — truncate don't reject, as parsers
+		// may have produced a legitimately long CommandLine from a real log.
+		if len(evt.User) > MaxFieldValueBytes {
+			evt.User, _ = SanitizeFieldValue(evt.User)
+		}
+		if len(evt.Host) > MaxFieldValueBytes {
+			evt.Host, _ = SanitizeFieldValue(evt.Host)
+		}
+		if len(evt.Metadata) > MaxMetadataKeys {
+			evt.Metadata = SanitizeMetadata(evt.Metadata)
+		}
+
 	}
 
 	select {
@@ -289,13 +303,11 @@ func (p *Pipeline) QueueEvent(evt *events.SovereignEvent) error {
 		p.quota.Inc(evt.TenantID)
 		return nil
 	default:
-		// Buffer is full. Signal backpressure to the caller.
 		p.metrics.DroppedEvents.Add(1)
 		return ErrBufferFull
 	}
 }
 
-// MetricsSnapshot is for frontend binding
 type MetricsSnapshot struct {
 	EventsPerSecond int64 `json:"events_per_second"`
 	TotalProcessed  int64 `json:"total_processed"`
@@ -304,7 +316,6 @@ type MetricsSnapshot struct {
 	DroppedEvents   int64 `json:"dropped_events"`
 }
 
-// GetMetrics returns a snapshot of current ingestion throughput
 func (p *Pipeline) GetMetrics() MetricsSnapshot {
 	return MetricsSnapshot{
 		EventsPerSecond: p.metrics.EventsPerSecond.Load(),
@@ -315,9 +326,6 @@ func (p *Pipeline) GetMetrics() MetricsSnapshot {
 	}
 }
 
-// worker reads from the channel, writes to the WAL, and routes to storage tiers.
-// NOTE: wg.Add(1) is called by the *caller* before launching this goroutine,
-// so that wg.Wait() in Shutdown() cannot return before the worker registers.
 func (p *Pipeline) worker() {
 	defer p.wg.Done()
 	defer func() {
@@ -325,9 +333,7 @@ func (p *Pipeline) worker() {
 			p.log.Error("[INGEST] Worker panicked: %v. Restarting worker...", r)
 			select {
 			case <-p.ctx.Done():
-				// Shutting down — do not restart, let wg drain cleanly.
 			default:
-				// Add to WaitGroup before spawning to avoid the shutdown race.
 				p.wg.Add(1)
 				go p.worker()
 			}
@@ -338,13 +344,12 @@ func (p *Pipeline) worker() {
 		select {
 		case evt, ok := <-p.buffer:
 			if !ok {
-				// Channel closed and drained
 				return
 			}
 
 			// 3. Decrement occupancy once processed (or pulled from chan)
 			p.quota.Dec(evt.TenantID)
-			
+
 			// 4. Update heartbeat for watchdog
 			p.lastProcessed.Store(time.Now().Unix())
 
@@ -356,14 +361,10 @@ func (p *Pipeline) worker() {
 				attribute.String("event.type", evt.EventType),
 				attribute.String("event.host", evt.Host),
 			))
-
 			p.processEvent(ctx, evt)
-			
 			span.End()
 
 			total := p.metrics.TotalProcessed.Add(1)
-
-			// Periodic WAL Checkpoint every 5,000 events to prevent indefinite log growth
 			if total > 0 && total%5000 == 0 {
 				p.log.Debug("[INGEST] Routine WAL checkpoint at %d events", total)
 				if err := p.wal.Checkpoint(); err != nil {
@@ -378,26 +379,21 @@ func (p *Pipeline) worker() {
 
 func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent) {
 	_, span := tracer.Start(ctx, "pipeline.WALWrite")
-	// 1. Durability: Write to WAL (Assuming raw string matches what parser used)
 	if p.wal != nil {
 		if err := p.wal.Append([]byte(evt.RawLine)); err != nil {
 			p.log.Error("[INGEST] WAL write failure: %v", err)
 		}
 	}
-
 	if p.temporal != nil {
 		p.temporal.ValidateTimestamp(evt.Host, parseTime(evt.Timestamp))
 	}
-
 	span.End()
-
 	p.indexEvent(ctx, evt)
 }
 
 func (p *Pipeline) indexEvent(ctx context.Context, evt *events.SovereignEvent) {
 	ctx, span := tracer.Start(ctx, "pipeline.dagExecution")
 	defer span.End()
-
 	if p.dag != nil {
 		if err := p.dag.Execute(ctx, evt); err != nil {
 			p.log.Error("[INGEST] DAG execution failure: %v", err)
@@ -405,12 +401,10 @@ func (p *Pipeline) indexEvent(ctx context.Context, evt *events.SovereignEvent) {
 	}
 }
 
-// Replay reads trapped events from the WAL and indexes them.
 func (p *Pipeline) Replay(ctx context.Context) error {
 	if p.wal == nil {
 		return nil
 	}
-
 	err := p.wal.Replay(func(payload []byte) error {
 		select {
 		case <-ctx.Done():
@@ -418,21 +412,21 @@ func (p *Pipeline) Replay(ctx context.Context) error {
 		default:
 		}
 		raw := string(payload)
+		// Validate replayed events too — WAL may contain pre-validation entries from older versions.
+		if err := ValidateRawLine(raw); err != nil {
+			p.log.Warn("[INGEST] Skipping invalid WAL entry: %v", err)
+			return nil
+		}
 		evt := AutoParse(raw)
 		p.indexEvent(ctx, evt)
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
-
-	// Truncate the WAL after successful replay to avoid double-indexing on next boot
 	return p.wal.Checkpoint()
 }
 
-// metricCollector updates the EPS (Events Per Second) speedometer and pushes
-// live metrics to the DiagnosticsService every tick.
 func (p *Pipeline) metricCollector() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -444,7 +438,6 @@ func (p *Pipeline) metricCollector() {
 	defer ticker.Stop()
 
 	var lastProcessed int64
-
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -455,7 +448,6 @@ func (p *Pipeline) metricCollector() {
 			p.metrics.EventsPerSecond.Store(eps)
 			lastProcessed = current
 
-			// Feed live stats to DiagnosticsService (if wired)
 			if p.diagnostics != nil {
 				bufCap := p.metrics.BufferCapacity
 				bufFill := 0.0
@@ -474,14 +466,9 @@ func (p *Pipeline) metricCollector() {
 	}
 }
 
-// Bus returns the event bus attached to this pipeline.
-func (p *Pipeline) Bus() *eventbus.Bus {
-	return p.bus
-}
+func (p *Pipeline) Bus() *eventbus.Bus { return p.bus }
 
-// isSecurityAnomaly contains very basic heuristics to route failed logins and sudo actions to the SIEM tier.
 func isSecurityAnomaly(evt *events.SovereignEvent) bool {
-	// Let all advanced parsed types flow into the SIEM directly
 	if strings.HasPrefix(evt.EventType, "windows_") ||
 		strings.HasPrefix(evt.EventType, "linux_") ||
 		strings.HasPrefix(evt.EventType, "aws_") ||
@@ -489,7 +476,6 @@ func isSecurityAnomaly(evt *events.SovereignEvent) bool {
 		strings.HasPrefix(evt.EventType, "network_") {
 		return true
 	}
-
 	switch evt.EventType {
 	case "failed_login", "sudo_exec", "cef", "security_alert", "successful_login":
 		return true

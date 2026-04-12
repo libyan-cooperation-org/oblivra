@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
@@ -34,8 +35,8 @@ type Match struct {
 	MitreTactics    []string
 	MitreTechniques []string
 	TriggeredAt     string
-	Events          []Event           // The events that contributed to this match
-	Context         map[string]string // Additional context (e.g., grouped by IP)
+	Events          []Event
+	Context         map[string]string
 }
 
 // Evaluator wraps RuleEngine with state tracking for thresholds/sequences.
@@ -43,20 +44,21 @@ type Evaluator struct {
 	*RuleEngine
 	log *logger.Logger
 
-	// routeIndex maps EventType → []Rule for O(1) rule lookup instead of O(N).
-	// Rebuilt atomically on every rule load / hot-reload.
+	// routeIndex maps EventType → []Rule for O(1) rule lookup.
 	routeIndex RouteIndex
 
 	// State tracking: RuleID -> Bounded LRU Cache (GroupKey -> []Event)
-	// Keeps max 10,000 tracked entities per rule. Discards old entities via TTL.
 	state   map[string]*expirable.LRU[string, []Event]
 	stateMu sync.RWMutex
 
-	// Deduplication tracker: RuleID -> Bounded LRU Cache (GroupKey -> LastTriggerTime)
+	// Deduplication tracker: RuleID -> LRU (GroupKey -> LastTriggerTime)
 	alerts map[string]*expirable.LRU[string, time.Time]
 
 	// Sharding scope
 	IsLocal bool
+	// bus is optional: when set, every triggered match publishes an
+	// ExplainedMatch on "detection.explained_match" for the API ring buffer.
+	bus *eventbus.Bus
 }
 
 // NewEvaluator creates a new stateful detection evaluator.
@@ -65,7 +67,6 @@ func NewEvaluator(rulesDir string, log *logger.Logger) (*Evaluator, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	ev := &Evaluator{
 		RuleEngine: re,
 		log:        log,
@@ -73,15 +74,19 @@ func NewEvaluator(rulesDir string, log *logger.Logger) (*Evaluator, error) {
 		alerts:     make(map[string]*expirable.LRU[string, time.Time]),
 		IsLocal:    true, // Default to local shard-level execution
 	}
-	// Build the initial route index from loaded rules.
 	ev.routeIndex = BuildRouteIndex(re.rules)
 	log.Info("[DETECTION] Route index built: %d EventType buckets, %d wildcard rules",
 		len(ev.routeIndex)-1, len(ev.routeIndex[wildcardKey]))
 	return ev, nil
 }
 
+// SetBus wires the event bus for explainability log publishing.
+// Call this after container initialisation if you want explained matches on the bus.
+func (e *Evaluator) SetBus(bus *eventbus.Bus) {
+	e.bus = bus
+}
+
 // RebuildRouteIndex rebuilds the EventType routing index after a rule reload.
-// Called by AlertingService.reloadSigmaRules() after LoadSigmaDirectory completes.
 func (e *Evaluator) RebuildRouteIndex() {
 	e.stateMu.Lock()
 	defer e.stateMu.Unlock()
@@ -106,13 +111,9 @@ func (e *Evaluator) Clone() *Evaluator {
 }
 
 // ProcessEvent analyzes a new incoming event against all loaded rules.
-// Uses the RouteIndex to evaluate only rules relevant to the event's EventType
-// instead of scanning all rules — O(matching) rather than O(all rules).
 func (e *Evaluator) ProcessEvent(evt Event) []Match {
 	var matches []Match
 
-	// Fetch only candidate rules for this EventType.
-	// Falls back to full rule set if routeIndex hasn't been built yet.
 	var candidates []Rule
 	if e.routeIndex != nil {
 		candidates = e.routeIndex.CandidateRules(evt.EventType)
@@ -130,7 +131,6 @@ func (e *Evaluator) ProcessEvent(evt Event) []Match {
 		}
 
 		if rule.Type == SequenceRule {
-			// Sequences track state without needing to match generic top-level conditions
 			if match := e.evaluateRuleState(rule, evt); match != nil {
 				matches = append(matches, *match)
 			}
@@ -146,23 +146,15 @@ func (e *Evaluator) ProcessEvent(evt Event) []Match {
 	return matches
 }
 
-// safeRegexMatch executes a regular expression against a string with a strict timeout to prevent ReDoS CPU exhaustion.
 func safeRegexMatch(pattern, s string, timeout time.Duration) (bool, error) {
-	// Precompile check to avoid panics on bad signatures
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return false, err
 	}
-
 	resultCh := make(chan bool, 1)
-
 	go func() {
-		// regexp execution isn't perfectly preemptible in Go, but if it hangs,
-		// the goroutine is orphaned rather than blocking the main detection engine loop forever.
-		res := re.MatchString(s)
-		resultCh <- res
+		resultCh <- re.MatchString(s)
 	}()
-
 	select {
 	case res := <-resultCh:
 		return res, nil
@@ -171,7 +163,6 @@ func safeRegexMatch(pattern, s string, timeout time.Duration) (bool, error) {
 	}
 }
 
-// matchesConditions checks if a single event matches the static criteria of a map of conditions.
 func (e *Evaluator) matchesConditions(conditions map[string]interface{}, evt Event) bool {
 	for k, v := range conditions {
 		if !e.evalCondition(k, v, evt) {
@@ -184,8 +175,6 @@ func (e *Evaluator) matchesConditions(conditions map[string]interface{}, evt Eve
 func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 	timeout := 100 * time.Millisecond
 
-	// Handle slice of values (OR logic)
-	// Supports both []interface{} (from yaml) and []string (transpiled)
 	if slice, ok := v.([]interface{}); ok {
 		for _, item := range slice {
 			if e.evalCondition(k, item, evt) {
@@ -203,12 +192,10 @@ func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 		return false
 	}
 
-	// Parse Sigma-style modifiers in keys: field|modifier1|modifier2
 	parts := strings.Split(k, "|")
 	fieldName := parts[0]
 	modifiers := parts[1:]
 
-	// Extract target value based on field name
 	var target string
 	isKnownField := true
 	switch strings.ToLower(fieldName) {
@@ -223,7 +210,6 @@ func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 	case "output_contains", "rawlog":
 		target = evt.RawLog
 	default:
-		// Default to RawLog for any unknown "sigma-style" fields (e.g. CommandLine, Image, AccessMask)
 		target = evt.RawLog
 		isKnownField = false
 	}
@@ -231,7 +217,6 @@ func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 	valStr := fmt.Sprintf("%v", v)
 	valLower := strings.ToLower(valStr)
 
-	// Check for special types in values
 	if strings.HasPrefix(valLower, "cidr:") && strings.ToLower(fieldName) == "source_ip" {
 		_, ipNet, err := net.ParseCIDR(strings.TrimSpace(valStr[5:]))
 		if err == nil {
@@ -243,12 +228,11 @@ func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 		return false
 	}
 
-	// Determine matching logic based on modifiers or prefix
 	match := false
 	isNegated := false
 	matchType := "exact"
 	if !isKnownField {
-		matchType = "contains" // Force contains for unknown fields searched in RawLog
+		matchType = "contains"
 	}
 
 	for _, m := range modifiers {
@@ -264,13 +248,11 @@ func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 		}
 	}
 
-	// Handle "regex:" prefix in value (legacy Oblivra style)
 	if strings.HasPrefix(valLower, "regex:") {
 		regexPattern := strings.TrimSpace(valStr[6:])
 		matched, _ := safeRegexMatch(regexPattern, target, timeout)
 		match = matched
 	} else {
-		// Standard string matching
 		tLower := strings.ToLower(target)
 		switch matchType {
 		case "contains":
@@ -290,18 +272,15 @@ func (e *Evaluator) evalCondition(k string, v interface{}, evt Event) bool {
 	return match
 }
 
-// evaluateRuleState handles the stateful aspect of rules (thresholds, time windows, sequences)
 func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 	e.stateMu.Lock()
 	defer e.stateMu.Unlock()
 
-	// Helper to parse string timestamp for window comparison
 	parseEvtTime := func(ts string) time.Time {
 		t, _ := time.Parse(time.RFC3339, ts)
 		return t
 	}
 
-	// 1. Determine Grouping Key
 	groupKey := "global"
 	if evt.TenantID != "" {
 		groupKey = evt.TenantID
@@ -332,7 +311,6 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 		if window == 0 {
 			window = 1 * time.Hour
 		}
-		// Bound to 10,000 active group keys to prevent runaway correlation memory leaks
 		e.state[rule.ID] = expirable.NewLRU[string, []Event](10000, nil, window)
 	}
 
@@ -353,27 +331,22 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 			expectedStep := rule.Sequence[currentStepIdx]
 
 			if e.matchesConditions(expectedStep.Conditions, evt) {
-				// Event matches the next step in the causal chain
 				activeEvents = append(activeEvents, evt)
 				e.state[rule.ID].Add(groupKey, activeEvents)
 
 				if len(activeEvents) == len(rule.Sequence) {
-					// Sequence completed correctly!
 					return e.triggerAlert(rule, groupKey, activeEvents)
 				}
 			} else if len(activeEvents) > 0 && e.matchesConditions(rule.Sequence[0].Conditions, evt) {
-				// Previous sequence broken, but matches new start
 				activeEvents = []Event{evt}
 				e.state[rule.ID].Add(groupKey, activeEvents)
 			} else {
-				// Neither matches next step nor restarts, just retain current state
 				e.state[rule.ID].Add(groupKey, activeEvents)
 			}
 		}
 		return nil
 	}
 
-	// Normal Threshold / Frequency rule
 	activeEvents = append(activeEvents, evt)
 	e.state[rule.ID].Add(groupKey, activeEvents)
 
@@ -389,12 +362,13 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 	return nil
 }
 
-// triggerAlert verifies deduplication windows and returns a Match
+// triggerAlert verifies deduplication windows, constructs a Match,
+// generates a structured explanation, and publishes it to the event bus.
 func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Event) *Match {
 	if e.alerts[rule.ID] == nil {
 		dedup := time.Duration(rule.DedupWindowSec) * time.Second
 		if dedup == 0 {
-			dedup = 5 * time.Minute // default dedup
+			dedup = 5 * time.Minute
 		}
 		e.alerts[rule.ID] = expirable.NewLRU[string, time.Time](10000, nil, dedup)
 	}
@@ -404,10 +378,10 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 
 	if !hasAlerted || lastAlert.Before(dedupCutoff) {
 		e.alerts[rule.ID].Add(groupKey, time.Now())
-		e.state[rule.ID].Remove(groupKey) // Reset state after alerting
+		e.state[rule.ID].Remove(groupKey)
 
-		return &Match{
-			TenantID:        activeEvents[0].TenantID, // Assume all same tenant in group
+		m := &Match{
+			TenantID:        activeEvents[0].TenantID,
 			RuleID:          rule.ID,
 			RuleName:        rule.Name,
 			Description:     rule.Description,
@@ -421,6 +395,26 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 				"count":     fmt.Sprintf("%d", len(activeEvents)),
 			},
 		}
+
+		// ── Explainability ────────────────────────────────────────────────────
+		// Build a structured explanation and log it at INFO level so that
+		// the operator can see exactly why this rule fired, not just that it did.
+		explained := ExplainMatch(*m, rule, groupKey, activeEvents)
+
+		e.log.Info("[DETECTION:WHY] rule=%q severity=%s confidence=%.2f group=%q summary=%q",
+			explained.RuleID,
+			explained.Severity,
+			explained.WhyFired.Confidence,
+			explained.WhyFired.GroupKey,
+			explained.WhyFired.Summary,
+		)
+
+		// Publish to event bus for the API ring buffer and DecisionInspector page.
+		if e.bus != nil {
+			e.bus.Publish("detection.explained_match", explained)
+		}
+
+		return m
 	}
 	return nil
 }

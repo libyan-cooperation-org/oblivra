@@ -98,6 +98,7 @@ type IntelCluster struct {
 	RiskEngine            *risk.RiskEngine
 	DashboardService      *services.DashboardService
 	AssetIntelService     *services.AssetIntelService
+	CampaignBuilder       *detection.CampaignBuilder // graph → fusion bridge
 }
 
 // ResponseCluster holds incident management and automated response logic.
