@@ -282,7 +282,8 @@ func verifyProof(leafHash Hash, proof []ProofNode, expectedRoot Hash) bool {
 			current = combineHash(node.Hash, current)
 		}
 	}
-	return current == expectedRoot
+	// Use constant-time comparison for hex-encoded hashes
+	return subtle.ConstantTimeCompare([]byte(current), []byte(expectedRoot)) == 1
 }
 
 // LoadLeaf manually adds an existing hash to the tree, typically for database recovery.

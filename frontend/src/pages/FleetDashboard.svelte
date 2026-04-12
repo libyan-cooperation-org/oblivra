@@ -4,26 +4,20 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Globe, Server } from 'lucide-svelte';
+  import { Globe, Server, RefreshCw } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
-
-  const agents = [
-    { id: 'AG-01', name: 'prod-web-01', status: 'online', version: '2.4.1', load: '12%', country: 'US' },
-    { id: 'AG-02', name: 'prod-db-02', status: 'online', version: '2.4.1', load: '45%', country: 'DE' },
-    { id: 'AG-03', name: 'staging-k8s', status: 'warning', version: '2.3.8', load: '88%', country: 'CN' },
-    { id: 'AG-04', name: 'edge-gateway-4', status: 'offline', version: '2.4.0', load: '0%', country: 'SG' },
-  ];
+  import { agentStore } from '@lib/stores/agent.svelte';
 
   const stats = $derived({
-    total: agents.length,
-    online: agents.filter(a => a.status === 'online').length,
-    offline: agents.filter(a => a.status === 'offline').length,
+    total: agentStore.agents.length,
+    online: agentStore.agents.filter(a => a.status === 'online').length,
+    offline: agentStore.agents.filter(a => a.status === 'offline').length,
   });
 
   const columns = [
-    { key: 'name', label: 'Host Identifier' },
+    { key: 'hostname', label: 'Host Identifier' },
     { key: 'status', label: 'State', width: '100px' },
-    { key: 'load', label: 'Load', width: '80px' },
+    { key: 'remote_address', label: 'Remote IP', width: '120px' },
     { key: 'version', label: 'Core', width: '80px' },
     { key: 'actions', label: '', width: '60px' },
   ];
@@ -32,8 +26,11 @@
 <PageLayout title="Fleet Command" subtitle="Global agent mesh and endpoint health monitoring">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm">Deploy new agent</Button>
-      <Button variant="primary" size="sm">Force Mesh Update</Button>
+      <Button variant="secondary" size="sm" onclick={() => agentStore.refresh()}>
+        <RefreshCw size={14} class="mr-1 {agentStore.loading ? 'animate-spin' : ''}" />
+        Refresh
+      </Button>
+      <Button variant="primary" size="sm">Deploy new agent</Button>
     </div>
   {/snippet}
 
@@ -53,14 +50,14 @@
             End-Point Inventory
          </div>
          <div class="flex-1 overflow-auto">
-            <DataTable data={agents} {columns} compact>
+            <DataTable data={agentStore.agents} {columns} compact>
               {#snippet render({ col, row, value })}
                 {#if col.key === 'status'}
-                   <Badge variant={row.status === 'online' ? 'success' : row.status === 'warning' ? 'warning' : 'critical'}>{row.status}</Badge>
-                {:else if col.key === 'name'}
+                   <Badge variant={row.status === 'online' ? 'success' : 'critical'}>{row.status}</Badge>
+                {:else if col.key === 'hostname'}
                    <div class="flex flex-col">
-                      <span class="text-[11px] font-bold text-text-heading">{row.name}</span>
-                      <span class="text-[9px] text-text-muted font-mono">{row.id} · {row.country}</span>
+                      <span class="text-[11px] font-bold text-text-heading">{row.hostname}</span>
+                      <span class="text-[9px] text-text-muted font-mono">{row.id}</span>
                    </div>
                 {:else if col.key === 'load'}
                    <div class="flex flex-col gap-1">
@@ -70,7 +67,7 @@
                       </div>
                    </div>
                 {:else if col.key === 'actions'}
-                   <Button variant="ghost" size="xs">Shell</Button>
+                   <Button variant="ghost" size="xs" onclick={() => appStore.navigate('agent-console', {id: row.id})}>Inspect</Button>
                 {:else}
                   <span class="text-[11px] text-text-secondary">{value}</span>
                 {/if}

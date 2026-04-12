@@ -238,7 +238,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 	c.SIEM.ForensicsService = services.NewForensicsService(database.NewEvidenceRepository(c.Infra.DB), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.SIEM.SourceManager = logsources.NewSourceManager(c.Log)
 	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
-	c.SIEM.AgentService = services.NewAgentService(nil, c.Log)
+	c.SIEM.AgentService = services.NewAgentService(c.SIEM.IngestService.AgentServer(), c.Infra.RBAC, c.Log)
 	c.SIEM.FusionEngine = detection.NewAttackFusionEngine(c.Infra.Bus, c.Log)
 	c.SIEM.FusionService = services.NewFusionService(c.SIEM.FusionEngine, c.Infra.Bus, c.Log)
 	c.SIEM.AnalyticsService = services.NewAnalyticsService(c.Infra.AnalyticsEngine, c.Infra.MatchEngine, c.Infra.HotStore)
@@ -366,7 +366,10 @@ func (c *Container) initPlatform() error {
 	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	// Audit Repository (Persistence)
+	auditRepo := database.NewAuditRepository(c.Infra.DB)
+	
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {

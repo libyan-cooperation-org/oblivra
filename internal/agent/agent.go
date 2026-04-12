@@ -34,6 +34,24 @@ type FleetConfig struct {
 	EnableSyslog   bool          `json:"enable_syslog"`
 	EnableMetrics  bool          `json:"enable_metrics"`
 	EnableEventLog bool          `json:"enable_event_log"`
+	Quarantine     bool          `json:"quarantine"`
+}
+
+// ActionType defines forensic or response operations the agent can perform.
+type ActionType string
+
+const (
+	ActionKillProcess      ActionType = "kill_process"
+	ActionProcessSnapshot  ActionType = "process_snapshot"
+	ActionIsolateNetwork   ActionType = "isolate_network"
+	ActionRestoreNetwork   ActionType = "restore_network"
+)
+
+// PendingAction represents a command waiting for an agent to pull.
+type PendingAction struct {
+	ID      string            `json:"id"`
+	Type    ActionType        `json:"type"`
+	Payload map[string]string `json:"payload"`
 }
 
 // Agent is the main agent process that manages collectors and transport.
@@ -43,6 +61,7 @@ type Agent struct {
 	transport  *Transport
 	wal        *WAL
 	redactor   *PIIRedactor
+	response   *ResponseActionExecutor
 	mu         sync.Mutex
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
@@ -90,6 +109,7 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 		wal:       wal,
 		transport: transport,
 		redactor:  NewPIIRedactor(),
+		response:  NewResponseActionExecutor(log),
 		log:       log.WithPrefix("agent"),
 	}
 
@@ -172,9 +192,14 @@ func (a *Agent) Start(ctx context.Context) error {
 	return nil
 }
 
-// ApplyConfig applies a new configuration received from the server.
-func (a *Agent) ApplyConfig(cfg FleetConfig) {
+// ApplyConfig applies configuration and executes pending actions received from the server.
+func (a *Agent) ApplyConfig(cfg FleetConfig, actions []PendingAction) {
 	a.mu.Lock()
+	// Process Actions FIRST before potential hot-reload/network changes
+	for _, action := range actions {
+		a.handleAction(action)
+	}
+
 	defer a.mu.Unlock()
 
 	changed := false
@@ -259,6 +284,37 @@ func (a *Agent) toggleCollector(name string, enable bool) {
 			// Note: This requires passing the global eventCh or context.
 			// For now, we'll implement a simpler "Stop all, restart all" if any toggle changes.
 		}
+	}
+}
+
+func (a *Agent) handleAction(action PendingAction) {
+	a.log.Info("[C2] Executing action: %s (%s)", action.ID, action.Type)
+
+	var err error
+	switch action.Type {
+	case ActionKillProcess:
+		pidStr := action.Payload["pid"]
+		var pid int
+		fmt.Sscanf(pidStr, "%d", &pid)
+		err = a.response.KillProcess(pid)
+	case ActionProcessSnapshot:
+		pidStr := action.Payload["pid"]
+		var pid int
+		fmt.Sscanf(pidStr, "%d", &pid)
+		_, err = a.response.CollectProcessSnapshot(pid)
+	case ActionIsolateNetwork:
+		a.log.Warn("[CONTAINMENT] Quarantining host per SOAR mandate")
+		// Future: Call platform-specific isolator
+	case ActionRestoreNetwork:
+		a.log.Info("[RECOVERY] Restoring network access")
+	default:
+		a.log.Warn("Unknown action type: %s", action.Type)
+	}
+
+	if err != nil {
+		a.log.Error("Action %s failed: %v", action.ID, err)
+	} else {
+		a.log.Info("Action %s completed successfully", action.ID)
 	}
 }
 

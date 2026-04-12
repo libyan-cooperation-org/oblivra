@@ -102,9 +102,9 @@ func (r *ToolRegistry) registerCoreTools() {
 
 	// 4.4 Host Isolation (CRITICAL)
 	r.Register(ToolDefinition{
-		Name:             "isolate_host",
+		Name:             "quarantine_host",
 		Version:          "1.0",
-		Description:      "Isolate a host from the network to contain a threat",
+		Description:      "Isolate a host from the network to contain a threat (Agent-managed)",
 		Category:         "response",
 		RiskLevel:        "critical",
 		RequiresApproval: true,
@@ -118,7 +118,26 @@ func (r *ToolRegistry) registerCoreTools() {
 		},
 	})
 
-	// 4.5 Run Playbook
+	// 4.5 Process Termination (CRITICAL)
+	r.Register(ToolDefinition{
+		Name:             "kill_process",
+		Version:          "1.0",
+		Description:      "Forcefully terminate a process by ID on a remote host",
+		Category:         "response",
+		RiskLevel:        "critical",
+		RequiresApproval: true,
+		InputSchema: map[string]any{
+			"host_id": "string",
+			"pid":     "int",
+			"reason":  "string",
+		},
+		Constraints: ToolConstraints{
+			MaxCost:   300,
+			RateLimit: "10/m",
+		},
+	})
+
+	// 4.6 Run Playbook
 	r.Register(ToolDefinition{
 		Name:             "run_playbook",
 		Version:          "1.0",

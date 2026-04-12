@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -28,7 +29,15 @@ import (
 // never needs a mutex across shards.
 //
 // Power-of-two so the hash modulo is a cheap bitmask.
-const PartitionCount = 8
+// PartitionCount is the number of independent pipeline shards.
+// Default is 8, but can be overridden via OBLIVRA_PARTITION_COUNT.
+var PartitionCount = 8
+
+func init() {
+	if val := getEnvInt("OBLIVRA_PARTITION_COUNT", 8); val > 0 {
+		PartitionCount = val
+	}
+}
 
 // PartitionedPipeline fans events across N independent Pipeline shards
 // keyed by a stable partition field (HostID → consistent shard).
@@ -70,7 +79,7 @@ func NewPartitionedPipeline(
 	pp := &PartitionedPipeline{
 		log:              log.WithPrefix("partitioned-pipeline"),
 		limiters:         make(map[string]*rate.Limiter),
-		maxEPS:           1000, // Default 1000 EPS per tenant
+		maxEPS:           getEnvInt("OBLIVRA_MAX_EPS_PER_TENANT", 1000),
 		metricsCollector: mc,
 	}
 
@@ -275,4 +284,16 @@ func (pp *PartitionedPipeline) Replay(ctx context.Context) error {
 // GetMetricsCollector returns the centralized metrics collector.
 func (pp *PartitionedPipeline) GetMetricsCollector() *monitoring.MetricsCollector {
 	return pp.metricsCollector
+}
+func getEnvInt(key string, defaultVal int) int {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultVal
+	}
+	var val int
+	fmt.Sscanf(valStr, "%d", &val)
+	if val == 0 {
+		return defaultVal
+	}
+	return val
 }

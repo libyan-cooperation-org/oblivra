@@ -7,6 +7,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"sync"
 )
 
 // UEBAService manages behavioral analytics and ML-based anomaly detection.
@@ -21,6 +22,9 @@ type UEBAService struct {
 
 	// Control chan for training loop
 	stopChan chan struct{}
+
+	anomalies []map[string]interface{}
+	anomalyMu  sync.RWMutex
 }
 
 func NewUEBAService(hostRepo database.HostStore, bus *eventbus.Bus, store KVStore, log *logger.Logger) *UEBAService {
@@ -132,7 +136,17 @@ func (s *UEBAService) ProcessEvent(event *database.HostEvent) {
 			"peer_group_id": hp.PeerGroupID,
 			"event":         event,
 			"evidence":      evidence,
-		})
+			"timestamp":     time.Now().Format(time.RFC3339),
+		}
+
+		s.anomalyMu.Lock()
+		s.anomalies = append(s.anomalies, anomaly)
+		if len(s.anomalies) > 100 {
+			s.anomalies = s.anomalies[1:]
+		}
+		s.anomalyMu.Unlock()
+
+		s.bus.Publish(eventbus.EventType("siem.anomaly_detected"), anomaly)
 	}
 }
 
@@ -173,6 +187,16 @@ func (s *UEBAService) persistenceLoop() {
 	}
 }
 
+// GetProfiles returns the current behavioral profiles.
 func (s *UEBAService) GetProfiles() []*EntityProfile {
 	return s.baseline.GetAllProfiles()
+}
+
+// GetAnomalies returns the recent anomalies ring buffer.
+func (s *UEBAService) GetAnomalies() []map[string]interface{} {
+	s.anomalyMu.RLock()
+	defer s.anomalyMu.RUnlock()
+	out := make([]map[string]interface{}, len(s.anomalies))
+	copy(out, s.anomalies)
+	return out
 }

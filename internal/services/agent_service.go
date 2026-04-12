@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
@@ -13,6 +14,7 @@ import (
 type AgentService struct {
 	BaseService
 	server *ingest.AgentServer
+	rbac   *auth.RBACEngine
 	log    *logger.Logger
 }
 
@@ -32,9 +34,10 @@ func (s *AgentService) Stop(ctx context.Context) error {
 }
 
 // NewAgentService injects the ingest AgentServer dependency to read telemetry stats
-func NewAgentService(server *ingest.AgentServer, log *logger.Logger) *AgentService {
+func NewAgentService(server *ingest.AgentServer, rbac *auth.RBACEngine, log *logger.Logger) *AgentService {
 	return &AgentService{
 		server: server,
+		rbac:   rbac,
 		log:    log.WithPrefix("agent_service"),
 	}
 }
@@ -91,5 +94,41 @@ func (s *AgentService) PushFleetConfig(intervalMs int, enableFIM, enableSyslog, 
 	}
 
 	s.server.SetFleetConfig(cfg)
+	return nil
+}
+
+// KillProcess sends a termination signal for a specific process on a remote agent
+func (s *AgentService) KillProcess(ctx context.Context, agentID string, pid int) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return err
+	}
+
+	s.log.Warn("Issuing KILL directive for agent=%s PID=%d", agentID, pid)
+	s.server.AddAction(agentID, ingest.PendingAction{
+		ID:   fmt.Sprintf("kill-%d", time.Now().Unix()),
+		Type: ingest.ActionKillProcess,
+		Payload: map[string]string{
+			"pid": fmt.Sprintf("%d", pid),
+		},
+	})
+	return nil
+}
+
+// ToggleQuarantine isolates or restores an agent's network access
+func (s *AgentService) ToggleQuarantine(ctx context.Context, agentID string, enabled bool) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return err
+	}
+
+	actionType := ingest.ActionRestoreNetwork
+	if enabled {
+		actionType = ingest.ActionIsolateNetwork
+	}
+
+	s.log.Warn("Issuing QUARANTINE directive (enabled=%v) for agent=%s", enabled, agentID)
+	s.server.AddAction(agentID, ingest.PendingAction{
+		ID:   fmt.Sprintf("quar-%d", time.Now().Unix()),
+		Type: actionType,
+	})
 	return nil
 }

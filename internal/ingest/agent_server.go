@@ -40,8 +40,9 @@ type AgentServer struct {
 	caFile   string // Optional: for requiring client certs (mTLS)
 
 	// Agent Tracking
-	activeAgents  map[string]AgentInfo
-	desiredConfig FleetConfig
+	activeAgents   map[string]AgentInfo
+	desiredConfig  FleetConfig
+	pendingActions map[string][]PendingAction // agentID -> actions
 }
 
 // FleetConfig is the subset of agent configuration that can be pushed from the server.
@@ -51,6 +52,24 @@ type FleetConfig struct {
 	EnableSyslog   bool          `json:"enable_syslog"`
 	EnableMetrics  bool          `json:"enable_metrics"`
 	EnableEventLog bool          `json:"enable_event_log"`
+	Quarantine     bool          `json:"quarantine"` // Isolate agent from all non-C2 network traffic
+}
+
+// ActionType defines forensic or response operations the agent can perform.
+type ActionType string
+
+const (
+	ActionKillProcess      ActionType = "kill_process"
+	ActionProcessSnapshot  ActionType = "process_snapshot"
+	ActionIsolateNetwork   ActionType = "isolate_network"
+	ActionRestoreNetwork   ActionType = "restore_network"
+)
+
+// PendingAction represents a command waiting for an agent to pull.
+type PendingAction struct {
+	ID      string            `json:"id"`
+	Type    ActionType        `json:"type"`
+	Payload map[string]string `json:"payload"`
 }
 
 // AgentInfo stores metadata about connected agents
@@ -62,17 +81,20 @@ type AgentInfo struct {
 	RemoteAddress string    `json:"remote_address"`
 }
 
+
+
 // NewAgentServer creates a new agent ingestion server
 func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caFile string, log *logger.Logger) *AgentServer {
 	return &AgentServer{
-		pipeline:     pipeline,
-		port:         port,
-		log:          log.WithPrefix("agent_server"),
-		validator:    validator.New(),
-		certFile:     certFile,
-		keyFile:      keyFile,
-		caFile:       caFile,
-		activeAgents: make(map[string]AgentInfo),
+		pipeline:       pipeline,
+		port:           port,
+		log:            log.WithPrefix("agent_server"),
+		validator:      validator.New(),
+		certFile:       certFile,
+		keyFile:        keyFile,
+		caFile:         caFile,
+		activeAgents:   make(map[string]AgentInfo),
+		pendingActions: make(map[string][]PendingAction),
 	}
 }
 
@@ -316,12 +338,30 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	s.log.Debug("Ingested %d events from agent %s", ingested, host)
 
-	// Return the desired configuration in the response
-	s.mu.RLock()
+	// Return the desired configuration and pending actions in the response
+	s.mu.Lock()
 	config := s.desiredConfig
-	s.mu.RUnlock()
+	actions := s.pendingActions[host]
+	delete(s.pendingActions, host) // Hand off to agent
+	s.mu.Unlock()
+
+	response := struct {
+		Config  FleetConfig     `json:"config"`
+		Actions []PendingAction `json:"actions"`
+	}{
+		Config:  config,
+		Actions: actions,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(config)
+	json.NewEncoder(w).Encode(response)
+}
+
+// AddAction queues a command for a specific agent
+func (s *AgentServer) AddAction(agentID string, action PendingAction) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingActions[agentID] = append(s.pendingActions[agentID], action)
+	s.log.Info("Queued action %s (%s) for agent %s", action.ID, action.Type, agentID)
 }

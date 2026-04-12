@@ -108,14 +108,16 @@ func (t *Transport) Send(events []Event) (*FleetConfig, error) {
 		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
 	}
 
-	// Parse configuration from response
-	var cfg FleetConfig
-	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
-		// If decoding fails, it might be an empty body, which is fine
-		return nil, nil
+	// Parse configuration and actions from response
+	var response struct {
+		Config  FleetConfig     `json:"config"`
+		Actions []PendingAction `json:"actions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, nil // Empty body or invalid json
 	}
 
-	return &cfg, nil
+	return &response.Config, response.Actions, nil
 }
 
 // FlushLoop continuously drains the WAL and sends events to the server.
@@ -154,14 +156,14 @@ func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig)) error {
 		return nil
 	}
 
-	cfg, err := t.Send(events)
+	cfg, actions, err := t.Send(events)
 	if err != nil {
 		return err
 	}
 
 	// Update agent config if provided
 	if cfg != nil && onConfig != nil {
-		onConfig(*cfg)
+		onConfig(*cfg, actions)
 	}
 
 	return wal.Truncate()

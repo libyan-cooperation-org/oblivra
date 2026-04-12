@@ -44,6 +44,11 @@ func (s *IngestService) Pipeline() ingest.IngestionPipeline {
 	return s.pipeline
 }
 
+// AgentServer returns the internal agent ingest server for command dispatch.
+func (s *IngestService) AgentServer() *ingest.AgentServer {
+	return s.agentSrv
+}
+
 // Start initializes background workers (the pipeline processes the queue)
 func (s *IngestService) Start(ctx context.Context) error {
 	s.log.Info("Starting ingestion pipeline workers...")

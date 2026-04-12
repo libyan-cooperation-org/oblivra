@@ -12,6 +12,7 @@ import (
 // UEBAManager defines the interface for the backend UEBA engine.
 type UEBAManager interface {
 	GetProfiles() []*ueba.EntityProfile
+	GetAnomalies() []map[string]interface{}
 }
 
 // UEBAService exposes behavioral analytics to the frontend.
@@ -56,4 +57,9 @@ func (s *UEBAService) Stop(ctx context.Context) error {
 // GetProfiles returns the current behavioral profiles.
 func (s *UEBAService) GetProfiles() []*ueba.EntityProfile {
 	return s.engine.GetProfiles()
+}
+
+// GetAnomalies returns the recent anomalies.
+func (s *UEBAService) GetAnomalies() []map[string]interface{} {
+	return s.engine.GetAnomalies()
 }

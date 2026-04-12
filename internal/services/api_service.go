@@ -33,6 +33,24 @@ func (w *threatIntelWrapper) MatchAny(value string) (any, bool) {
 	return w.engine.MatchAny(value)
 }
 
+// unifiedForensicEngine bridges APIService's specific providers to mcp.ForensicEngine
+type unifiedForensicEngine struct {
+	isolator *NetworkIsolatorService
+	agents   *AgentService
+}
+
+func (e *unifiedForensicEngine) IsolateHost(hostID string, reason string) error {
+	// Try Agent first, then SSH fallback
+	if err := e.agents.ToggleQuarantine(context.Background(), hostID, true); err == nil {
+		return nil
+	}
+	return e.isolator.IsolateHost(hostID, reason)
+}
+
+func (e *unifiedForensicEngine) KillProcess(hostID string, pid int) error {
+	return e.agents.KillProcess(context.Background(), hostID, pid)
+}
+
 // APIService manages the standalone REST API server lifecycle.
 type APIService struct {
 	BaseService
@@ -50,7 +68,7 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, pipeline ingest.IngestionPipeline, settings *SettingsService, identity *IdentityService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
+func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, settings *SettingsService, identity *IdentityService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -78,10 +96,11 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	
 	// MCP Initialization (Phase 22.1)
 	mcpRegistry := mcp.NewToolRegistry()
-	mcpEngine := mcp.NewDefaultEngine(siem, isolator, &threatIntelWrapper{engine: matchEngine}, bus, log)
+	forensicEngine := &unifiedForensicEngine{isolator: isolator, agents: agentService}
+	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
-	server := api.NewRESTServer(port, db, siem, pipeline, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
+	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server: server,

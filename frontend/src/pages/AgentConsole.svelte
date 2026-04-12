@@ -4,8 +4,13 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable, Toggle } from '@components/ui';
-  import { Lock, Globe } from 'lucide-svelte';
+  import { Lock, Globe, RefreshCw } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
+  import { agentStore } from '@lib/stores/agent.svelte';
+
+  // In a real scenario, we'd get the ID from a route param
+  const agentID = 'prod-web-01';
+  const agent = $derived(agentStore.agents.find(a => a.hostname === agentID || a.id === agentID));
 
   const processes = [
     { pid: 1421, name: 'nginx', cpu: '2.4%', mem: '142MB', user: 'www-data', risk: 'low' },
@@ -15,20 +20,27 @@
 
   let quarantine = $state(false);
 
-  // Notify on quarantine state change
-  $effect(() => {
-    // Only notify after initial render (quarantine starts false)
-    if (quarantine !== undefined) {
-      // Effect runs on every change; initial value suppressed by tracking previous
+  async function toggleQuarantine() {
+    try {
+      const targetState = !quarantine;
+      await agentStore.toggleQuarantine(agentID, targetState);
+      quarantine = targetState;
+      appStore.notify(
+        `Agent ${agentID} ${quarantine ? 'isolated' : 'restored'}`,
+        quarantine ? 'warning' : 'success'
+      );
+    } catch (err: any) {
+      appStore.notify(`Quarantine failed: ${err}`, 'error');
     }
-  });
+  }
 
-  function toggleQuarantine() {
-    quarantine = !quarantine;
-    appStore.notify(
-      `Agent prod-web-01 ${quarantine ? 'isolated' : 'restored'}`,
-      quarantine ? 'warning' : 'success'
-    );
+  async function killProc(pid: number) {
+     try {
+        await agentStore.killProcess(agentID, pid);
+        appStore.notify(`Kill directive sent for PID ${pid}`, 'info');
+     } catch (err: any) {
+        appStore.notify(`Kill failed: ${err}`, 'error');
+     }
   }
 
   const columns = [
@@ -43,21 +55,23 @@
 
 <PageLayout title="Agent Inspect: prod-web-01" subtitle="Real-time telemetry and atomic control for endpoint AG-01">
   {#snippet toolbar()}
-    <div class="flex items-center gap-2">
        <div class="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/30 rounded-full">
-          <div class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></div>
-          <span class="text-[9px] font-bold text-accent uppercase tracking-widest">Live Stream Active</span>
+          <div class="w-1.5 h-1.5 rounded-full {agent?.status === 'online' ? 'bg-accent animate-pulse' : 'bg-text-muted'}"></div>
+          <span class="text-[9px] font-bold text-accent uppercase tracking-widest">{agent?.status === 'online' ? 'Live Stream Active' : 'Disconnected'}</span>
        </div>
-       <Button variant="secondary" size="sm">Kernel Trace</Button>
+       <Button variant="secondary" size="sm" onclick={() => agentStore.refresh()}>
+        <RefreshCw size={14} class="mr-1 {agentStore.loading ? 'animate-spin' : ''}" />
+        Refresh
+      </Button>
     </div>
   {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Agent CPU" value="14.2%" trend="stable" trendValue="Nominal" />
-      <KPI label="Memory Pressure" value="Low" trend="stable" trendValue="12.4 GB Free" variant="success" />
-      <KPI label="Integrity Check" value="PASSED" trend="stable" trendValue="Secure Boot" variant="success" />
-      <KPI label="Risk Factor" value="0.12" trend="up" trendValue="Elevated" variant="warning" />
+      <KPI label="Agent OS" value={agent?.version || 'N/A'} trend="stable" />
+      <KPI label="Last Heartbeat" value={agent?.last_seen ? new Date(agent.last_seen).toLocaleTimeString() : 'Never'} trend="stable" variant="success" />
+      <KPI label="Remote IP" value={agent?.remote_address || '0.0.0.0'} trend="stable" variant="info" />
+      <KPI label="Status" value={agent?.status || 'Offline'} variant={agent?.status === 'online' ? 'success' : 'critical'} />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -76,7 +90,7 @@
                 {:else if col.key === 'name'}
                    <code class="text-[11px] font-bold text-text-heading">{value}</code>
                 {:else if col.key === 'actions'}
-                   <Button variant="danger" size="xs">Kill</Button>
+                   <Button variant="danger" size="xs" onclick={() => killProc(row.pid)}>Kill</Button>
                 {:else}
                   <span class="text-[11px] text-text-secondary">{value}</span>
                 {/if}

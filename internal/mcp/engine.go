@@ -9,9 +9,10 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-// HostIsolator defines the interface for host isolation operations
-type HostIsolator interface {
+// ForensicEngine defines the interface for active response operations
+type ForensicEngine interface {
 	IsolateHost(hostID string, reason string) error
+	KillProcess(hostID string, pid int) error
 }
 
 // ThreatIntel defines the interface for indicator enrichment
@@ -22,21 +23,21 @@ type ThreatIntel interface {
 
 // DefaultEngine implements the ExecutionEngine interface by routing to OBLIVRA services
 type DefaultEngine struct {
-	siem     database.SIEMStore
-	isolator HostIsolator
-	intel    ThreatIntel
-	bus      *eventbus.Bus
-	log      *logger.Logger
+	siem      database.SIEMStore
+	forensics ForensicEngine
+	intel     ThreatIntel
+	bus       *eventbus.Bus
+	log       *logger.Logger
 }
 
 // NewDefaultEngine creates a new DefaultEngine
-func NewDefaultEngine(siem database.SIEMStore, isolator HostIsolator, intel ThreatIntel, bus *eventbus.Bus, log *logger.Logger) *DefaultEngine {
+func NewDefaultEngine(siem database.SIEMStore, forensics ForensicEngine, intel ThreatIntel, bus *eventbus.Bus, log *logger.Logger) *DefaultEngine {
 	return &DefaultEngine{
-		siem:     siem,
-		isolator: isolator,
-		intel:    intel,
-		bus:      bus,
-		log:      log.WithPrefix("mcp-engine"),
+		siem:      siem,
+		forensics: forensics,
+		intel:     intel,
+		bus:       bus,
+		log:       log.WithPrefix("mcp-engine"),
 	}
 }
 
@@ -102,17 +103,31 @@ func (e *DefaultEngine) Execute(ctx context.Context, tool string, params map[str
 			"indicator": ind,
 		}, nil
 
-	case "isolate_host":
+	case "isolate_host", "quarantine_host":
 		hostID, _ := params["host_id"].(string)
 		reason, _ := params["reason"].(string)
 		
-		err := e.isolator.IsolateHost(hostID, reason)
+		err := e.forensics.IsolateHost(hostID, reason)
 		if err != nil {
 			return nil, err
 		}
 		return map[string]any{
 			"status": "isolated",
 			"host_id": hostID,
+		}, nil
+
+	case "kill_process":
+		hostID, _ := params["host_id"].(string)
+		pid, _ := params["pid"].(float64)
+		
+		err := e.forensics.KillProcess(hostID, int(pid))
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"status": "killed",
+			"host_id": hostID,
+			"pid": pid,
 		}, nil
 
 	default:
@@ -135,10 +150,14 @@ func (e *DefaultEngine) Simulate(ctx context.Context, tool string, params map[st
 		impact["cost_estimate"] = 5
 	case "enrich_indicator":
 		impact["cost_estimate"] = 2
-	case "isolate_host":
+	case "isolate_host", "quarantine_host":
 		impact["affected_hosts"] = 1
 		impact["alerts_generated"] = 2
 		impact["cost_estimate"] = 500
+	case "kill_process":
+		impact["affected_hosts"] = 1
+		impact["alerts_generated"] = 1
+		impact["cost_estimate"] = 100
 	case "run_playbook":
 		impact["affected_hosts"] = 5
 		impact["alerts_generated"] = 10

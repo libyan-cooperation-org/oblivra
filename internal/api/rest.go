@@ -110,10 +110,7 @@ type RESTServer struct {
 
 	// Phase 6.5 — Evidence Locker
 	evidence *forensics.EvidenceLocker
-
-	// Phase 6.6 — Audit log ring buffer
-	auditMu  sync.RWMutex
-	auditLog []map[string]interface{}
+	audit      *database.AuditRepository
 
 	// Connection tracking
 	activeWS int64
@@ -122,12 +119,12 @@ type RESTServer struct {
 	// MCP - Protocol Phase 22.1
 	mcpRegistry *mcp.ToolRegistry
 	mcpHandler  *mcp.Handler
-
 	tenantRepo *database.TenantRepository
 	reports    ReportingProvider
 	dashboards DashboardProvider
 	enrichLimiter *ingest.EnrichmentLimiter // #9: protects GeoIP/DNS/TI from stalling ingestion
 	replayer      *ingest.EventReplayer   // #3: allows on-demand logic verification
+	graphEngine   *graph.GraphEngine
 }
 
 // AgentInfo tracks a registered agent.
@@ -149,7 +146,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, pipeline ingest.IngestionPipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -158,6 +155,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	s := &RESTServer{
 		port:     port,
 		siem:     siem,
+		audit:    audit,
 		pipeline: pipeline,
 		lookups:  lookup.NewManager(),
 		auth:     authMw,
@@ -177,6 +175,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		dashboards:  dashboards,
 		enrichLimiter: ingest.NewEnrichmentLimiter(500), // 500 enrichment calls/sec max across all tenants
 		replayer:      ingest.NewEventReplayer(log),
+		graphEngine:   graphEngine,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -281,6 +280,9 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/mcp/tools", s.handleMCPDiscovery)
 	mux.HandleFunc("/api/v1/mcp/execute", s.handleMCPExecute)
 	mux.HandleFunc("/api/v1/mcp/approve", s.handleMCPApprove)
+
+	// Graph endpoints (Phase 9)
+	mux.HandleFunc("/api/v1/graph/subgraph", s.handleGraphSubgraph)
 
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.stubHandler(s.handleUsers))
@@ -1537,26 +1539,27 @@ func (s *RESTServer) handleEvidenceExport(w http.ResponseWriter, r *http.Request
 
 // ── Audit / Regulator Portal Handlers (Phase 6.6) ────────────────────────────
 
-// appendAuditEntry adds an entry to the in-memory audit ring buffer.
+// appendAuditEntry persists an entry to the AuditRepository.
 // Call this from any handler that performs a significant action.
 func (s *RESTServer) appendAuditEntry(actor, action, resource, outcome string, r *http.Request) {
-	entry := map[string]interface{}{
-		"id":         fmt.Sprintf("aud-%d", time.Now().UnixNano()),
-		"timestamp":  time.Now().Format(time.RFC3339),
+	if s.audit == nil {
+		return
+	}
+
+	details := map[string]interface{}{
 		"actor":      actor,
 		"action":     action,
 		"resource":   resource,
 		"outcome":    outcome,
 		"ip":         r.RemoteAddr,
-		"entry_hash": fmt.Sprintf("%x", time.Now().UnixNano()),
-		"prev_hash":  "",
+		"user_agent": r.UserAgent(),
 	}
-	s.auditMu.Lock()
-	s.auditLog = append(s.auditLog, entry)
-	if len(s.auditLog) > 5000 {
-		s.auditLog = s.auditLog[len(s.auditLog)-2500:]
+
+	// Persist to BadgerDB/SQL with Merkle integrity
+	err := s.audit.Log(r.Context(), action, resource, "", details)
+	if err != nil {
+		s.log.Error("[REST] Audit log persistence failed: %v", err)
 	}
-	s.auditMu.Unlock()
 }
 
 // GET /api/v1/audit/log
@@ -1565,23 +1568,19 @@ func (s *RESTServer) handleAuditLog(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.auditMu.RLock()
-	entries := make([]map[string]interface{}, len(s.auditLog))
-	copy(entries, s.auditLog)
-	s.auditMu.RUnlock()
 
-	// Reverse chronological
-	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
-		entries[i], entries[j] = entries[j], entries[i]
+	if s.audit == nil {
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"entries": []interface{}{}})
+		return
 	}
 
-	// Apply limit
-	limit := 200
-	if len(entries) > limit {
-		entries = entries[:limit]
+	logs, err := s.audit.GetRecent(r.Context(), 200)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch audit logs: %v", err), http.StatusInternalServerError)
+		return
 	}
 
-	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"entries": entries})
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"entries": logs})
 }
 
 // compliancePackagesMu + compliancePackages stores generated packages in memory
@@ -1621,9 +1620,7 @@ func (s *RESTServer) handleAuditPackageGenerate(w http.ResponseWriter, r *http.R
 	}
 
 	// Count audit entries in scope
-	s.auditMu.RLock()
-	count := len(s.auditLog)
-	s.auditMu.RUnlock()
+	count, _ := s.audit.Count(r.Context())
 
 	// Build package metadata
 	id := fmt.Sprintf("CP-%s-%d", req.Framework, time.Now().Unix())
@@ -1736,5 +1733,37 @@ func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"status": "approved",
 		"token":  token,
+	})
+}
+
+// ── Graph Handlers (Phase 9) ────────────────────────────────────────────────
+
+func (s *RESTServer) handleGraphSubgraph(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	nodeID := r.URL.Query().Get("node_id")
+	if nodeID == "" {
+		http.Error(w, "node_id is required", http.StatusBadRequest)
+		return
+	}
+
+	hops := 2
+	hopsStr := r.URL.Query().Get("hops")
+	if hopsStr != "" {
+		fmt.Sscanf(hopsStr, "%d", &hops)
+	}
+
+	if s.graphEngine == nil {
+		http.Error(w, "Graph engine not initialized", http.StatusNotImplemented)
+		return
+	}
+
+	nodes, edges := s.graphEngine.GetSubGraph(nodeID, hops)
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"nodes": nodes,
+		"edges": edges,
 	})
 }

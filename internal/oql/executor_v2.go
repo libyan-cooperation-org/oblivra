@@ -1237,21 +1237,88 @@ func (ex *Executor) execMvExpand(_ context.Context, c *MvExpandCommand, rows []R
 	return out, nil
 }
 
-func (ex *Executor) execPredict(_ context.Context, c *PredictCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
-	for range rows {
-		prof.TrackRowIn()
-		prof.TrackRowOut()
+func (ex *Executor) execPredict(ctx context.Context, c *PredictCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
+	if len(rows) < 2 {
+		return rows, nil
 	}
-	// Future: Implement linear regression or ARIMA
+
+	for range rows { prof.TrackRowIn(); prof.TrackRowOut() }
+
+	field := c.Field.Canonical()
+	
+	// Linear Regression: y = a + bx
+	var sumX, sumY, sumXY, sumXX float64
+	n := float64(len(rows))
+
+	vals := make([]float64, len(rows))
+	for i, row := range rows {
+		val, _ := ToNumber(row[field])
+		vals[i] = val
+		x := float64(i)
+		sumX += x
+		sumY += val
+		sumXY += x * val
+		sumXX += x * x
+	}
+
+	b := (n*sumXY - sumX*sumY) / (n*sumXX - sumX*sumX)
+	a := (sumY - b*sumX) / n
+
+	// Predict next N points
+	future := 5
+	if c.FutureSteps > 0 {
+		future = c.FutureSteps
+	}
+
+	for i := 0; i < future; i++ {
+		x := n + float64(i)
+		predictY := a + b*x
+		
+		newRow := make(Row)
+		for k, v := range rows[len(rows)-1] { newRow[k] = v }
+		newRow[field] = predictY
+		newRow["is_predicted"] = true
+		rows = append(rows, newRow)
+	}
+
 	return rows, nil
 }
 
 func (ex *Executor) execAnomalyDetection(_ context.Context, c *AnomalyDetectionCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
-	for range rows {
+	if len(rows) < 4 {
+		return rows, nil
+	}
+
+	field := c.Field.Canonical()
+	vals := make([]float64, 0, len(rows))
+	for _, row := range rows {
+		if v, ok := ToNumber(row[field]); ok {
+			vals = append(vals, v)
+		}
+	}
+
+	if len(vals) < 4 {
+		return rows, nil
+	}
+
+	// Calculate Quartiles
+	sort.Float64s(vals)
+	q1 := vals[len(vals)/4]
+	q3 := vals[3*len(vals)/4]
+	iqr := q3 - q1
+	lower := q1 - 1.5*iqr
+	upper := q3 + 1.5*iqr
+
+	for _, row := range rows {
 		prof.TrackRowIn()
+		if v, ok := ToNumber(row[field]); ok {
+			isAnomaly := v < lower || v > upper
+			row["is_anomaly"] = isAnomaly
+			row["anomaly_score"] = (v - q1) / (iqr + 0.00001) // Simple score
+		}
 		prof.TrackRowOut()
 	}
-	// Future: Implement IQR or Isolation Forest
+
 	return rows, nil
 }
 
