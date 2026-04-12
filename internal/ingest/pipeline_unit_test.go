@@ -125,7 +125,12 @@ func BenchmarkPipeline_AutoParse(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ingest.AutoParse(lines[i%len(lines)])
+		pCtx := events.EventProcessingContext{
+			EventID:  fmt.Sprintf("bench-%d", i),
+			TenantID: "GLOBAL",
+			Now:      time.Unix(1700000000, 0).UTC(),
+		}
+		ingest.AutoParse(lines[i%len(lines)], pCtx)
 	}
 }
 

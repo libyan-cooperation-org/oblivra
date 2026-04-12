@@ -3,11 +3,14 @@ package ingest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kingknull/oblivrashell/internal/events"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/database"
@@ -20,7 +23,6 @@ import (
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
-	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/integrity"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -91,6 +93,7 @@ type Pipeline struct {
 	evaluator        *detection.Evaluator
 	identityResolver dag.UserResolver
 	integrityTree    *integrity.MerkleTree
+	eventChain       *EventChain // tamper-evident hash chain (#12)
 }
 
 func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) { p.diagnostics = d }
@@ -141,7 +144,8 @@ log:       log,
 temporal:  temporal,
 ctx:       ctx,
 cancel:    cancel,
-quota:     NewTenantQuotaManager(bufferSize, 0.70, mc), // Standard 70% max fair-share
+quota:       NewTenantQuotaManager(bufferSize, 0.70, mc), // Standard 70% max fair-share
+eventChain:  NewEventChain(nil), // nil = in-memory only; wire HotStore via SetHotStore
 metricsCollector: mc,
 labels:           labels,
 evaluator:        evaluator,
@@ -201,14 +205,18 @@ fanoutNode.Children = append(fanoutNode.Children, detNode)
 }
 
 	siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
-	siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}
-	siemCond.Children = append(siemCond.Children, siemDest)
+	if p.siem != nil {
+		siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}
+		siemCond.Children = append(siemCond.Children, siemDest)
+	}
 
 	analyticsCond := &dag.Node{Processor: dag.NewConditionNode("Is_Not_Security_Anomaly", func(evt *dag.Event) bool {
 		return !isSecurityAnomaly(evt)
 	})}
-	analyticsDest := &dag.Node{Processor: dag.NewAnalyticsNode(p.analytics)}
-	analyticsCond.Children = append(analyticsCond.Children, analyticsDest)
+	if p.analytics != nil {
+		analyticsDest := &dag.Node{Processor: dag.NewAnalyticsNode(p.analytics)}
+		analyticsCond.Children = append(analyticsCond.Children, analyticsDest)
+	}
 	fanoutNode.Children = append(fanoutNode.Children, siemCond, analyticsCond)
 
 	return dag.NewEngine(wasmNode)
@@ -315,11 +323,12 @@ return err
 }
 
 type MetricsSnapshot struct {
-	EventsPerSecond int64 `json:"events_per_second"`
-	TotalProcessed  int64 `json:"total_processed"`
-	BufferUsage     int   `json:"buffer_usage"`
-	BufferCapacity  int   `json:"buffer_capacity"`
-	DroppedEvents   int64 `json:"dropped_events"`
+	EventsPerSecond int64     `json:"events_per_second"`
+	TotalProcessed  int64     `json:"total_processed"`
+	BufferUsage     int       `json:"buffer_usage"`
+	BufferCapacity  int       `json:"buffer_capacity"`
+	DroppedEvents   int64     `json:"dropped_events"`
+	CollectedAt     time.Time `json:"collected_at"`
 }
 
 func (p *Pipeline) GetMetrics() MetricsSnapshot {
@@ -329,6 +338,7 @@ func (p *Pipeline) GetMetrics() MetricsSnapshot {
 		BufferUsage:     len(p.buffer),
 		BufferCapacity:  p.metrics.BufferCapacity,
 		DroppedEvents:   p.metrics.DroppedEvents.Load(),
+		CollectedAt:     time.Now().UTC(),
 	}
 }
 
@@ -371,7 +381,7 @@ func (p *Pipeline) worker() {
 			span.End()
 
 			total := p.metrics.TotalProcessed.Add(1)
-			if total > 0 && total%5000 == 0 {
+			if total > 0 && total%5000 == 0 && p.wal != nil {
 				p.log.Debug("[INGEST] Routine WAL checkpoint at %d events", total)
 				if err := p.wal.Checkpoint(); err != nil {
 					p.log.Error("[INGEST] Routine WAL checkpoint failed: %v", err)
@@ -385,18 +395,28 @@ func (p *Pipeline) worker() {
 
 func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent) {
 	_, span := tracer.Start(ctx, "pipeline.WALWrite")
+	rawBytes := []byte(evt.RawLine)
+
+	// Stamp the tamper-evident hash chain BEFORE WAL — chain proves ordering (#12)
+	if p.eventChain != nil {
+		p.eventChain.Seal(evt)
+	}
+
 	if p.wal != nil {
-		if err := p.wal.Append([]byte(evt.RawLine)); err != nil {
+		if err := p.wal.Append(rawBytes); err != nil {
 			p.log.Error("[INGEST] WAL write failure: %v", err)
 		}
 	}
 	if p.integrityTree != nil {
-		hash, idx, err := p.integrityTree.AddLeaf([]byte(evt.RawLine))
+		hash, idx, err := p.integrityTree.AddLeaf(rawBytes)
 		if err != nil {
 			p.log.Error("[INGEST] Integrity hashing failed: %v", err)
 		} else {
-			evt.IntegrityHash = hash
-			evt.IntegrityIndex = int32(idx)
+			// Only override if MerkleTree hash wins over chain hash
+			if evt.IntegrityHash == "" {
+				evt.IntegrityHash = hash
+				evt.IntegrityIndex = int32(idx)
+			}
 		}
 	}
 	if p.temporal != nil {
@@ -404,6 +424,11 @@ func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent)
 	}
 	span.End()
 	p.indexEvent(ctx, evt)
+}
+
+// SetEventChain attaches a persistent-backed EventChain to the pipeline.
+func (p *Pipeline) SetEventChain(ec *EventChain) {
+	p.eventChain = ec
 }
 
 func (p *Pipeline) indexEvent(ctx context.Context, evt *events.SovereignEvent) {
@@ -432,7 +457,12 @@ func (p *Pipeline) Replay(ctx context.Context) error {
 			p.log.Warn("[INGEST] Skipping invalid WAL entry: %v", err)
 			return nil
 		}
-		evt := AutoParse(raw)
+		pCtx := events.EventProcessingContext{
+			EventID:  fmt.Sprintf("evt-wal-%d", time.Now().UnixNano()),
+			TenantID: "GLOBAL",
+			Now:      time.Now().UTC(),
+		}
+		evt := AutoParse(raw, pCtx)
 		p.indexEvent(ctx, evt)
 		return nil
 	})

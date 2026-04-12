@@ -2,6 +2,9 @@ package ingest
 
 import (
 	"testing"
+	"time"
+
+	"github.com/kingknull/oblivrashell/internal/events"
 )
 
 // FuzzAutoParse targets the central log multiplexer.
@@ -20,6 +23,11 @@ func FuzzAutoParse(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data string) {
 		// AutoParse is the main entry point for the ingestion pipeline.
 		// It must NEVER panic regardless of input.
-		_ = AutoParse(data)
+		pCtx := events.EventProcessingContext{
+			EventID:  "fuzz-test",
+			TenantID: "GLOBAL",
+			Now:      time.Unix(1700000000, 0).UTC(),
+		}
+		_ = AutoParse(data, pCtx)
 	})
 }

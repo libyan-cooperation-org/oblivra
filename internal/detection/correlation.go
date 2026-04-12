@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/storage"
 )
 
 // CorrelationRule defines a cross-source, multi-event correlation pattern.
@@ -65,6 +66,7 @@ type CorrelationEngine struct {
 	stateMu sync.Mutex
 	bus     *eventbus.Bus
 	log     *logger.Logger
+	store   *CorrelationStore // optional persistent backing; nil = in-memory only
 }
 
 // NewCorrelationEngine initialises the engine with built-in sovereign rules.
@@ -84,6 +86,15 @@ func NewCorrelationEngine(bus *eventbus.Bus, log *logger.Logger) *CorrelationEng
 		}
 	})
 
+	return e
+}
+
+// WithStore attaches a BadgerDB-backed CorrelationStore for restart-safe state.
+// Must be called before the engine starts receiving events.
+func (e *CorrelationEngine) WithStore(hot *storage.HotStore) *CorrelationEngine {
+	if hot != nil {
+		e.store = NewCorrelationStore(hot)
+	}
 	return e
 }
 
@@ -127,12 +138,26 @@ func (e *CorrelationEngine) evaluate(rule CrossSourceRule, evt Event) {
 	cs, ok := lru.Get(groupKey)
 	if !ok {
 		cs = &correlationState{seen: make(map[string][]Event)}
+		// Attempt to restore from Badger on cache miss (restart recovery)
+		if e.store != nil {
+			if restoredSeen, err := e.store.LoadState(evt.TenantID, rule.ID, rule.WindowSec, groupKey); err == nil && restoredSeen != nil {
+				cs.seen = restoredSeen
+			}
+		}
 		lru.Add(groupKey, cs)
 	}
 
 	cs.mu.Lock()
 	for _, cond := range matchedConditions {
 		cs.seen[cond.EventType] = append(cs.seen[cond.EventType], evt)
+	}
+	// Persist updated state to Badger for restart recovery
+	if e.store != nil {
+		window := time.Duration(rule.WindowSec) * time.Second
+		if window == 0 {
+			window = 5 * time.Minute
+		}
+		_ = e.store.SaveState(evt.TenantID, rule.ID, rule.WindowSec, groupKey, cs.seen, window)
 	}
 
 	// 5. Check if ALL required conditions have been satisfied
@@ -173,6 +198,9 @@ func (e *CorrelationEngine) evaluate(rule CrossSourceRule, evt Event) {
 
 	// 7. Reset state for this group so the rule can re-trigger
 	lru.Remove(groupKey)
+	if e.store != nil {
+		_ = e.store.DeleteState(evt.TenantID, rule.ID, rule.WindowSec, groupKey)
+	}
 
 	match := CorrelationMatch{
 		TenantID:        evt.TenantID,

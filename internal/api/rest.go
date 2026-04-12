@@ -126,6 +126,8 @@ type RESTServer struct {
 	tenantRepo *database.TenantRepository
 	reports    ReportingProvider
 	dashboards DashboardProvider
+	enrichLimiter *ingest.EnrichmentLimiter // #9: protects GeoIP/DNS/TI from stalling ingestion
+	replayer      *ingest.EventReplayer   // #3: allows on-demand logic verification
 }
 
 // AgentInfo tracks a registered agent.
@@ -173,6 +175,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		tenantRepo:  tenantRepo,
 		reports:     reports,
 		dashboards:  dashboards,
+		enrichLimiter: ingest.NewEnrichmentLimiter(500), // 500 enrichment calls/sec max across all tenants
+		replayer:      ingest.NewEventReplayer(log),
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -225,6 +229,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 
 	// System endpoints
 	mux.HandleFunc("/api/v1/ingest/status", s.handleIngestStatus)
+	mux.HandleFunc("/api/v1/ingest/replay", s.handleIngestReplay)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/readyz", s.handleReadyz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
@@ -278,22 +283,22 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/mcp/approve", s.handleMCPApprove)
 
 	// User/Role management endpoints (Phase 12)
-	mux.HandleFunc("/api/v1/users", s.handleUsers)
-	mux.HandleFunc("/api/v1/roles", s.handleRoles)
+	mux.HandleFunc("/api/v1/users", s.stubHandler(s.handleUsers))
+	mux.HandleFunc("/api/v1/roles", s.stubHandler(s.handleRoles))
 	
 	// Tenant isolation management endpoints (Phase 22.2)
 	mux.HandleFunc("/api/v1/admin/tenants", s.handleAdminTenants)
 	mux.HandleFunc("/api/v1/admin/tenants/", s.handleAdminTenantWipe)
 
 	// UEBA endpoints (Phase 10)
-	mux.HandleFunc("/api/v1/ueba/profiles", s.handleUEBAProfiles)
-	mux.HandleFunc("/api/v1/ueba/anomalies", s.handleUEBAAnomalies)
-	mux.HandleFunc("/api/v1/ueba/stats", s.handleUEBAStats)
+	mux.HandleFunc("/api/v1/ueba/profiles", s.stubHandler(s.handleUEBAProfiles))
+	mux.HandleFunc("/api/v1/ueba/anomalies", s.stubHandler(s.handleUEBAAnomalies))
+	mux.HandleFunc("/api/v1/ueba/stats", s.stubHandler(s.handleUEBAStats))
 
 	// SCIM 2.0 — Phase 20.4
-	mux.HandleFunc("/api/scim/v2/Users", s.handleSCIMUsers)
-	mux.HandleFunc("/api/scim/v2/Users/", s.handleSCIMUserByID)
-	mux.HandleFunc("/api/scim/v2/Groups", s.handleSCIMGroups)
+	mux.HandleFunc("/api/scim/v2/Users", s.stubHandler(s.handleSCIMUsers))
+	mux.HandleFunc("/api/scim/v2/Users/", s.stubHandler(s.handleSCIMUserByID))
+	mux.HandleFunc("/api/scim/v2/Groups", s.stubHandler(s.handleSCIMGroups))
 	
 	// Identity Connectors — Phase 20.7
 	mux.HandleFunc("/api/v1/identity/connectors", s.handleIdentityConnectors)
@@ -310,36 +315,36 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/dashboards/", s.handleDashboardByID)
 
 	// NDR endpoints (Phase 11)
-	mux.HandleFunc("/api/v1/ndr/flows", s.handleNDRFlows)
-	mux.HandleFunc("/api/v1/ndr/alerts", s.handleNDRAlerts)
-	mux.HandleFunc("/api/v1/ndr/protocols", s.handleNDRProtocols)
+	mux.HandleFunc("/api/v1/ndr/flows", s.stubHandler(s.handleNDRFlows))
+	mux.HandleFunc("/api/v1/ndr/alerts", s.stubHandler(s.handleNDRAlerts))
+	mux.HandleFunc("/api/v1/ndr/protocols", s.stubHandler(s.handleNDRProtocols))
 
 	// Ransomware endpoints (Phase 9)
-	mux.HandleFunc("/api/v1/ransomware/events", s.handleRansomwareEvents)
-	mux.HandleFunc("/api/v1/ransomware/hosts", s.handleRansomwareHosts)
-	mux.HandleFunc("/api/v1/ransomware/stats", s.handleRansomwareStats)
-	mux.HandleFunc("/api/v1/ransomware/isolate", s.handleRansomwareIsolate)
+	mux.HandleFunc("/api/v1/ransomware/events", s.stubHandler(s.handleRansomwareEvents))
+	mux.HandleFunc("/api/v1/ransomware/hosts", s.stubHandler(s.handleRansomwareHosts))
+	mux.HandleFunc("/api/v1/ransomware/stats", s.stubHandler(s.handleRansomwareStats))
+	mux.HandleFunc("/api/v1/ransomware/isolate", s.stubHandler(s.handleRansomwareIsolate))
 
 	// Playbook endpoints (Phase 8)
-	mux.HandleFunc("/api/v1/playbooks", s.handlePlaybooks)
-	mux.HandleFunc("/api/v1/playbooks/actions", s.handlePlaybookActions)
-	mux.HandleFunc("/api/v1/playbooks/run", s.handlePlaybookRun)
-	mux.HandleFunc("/api/v1/playbooks/metrics", s.handlePlaybookMetrics)
+	mux.HandleFunc("/api/v1/playbooks", s.stubHandler(s.handlePlaybooks))
+	mux.HandleFunc("/api/v1/playbooks/actions", s.stubHandler(s.handlePlaybookActions))
+	mux.HandleFunc("/api/v1/playbooks/run", s.stubHandler(s.handlePlaybookRun))
+	mux.HandleFunc("/api/v1/playbooks/metrics", s.stubHandler(s.handlePlaybookMetrics))
 
 	// Agent endpoints (fleet management)
-	mux.HandleFunc("/api/v1/agents", s.handleAgentsList)
+	mux.HandleFunc("/api/v1/agents", s.stubHandler(s.handleAgentsList))
 
 	// Fusion Engine endpoints (Phase 10.6)
-	mux.HandleFunc("/api/v1/fusion/campaigns", s.handleFusionCampaigns)
-	mux.HandleFunc("/api/v1/fusion/campaigns/", s.handleFusionCampaignDetail)
+	mux.HandleFunc("/api/v1/fusion/campaigns", s.stubHandler(s.handleFusionCampaigns))
+	mux.HandleFunc("/api/v1/fusion/campaigns/", s.stubHandler(s.handleFusionCampaignDetail))
 
 	// Peer Analytics endpoints (Phase 10.5)
-	mux.HandleFunc("/api/v1/ueba/peer-groups", s.handlePeerGroups)
-	mux.HandleFunc("/api/v1/ueba/peer-deviations", s.handlePeerDeviations)
+	mux.HandleFunc("/api/v1/ueba/peer-groups", s.stubHandler(s.handlePeerGroups))
+	mux.HandleFunc("/api/v1/ueba/peer-deviations", s.stubHandler(s.handlePeerDeviations))
 
 	// Agentless collectors status (Phase 7.5)
-	mux.HandleFunc("/api/v1/agentless/status", s.handleAgentlessStatus)
-	mux.HandleFunc("/api/v1/agentless/collectors", s.handleAgentlessCollectors)
+	mux.HandleFunc("/api/v1/agentless/status", s.stubHandler(s.handleAgentlessStatus))
+	mux.HandleFunc("/api/v1/agentless/collectors", s.stubHandler(s.handleAgentlessCollectors))
 
 	var handler http.Handler = mux
 
@@ -416,10 +421,43 @@ func (s *RESTServer) IsTLS() bool {
 	return err == nil
 }
 
+type DataConfidence int
+
+const (
+	ConfidenceVerified  DataConfidence = 100
+	ConfidenceDerived   DataConfidence = 80
+	ConfidencePartial   DataConfidence = 50
+	ConfidenceUntrusted DataConfidence = 0
+)
+
 func (s *RESTServer) jsonResponse(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
+
+	confidence := ConfidenceVerified
+	if os.Getenv("OBLIVRA_ENV") != "production" {
+		confidence = ConfidenceUntrusted
+	}
+
+	b, err := json.Marshal(data)
+	if err == nil && len(b) > 0 && b[0] == '{' {
+		confField := fmt.Sprintf(`"data_confidence":%d,`, confidence)
+		w.Write([]byte("{"))
+		w.Write([]byte(confField))
+		w.Write(b[1:])
+		return
+	}
+	
 	json.NewEncoder(w).Encode(data)
+}
+
+func (s *RESTServer) stubHandler(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("OBLIVRA_ENV") == "production" {
+			panic("Stub data not allowed in production")
+		}
+		h(w, r)
+	}
 }
 
 // --- Middleware ---
@@ -635,15 +673,49 @@ func (s *RESTServer) handleIngestStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	metrics := s.pipeline.GetMetrics()
-	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"eps":             metrics.EventsPerSecond,
-		"total_processed": metrics.TotalProcessed,
-		"buffer_usage":    metrics.BufferUsage,
-		"buffer_capacity": metrics.BufferCapacity,
-		"dropped_events":  metrics.DroppedEvents,
-	})
+	snap := s.pipeline.GetMetrics()
+	stats := ingest.CollectStats(snap, time.Since(snap.CollectedAt))
+	s.jsonResponse(w, http.StatusOK, stats)
 }
+
+func (s *RESTServer) handleIngestReplay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 1. RBAC Check: Replay is a forensics-level action; require Admin
+	role := auth.GetRole(r.Context())
+	if role != auth.RoleAdmin {
+		http.Error(w, "Forbidden: Admin only", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		WALPath string `json:"wal_path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.WALPath == "" {
+		http.Error(w, "wal_path is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+
+	result, err := s.replayer.ReplayWAL(ctx, req.WALPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Replay failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.jsonResponse(w, http.StatusOK, result)
+}
+
 
 func (s *RESTServer) handleAttestation(w http.ResponseWriter, r *http.Request) {
 	// 1. RBAC Check: Require Admin
@@ -1242,27 +1314,38 @@ func (s *RESTServer) handleEnrich(w http.ResponseWriter, r *http.Request) {
 
 	result := map[string]interface{}{"query": q}
 
-	// IOC lookup
-	ind, matched := s.getThreatIntel().MatchAny(q)
-	if matched {
-		result["ioc_match"] = map[string]interface{}{
-			"matched":     true,
-			"severity":    ind.Severity,
-			"source":      ind.Source,
-			"description": ind.Description,
-		}
-	} else {
-		result["ioc_match"] = map[string]interface{}{"matched": false}
+	// Check enrichment budget — never block ingestion on GeoIP/DNS/TI stalls (#9)
+	skipped := false
+	if s.enrichLimiter != nil && !s.enrichLimiter.Allow() {
+		skipped = true
 	}
 
-	// Stub geo/dns/asset — a production deploy wires MaxMind + DNS resolvers
-	result["geo"] = map[string]interface{}{
-		"ip":           q,
-		"country_code": "??",
-		"country_name": "Unknown (offline GeoIP)",
-		"city":         "",
-		"asn":          "AS0",
-		"org":          "Requires MaxMind DB",
+	// IOC lookup (only if budget allows)
+	if !skipped {
+		ind, matched := s.getThreatIntel().MatchAny(q)
+		if matched {
+			result["ioc_match"] = map[string]interface{}{
+				"matched":     true,
+				"severity":    ind.Severity,
+				"source":      ind.Source,
+				"description": ind.Description,
+			}
+		} else {
+			result["ioc_match"] = map[string]interface{}{"matched": false}
+		}
+
+		// Geo stub — a production deploy wires MaxMind + DNS resolvers
+		result["geo"] = map[string]interface{}{
+			"ip":           q,
+			"country_code": "??",
+			"country_name": "Unknown (offline GeoIP)",
+			"city":         "",
+			"asn":          "AS0",
+			"org":          "Requires MaxMind DB",
+		}
+	} else {
+		result["enrichment_skipped"] = true
+		result["enrichment_skip_reason"] = "rate_limit_exceeded"
 	}
 
 	// Add to recent ring buffer

@@ -37,6 +37,9 @@ type Match struct {
 	TriggeredAt     string
 	Events          []Event
 	Context         map[string]string
+	// ConfidenceScore is 0–100. It reflects how strongly the rule evidence
+	// supports the alert — higher threshold saturation and severity raises it.
+	ConfidenceScore int `json:"confidence_score"`
 }
 
 // Evaluator wraps RuleEngine with state tracking for thresholds/sequences.
@@ -390,6 +393,7 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 			MitreTechniques: rule.MitreTechniques,
 			TriggeredAt:     time.Now().Format(time.RFC3339),
 			Events:          activeEvents,
+			ConfidenceScore: computeConfidence(rule, len(activeEvents)),
 			Context: map[string]string{
 				"group_key": groupKey,
 				"count":     fmt.Sprintf("%d", len(activeEvents)),
@@ -418,3 +422,32 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 	}
 	return nil
 }
+
+// computeConfidence calculates a score (0-100) based on rule severity and evidence saturation.
+func computeConfidence(rule Rule, matches int) int {
+	base := 70
+	switch strings.ToUpper(rule.Severity) {
+	case "CRITICAL":
+		base = 95
+	case "HIGH":
+		base = 85
+	case "MEDIUM":
+		base = 70
+	case "LOW":
+		base = 50
+	}
+
+	// Boost if matches significantly exceed threshold
+	if rule.Threshold > 0 {
+		saturation := float64(matches) / float64(rule.Threshold)
+		if saturation > 2.0 {
+			base += 5
+		}
+	}
+
+	if base > 100 {
+		base = 100
+	}
+	return base
+}
+

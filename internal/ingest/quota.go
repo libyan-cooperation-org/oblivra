@@ -16,7 +16,8 @@ var (
 // "Noisy Neighbor" starvation. It enforces that no single tenant can consume
 // more than a predefined percentage of the total pipeline capacity.
 type TenantQuotaManager struct {
-	counts        sync.Map // map[string]*atomic.Int64
+	mu            sync.RWMutex
+	counts        map[string]*atomic.Int64
 	maxPerTenant  int64
 	totalCapacity int64
 	metrics       *monitoring.MetricsCollector
@@ -26,10 +27,33 @@ type TenantQuotaManager struct {
 // limitPct is a value between 0.0 and 1.0 (e.g. 0.70 for 70%).
 func NewTenantQuotaManager(totalCapacity int, limitPct float64, mc *monitoring.MetricsCollector) *TenantQuotaManager {
 	return &TenantQuotaManager{
+		counts:        make(map[string]*atomic.Int64),
 		totalCapacity: int64(totalCapacity),
 		maxPerTenant:  int64(float64(totalCapacity) * limitPct),
 		metrics:       mc,
 	}
+}
+
+func (qm *TenantQuotaManager) getCounter(tenantID string) *atomic.Int64 {
+	qm.mu.RLock()
+	counter, exists := qm.counts[tenantID]
+	qm.mu.RUnlock()
+
+	if exists {
+		return counter
+	}
+
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+	
+	// Double check
+	if counter, exists = qm.counts[tenantID]; exists {
+		return counter
+	}
+	
+	counter = &atomic.Int64{}
+	qm.counts[tenantID] = counter
+	return counter
 }
 
 // CheckQuota returns ErrTenantQuotaExceeded if the tenant has already reached
@@ -39,10 +63,8 @@ func (qm *TenantQuotaManager) CheckQuota(tenantID string) error {
 		return nil // No quota for untracked/system traffic
 	}
 
-	val, _ := qm.counts.LoadOrStore(tenantID, &atomic.Int64{})
-	count := val.(*atomic.Int64).Load()
-
-	if count >= qm.maxPerTenant {
+	counter := qm.getCounter(tenantID)
+	if counter.Load() >= qm.maxPerTenant {
 		return ErrTenantQuotaExceeded
 	}
 
@@ -54,8 +76,9 @@ func (qm *TenantQuotaManager) Inc(tenantID string) {
 	if tenantID == "" {
 		return
 	}
-	val, _ := qm.counts.LoadOrStore(tenantID, &atomic.Int64{})
-	newCount := val.(*atomic.Int64).Add(1)
+	
+	counter := qm.getCounter(tenantID)
+	newCount := counter.Add(1)
 
 	if qm.metrics != nil {
 		occupancy := float64(newCount) / float64(qm.totalCapacity) * 100
@@ -68,9 +91,13 @@ func (qm *TenantQuotaManager) Dec(tenantID string) {
 	if tenantID == "" {
 		return
 	}
-	val, ok := qm.counts.Load(tenantID)
+	
+	qm.mu.RLock()
+	counter, ok := qm.counts[tenantID]
+	qm.mu.RUnlock()
+	
 	if ok {
-		newCount := val.(*atomic.Int64).Add(-1)
+		newCount := counter.Add(-1)
 		if qm.metrics != nil {
 			occupancy := float64(newCount) / float64(qm.totalCapacity) * 100
 			qm.metrics.SetGauge("ingest_tenant_buffer_occupancy", occupancy, map[string]string{"tenant_id": tenantID})

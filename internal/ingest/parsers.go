@@ -14,18 +14,20 @@ import (
 var advancedRegistry = parsers.NewRegistry()
 
 // ParseMethod defines the signature for a log parsing strategy.
-type ParseMethod func(raw string) (*events.SovereignEvent, error)
+type ParseMethod func(raw string, pCtx events.EventProcessingContext) (*events.SovereignEvent, error)
 
 // ParseSyslog splits a standard RFC-3164 or RFC-5424 header and extracts the payload.
-func ParseSyslog(raw string) (*events.SovereignEvent, error) {
+func ParseSyslog(raw string, pCtx events.EventProcessingContext) (*events.SovereignEvent, error) {
 	// A highly simplified syslog parser for Phase 1.
 	// In reality, syslog RFC parsing is complex, but often looks like:
 	// <165>1 2003-10-11T22:14:15.003Z mymachine.example.com su - ID47 - 'su root' failed for lonvick...
 	// OR: <34>Oct 11 22:14:15 mymachine su: 'su root' failed...
 
 	evt := &events.SovereignEvent{
-		Timestamp: time.Now().Format(time.RFC3339),
-		TenantID:  "GLOBAL", // Default for Syslog
+		Id:        pCtx.EventID,
+		Timestamp: pCtx.Now.Format(time.RFC3339),
+		TenantID:  pCtx.TenantID,
+		ProcessingCtx: pCtx,
 		RawLine:   raw,
 		Host:      "unknown",
 		EventType: "syslog",
@@ -40,13 +42,18 @@ func ParseSyslog(raw string) (*events.SovereignEvent, error) {
 		}
 	}
 
-	// Try extracting standard keywords
-	rawLower := strings.ToLower(raw)
-	if strings.Contains(rawLower, "failed password") || strings.Contains(rawLower, "failed login") || strings.Contains(rawLower, "authentication failure") || strings.Contains(raw, "SOAK_TEST_") {
+	// Try extracting standard keywords using efficient case-sensitive checks
+	// This avoids allocating a full strings.ToLower(raw) copy.
+	if strings.Contains(raw, "failed password") || strings.Contains(raw, "Failed password") || 
+	   strings.Contains(raw, "failed login") || strings.Contains(raw, "Failed login") ||
+	   strings.Contains(raw, "authentication failure") || strings.Contains(raw, "Authentication failure") ||
+	   strings.Contains(raw, "SOAK_TEST_") {
 		evt.EventType = "failed_login"
-	} else if strings.Contains(rawLower, "accepted password") || strings.Contains(rawLower, "accepted login") || strings.Contains(rawLower, "successful login") {
+	} else if strings.Contains(raw, "accepted password") || strings.Contains(raw, "Accepted password") ||
+	          strings.Contains(raw, "successful login") || strings.Contains(raw, "Successful login") ||
+			  strings.Contains(raw, "Accepted publickey") {
 		evt.EventType = "successful_login"
-	} else if strings.Contains(rawLower, "sudo:") {
+	} else if strings.Contains(raw, "sudo:") {
 		evt.EventType = "sudo_exec"
 	}
 
@@ -63,10 +70,12 @@ func ParseSyslog(raw string) (*events.SovereignEvent, error) {
 }
 
 // ParseJSON handles beautifully structured logs like Zeek or Suricata.
-func ParseJSON(raw string) (*events.SovereignEvent, error) {
+func ParseJSON(raw string, pCtx events.EventProcessingContext) (*events.SovereignEvent, error) {
 	evt := &events.SovereignEvent{
-		Timestamp: time.Now().Format(time.RFC3339),
-		TenantID:  "GLOBAL", // Default for JSON
+		Id:        pCtx.EventID,
+		Timestamp: pCtx.Now.Format(time.RFC3339),
+		TenantID:  pCtx.TenantID,
+		ProcessingCtx: pCtx,
 		RawLine:   raw,
 	}
 
@@ -115,11 +124,13 @@ func ParseJSON(raw string) (*events.SovereignEvent, error) {
 }
 
 // ParseCEF handles Common Event Format (ArcSight / Palo Alto)
-func ParseCEF(raw string) (*events.SovereignEvent, error) {
+func ParseCEF(raw string, pCtx events.EventProcessingContext) (*events.SovereignEvent, error) {
 	// CEF:Version|Device Vendor|Device Product|Device Version|Signature ID|Name|Severity|Extension
 	evt := &events.SovereignEvent{
-		Timestamp: time.Now().Format(time.RFC3339),
-		TenantID:  "GLOBAL", // Default for CEF
+		Id:        pCtx.EventID,
+		Timestamp: pCtx.Now.Format(time.RFC3339),
+		TenantID:  pCtx.TenantID,
+		ProcessingCtx: pCtx,
 		RawLine:   raw,
 		EventType: "cef",
 	}
@@ -158,11 +169,13 @@ func ParseCEF(raw string) (*events.SovereignEvent, error) {
 }
 
 // ParseLEEF handles Log Event Extended Format (IBM QRadar)
-func ParseLEEF(raw string) (*events.SovereignEvent, error) {
+func ParseLEEF(raw string, pCtx events.EventProcessingContext) (*events.SovereignEvent, error) {
 	// LEEF:Version|Vendor|Product|Version|EventID|Extension (Tab separated usually)
 	evt := &events.SovereignEvent{
-		Timestamp: time.Now().Format(time.RFC3339),
-		TenantID:  "GLOBAL", // Default for LEEF
+		Id:        pCtx.EventID,
+		Timestamp: pCtx.Now.Format(time.RFC3339),
+		TenantID:  pCtx.TenantID,
+		ProcessingCtx: pCtx,
 		RawLine:   raw,
 		EventType: "leef",
 	}
@@ -201,23 +214,23 @@ func ParseLEEF(raw string) (*events.SovereignEvent, error) {
 }
 
 // AutoParse attempts multiple techniques until one succeeds, prioritizing structured.
-func AutoParse(raw string) *events.SovereignEvent {
+func AutoParse(raw string, pCtx events.EventProcessingContext) *events.SovereignEvent {
 	rawTrimmed := strings.TrimSpace(raw)
 
 	if strings.HasPrefix(rawTrimmed, "{") {
-		if evt, err := ParseJSON(rawTrimmed); err == nil {
+		if evt, err := ParseJSON(rawTrimmed, pCtx); err == nil {
 			return evt
 		}
 	}
 
 	if strings.HasPrefix(rawTrimmed, "CEF:") {
-		if evt, err := ParseCEF(rawTrimmed); err == nil {
+		if evt, err := ParseCEF(rawTrimmed, pCtx); err == nil {
 			return evt
 		}
 	}
 
 	if strings.HasPrefix(rawTrimmed, "LEEF:") {
-		if evt, err := ParseLEEF(rawTrimmed); err == nil {
+		if evt, err := ParseLEEF(rawTrimmed, pCtx); err == nil {
 			return evt
 		}
 	}
@@ -227,16 +240,18 @@ func AutoParse(raw string) *events.SovereignEvent {
 	info := parsers.Info{RawLine: rawTrimmed}
 	if advancedRegistry.Process(info, hEvt) {
 		return &events.SovereignEvent{
-			Timestamp: time.Now().Format(time.RFC3339),
-			TenantID:  "GLOBAL", // Default for Advanced Parsed
-			RawLine:   rawTrimmed,
-			EventType: hEvt.EventType,
-			SourceIp:  hEvt.SourceIP,
-			User:      hEvt.User,
+			Id:            pCtx.EventID,
+			Timestamp:     pCtx.Now.Format(time.RFC3339),
+			TenantID:      pCtx.TenantID,
+			ProcessingCtx: pCtx,
+			RawLine:       rawTrimmed,
+			EventType:     hEvt.EventType,
+			SourceIp:      hEvt.SourceIP,
+			User:          hEvt.User,
 		}
 	}
 
 	// Fallback to syslog / generic text parsing
-	evt, _ := ParseSyslog(rawTrimmed)
+	evt, _ := ParseSyslog(rawTrimmed, pCtx)
 	return evt
 }

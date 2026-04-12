@@ -9,6 +9,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
+	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/storage"
 )
@@ -79,7 +80,13 @@ func (r *EventReplayer) ReplayWAL(ctx context.Context, walPath string) (*ReplayR
 	count := 0
 	err := storage.ReadWALManual(walPath, func(payload []byte) error {
 		count++
-		evt := AutoParse(string(payload))
+		pCtx := events.EventProcessingContext{
+			EventID:  fmt.Sprintf("evt-replay-%d", count),
+			TenantID: "GLOBAL",
+			Seed:     uint64(count),
+			Now:      time.Unix(int64(1700000000+count), 0).UTC(),
+		}
+		evt := AutoParse(string(payload), pCtx)
 		
 		// Run DAG
 		if err := r.dag.Execute(ctx, evt); err != nil {

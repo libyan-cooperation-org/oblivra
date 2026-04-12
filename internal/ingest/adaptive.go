@@ -98,16 +98,22 @@ func (ac *AdaptiveController) adjust() {
 		switch newStatus {
 		case LoadDegraded:
 			msg = fmt.Sprintf("Pipeline pressure high (EPS: %d, Buffer: %.1f%%). Scaling up workers.", eps, bufUsage*100)
-			ac.pipeline.log.Warn("[ADAPTIVE] %s", msg)
+			if ac.pipeline.log != nil {
+				ac.pipeline.log.Warn("[ADAPTIVE] %s", msg)
+			}
 		case LoadCritical:
 			msg = fmt.Sprintf("Critical Pipeline STALL (Buffer: %.1f%%). No events processed for >2m.", bufUsage*100)
-			ac.pipeline.log.Error("[ADAPTIVE] %s", msg)
+			if ac.pipeline.log != nil {
+				ac.pipeline.log.Error("[ADAPTIVE] %s", msg)
+			}
 			// Emergency: spawn immediate "Rescue Workers"
 			for i := 0; i < ac.baseWorkers; i++ {
 				ac.scaleUp()
 			}
 		default:
-			ac.pipeline.log.Info("[ADAPTIVE] Pipeline state returned to HEALTHY")
+			if ac.pipeline.log != nil {
+				ac.pipeline.log.Info("[ADAPTIVE] Pipeline state returned to HEALTHY")
+			}
 		}
 
 		if ac.pipeline.diagnostics != nil {
@@ -136,7 +142,9 @@ func (ac *AdaptiveController) adjust() {
 				break drainLoop
 			}
 		}
-		ac.pipeline.log.Warn("[ADAPTIVE] EMERGENCY SHED: buffer at %.0f%%, dropped %d events", bufUsage*100, toDrop)
+		if ac.pipeline.log != nil {
+			ac.pipeline.log.Warn("[ADAPTIVE] EMERGENCY SHED: buffer at %.0f%%, dropped %d events", bufUsage*100, toDrop)
+		}
 
 		// Also scale up workers to clear the backlog
 		ac.scaleUp()
@@ -165,7 +173,9 @@ func (ac *AdaptiveController) scaleUp() {
 		defer ac.active.Add(-1)
 		ac.pipeline.worker()
 	}()
-	ac.pipeline.log.Info("[ADAPTIVE] Scaled up to %d workers (EPS target: %d)", total+1, EPSTarget)
+	if ac.pipeline.log != nil {
+		ac.pipeline.log.Info("[ADAPTIVE] Scaled up to %d workers (EPS target: %d)", total+1, EPSTarget)
+	}
 }
 
 func (ac *AdaptiveController) scaleDown() {

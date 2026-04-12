@@ -97,6 +97,9 @@
       {#if card.mitre}
         <span class="text-[9px] font-mono text-text-muted opacity-60 shrink-0">{card.mitre}</span>
       {/if}
+      {#if card.isChained}
+        <span class="text-[8px] font-bold font-mono text-accent bg-accent/10 px-1 py-0.5 rounded shadow-[0_0_5px_rgba(0,245,212,0.2)]">VERIFIABLE</span>
+      {/if}
     </div>
 
     <!-- Time-to-impact -->

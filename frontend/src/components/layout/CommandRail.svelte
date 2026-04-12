@@ -180,6 +180,12 @@
   function visibleItems(items: NavItem[]) {
     return items.filter(isItemVisible);
   }
+
+  function handleAuditMouseEnter(e: MouseEvent) {
+    const target = e.currentTarget as HTMLButtonElement;
+    flyoutTop = target.getBoundingClientRect().top;
+    auditOpen = true;
+  }
 </script>
 
 <style>
@@ -223,11 +229,11 @@
   }
   .cr-nav-btn:hover:not(.locked) {
     color: var(--text-secondary);
-    background: rgba(87, 139, 255, 0.06);
+    background: rgba(0, 245, 212, 0.04);
   }
   .cr-nav-btn.active {
     color: var(--accent-primary) !important;
-    background: rgba(87, 139, 255, 0.12) !important;
+    background: rgba(0, 245, 212, 0.08) !important;
   }
   .cr-nav-btn.active::before {
     content: '';
@@ -252,7 +258,7 @@
   }
   .cr-nav-btn.active .cr-nav-icon {
     opacity: 1;
-    filter: drop-shadow(0 0 6px rgba(87, 139, 255, 0.4));
+    filter: drop-shadow(0 0 8px rgba(0, 245, 212, 0.45));
   }
   .cr-nav-label {
     font-family: var(--font-ui);
@@ -427,7 +433,7 @@
     class="cr-nav-btn"
     class:active={auditActive}
     title="Audit Trail"
-    onmouseenter={(e) => { flyoutTop = e.currentTarget.getBoundingClientRect().top; auditOpen = true; }}
+    onmouseenter={handleAuditMouseEnter}
   >
     <div class="cr-nav-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">

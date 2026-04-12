@@ -11,37 +11,37 @@
 /* ── Tailwind v4 Theme Configuration (replaces tailwind.config.ts) ── */
 @theme {
   /* ── Surfaces ── */
-  --color-surface-0: #1a1c20;
-  --color-surface-1: #212327;
-  --color-surface-2: #2b2d31;
-  --color-surface-3: #33363c;
-  --color-surface-4: #3d4148;
+  --color-surface-0: #0B0F14;
+  --color-surface-1: #121821;
+  --color-surface-2: #1A2330;
+  --color-surface-3: #212B3B;
+  --color-surface-4: #2A3649;
 
   /* ── Semantic Status ── */
-  --color-alert-critical: #e04040;
-  --color-alert-high: #f58b00;
-  --color-alert-medium: #f5c518;
-  --color-alert-low: #5cc05c;
-  --color-alert-info: #0099e0;
+  --color-alert-critical: #FF3B3B;
+  --color-alert-high: #FF8A00;
+  --color-alert-medium: #FFD60A;
+  --color-alert-low: #2DD4BF;
+  --color-alert-info: #0EA5E9;
 
-  --color-status-online: #5cc05c;
-  --color-status-degraded: #f58b00;
-  --color-status-offline: #e04040;
+  --color-status-online: #2DD4BF;
+  --color-status-degraded: #FFD60A;
+  --color-status-offline: #FF3B3B;
 
-  --color-success: #5cc05c;
-  --color-error: #e04040;
-  --color-warning: #f58b00;
+  --color-success: #2DD4BF;
+  --color-error: #FF3B3B;
+  --color-warning: #FF8A00;
 
-  /* ── Accent ── */
-  --color-accent: #0099e0;
-  --color-accent-dim: rgba(0, 153, 224, 0.15);
-  --color-accent-secondary: #0077b3;
-  --color-accent-cta: #f58b00;
-  --color-accent-cta-hover: #d97a00;
-  --color-accent-danger: #e04040;
-  --color-accent-warning: #f5c518;
-  --color-accent-hover: #00b4ff;
-  --color-accent-violet: #b87fff;
+  /* ── Accent (OBLIVRA AI Cyan) ── */
+  --color-accent: #00F5D4;
+  --color-accent-dim: rgba(0, 245, 212, 0.15);
+  --color-accent-secondary: #0EA5E9;
+  --color-accent-cta: #00F5D4;
+  --color-accent-cta-hover: #00D1B5;
+  --color-accent-danger: #FF3B3B;
+  --color-accent-warning: #FFD60A;
+  --color-accent-hover: #55FFEA;
+  --color-accent-violet: #8B5CF6;
 
   /* ── Text ── */
   --color-text-primary: #d4d5d8;
@@ -137,61 +137,61 @@
 :root {
   /* These are kept as CSS custom properties for components that need
      runtime theming or aren't yet migrated to Tailwind classes */
-  --surface-0: #1a1c20;
-  --surface-1: #212327;
-  --surface-2: #2b2d31;
-  --surface-3: #33363c;
-  --surface-4: #3d4148;
+  --surface-0: #0B0F14;
+  --surface-1: #121821;
+  --surface-2: #1A2330;
+  --surface-3: #212B3B;
+  --surface-4: #2A3649;
 
-  --bg-primary: #1a1c20;
-  --bg-secondary: #212327;
-  --bg-tertiary: #2b2d31;
-  --bg-surface: #212327;
-  --bg-hover: #33363c;
-  --bg-active: #33363c;
-  --bg-selected: rgba(0, 153, 224, 0.12);
-  --bg-elevated: #2b2d31;
+  --bg-primary: #0B0F14;
+  --bg-secondary: #121821;
+  --bg-tertiary: #1A2330;
+  --bg-surface: #121821;
+  --bg-hover: #212B3B;
+  --bg-active: #212B3B;
+  --bg-selected: rgba(0, 245, 212, 0.12);
+  --bg-elevated: #1A2330;
 
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-primary: #3a3d44;
-  --border-secondary: #4a4d55;
-  --border-active: #0099e0;
-  --border-hover: #52555e;
-  --border-focus: #0099e0;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-primary: #2A3649;
+  --border-secondary: #3B4A61;
+  --border-active: #00F5D4;
+  --border-hover: #4A5B75;
+  --border-focus: #00F5D4;
 
-  --accent-primary: #0099e0;
-  --accent-primary-rgb: 0, 153, 224;
-  --accent-dim: rgba(0, 153, 224, 0.15);
-  --accent-secondary: #0077b3;
-  --accent-cta: #f58b00;
-  --accent-cta-hover: #d97a00;
-  --accent-danger: #e04040;
-  --accent-warning: #f5c518;
-  --accent-hover: #00b4ff;
-  --accent-gradient: linear-gradient(135deg, #0099e0 0%, #0077b3 100%);
-  --accent-violet: #b87fff;
+  --accent-primary: #00F5D4;
+  --accent-primary-rgb: 0, 245, 212;
+  --accent-dim: rgba(0, 245, 212, 0.15);
+  --accent-secondary: #0EA5E9;
+  --accent-cta: #00F5D4;
+  --accent-cta-hover: #00D1B5;
+  --accent-danger: #FF3B3B;
+  --accent-warning: #FFD60A;
+  --accent-hover: #55FFEA;
+  --accent-gradient: linear-gradient(135deg, #00F5D4 0%, #0EA5E9 100%);
+  --accent-violet: #8B5CF6;
 
-  --text-primary: #d4d5d8;
-  --text-secondary: #9b9ea4;
-  --text-muted: #6b6e76;
-  --text-accent: #0099e0;
-  --text-heading: #e8e9eb;
-  --text-inverted: #1a1c20;
+  --text-primary: #E6EDF3;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-accent: #00F5D4;
+  --text-heading: #F8FAFC;
+  --text-inverted: #0B0F14;
 
-  --font-ui: "Inter", "Splunk Sans", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "Splunk Mono", "Fira Code", monospace;
+  --font-ui: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 
-  --shadow-glow: 0 0 0 2px rgba(0, 153, 224, 0.3);
-  --shadow-glow-danger: 0 0 0 2px rgba(224, 64, 64, 0.3);
-  --focus-ring: 0 0 0 2px rgba(0, 153, 224, 0.5);
+  --shadow-glow: 0 0 10px rgba(0, 245, 212, 0.4);
+  --shadow-glow-danger: 0 0 10px rgba(255, 59, 59, 0.4);
+  --focus-ring: 0 0 0 2px rgba(0, 245, 212, 0.5);
 
-  --glass-border: #3a3d44;
-  --glass-border-highlight: #4a4d55;
-  --glass-bg-strong: rgba(33, 35, 39, 0.97);
-  --glass-bg-subtle: rgba(33, 35, 39, 0.6);
-  --bg-overlay: rgba(0, 0, 0, 0.55);
-  --bg-danger-subtle: rgba(224, 64, 64, 0.06);
-  --bg-success-subtle: rgba(92, 192, 92, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-highlight: rgba(255, 255, 255, 0.12);
+  --glass-bg-strong: rgba(11, 15, 20, 0.95);
+  --glass-bg-subtle: rgba(11, 15, 20, 0.7);
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+  --bg-danger-subtle: rgba(255, 59, 59, 0.06);
+  --bg-success-subtle: rgba(45, 212, 191, 0.06);
 
   --header-height: 40px;
   --nav-width: 200px;

@@ -2,7 +2,18 @@ package events
 
 import (
 	"context"
+	"time"
 )
+
+// EventProcessingContext enforces deterministic execution across all pipeline stages.
+// Instead of calling time.Now() or rand.Uint64() inside pipeline processors,
+// nodes must rely strictly on the context provided at ingestion.
+type EventProcessingContext struct {
+	EventID  string
+	TenantID string
+	Seed     uint64
+	Now      time.Time
+}
 
 // SovereignEvent is the universal event format for the Sovereign Terminal ingestion pipeline.
 // It includes metadata, raw logs, and processing context.
@@ -24,6 +35,9 @@ type SovereignEvent struct {
 
 	// Context for tracing and cancellation across the pipeline
 	Ctx context.Context `json:"-"`
+	
+	// Determinism and audit context
+	ProcessingCtx EventProcessingContext `json:"processing_context"`
 }
 
 func (e *SovereignEvent) GetId() string { return e.Id }

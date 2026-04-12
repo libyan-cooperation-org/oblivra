@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
@@ -109,7 +110,12 @@ func (s *SyslogServer) serveUDP() {
 		}
 
 		rawLine := string(buf[:n])
-		evt := AutoParse(rawLine)
+		pCtx := events.EventProcessingContext{
+			EventID:  fmt.Sprintf("evt-udp-%d", time.Now().UnixNano()),
+			TenantID: "GLOBAL",
+			Now:      time.Now().UTC(),
+		}
+		evt := AutoParse(rawLine, pCtx)
 
 		// If parser couldn't determine host, use the IP from the packet
 		if evt.Host == "" || evt.Host == "unknown" {
@@ -163,7 +169,12 @@ func (s *SyslogServer) handleTCPConnection(conn net.Conn) {
 			continue
 		}
 
-		evt := AutoParse(rawLine)
+		pCtx := events.EventProcessingContext{
+			EventID:  fmt.Sprintf("evt-tcp-%d", time.Now().UnixNano()),
+			TenantID: "GLOBAL",
+			Now:      time.Now().UTC(),
+		}
+		evt := AutoParse(rawLine, pCtx)
 		if evt.Host == "" || evt.Host == "unknown" {
 			evt.Host = remoteHost
 		}

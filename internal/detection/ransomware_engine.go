@@ -110,7 +110,6 @@ const (
 	weightShadowDelete   = 40 // VSS deletion — hallmark of ransomware
 	weightExtRename      = 15 // known ransomware extension added
 	weightMassDelete     = 20 // large number of deletes in window
-	weightMassModify     = 10 // large number of modifications in window
 )
 
 // ── RansomwareEngine ─────────────────────────────────────────────────────────

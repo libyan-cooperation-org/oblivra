@@ -78,11 +78,9 @@ func ValidateRawLine(line string) error {
 		return &ValidationError{Reason: ErrEmptyPayload}
 	}
 
-	// 3. Null byte detection — O(n) but terminates at first byte
-	for i := 0; i < len(line); i++ {
-		if line[i] == 0x00 {
-			return &ValidationError{Reason: ErrNullByte, Offset: i}
-		}
+	// 3. Null byte detection — strings.IndexByte is assembly-optimized
+	if idx := strings.IndexByte(line, 0); idx >= 0 {
+		return &ValidationError{Reason: ErrNullByte, Offset: idx}
 	}
 
 	// 4. UTF-8 validity — O(n), safe for all input

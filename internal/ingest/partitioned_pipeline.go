@@ -3,7 +3,6 @@ package ingest
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -221,9 +220,14 @@ func (pp *PartitionedPipeline) shardFor(evt *events.SovereignEvent) *Pipeline {
 		key = evt.EventType // last resort — at least don't always hit shard 0
 	}
 
-	h := fnv.New32a()
-	h.Write([]byte(key))
-	idx := h.Sum32() % PartitionCount
+	// Inline FNV-1a to avoid fnv.New32a allocation and []byte(key) conversion
+	var h uint32 = 2166136261
+	for i := 0; i < len(key); i++ {
+		h ^= uint32(key[i])
+		h *= 16777619
+	}
+	
+	idx := h % PartitionCount
 	return pp.shards[idx]
 }
 

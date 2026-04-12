@@ -9,4 +9,6 @@ export interface DecisionCardData {
     host?: string;
     mitre?: string;
     timestamp?: string;
+    dataConfidence?: 'Verified' | 'Derived' | 'Untrusted';
+    isChained?: boolean; // True if part of a tamper-evident event chain
 }
