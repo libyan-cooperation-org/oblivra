@@ -31,13 +31,15 @@ type RiskEngine struct {
 	log   *logger.Logger
 	db    database.DatabaseStore
 	hosts database.HostStore
+	users database.UserStore
 }
 
-func NewRiskEngine(bus *eventbus.Bus, db database.DatabaseStore, h database.HostStore, log *logger.Logger) *RiskEngine {
+func NewRiskEngine(bus *eventbus.Bus, db database.DatabaseStore, h database.HostStore, u database.UserStore, log *logger.Logger) *RiskEngine {
 	return &RiskEngine{
 		bus:   bus,
 		db:    db,
 		hosts: h,
+		users: u,
 		log:   log.WithPrefix("risk"),
 	}
 }
@@ -111,4 +113,75 @@ func (e *RiskEngine) CalculateScore(event ConfigChangeEvent) RiskScore {
 		Impact:    "Performance overhead / Security posture shift",
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
+}
+
+// TriageIncident performs automated triage scoring (Phase 20.9)
+func (e *RiskEngine) TriageIncident(ctx context.Context, inc *database.Incident) (RiskScore, error) {
+	score := 0
+	reason := "Automated Triage: "
+
+	// 1. Asset Criticality (Heuristic)
+	host, err := e.hosts.GetByID(ctx, inc.GroupKey)
+	if err == nil && host != nil {
+		criticality := 0
+		if host.Label == "Production" || host.Label == "Domain Controller" || host.Label == "Critical" {
+			criticality += 40
+			reason += "High-value asset detected; "
+		}
+		score += criticality
+	}
+
+	// 2. Identity Risk (Heuristic)
+	user, err := e.users.GetUserByEmail(ctx, inc.GroupKey)
+	if err == nil && user != nil {
+		privilege := 0
+		if user.UserType == "admin" || user.UserType == "executive" {
+			privilege += 30
+			reason += "Privileged identity involved; "
+		}
+		if user.Department == "IT" || user.Department == "HR" || user.Department == "Finance" {
+			privilege += 15
+			reason += "Sensitive department; "
+		}
+		score += privilege
+	}
+
+	// 3. MITRE Tactic Weighting
+	for _, tactic := range inc.MitreTactics {
+		switch tactic {
+		case "Exfiltration", "Impact", "Command and Control":
+			score += 25
+			reason += fmt.Sprintf("Critical tactic (%s); ", tactic)
+		case "Persistence", "Privilege Escalation":
+			score += 15
+			reason += fmt.Sprintf("High-risk tactic (%s); ", tactic)
+		}
+	}
+
+	// 4. Volume Bonus
+	if inc.EventCount > 100 {
+		score += 10
+		reason += "High event volume; "
+	}
+
+	if score > 100 {
+		score = 100
+	}
+
+	level := "Low"
+	if score > 85 {
+		level = "Critical"
+	} else if score > 60 {
+		level = "High"
+	} else if score > 30 {
+		level = "Medium"
+	}
+
+	return RiskScore{
+		ID:        inc.ID,
+		Score:     score,
+		Level:     level,
+		Reason:    reason,
+		Timestamp: time.Now().Format(time.RFC3339),
+	}, nil
 }

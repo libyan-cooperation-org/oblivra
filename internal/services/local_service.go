@@ -129,14 +129,14 @@ func (s *LocalService) StartLocalSession() (sessionID string, retErr error) {
 	s.mu.Unlock()
 
 	// Persist session
-	s.sessionMgr.Create(database.Session{
+	s.sessionMgr.Create(s.ctx, database.Session{
 		ID:     id,
 		HostID: "local",
 		Status: "active",
 	})
 
 	// IMPORTANT: Tell the frontend a session exists
-	EmitEvent(s.ctx, "session:started", map[string]string{
+	EmitEvent("session:started", map[string]string{
 		"id":     id,
 		"hostId": "local",
 		"label":  "Local Terminal",
@@ -317,9 +317,9 @@ func (s *LocalService) cleanup(sessionID string, processExited bool) error {
 		batcher.Flush()
 	}
 
-	s.sessionMgr.UpdateStatus(sessionID, "closed")
-	EmitEvent(s.ctx, "session-closed-"+sessionID, sessionID)
-	EmitEvent(s.ctx, "session:closed", sessionID)
+	s.sessionMgr.UpdateStatus(s.ctx, sessionID, "closed")
+	EmitEvent("session-closed-"+sessionID, sessionID)
+	EmitEvent("session:closed", sessionID)
 	s.log.Info("Session %s cleaned up", sessionID)
 	return nil
 }

@@ -123,7 +123,7 @@ func (s *LogSourceService) loadPersistedSources() {
 	if s.analytics == nil {
 		return
 	}
-	data, err := s.analytics.LoadConfig(configKeyLogSources)
+	data, err := s.analytics.LoadConfig(s.ctx, configKeyLogSources)
 	if err != nil {
 		return
 	}
@@ -152,7 +152,7 @@ func (s *LogSourceService) persistSources() {
 		safe[i].Password = obfuscate(safe[i].Password)
 	}
 	if data, err := json.Marshal(safe); err == nil {
-		s.analytics.SaveConfig(configKeyLogSources, string(data))
+		s.analytics.SaveConfig(s.ctx, configKeyLogSources, string(data))
 	}
 }
 
@@ -160,7 +160,7 @@ func (s *LogSourceService) loadPersistedSearches() {
 	if s.analytics == nil {
 		return
 	}
-	data, err := s.analytics.LoadConfig(configKeySavedSearch)
+	data, err := s.analytics.LoadConfig(s.ctx, configKeySavedSearch)
 	if err != nil {
 		return
 	}
@@ -176,7 +176,7 @@ func (s *LogSourceService) persistSearches() {
 	s.savedMu.RLock()
 	defer s.savedMu.RUnlock()
 	if data, err := json.Marshal(s.savedSearches); err == nil {
-		s.analytics.SaveConfig(configKeySavedSearch, string(data))
+		s.analytics.SaveConfig(s.ctx, configKeySavedSearch, string(data))
 	}
 }
 
@@ -297,12 +297,12 @@ func (s *LogSourceService) StartLokiStream(sourceID, query string) error {
 	go func() {
 		// Provide an emit callback to SourceManager
 		err := s.manager.StreamLoki(ctx, func(res logsources.LogResult) {
-			EmitEvent(s.ctx, "loki-stream-"+sourceID, res)
+			EmitEvent("loki-stream-"+sourceID, res)
 		}, sourceID, query)
 
 		if err != nil && err != context.Canceled {
 			s.log.Error("Loki stream error for %s: %v", sourceID, err)
-			EmitEvent(s.ctx, "loki-stream-error-"+sourceID, err.Error())
+			EmitEvent("loki-stream-error-"+sourceID, err.Error())
 		}
 
 		s.streamMu.Lock()

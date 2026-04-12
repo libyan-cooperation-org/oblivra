@@ -10,6 +10,7 @@
 
   interface Props {
     open: boolean;
+    onClose?: () => void;
   }
 
   let { open = $bindable() }: Props = $props();

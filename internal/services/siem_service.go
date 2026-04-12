@@ -96,7 +96,7 @@ func (s *SIEMService) Start(ctx context.Context) error {
 			}
 		}
 
-		EmitEvent(s.ctx, "siem-stream", evt)
+		EmitEvent("siem-stream", evt)
 	})
 
 	// Subscribe to SIEM audit completion events to perform heuristic cross-checks
@@ -269,7 +269,7 @@ func (s *SIEMService) suggestRemediation(hostID, sessionID, threatType string) {
 		return
 	}
 
-	snippets, err := s.snippets.List()
+	snippets, err := s.snippets.List(s.ctx)
 	if err != nil {
 		return
 	}

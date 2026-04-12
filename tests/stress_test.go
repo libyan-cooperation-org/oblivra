@@ -101,7 +101,7 @@ BurstDone:
 	// 5. Integrity Check: Query SIEM store for count
 	// Note: We need to use a query that matches our generated logs.
 	// "nobody" is a good keyword from the generation loop.
-	events, err := application.SIEMService.SearchHostEvents("nobody", 10)
+	events, err := application.SIEMService.SearchHostEvents(context.TODO(), "nobody", 10)
 	if err != nil {
 		t.Fatalf("Failed to query SIEM store: %v", err)
 	}

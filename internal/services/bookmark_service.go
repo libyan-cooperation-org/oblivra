@@ -283,9 +283,9 @@ func (s *BookmarkService) toEntry(h database.Host) BookmarkEntry {
 }
 
 // QuickSearch performs a fuzzy search across labels, hostnames, and tags.
-func (s *BookmarkService) QuickSearch(query string) ([]BookmarkEntry, error) {
+func (s *BookmarkService) QuickSearch(ctx context.Context, query string) ([]BookmarkEntry, error) {
 	if strings.TrimSpace(query) == "" {
-		return s.ListAll()
+		return s.ListAll(ctx)
 	}
-	return s.Search(query)
+	return s.Search(ctx, query)
 }

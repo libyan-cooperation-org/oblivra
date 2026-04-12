@@ -250,6 +250,24 @@
 - [s] Field-level indexing via Bleve field mappings 🏗️
 - [s] Aggregation support (facets, group-by, histograms) 🏗️
 - [s] Saved searches (DB model + API + UI) 🏗️
+- [x] Refactor `EmitEvent` signature in `internal/services/interfaces.go`
+- [x] Update `main.go` with `RootPath`
+- [x] Fix `Taskfile.yml` includes
+- [x] Refactor `internal/services/analytics_service.go`
+- [x] Refactor `internal/services/identity_service.go` (Signatures)
+- [x] Refactor `internal/services/bookmark_service.go` (`QuickSearch`)
+- [x] Refactor `internal/app/app.go` (Analytics calls)
+- [x] Refactor `internal/services/interfaces.go` (Events fix)
+- [x] Refactor `internal/services/logsource_service.go` (Context args)
+- [x] Refactor `internal/services/siem_service.go` (Context args)
+- [x] Refactor `internal/services/compliance_service.go` (Context args)
+- [x] Refactor `internal/services/snippet_service.go` (Secret args)
+- [x] Refactor `internal/services/interfaces.go` (SessionOperations context)
+- [x] Refactor `internal/services/ssh_service.go` (Implement Service & Executor)
+- [x] Refactor `internal/services/local_service.go` (Context args)
+- [x] Verify build (`go build ./...`)
+- [x] Transition `wails.json` to NPM
+- [x] Verify full Wails bundle (`wails3 build`)
 - [x] Performance validation: <5s for 10M events
 - [x] OpenAPI 3.0 spec: machine-readable API contracts with auto-generated SDKs 🌐
 

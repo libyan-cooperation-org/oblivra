@@ -228,6 +228,58 @@ func (w *WAL) Replay(fn func(payload []byte) error) error {
 	return nil
 }
 
+// ReadWALManual provides low-level read access to a WAL file without requiring a full WAL manager instance.
+// Useful for replay tools and forensic analysis.
+func ReadWALManual(filename string, fn func(payload []byte) error) error {
+	rf, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("open wal manual: %w", err)
+	}
+	defer rf.Close()
+
+	reader := bufio.NewReader(rf)
+	count := 0
+
+	for {
+		lenBuf := make([]byte, 4)
+		if _, err := io.ReadFull(reader, lenBuf); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("read header error: %w", err)
+		}
+
+		length := binary.LittleEndian.Uint32(lenBuf)
+		if length > 10*1024*1024 {
+			return fmt.Errorf("corrupt wal: length %d too large", length)
+		}
+
+		checkBuf := make([]byte, 4)
+		if _, err := io.ReadFull(reader, checkBuf); err != nil {
+			return fmt.Errorf("read checksum error: %w", err)
+		}
+		expectedChecksum := binary.LittleEndian.Uint32(checkBuf)
+
+		payload := make([]byte, length)
+		if _, err := io.ReadFull(reader, payload); err != nil {
+			return fmt.Errorf("read payload error: %w", err)
+		}
+
+		actualChecksum := crc32.ChecksumIEEE(payload)
+		if actualChecksum != expectedChecksum {
+			return fmt.Errorf("checksum mismatch on record %d", count)
+		}
+
+		if err := fn(payload); err != nil {
+			return err
+		}
+
+		count++
+	}
+
+	return nil
+}
+
 // Close gracefully flushes and shuts down the WAL.
 func (w *WAL) Close() error {
 	w.cancel()

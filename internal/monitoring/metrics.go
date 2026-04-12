@@ -97,9 +97,18 @@ func (mc *MetricsCollector) registerDefaultMetrics() {
 	mc.RegisterGauge("badger_lsm_size_bytes", "Size of the LSM tree in bytes", nil)
 	mc.RegisterGauge("badger_vlog_size_bytes", "Size of the value log in bytes", nil)
 
-	// Stability Slope metrics
 	mc.RegisterGauge("stability_rss_slope_bytes_min", "Average heap memory growth per minute", nil)
 	mc.RegisterGauge("stability_goroutine_slope_min", "Average goroutine growth per minute", nil)
+
+	// Ingestion Reliability (Phase 17)
+	mc.RegisterGauge("ingest_tenant_buffer_occupancy", "Percentage of tenant ingest buffer used", nil)
+	mc.RegisterGauge("ingest_stall_recovery_active", "Number of currently active stall recovery workers", nil)
+	mc.RegisterCounter("ingest_stall_recovery_total", "Total count of stall recovery interventions", nil)
+
+	// Ingestion Health & Scaling (Phase 17/18)
+	mc.RegisterGauge("ingest_pipeline_status", "Operational health: 0=Healthy, 1=Degraded, 2=Critical", nil)
+	mc.RegisterGauge("ingest_active_workers", "Total active worker count including adaptive extras", nil)
+	mc.RegisterGauge("ingest_eps_target", "Current events-per-second target goal", nil)
 }
 
 // RegisterCounter registers a new counter metric
@@ -153,9 +162,23 @@ func (mc *MetricsCollector) RegisterHistogram(name, description string, buckets 
 // IncrCounter increments a counter
 func (mc *MetricsCollector) IncrCounter(name string, labels map[string]string) {
 	key := metricKey(name, labels)
-	mc.mu.RLock()
+	mc.mu.Lock()
 	counter, ok := mc.counters[key]
-	mc.mu.RUnlock()
+	if !ok {
+		// Attempt dynamic registration if the base name is known
+		if baseMeta, baseOk := mc.metadata[name]; baseOk {
+			v := int64(0)
+			counter = &v
+			mc.counters[key] = counter
+			mc.metadata[key] = metricMeta{
+				description: baseMeta.description,
+				metricType:  MetricCounter,
+				labels:      labels,
+			}
+			ok = true
+		}
+	}
+	mc.mu.Unlock()
 	if ok {
 		atomic.AddInt64(counter, 1)
 	}
@@ -176,10 +199,24 @@ func (mc *MetricsCollector) AddCounter(name string, value int64, labels map[stri
 func (mc *MetricsCollector) SetGauge(name string, value float64, labels map[string]string) {
 	key := metricKey(name, labels)
 	mc.mu.Lock()
-	if gauge, ok := mc.gauges[key]; ok {
+	defer mc.mu.Unlock()
+	
+	gauge, ok := mc.gauges[key]
+	if !ok {
+		// Attempt dynamic registration
+		if baseMeta, baseOk := mc.metadata[name]; baseOk {
+			v := value
+			mc.gauges[key] = &v
+			mc.metadata[key] = metricMeta{
+				description: baseMeta.description,
+				metricType:  MetricGauge,
+				labels:      labels,
+			}
+			return
+		}
+	} else {
 		*gauge = value
 	}
-	mc.mu.Unlock()
 }
 
 // ObserveHistogram records a value in a histogram

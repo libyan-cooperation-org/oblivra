@@ -146,7 +146,7 @@ func TestRaftSplitBrain(t *testing.T) {
 	}
 
 	// Verify the isolated leader CANNOT accept writes
-	_, _, err := leader.ApplyWrite(context.Background(), "INSERT INTO test_raft (state) VALUES (?)", "isolated_write")
+	_, _, err := leader.ApplyWrite(context.Background(), "test-req-1", "INSERT INTO test_raft (state) VALUES (?)", "isolated_write")
 	if err == nil {
 		t.Fatal("Isolated minority leader accepted a write that could corrupt DB state")
 	}

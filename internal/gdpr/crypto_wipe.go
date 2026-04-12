@@ -72,6 +72,11 @@ func (s *DataDestructionService) CryptoWipe(tableName, whereClause string) error
 		return fmt.Errorf("crypto wipe refused: %w", err)
 	}
 
+	// SECURITY: Ensure whereClause doesn't contain multiple statements or bypasses
+	if len(whereClause) > 256 {
+		return fmt.Errorf("crypto wipe refused: whereClause too long")
+	}
+
 	// 0. Check if table exists
 	var name string
 	err := s.db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&name)

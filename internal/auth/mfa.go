@@ -5,9 +5,33 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image/png"
+	"sync"
+	"time"
 
 	"github.com/pquerna/otp/totp"
 )
+
+// usedCodes tracks recently used TOTP codes to prevent replay attacks.
+// Keys are "secret:code", values are the expiration time.
+var usedCodes sync.Map
+
+// cleanupInterval is how often the usedCodes cache is purged of expired entries.
+const cleanupInterval = 5 * time.Minute
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(cleanupInterval)
+		for range ticker.C {
+			now := time.Now().Unix()
+			usedCodes.Range(func(key, value interface{}) bool {
+				if expiry, ok := value.(int64); ok && expiry < now {
+					usedCodes.Delete(key)
+				}
+				return true
+			})
+		}
+	}()
+}
 
 // TOTPConfig holds options for TOTP generation
 type TOTPConfig struct {
@@ -50,7 +74,19 @@ func GenerateTOTP(cfg TOTPConfig) (*TOTPSetupResult, error) {
 	}, nil
 }
 
-// ValidateTOTP checks whether a 6-digit code is currently valid
+// ValidateTOTP checks whether a 6-digit code is currently valid and not replayed.
 func ValidateTOTP(secret string, code string) bool {
-	return totp.Validate(code, secret)
+	// 1. Basic TOTP validation (includes drift window)
+	if !totp.Validate(code, secret) {
+		return false
+	}
+
+	// 2. Prevent replay by checking our cache
+	key := fmt.Sprintf("%s:%s", secret, code)
+	if _, loaded := usedCodes.LoadOrStore(key, time.Now().Add(2*time.Minute).Unix()); loaded {
+		// Code was already used recently
+		return false
+	}
+
+	return true
 }

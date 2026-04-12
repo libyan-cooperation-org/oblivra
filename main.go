@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -15,6 +17,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 						
 	"github.com/kingknull/oblivrashell/internal/app"
+	"github.com/kingknull/oblivrashell/internal/ingest"
+	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
 //go:embed all:frontend/dist
@@ -31,6 +35,11 @@ func main() {
 		return
 	}
 
+	if len(os.Args) >= 2 && os.Args[1] == "replay" {
+		replayCmd(os.Args[2:])
+		return
+	}
+
 	// Sovereign Core: Runtime Binary Attestation
 	attestSvc := attestation.NewAttestationService()
 	if err := attestSvc.VerifyOnStartup(); err != nil {
@@ -42,9 +51,9 @@ func main() {
 	
 log.Println("[DEBUG] About to call application.New")
 app := application.New(application.Options{
-Name:        "OblivraShell",
-Description: "OBLIVRA Enterprise Core",
-Services: []application.Service{
+		Name:        "OblivraShell",
+		Description: "OBLIVRA Enterprise Core",
+		Services: []application.Service{
 application.NewService(oblivraApp.HostService),
 			application.NewService(oblivraApp.SSHService),
 			application.NewService(oblivraApp.VaultService),
@@ -265,4 +274,41 @@ func workerCmd(args []string) {
 
 	// Serve forever on standard I/O
 	worker.ServeStdinStdout(os.Stdin, os.Stdout)
+}
+func replayCmd(args []string) {
+	fs := flag.NewFlagSet("replay", flag.ExitOnError)
+	walPath := fs.String("from", "", "Path to the WAL file to replay")
+	fs.Parse(args)
+
+	if *walPath == "" {
+		log.Fatal("Replay error: --from <path> is required")
+	}
+
+	// Initialize isolated logger for replay
+	l := logger.NewStdoutLogger()
+	l.Info("╔══════════════════════════════════════════╗")
+	l.Info("║      OBLIVRA EVENT REPLAY ENGINE         ║")
+	l.Info("╚══════════════════════════════════════════╝")
+	l.Info("Replaying from: %s", *walPath)
+
+	replayer := ingest.NewEventReplayer(l)
+	result, err := replayer.ReplayWAL(context.Background(), *walPath)
+	if err != nil {
+		l.Fatal("Replay failed: %v", err)
+	}
+
+	// Output summary
+	l.Info("Replay complete!")
+	l.Info("Total Processed: %d", result.TotalEvents)
+	l.Info("Alerts Generated: %d", len(result.Alerts))
+	l.Info("Duration: %v", result.Duration)
+
+	// Print alerts in NDJSON for piping
+	if len(result.Alerts) > 0 {
+		fmt.Println("\n--- ALERTS (NDJSON) ---")
+		for _, alert := range result.Alerts {
+			data, _ := json.Marshal(alert)
+			fmt.Println(string(data))
+		}
+	}
 }

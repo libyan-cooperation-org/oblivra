@@ -57,7 +57,22 @@ func (s *SettingsService) Set(key string, value string) error {
 	if s.db == nil || s.db.DB() == nil {
 		return database.ErrLocked
 	}
-	s.log.Debug("Setting setting: %s=%s", key, value)
+	sensitiveKeys := map[string]bool{
+		"smtp_password":   true,
+		"api_key":         true,
+		"secret_key":      true,
+		"vault_key":       true,
+		"token":           true,
+		"slack_webhook":   true,
+		"discord_webhook": true,
+	}
+
+	displayValue := value
+	if sensitiveKeys[key] {
+		displayValue = "[REDACTED]"
+	}
+
+	s.log.Debug("Setting setting: %s=%s", key, displayValue)
 	_, err := s.db.DB().Exec("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", key, value)
 	if err == nil {
 		s.bus.Publish(eventbus.EventSettingsChanged, key)

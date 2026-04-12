@@ -340,7 +340,7 @@ func (a *App) DomReady(ctx context.Context) {
 	if a.container != nil {
 		a.container.Log.Info("Frontend DOM ready")
 		a.container.Infra.Bus.Subscribe(eventbus.AllEvents, func(event eventbus.Event) {
-			services.EmitEvent(a.ctx, string(event.Type), event.Data)
+			services.EmitEvent(string(event.Type), event.Data)
 		})
 	}
 }
@@ -393,7 +393,7 @@ func (a *App) SearchLogs(query string, mode string, limit int, offset int) ([]ma
 	if a.container == nil || a.container.Infra.AnalyticsEngine == nil {
 		return nil, fmt.Errorf("analytics engine is not initialized")
 	}
-	return a.container.Infra.AnalyticsEngine.Search(query, mode, limit, offset)
+	return a.container.Infra.AnalyticsEngine.Search(a.ctx, query, mode, limit, offset)
 }
 
 // GetRecordingFrames retrieves the full TTY frame sequence for a session
@@ -401,7 +401,7 @@ func (a *App) GetRecordingFrames(sessionID string) ([]map[string]interface{}, er
 	if a.container == nil || a.container.Infra.AnalyticsEngine == nil {
 		return nil, fmt.Errorf("analytics engine is not initialized")
 	}
-	return a.container.Infra.AnalyticsEngine.GetRecordingFrames(sessionID)
+	return a.container.Infra.AnalyticsEngine.GetRecordingFrames(a.ctx, sessionID)
 }
 
 // SaveDashboard stores a dashboard layout as JSON
@@ -409,7 +409,7 @@ func (a *App) SaveDashboard(id string, layoutJSON string) error {
 	if a.container == nil || a.container.Infra.AnalyticsEngine == nil {
 		return fmt.Errorf("analytics engine is not initialized")
 	}
-	return a.container.Infra.AnalyticsEngine.SaveConfig("dashboard_"+id, layoutJSON)
+	return a.container.Infra.AnalyticsEngine.SaveConfig(a.ctx, "dashboard_"+id, layoutJSON)
 }
 
 // LoadDashboard retrieves a saved dashboard layout
@@ -417,7 +417,7 @@ func (a *App) LoadDashboard(id string) (string, error) {
 	if a.container == nil || a.container.Infra.AnalyticsEngine == nil {
 		return "", fmt.Errorf("analytics engine is not initialized")
 	}
-	return a.container.Infra.AnalyticsEngine.LoadConfig("dashboard_" + id)
+	return a.container.Infra.AnalyticsEngine.LoadConfig(a.ctx, "dashboard_" + id)
 }
 
 // RunWidgetQuery executes a dashboard widget query
@@ -425,7 +425,7 @@ func (a *App) RunWidgetQuery(query string, limit int) ([]map[string]interface{},
 	if a.container == nil || a.container.Infra.AnalyticsEngine == nil {
 		return nil, fmt.Errorf("analytics engine is not initialized")
 	}
-	return a.container.Infra.AnalyticsEngine.Search(query, "sql", limit, 0)
+	return a.container.Infra.AnalyticsEngine.Search(a.ctx, query, "sql", limit, 0)
 }
 
 // RunOsquery executes an osquery-style query (stub — osquery integration planned for Phase 6)

@@ -51,7 +51,14 @@ func (s *BadgerSource) Fetch(ctx context.Context, search SearchExpr, timeRange T
 			return nil // Skip malformed rows
 		}
 		
-		// Convert database.HostEvent to OQL Row (map[string]interface{})
+		// Flatten metadata fields (Phase 20.1)
+		// This promotes fields like 'identity.department' to the top level for cleaner OQL
+		if meta, ok := row["metadata"].(map[string]interface{}); ok {
+			for k, v := range meta {
+				row[k] = v
+			}
+		}
+
 		rows = append(rows, Row(row))
 		return nil
 	})

@@ -122,3 +122,61 @@ type EvidenceStore interface {
 	AddChainEntry(ctx context.Context, entry *ChainEntry) error
 	GetChain(ctx context.Context, evidenceID string) ([]ChainEntry, error)
 }
+
+// CloudAssetStore defines the interface for managing cloud resource inventory.
+type CloudAssetStore interface {
+	Upsert(ctx context.Context, asset *CloudAsset) error
+	GetByID(ctx context.Context, id string) (*CloudAsset, error)
+	List(ctx context.Context, provider string, accountID string) ([]CloudAsset, error)
+	Delete(ctx context.Context, id string) error
+	GetStats(ctx context.Context) (map[string]int, error)
+}
+
+// IdentityConnectorStore defines the interface for managing external identity sources.
+type IdentityConnectorStore interface {
+	List(ctx context.Context) ([]IdentityConnector, error)
+	Create(ctx context.Context, c *IdentityConnector) error
+	GetByID(ctx context.Context, id string) (*IdentityConnector, error)
+	Update(ctx context.Context, c *IdentityConnector) error
+	Delete(ctx context.Context, id string) error
+	UpdateStatus(ctx context.Context, id string, status string, errorMessage string) error
+	MarkSyncStart(ctx context.Context, id string) error
+}
+
+// UserStore defines the interface for user and identity management.
+type UserStore interface {
+	CreateUser(ctx context.Context, u *User) error
+	UpdateUser(ctx context.Context, u *User) error
+	GetUserByID(ctx context.Context, id string) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	ListUsers(ctx context.Context) ([]User, error)
+	DeleteUser(ctx context.Context, id string) error
+}
+
+// ReportStore defines the interface for managing reports and schedules.
+type ReportStore interface {
+	CreateTemplate(ctx context.Context, t *ReportTemplate) error
+	GetTemplate(ctx context.Context, id string) (*ReportTemplate, error)
+	ListTemplates(ctx context.Context) ([]ReportTemplate, error)
+	
+	CreateSchedule(ctx context.Context, s *ReportSchedule) error
+	GetDueSchedules(ctx context.Context) ([]ReportSchedule, error)
+	MarkScheduleRun(ctx context.Context, id string) error
+	
+	CreateReportInstance(ctx context.Context, g *GeneratedReport) error
+	ListReports(ctx context.Context, limit int) ([]GeneratedReport, error)
+}
+
+// DashboardStore defines the interface for native Dashboard Studio management.
+type DashboardStore interface {
+	Create(ctx context.Context, d *Dashboard) error
+	GetByID(ctx context.Context, id string) (*Dashboard, error)
+	List(ctx context.Context) ([]Dashboard, error)
+	Update(ctx context.Context, d *Dashboard) error
+	Delete(ctx context.Context, id string) error
+
+	AddWidget(ctx context.Context, w *DashboardWidget) error
+	GetWidgets(ctx context.Context, dashboardID string) ([]DashboardWidget, error)
+	UpdateWidget(ctx context.Context, w *DashboardWidget) error
+	DeleteWidget(ctx context.Context, dashboardID, widgetID string) error
+}

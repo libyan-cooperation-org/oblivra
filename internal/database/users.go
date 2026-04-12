@@ -12,18 +12,30 @@ import (
 
 // User represents an identity within a tenant
 type User struct {
-	ID           string    `json:"id"`
-	TenantID     string    `json:"tenant_id"`
-	Email        string    `json:"email"`
-	Name         string    `json:"name"`
-	PasswordHash string    `json:"-"`
-	AuthProvider string    `json:"auth_provider"` // local, saml, oidc
-	IsMFAEnabled bool      `json:"is_mfa_enabled"`
-	MFASecret    string    `json:"-"`
-	RoleID       string    `json:"role_id"`
-	CreatedAt    string    `json:"created_at"`
-	UpdatedAt    string    `json:"updated_at"`
-	LastLoginAt  string    `json:"last_login_at"`
+	ID                string    `json:"id"`
+	TenantID          string    `json:"tenant_id"`
+	Email             string    `json:"email"`
+	Name              string    `json:"name"`
+	PasswordHash      string    `json:"-"`
+	AuthProvider      string    `json:"auth_provider"`
+	IsMFAEnabled      bool      `json:"is_mfa_enabled"`
+	MFASecret         string    `json:"-"`
+	RoleID            string    `json:"role_id"`
+	CreatedAt         string    `json:"created_at"`
+	UpdatedAt         string    `json:"updated_at"`
+	LastLoginAt       string    `json:"last_login_at"`
+
+	// SCIM Normalization fields
+	ExternalID        string    `json:"external_id"`
+	Active            bool      `json:"active"`
+	DisplayName       string    `json:"display_name"`
+	UserType          string    `json:"user_type"`
+	Title             string    `json:"title"`
+	Department        string    `json:"department"`
+	Organization      string    `json:"organization"`
+	PreferredLanguage string    `json:"preferred_language"`
+	GroupsJSON        string    `json:"groups_json"`
+	SCIMAttributes    string    `json:"scim_attributes_json"`
 }
 
 // Role defines a set of permissions
@@ -64,10 +76,14 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *User) error {
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO users (
 			id, tenant_id, email, name, password_hash, auth_provider,
-			is_mfa_enabled, mfa_secret, role_id, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			is_mfa_enabled, mfa_secret, role_id, created_at, updated_at,
+			external_id, active, display_name, user_type, title,
+			department, organization, preferred_language, groups_json, scim_attributes_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, u.ID, u.TenantID, u.Email, u.Name, u.PasswordHash, u.AuthProvider,
-		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.CreatedAt, u.UpdatedAt)
+		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.CreatedAt, u.UpdatedAt,
+		u.ExternalID, u.Active, u.DisplayName, u.UserType, u.Title,
+		u.Department, u.Organization, u.PreferredLanguage, u.GroupsJSON, u.SCIMAttributes)
 
 	if err != nil {
 		return fmt.Errorf("create user: %w", err)
@@ -101,7 +117,9 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 	if isGlobal {
 		query = `
 			SELECT id, tenant_id, email, name, password_hash, auth_provider,
-			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
+			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
+			       external_id, active, display_name, user_type, title,
+			       department, organization, preferred_language, groups_json, scim_attributes_json
 			FROM users
 			WHERE email = ?
 		`
@@ -110,7 +128,9 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 		tenantID := TenantFromContext(ctx)
 		query = `
 			SELECT id, tenant_id, email, name, password_hash, auth_provider,
-			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
+			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
+			       external_id, active, display_name, user_type, title,
+			       department, organization, preferred_language, groups_json, scim_attributes_json
 			FROM users
 			WHERE email = ? AND tenant_id = ?
 		`
@@ -120,6 +140,8 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 	err = conn.QueryRow(query, args...).Scan(
 		&u.ID, &u.TenantID, &u.Email, &u.Name, &u.PasswordHash, &u.AuthProvider,
 		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
+		&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
+		&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
 	)
 
 	if err == sql.ErrNoRows {
@@ -153,12 +175,16 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 
 	err = conn.QueryRow(`
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
-		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
+		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
+		       external_id, active, display_name, user_type, title,
+		       department, organization, preferred_language, groups_json, scim_attributes_json
 		FROM users
 		WHERE id = ? AND tenant_id = ?
 	`, id, tenantID).Scan(
 		&u.ID, &u.TenantID, &u.Email, &u.Name, &u.PasswordHash, &u.AuthProvider,
 		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
+		&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
+		&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
 	)
 
 	if err == sql.ErrNoRows {
@@ -166,6 +192,49 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query user by ID: %w", err)
+	}
+
+	if lastLogin.Valid {
+		u.LastLoginAt = lastLogin.String
+	}
+
+	return &u, nil
+}
+
+// GetUserByExternalID finds a user by their external identifier (IdP ID)
+func (r *UserRepository) GetUserByExternalID(ctx context.Context, externalID string) (*User, error) {
+	r.db.RLock()
+	defer r.db.RUnlock()
+
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID := TenantFromContext(ctx)
+
+	var u User
+	var lastLogin sql.NullString
+
+	err = conn.QueryRow(`
+		SELECT id, tenant_id, email, name, password_hash, auth_provider,
+		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
+		       external_id, active, display_name, user_type, title,
+		       department, organization, preferred_language, groups_json, scim_attributes_json
+		FROM users
+		WHERE external_id = ? AND tenant_id = ?
+	`, externalID, tenantID).Scan(
+		&u.ID, &u.TenantID, &u.Email, &u.Name, &u.PasswordHash, &u.AuthProvider,
+		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
+		&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
+		&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query user by external ID: %w", err)
 	}
 
 	if lastLogin.Valid {
@@ -186,10 +255,16 @@ func (r *UserRepository) UpdateUser(ctx context.Context, u *User) error {
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE users SET
 			email = ?, name = ?, password_hash = ?, auth_provider = ?,
-			is_mfa_enabled = ?, mfa_secret = ?, role_id = ?, updated_at = ?
+			is_mfa_enabled = ?, mfa_secret = ?, role_id = ?, updated_at = ?,
+			external_id = ?, active = ?, display_name = ?, user_type = ?,
+			title = ?, department = ?, organization = ?, preferred_language = ?,
+			groups_json = ?, scim_attributes_json = ?
 		WHERE id = ? AND tenant_id = ?
 	`, u.Email, u.Name, u.PasswordHash, u.AuthProvider,
-		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.UpdatedAt, u.ID, u.TenantID)
+		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.UpdatedAt,
+		u.ExternalID, u.Active, u.DisplayName, u.UserType, u.Title,
+		u.Department, u.Organization, u.PreferredLanguage, u.GroupsJSON, u.SCIMAttributes,
+		u.ID, u.TenantID)
 
 	if err != nil {
 		return fmt.Errorf("update user: %w", err)
@@ -212,6 +287,20 @@ func (r *UserRepository) RecordLogin(ctx context.Context, id string) error {
 	return err
 }
 
+// DeleteUser removes a user
+func (r *UserRepository) DeleteUser(ctx context.Context, id string) error {
+	r.db.Lock()
+	defer r.db.Unlock()
+
+	tenantID := TenantFromContext(ctx)
+
+	_, err := r.db.ReplicatedExecContext(ctx, `
+		DELETE FROM users WHERE id = ? AND tenant_id = ?
+	`, id, tenantID)
+
+	return err
+}
+
 // ListUsers returns all users in a tenant
 func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 	r.db.RLock()
@@ -226,7 +315,9 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
-		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at
+		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
+		       external_id, active, display_name, user_type, title,
+		       department, organization, preferred_language, groups_json, scim_attributes_json
 		FROM users
 		WHERE tenant_id = ?
 		ORDER BY name ASC
@@ -243,6 +334,8 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 		if err := rows.Scan(
 			&u.ID, &u.TenantID, &u.Email, &u.Name, &u.PasswordHash, &u.AuthProvider,
 			&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
+			&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
+			&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
 		); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}

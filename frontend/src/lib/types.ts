@@ -55,3 +55,9 @@ export type NavTab =
     | 'mitre-heatmap' | 'entity';
 
 export type Workspace = 'Personal' | 'Work' | 'Team';
+
+export interface SystemHealth {
+    status: 'healthy' | 'degraded' | 'critical' | 'unknown';
+    message?: string;
+    last_updated?: string;
+}

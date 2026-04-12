@@ -48,6 +48,7 @@ type AlertingService struct {
 	log           *logger.Logger
 	sigmaWatcher  *fsnotify.Watcher // hot-reload watcher; nil if sigma dir absent
 	sigmaDir      string            // absolute path being watched
+	corrHub       *detection.CorrelationHub
 }
 
 func (s *AlertingService) Name() string { return "alerting-service" }
@@ -93,6 +94,11 @@ func (s *AlertingService) Start(ctx context.Context) error {
 				sigmaDir, len(s.evaluator.GetRules()))
 			// Start filesystem watcher for hot-reload on .yml changes
 			s.startSigmaWatcher(ctx)
+
+			// Initialize and start the CorrelationHub for cross-shard rules
+			// We clone the global evaluator and put it into HUB mode (IsLocal=false)
+			s.corrHub = detection.NewCorrelationHub(s.evaluator.Clone(), s.bus, s.log)
+			s.corrHub.Start(ctx)
 		}
 	}
 
@@ -154,89 +160,52 @@ func (s *AlertingService) Start(ctx context.Context) error {
 		}
 	})
 
-	// Listen for real-time SIEM events and evaluate against YAML detection rules
-	if s.evaluator != nil {
-		s.bus.Subscribe("siem.event_indexed", func(e eventbus.Event) {
-			defer func() {
-				if r := recover(); r != nil {
-					s.log.Error("[ALERTING] Recovered from panic in event_indexed: %v", r)
-				}
-			}()
+	// Listen for matches from parallel shard evaluators
+	s.bus.Subscribe("detection.match", func(e eventbus.Event) {
+		match, ok := e.Data.(detection.Match)
+		if !ok {
+			return
+		}
 
-			evt, ok := e.Data.(database.HostEvent)
-			if !ok {
-				return
+		ctx := database.WithTenant(s.ctx, match.TenantID)
+		groupKey := match.Context["group_key"]
+
+		incident, err := s.incidents.GetByRuleAndGroup(ctx, match.RuleID, groupKey)
+		if err != nil {
+			s.log.Error("Failed to lookup incident: %v", err)
+			return
+		}
+
+		isNew := false
+		if incident == nil {
+			isNew = true
+			incident = &database.Incident{
+				ID:              fmt.Sprintf("INC-%d", time.Now().UnixNano()),
+				TenantID:        match.TenantID,
+				RuleID:          match.RuleID,
+				GroupKey:        groupKey,
+				Status:          "New",
+				Severity:        match.Severity,
+				Description:     match.Description,
+				Title:           fmt.Sprintf("Detection Alert: %s (Entity: %s)", match.RuleName, groupKey),
+				FirstSeenAt:     time.Now().Format(time.RFC3339),
+				EventCount:      0,
+				MitreTactics:    match.MitreTactics,
+				MitreTechniques: match.MitreTechniques,
 			}
+		}
 
-			if s.evaluator == nil || s.incidents == nil || s.ctx == nil {
-				return
-			}
+		incident.LastSeenAt = time.Now().Format(time.RFC3339)
+		incident.EventCount++
 
-			// Create a tenant-scoped context for the detection lifecycle
-			tenantID := evt.TenantID
-			if tenantID == "" {
-				tenantID = "default_tenant"
-			}
-			ctx := database.WithTenant(s.ctx, tenantID)
+		if err := s.incidents.Upsert(ctx, incident); err != nil {
+			s.log.Error("Failed to upsert detection incident: %v", err)
+		}
 
-			// Run event through the YAML detection state machine
-			detEvt := detection.Event{
-				EventType: evt.EventType,
-				SourceIP:  evt.SourceIP,
-				User:      evt.User,
-				HostID:    evt.HostID,
-				RawLog:    evt.RawLog,
-				Location:  evt.Location,
-				Timestamp: evt.Timestamp,
-			}
-			matches := s.evaluator.ProcessEvent(detEvt)
-			for _, match := range matches {
-				groupKey := evt.HostID
-				// If the evaluator supplied a specific group key, use it
-				if match.Context != nil {
-					if k, ok := match.Context["group_key"]; ok && k != "" {
-						groupKey = k
-					}
-				}
-
-				incident, err := s.incidents.GetByRuleAndGroup(ctx, match.RuleID, groupKey)
-				if err != nil {
-					s.log.Error("Failed to get active incident for %s: %v", match.RuleID, err)
-					continue
-				}
-
-				isNew := false
-				if incident == nil {
-					isNew = true
-					incident = &database.Incident{
-						ID:              fmt.Sprintf("INC-%d", time.Now().UnixNano()),
-						TenantID:        tenantID,
-						RuleID:          match.RuleID,
-						GroupKey:        groupKey,
-						Status:          "New",
-						Severity:        match.Severity,
-						Description:     match.Description,
-						Title:           fmt.Sprintf("Detection Alert: %s (Entity: %s)", match.RuleName, groupKey),
-						FirstSeenAt:     time.Now().Format(time.RFC3339),
-						EventCount:      0,
-						MitreTactics:    match.MitreTactics,
-						MitreTechniques: match.MitreTechniques,
-					}
-				}
-
-				incident.LastSeenAt = time.Now().Format(time.RFC3339)
-				incident.EventCount++
-
-				if err := s.incidents.Upsert(ctx, incident); err != nil {
-					s.log.Error("Failed to upsert detection incident: %v", err)
-				}
-
-				if isNew {
-					go s.notifier.SendAlert(incident.Title, fmt.Sprintf("Severity: %s\nRule: %s\nDetails: %s", match.Severity, match.RuleID, match.Description))
-				}
-			}
-		})
-	}
+		if isNew {
+			go s.notifier.SendAlert(incident.Title, fmt.Sprintf("Severity: %s\nRule: %s\nDetails: %s", match.Severity, match.RuleID, match.Description))
+		}
+	})
 
 	// Start a background worker for global aggregate alerts (e.g. 50+ failures across fleet in 5m)
 	go s.scanGlobalThreatsLoop(ctx)
@@ -330,7 +299,7 @@ func (s *AlertingService) reloadSigmaRules() {
 	s.evaluator.RebuildRouteIndex()
 	s.log.Info("[SIGMA] Hot-reload complete — %d rules active", count)
 	s.bus.Publish("sigma:rules_reloaded", map[string]interface{}{"rule_count": count, "dir": s.sigmaDir})
-	EmitEvent(s.ctx, "sigma:rules_reloaded", map[string]interface{}{"rule_count": count})
+	EmitEvent("sigma:rules_reloaded", map[string]interface{}{"rule_count": count})
 }
 
 // ReloadSigmaRules is the Wails-facing manual reload trigger.

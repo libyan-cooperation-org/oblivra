@@ -6,6 +6,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/monitoring"
 )
 
@@ -55,6 +56,25 @@ func (s *DiagnosticsService) GetSnapshot() monitoring.DiagnosticsSnapshot {
 // to keep the Diagnostics service current with live pipeline throughput.
 func (s *DiagnosticsService) UpdateIngestMetrics(eps, target, dropped int64, bufFill float64, workers int) {
 	s.inner.SetIngestMetrics(eps, target, dropped, bufFill, workers)
+}
+
+// UpdateLoadStatus is called by the adaptive controller during workload transitions.
+// It maps internal LoadStatus to user-facing health events.
+func (s *DiagnosticsService) UpdateLoadStatus(status ingest.LoadStatus, message string) {
+	statusStr := "healthy"
+	switch status {
+	case ingest.LoadDegraded:
+		statusStr = "degraded"
+	case ingest.LoadCritical:
+		statusStr = "critical"
+	}
+
+	if s.bus != nil {
+		s.bus.Publish("health_status_changed", map[string]string{
+			"status":  statusStr,
+			"message": message,
+		})
+	}
 }
 
 // RecordQueryLatency records a single database query duration (milliseconds) for

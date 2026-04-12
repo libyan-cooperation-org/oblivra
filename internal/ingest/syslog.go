@@ -16,7 +16,7 @@ import (
 type SyslogServer struct {
 	udpConn  *net.UDPConn
 	tcpList  net.Listener
-	pipeline *Pipeline
+	pipeline IngestionPipeline
 	log      *logger.Logger
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -25,7 +25,7 @@ type SyslogServer struct {
 }
 
 // NewSyslogServer initializes but does not start the listener
-func NewSyslogServer(pipeline *Pipeline, port int, log *logger.Logger) *SyslogServer {
+func NewSyslogServer(pipeline IngestionPipeline, port int, log *logger.Logger) *SyslogServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &SyslogServer{
 		pipeline: pipeline,

@@ -58,11 +58,11 @@ func TestIntegrationSmoke(t *testing.T) {
 	defer cleanup()
 
 	t.Run("Vault_Integrity", func(t *testing.T) {
-		id, err := application.VaultService.AddCredential("SmokeTestSecret", "password", "integration-test-value")
+		id, err := application.VaultService.AddCredential(context.TODO(), "SmokeTestSecret", "password", "integration-test-value")
 		if err != nil {
 			t.Fatalf("AddCredential: %v", err)
 		}
-		decrypted, err := application.VaultService.GetDecryptedCredential(id)
+		decrypted, err := application.VaultService.GetDecryptedCredential(context.TODO(), id)
 		if err != nil {
 			t.Fatalf("GetDecryptedCredential: %v", err)
 		}
@@ -70,7 +70,7 @@ func TestIntegrationSmoke(t *testing.T) {
 			t.Errorf("got %q, want integration-test-value", decrypted)
 		}
 		application.VaultService.Lock()
-		_, err = application.VaultService.GetDecryptedCredential(id)
+		_, err = application.VaultService.GetDecryptedCredential(context.TODO(), id)
 		if err == nil {
 			t.Error("expected error getting credential while locked")
 		}
@@ -97,7 +97,7 @@ func TestIntegrationSmoke(t *testing.T) {
 
 		time.Sleep(3 * time.Second)
 
-		events, err := application.SIEMService.SearchHostEvents("root", 10)
+		events, err := application.SIEMService.SearchHostEvents(context.TODO(), "root", 10)
 		if err != nil {
 			t.Fatalf("SearchHostEvents: %v", err)
 		}

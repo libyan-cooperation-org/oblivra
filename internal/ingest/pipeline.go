@@ -15,6 +15,8 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"github.com/kingknull/oblivrashell/internal/monitoring"
+	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
 	"github.com/kingknull/oblivrashell/internal/events"
@@ -28,10 +30,36 @@ var (
 	ErrBufferFull = errors.New("pipeline buffer full")
 )
 
+// LoadStatus represents the operational health of the pipeline.
+type LoadStatus int32
+
+const (
+	LoadHealthy  LoadStatus = iota // Normal operation
+	LoadDegraded                   // High EPS or near-full buffers
+	LoadCritical                   // Extreme EPS or critically full buffers
+)
+
+// IngestionPipeline defines the contract for any event ingestion implementation (single or sharded).
+type IngestionPipeline interface {
+	Start()
+	Stop()
+	Shutdown()
+	QueueEvent(evt *events.SovereignEvent) error
+	GetMetrics() MetricsSnapshot
+	GetLoadStatus() LoadStatus
+	SetDiagnosticsUpdater(d DiagnosticsUpdater)
+	GetMetricsCollector() *monitoring.MetricsCollector
+	SetEvaluator(e *detection.Evaluator)
+	SetIdentityResolver(r dag.UserResolver)
+	Bus() *eventbus.Bus
+	Replay(ctx context.Context) error
+}
+
 // DiagnosticsUpdater is satisfied by services.DiagnosticsService.
 // Using an interface avoids an import cycle between ingest → services.
 type DiagnosticsUpdater interface {
 	UpdateIngestMetrics(eps, target, dropped int64, bufFill float64, workers int)
+	UpdateLoadStatus(status LoadStatus, message string)
 }
 
 // Pipeline manages the buffering, crash-protection, and routing of incoming log streams.
@@ -50,13 +78,35 @@ type Pipeline struct {
 	once        sync.Once
 	wasm        *wasm.PluginManager
 	dag         *dag.Engine
-	diagnostics DiagnosticsUpdater // optional; set after container init
+	diagnostics   DiagnosticsUpdater // optional; set after container init
+	loadStatus    atomic.Int32
+	quota            *TenantQuotaManager
+	metricsCollector *monitoring.MetricsCollector
+	lastProcessed    atomic.Int64 // Unix timestamp of last processed event
+	labels           map[string]string
+	evaluator        *detection.Evaluator
+	identityResolver dag.UserResolver
 }
 
 // SetDiagnosticsUpdater wires the diagnostics service into the pipeline.
 // Called by the container after both ingest and diagnostics are initialised.
 func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) {
 	p.diagnostics = d
+}
+
+// SetLoadStatus updates the current operational state of the pipeline.
+func (p *Pipeline) SetLoadStatus(status LoadStatus) {
+	p.loadStatus.Store(int32(status))
+}
+
+// GetLoadStatus returns the current operational state of the pipeline.
+func (p *Pipeline) GetLoadStatus() LoadStatus {
+	return LoadStatus(p.loadStatus.Load())
+}
+
+// GetMetricsCollector returns the centralized metrics collector.
+func (p *Pipeline) GetMetricsCollector() *monitoring.MetricsCollector {
+	return p.metricsCollector
 }
 
 // Metrics tracks the real-time throughput of the pipeline
@@ -69,7 +119,7 @@ type Metrics struct {
 }
 
 // NewPipeline creates a new high-throughput event pipeline.
-func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine, siem database.SIEMStore, bus *eventbus.Bus, log *logger.Logger, temporal *temporal.IntegrityService) *Pipeline {
+func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine, siem database.SIEMStore, bus *eventbus.Bus, log *logger.Logger, temporal *temporal.IntegrityService, mc *monitoring.MetricsCollector, labels map[string]string, evaluator *detection.Evaluator) *Pipeline {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pipeline{
 		buffer:    make(chan *events.SovereignEvent, bufferSize),
@@ -81,8 +131,12 @@ func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine
 		temporal:  temporal,
 		ctx:       ctx,
 		cancel:    cancel,
+		quota:     NewTenantQuotaManager(bufferSize, 0.70, mc), // Standard 70% max fair-share
+		metricsCollector: mc,
+		labels:           labels,
+		evaluator:        evaluator,
 	}
-
+	p.lastProcessed.Store(time.Now().Unix())
 	p.metrics.BufferCapacity = bufferSize
 
 	// Initialize WASM engine
@@ -99,13 +153,41 @@ func NewPipeline(bufferSize int, wal *storage.WAL, ae *analytics.AnalyticsEngine
 	return p
 }
 
+// SetEvaluator injects a rule engine for shard-local detection.
+func (p *Pipeline) SetEvaluator(e *detection.Evaluator) {
+	p.evaluator = e
+	// Rebuild DAG to ensure the DetectionNode is active
+	p.dag = p.buildProductionDAG()
+}
+
+// SetIdentityResolver injects the identity service for event enrichment.
+func (p *Pipeline) SetIdentityResolver(r dag.UserResolver) {
+	p.identityResolver = r
+	// Rebuild DAG to ensure the IdentityEnrichmentNode is active
+	p.dag = p.buildProductionDAG()
+}
+
 func (p *Pipeline) buildProductionDAG() *dag.Engine {
 	// Root: WASM Filter
 	wasmNode := &dag.Node{Processor: dag.NewWASMFilterNode(p.wasm, p.log)}
 
-	// Branching Node: Fan out to SIEM and Analytics
+	// Identity Enrichment — Early enrichment for downstream branches
+	var lastNode = wasmNode
+	if p.identityResolver != nil {
+		idNode := &dag.Node{Processor: dag.NewIdentityEnrichmentNode(p.identityResolver, p.log)}
+		wasmNode.Children = append(wasmNode.Children, idNode)
+		lastNode = idNode
+	}
+
+	// Branching Node: Fan out to SIEM, Analytics, and Detection
 	fanoutNode := &dag.Node{Processor: dag.NewMultiDestinationNode("Ingest_Fanout")}
-	wasmNode.Children = append(wasmNode.Children, fanoutNode)
+	lastNode.Children = append(lastNode.Children, fanoutNode)
+
+	// Shard-Local Detection Branch
+	if p.evaluator != nil {
+		detNode := &dag.Node{Processor: dag.NewDetectionNode(p.evaluator, p.bus, p.log)}
+		fanoutNode.Children = append(fanoutNode.Children, detNode)
+	}
 
 	// SIEM Branch: if isSecurityAnomaly
 	siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
@@ -193,10 +275,18 @@ func (p *Pipeline) Stop() {
 	p.Shutdown()
 }
 
-// QueueEvent pushes a SovereignEvent into the pipeline. Applies backpressure if full.
+// QueueEvent pushes a SovereignEvent into the pipeline. Applies backpressure if full or quota exceeded.
 func (p *Pipeline) QueueEvent(evt *events.SovereignEvent) error {
+	// 1. Check if the tenant is already monopolising the buffer
+	if err := p.quota.CheckQuota(evt.TenantID); err != nil {
+		p.metrics.DroppedEvents.Add(1)
+		return err
+	}
+
 	select {
 	case p.buffer <- evt:
+		// 2. Increment occupancy for the tenant
+		p.quota.Inc(evt.TenantID)
 		return nil
 	default:
 		// Buffer is full. Signal backpressure to the caller.
@@ -251,7 +341,13 @@ func (p *Pipeline) worker() {
 				// Channel closed and drained
 				return
 			}
+
+			// 3. Decrement occupancy once processed (or pulled from chan)
+			p.quota.Dec(evt.TenantID)
 			
+			// 4. Update heartbeat for watchdog
+			p.lastProcessed.Store(time.Now().Unix())
+
 			ctx := evt.Ctx
 			if ctx == nil {
 				ctx = context.Background()

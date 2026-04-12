@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
@@ -43,7 +44,7 @@ func TestIdentityService_LoginHardwareBound(t *testing.T) {
 
 	t.Run("Hardware provider missing", func(t *testing.T) {
 		service.hw = nil
-		_, err := service.LoginHardwareBound("test@oblivra.com", []byte("nonce"), []byte("sig"))
+		_, err := service.LoginHardwareBound(context.TODO(), "test@oblivra.com", []byte("nonce"), []byte("sig"))
 		if err == nil || err.Error() != "hardware identity not enabled for this platform" {
 			t.Errorf("expected error for missing hardware provider, got %v", err)
 		}

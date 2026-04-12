@@ -26,21 +26,15 @@ func (s *BaseService) Start(ctx context.Context) error { return nil }
 func (s *BaseService) Stop(ctx context.Context) error  { return nil }
 
 // EmitEvent safely wraps wails runtime.EventsEmit to avoid test panics
-func EmitEvent(ctx context.Context, eventName string, optionalData ...interface{}) {
-	if ctx == nil {
-		return
-	}
-	if ctx.Value("test") != nil {
-		return
-	}
+func EmitEvent(eventName string, data interface{}) {
 	// Defensively catch Wails panics if given context lacks expected lifecycle flags
 	defer func() {
 		if r := recover(); r != nil {
-			// Do nothing on panic, it's just a test context lacking Wails bindings
+			// Do nothing on panic
 		}
 	}()
 	if app := application.Get(); app != nil {
-		app.Event.Emit(eventName, optionalData...)
+		app.Event.Emit(eventName, data)
 	}
 }
 
@@ -119,8 +113,8 @@ type CertificateProvider interface {
 
 // SessionOperations defines the interface for session lifecycle management.
 type SessionOperations interface {
-	Create(sess database.Session) error
-	UpdateStatus(id string, status string) error
+	Create(ctx context.Context, sess database.Session) error
+	UpdateStatus(ctx context.Context, id string, status string) error
 }
 
 // FileSystemProvider defines the interface for common filesystem operations.

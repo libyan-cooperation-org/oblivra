@@ -17,18 +17,29 @@
     appStore.connectToHost(val);
   }
 
-  onMount(async () => {
+  onMount(() => {
     if (IS_BROWSER) return;
-    try {
-      const { Window } = await import('@wailsio/runtime');
-      const checkMax = async () => {
-        const max = await Window.IsMaximised();
-        isMaximized = max;
-      };
-      checkMax();
-      const interval = setInterval(checkMax, 1000);
-      return () => clearInterval(interval);
-    } catch { /* runtime not available */ }
+    
+    let interval: any;
+    
+    // Wrapper for async initialization
+    const init = async () => {
+      try {
+        const { Window } = await import('@wailsio/runtime');
+        const checkMax = async () => {
+          const max = await Window.IsMaximised();
+          isMaximized = max;
+        };
+        checkMax();
+        interval = setInterval(checkMax, 1000);
+      } catch { /* runtime not available */ }
+    };
+
+    init();
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   });
 
   async function windowClose() {

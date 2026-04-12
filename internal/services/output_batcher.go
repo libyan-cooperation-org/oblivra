@@ -70,8 +70,8 @@ func (b *OutputBatcher) flushLocked() {
 
 	// Encode as plain base64 (frontend decodes via atob)
 	encoded := base64.StdEncoding.EncodeToString(b.buffer)
-	EmitEvent(b.ctx, fmt.Sprintf("terminal-output-%s", b.sessionID), encoded)
-	EmitEvent(b.ctx, fmt.Sprintf("session.output.%s", b.sessionID), encoded)
+	EmitEvent(fmt.Sprintf("terminal-output-%s", b.sessionID), encoded)
+	EmitEvent(fmt.Sprintf("session.output.%s", b.sessionID), encoded)
 
 	// Clear buffer
 	b.buffer = b.buffer[:0]

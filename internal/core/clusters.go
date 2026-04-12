@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/kingknull/oblivrashell/internal/services"
+	"github.com/kingknull/oblivrashell/internal/cloud"
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/database"
@@ -44,6 +45,8 @@ type InfrastructureCluster struct {
 	Notifier         *notifications.NotificationService
 	MatchEngine      *threatintel.MatchEngine
 	Enrichment       *enrich.Pipeline
+	CloudAssets      database.CloudAssetStore
+	TenantRepo       *database.TenantRepository
 }
 
 // SecurityCluster holds identity, hardening, and trust services.
@@ -60,6 +63,8 @@ type SecurityCluster struct {
 	AttestationService *attestation.AttestationService
 	CanaryDeployment   *services.CanaryDeploymentService
 	Sentinel           *services.Sentinel
+	IdentitySyncService *services.IdentitySyncService
+	ReportService      *services.ReportService
 }
 
 // SIEMCluster holds ingestion, detection, and alerting services.
@@ -91,6 +96,7 @@ type IntelCluster struct {
 	TemporalService       *services.TemporalService
 	GraphEngine           *graph.GraphEngine
 	RiskEngine            *risk.RiskEngine
+	DashboardService      *services.DashboardService
 }
 
 // ResponseCluster holds incident management and automated response logic.
@@ -154,4 +160,5 @@ type PlatformCluster struct {
 	DiagnosticsService   *services.DiagnosticsService
 	APIService           *services.APIService
 	LicensingService     *services.LicensingService
+	CloudDiscovery       *cloud.CloudDiscoveryManager
 }

@@ -51,6 +51,9 @@ type Rule struct {
 
 	// Deduplication
 	DedupWindowSec int `yaml:"dedup_window_sec"` // Prevent alert spam
+
+	// 22.5: Sharding Hint. If true, rule is evaluated in the CorrelationHub, not in local shards.
+	IsGlobal bool `yaml:"is_global"`
 }
 
 // RuleSequenceStep represents a required stage in a SequenceRule.

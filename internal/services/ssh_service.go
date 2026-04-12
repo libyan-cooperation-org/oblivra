@@ -24,6 +24,7 @@ import (
 
 // SSHService manages SSH connections and sessions
 type SSHService struct {
+	BaseService
 	db               database.DatabaseStore
 	vault            vault.Provider
 	hosts            database.HostStore
@@ -106,6 +107,30 @@ func (s *SSHService) SetSessionPersistence(svc *SessionPersistence) {
 	s.sessionPersist = svc
 }
 
+func (s *SSHService) SetTransferManager(tm TransferProvider) {
+	s.transferManager = tm
+}
+
+func (s *SSHService) Name() string { return "ssh-service" }
+
+func (s *SSHService) Start(ctx context.Context) error {
+	s.ctx = ctx
+	return nil
+}
+
+func (s *SSHService) Stop(ctx context.Context) error {
+	s.CloseAll()
+	return nil
+}
+
+func (s *SSHService) SendInput(sessionID, data string) error {
+	sess, ok := s.manager.Get(sessionID)
+	if !ok {
+		return fmt.Errorf("session %s not found", sessionID)
+	}
+	return sess.Write([]byte(data))
+}
+
 // fetchAndDecryptHostPassword fetches the encrypted password blob from the DB
 // and decrypts it using the vault. Returns the plaintext bytes for use only
 // during SSH connection setup. The caller is responsible for zeroing the slice.
@@ -171,7 +196,7 @@ func (s *SSHService) Connect(ctx context.Context, hostID string) (string, error)
 		"label":  host.Label,
 	})
 
-	EmitEvent(ctx, "session:started", map[string]string{
+	EmitEvent("session:started", map[string]string{
 		"id":     session.ID,
 		"hostId": hostID,
 		"label":  host.Label,
@@ -235,7 +260,7 @@ func (s *SSHService) ConnectToSession(ctx context.Context, hostID string, sessio
 		"label":  host.Label,
 	})
 
-	EmitEvent(ctx, "session:started", map[string]string{
+	EmitEvent("session:started", map[string]string{
 		"id":     session.ID,
 		"hostId": hostID,
 		"label":  host.Label,
@@ -361,7 +386,7 @@ func (s *SSHService) registerSessionCallbacks(ctx context.Context, session *ssh.
 			} else {
 				// Fallback if batcher somehow missing
 				encoded := base64.StdEncoding.EncodeToString(data)
-				EmitEvent(ctx, fmt.Sprintf("session.output.%s", sessionID), encoded)
+				EmitEvent(fmt.Sprintf("session.output.%s", sessionID), encoded)
 			}
 
 			if s.onOutputCb != nil {
@@ -392,7 +417,7 @@ func (s *SSHService) registerSessionCallbacks(ctx context.Context, session *ssh.
 		func(sessionID string, err error) {
 			s.log.Error("Session error [%s]: %v", sessionID, err)
 			s.bus.Publish(eventbus.EventConnectionError, err)
-			EmitEvent(ctx, "session.error", map[string]string{
+			EmitEvent("session.error", map[string]string{
 				"sessionId": sessionID,
 				"error":     err.Error(),
 			})
@@ -473,7 +498,7 @@ func (s *SSHService) handleSystemCommand(sessionID string, cmd string) error {
 		session.Write([]byte(output))
 		// Also emit to frontend for rich rendering if overlay is active
 		if s.ctx != nil {
-			EmitEvent(s.ctx, "session.system_output", map[string]string{
+			EmitEvent("session.system_output", map[string]string{
 				"sessionId": sessionID,
 				"content":   output,
 			})
@@ -941,9 +966,6 @@ func (s *SSHService) ClearTransfers() {
 	}
 }
 
-func (s *SSHService) Name() string {
-	return "ssh-service"
-}
 
 // Dependencies returns service dependencies.
 // Note: eventbus is infrastructure wired at construction time, not a kernel-managed service.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/cluster"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/google/uuid"
 )
 
 // RegistryCommand is the operation type stored in the Raft log for plugin state changes.
@@ -119,6 +120,7 @@ func (cr *ClusterRegistry) replicate(op RegistryCommand, pluginID string) error 
 
 	// Use a dedicated query format so the FSM can distinguish plugin ops from SQL ops.
 	query := fmt.Sprintf("--plugin-registry-- %s", string(payload))
-	_, _, err = cr.cm.ApplyWrite(context.Background(), query)
+	reqID := uuid.New().String()
+	_, _, err = cr.cm.ApplyWrite(context.Background(), reqID, query)
 	return err
 }

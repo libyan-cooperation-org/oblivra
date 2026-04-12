@@ -14,8 +14,9 @@ import (
 
 // SQLWriteCommand represents a database write operation replicated through Raft
 type SQLWriteCommand struct {
-	Query string        `json:"query"`
-	Args  []interface{} `json:"args"`
+	RequestID string        `json:"request_id,omitempty"`
+	Query     string        `json:"query"`
+	Args      []interface{} `json:"args"`
 }
 
 // pluginRegistryApplier is the subset of ClusterRegistry needed by the FSM.
@@ -75,6 +76,17 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 		return FSMApplyResponse{Err: err}
 	}
 
+	// Idempotency Check: if RequestID is provided, check if we've already applied it.
+	if cmd.RequestID != "" {
+		if f.isAlreadyApplied(cmd.RequestID) {
+			f.log.Info("[RAFT-FSM] Skipping duplicate request: %s", cmd.RequestID)
+			return FSMApplyResponse{} // Already applied
+		}
+	}
+
+	// Ensure system table exists (one-time check or just Exec blindly if we trust migrations)
+	f.ensureSystemTable()
+
 	// Route plugin registry commands to the dedicated handler.
 	if strings.HasPrefix(cmd.Query, pluginRegistryPrefix) {
 		return f.applyPluginRegistryOp(cmd.Query)
@@ -84,6 +96,11 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	if err != nil {
 		f.log.Error("[RAFT-FSM] Failed to execute replicated query: %v - Query: %s", err, cmd.Query)
 		return FSMApplyResponse{Err: err}
+	}
+
+	// Record the request as applied
+	if cmd.RequestID != "" {
+		f.recordApplied(cmd.RequestID)
 	}
 
 	lastId, _ := result.LastInsertId()
@@ -211,5 +228,32 @@ func (s *FSMSnapshot) Release() {
 	if s.snapshotPath != "" {
 		os.Remove(s.snapshotPath)
 		s.log.Info("[RAFT-FSM] Snapshot temp file cleaned up")
+	}
+}
+
+// ── Private Helpers ─────────────────────────────────────────────────────────
+
+func (f *FSM) isAlreadyApplied(requestID string) bool {
+	var exists int
+	err := f.db.QueryRow("SELECT 1 FROM _raft_applied WHERE request_id = ?", requestID).Scan(&exists)
+	return err == nil
+}
+
+func (f *FSM) recordApplied(requestID string) {
+	_, err := f.db.Exec("INSERT OR IGNORE INTO _raft_applied (request_id, applied_at) VALUES (?, CURRENT_TIMESTAMP)", requestID)
+	if err != nil {
+		f.log.Error("[RAFT-FSM] Failed to record applied request %s: %v", requestID, err)
+	}
+}
+
+func (f *FSM) ensureSystemTable() {
+	_, err := f.db.Exec(`
+		CREATE TABLE IF NOT EXISTS _raft_applied (
+			request_id TEXT PRIMARY KEY,
+			applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		f.log.Error("[RAFT-FSM] Failed to ensure _raft_applied table: %v", err)
 	}
 }

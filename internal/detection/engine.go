@@ -54,6 +54,9 @@ type Evaluator struct {
 
 	// Deduplication tracker: RuleID -> Bounded LRU Cache (GroupKey -> LastTriggerTime)
 	alerts map[string]*expirable.LRU[string, time.Time]
+
+	// Sharding scope
+	IsLocal bool
 }
 
 // NewEvaluator creates a new stateful detection evaluator.
@@ -68,6 +71,7 @@ func NewEvaluator(rulesDir string, log *logger.Logger) (*Evaluator, error) {
 		log:        log,
 		state:      make(map[string]*expirable.LRU[string, []Event]),
 		alerts:     make(map[string]*expirable.LRU[string, time.Time]),
+		IsLocal:    true, // Default to local shard-level execution
 	}
 	// Build the initial route index from loaded rules.
 	ev.routeIndex = BuildRouteIndex(re.rules)
@@ -83,6 +87,22 @@ func (e *Evaluator) RebuildRouteIndex() {
 	defer e.stateMu.Unlock()
 	e.routeIndex = BuildRouteIndex(e.rules)
 	e.log.Info("[DETECTION] Route index rebuilt: %d buckets", len(e.routeIndex))
+}
+
+// Clone creates a shallow clone of the evaluator.
+// The clone shares the same RuleEngine and routeIndex but has its own
+// isolated state and alert caches for thread-safe parallel processing in shards.
+func (e *Evaluator) Clone() *Evaluator {
+	e.stateMu.RLock()
+	defer e.stateMu.RUnlock()
+
+	return &Evaluator{
+		RuleEngine: e.RuleEngine,
+		log:        e.log,
+		routeIndex: e.routeIndex,
+		state:      make(map[string]*expirable.LRU[string, []Event]),
+		alerts:     make(map[string]*expirable.LRU[string, time.Time]),
+	}
 }
 
 // ProcessEvent analyzes a new incoming event against all loaded rules.
@@ -101,6 +121,14 @@ func (e *Evaluator) ProcessEvent(evt Event) []Match {
 	}
 
 	for _, rule := range candidates {
+		// Filter based on sharding scope
+		if e.IsLocal && rule.IsGlobal {
+			continue // Handled by global CorrelationHub
+		}
+		if !e.IsLocal && !rule.IsGlobal {
+			continue // Handled by shard evaluators
+		}
+
 		if rule.Type == SequenceRule {
 			// Sequences track state without needing to match generic top-level conditions
 			if match := e.evaluateRuleState(rule, evt); match != nil {

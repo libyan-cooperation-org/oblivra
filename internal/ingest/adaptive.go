@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"fmt"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -73,6 +74,52 @@ func (ac *AdaptiveController) adjust() {
 		return // pipeline not yet started
 	}
 	bufUsage := float64(snap.BufferUsage) / float64(bufCap)
+
+	// 3× Rated EPS (150,000) or 95% buffer fill triggers DEGRADED state
+	newStatus := LoadHealthy
+	
+	// Stall detection: buffer full but nothing moving for 2 minutes
+	stalled := false
+	if bufUsage > 0.80 {
+		last := ac.pipeline.lastProcessed.Load()
+		if time.Now().Unix()-last > 120 { // 2 minute stall threshold
+			stalled = true
+			newStatus = LoadCritical
+		}
+	}
+
+	if !stalled && (eps > int64(EPSTarget)*3 || bufUsage > 0.95) {
+		newStatus = LoadDegraded
+	}
+
+	if newStatus != ac.pipeline.GetLoadStatus() {
+		ac.pipeline.SetLoadStatus(newStatus)
+		msg := "Pipeline performance is nominal."
+		if newStatus == LoadDegraded {
+			msg = fmt.Sprintf("Pipeline pressure high (EPS: %d, Buffer: %.1f%%). Scaling up workers.", eps, bufUsage*100)
+			ac.pipeline.log.Warn("[ADAPTIVE] %s", msg)
+		} else if newStatus == LoadCritical {
+			msg = fmt.Sprintf("Critical Pipeline STALL (Buffer: %.1f%%). No events processed for >2m.", bufUsage*100)
+			ac.pipeline.log.Error("[ADAPTIVE] %s", msg)
+			// Emergency: spawn immediate "Rescue Workers"
+			for i := 0; i < ac.baseWorkers; i++ {
+				ac.scaleUp()
+			}
+		} else {
+			ac.pipeline.log.Info("[ADAPTIVE] Pipeline state returned to HEALTHY")
+		}
+
+		if ac.pipeline.diagnostics != nil {
+			ac.pipeline.diagnostics.UpdateLoadStatus(newStatus, msg)
+		}
+	}
+
+	// Export infrastructure metrics
+	if ac.pipeline.metricsCollector != nil {
+		ac.pipeline.metricsCollector.SetGauge("ingest_pipeline_status", float64(newStatus), ac.pipeline.labels)
+		ac.pipeline.metricsCollector.SetGauge("ingest_active_workers", float64(ac.baseWorkers+int(ac.active.Load())), ac.pipeline.labels)
+		ac.pipeline.metricsCollector.SetGauge("ingest_eps_target", float64(EPSTarget), ac.pipeline.labels)
+	}
 
 	switch {
 	case bufUsage > 0.90:

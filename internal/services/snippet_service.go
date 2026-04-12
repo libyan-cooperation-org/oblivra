@@ -126,7 +126,7 @@ func (s *SnippetService) ShareToTeam(ctx context.Context, snippetID string) erro
 
 	// Save snippet as secret in team vault
 	data, _ := json.Marshal(snippet)
-	_, err = s.teamSvc.AddSecret(ctx, snippet.Title, "snippet", string(data))
+	_, err = s.teamSvc.AddSecret(snippet.Title, "snippet", string(data))
 	if err != nil {
 		return fmt.Errorf("save to team vault: %w", err)
 	}

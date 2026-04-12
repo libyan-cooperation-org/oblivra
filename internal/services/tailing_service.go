@@ -86,7 +86,7 @@ func (s *TailingService) RegisterOutput(sessionID, hostLabel, data string) {
 	// Also emit via Wails if UI is active
 	if s.ctx != nil {
 		encoded := base64.StdEncoding.EncodeToString([]byte(data))
-		EmitEvent(s.ctx, "tail:update", map[string]interface{}{
+		EmitEvent("tail:update", map[string]interface{}{
 			"session_id": sessionID,
 			"host_label": hostLabel,
 			"data":       encoded,

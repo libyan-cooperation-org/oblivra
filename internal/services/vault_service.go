@@ -238,7 +238,7 @@ func (s *VaultService) postUnlock() (retErr error) {
 	if !s.db.IsLocked() {
 		// Still emit the event so the frontend can transition if it missed the first one
 		s.bus.Publish(eventbus.EventVaultUnlocked, nil)
-		EmitEvent(s.ctx, "vault:unlocked", nil)
+		EmitEvent("vault:unlocked", nil)
 		return nil
 	}
 
@@ -281,7 +281,7 @@ func (s *VaultService) postUnlock() (retErr error) {
 	s.bus.Publish(eventbus.EventVaultUnlocked, nil)
 
 	// CRITICAL: Emit to Wails frontend so the UI can load hosts and enable features.
-	EmitEvent(s.ctx, "vault:unlocked", nil)
+	EmitEvent("vault:unlocked", nil)
 
 	return nil
 }

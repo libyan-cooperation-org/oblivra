@@ -1,10 +1,11 @@
 package ueba
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"math"
-	"math/rand"
+	mathrand "math/rand"
 	"sync"
-	"time"
 )
 
 // IsolationForest represents the ensemble of isolation trees.
@@ -12,7 +13,7 @@ type IsolationForest struct {
 	mu        sync.RWMutex
 	Trees     []*IsolationTree
 	Subsample int
-	rng       *rand.Rand
+	rng       *mathrand.Rand
 }
 
 // IsolationTree represents a single tree in the forest.
@@ -30,10 +31,12 @@ type Node struct {
 }
 
 func NewIsolationForest(numTrees int, subsample int) *IsolationForest {
+	var seed int64
+	_ = binary.Read(rand.Reader, binary.BigEndian, &seed)
 	return &IsolationForest{
 		Trees:     make([]*IsolationTree, numTrees),
 		Subsample: subsample,
-		rng:       rand.New(rand.NewSource(time.Now().UnixNano())), // Default to time-based but deterministic per instance
+		rng:       mathrand.New(mathrand.NewSource(seed)),
 	}
 }
 
@@ -41,7 +44,7 @@ func NewIsolationForest(numTrees int, subsample int) *IsolationForest {
 func (f *IsolationForest) SetSeed(seed int64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.rng = rand.New(rand.NewSource(seed))
+	f.rng = mathrand.New(mathrand.NewSource(seed))
 }
 
 func (f *IsolationForest) Train(profiles []*EntityProfile) {

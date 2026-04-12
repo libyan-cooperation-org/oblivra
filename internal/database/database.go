@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/kingknull/oblivrashell/internal/cluster"
+	"github.com/google/uuid"
 )
 
 var ErrLocked = errors.New("database is locked")
@@ -92,7 +93,8 @@ func (d *Database) ReplicatedExecContext(ctx context.Context, query string, args
 	}
 
 	if cm != nil {
-		lastId, rowsAff, err := cm.ApplyWrite(ctx, query, args...)
+		reqID := uuid.New().String()
+		lastId, rowsAff, err := cm.ApplyWrite(ctx, reqID, query, args...)
 		if err != nil {
 			return nil, err
 		}

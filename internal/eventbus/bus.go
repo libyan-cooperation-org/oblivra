@@ -11,6 +11,11 @@ import (
 
 type EventType string
 
+// EventPublisher defines the minimum capability for sending events to the system bus.
+type EventPublisher interface {
+	Publish(eventType EventType, data interface{})
+}
+
 const (
 	AllEvents EventType = "*"
 

@@ -14,8 +14,10 @@ import (
 // IdentityService exposes identity, authentication and RBAC operations to the frontend
 type IdentityService struct {
 	BaseService
+	ctx      context.Context
 	userRepo *database.UserRepository
 	roleRepo *database.RoleRepository
+	connectorRepo database.IdentityConnectorStore
 	rbac     *auth.RBACEngine
 	hw       auth.HardwareRootedIdentity
 	bus      *eventbus.Bus
@@ -32,6 +34,7 @@ func (s *IdentityService) Dependencies() []string {
 func NewIdentityService(
 	userRepo *database.UserRepository,
 	roleRepo *database.RoleRepository,
+	connectorRepo database.IdentityConnectorStore,
 	rbac *auth.RBACEngine,
 	hw auth.HardwareRootedIdentity,
 	bus *eventbus.Bus,
@@ -40,6 +43,7 @@ func NewIdentityService(
 	return &IdentityService{
 		userRepo: userRepo,
 		roleRepo: roleRepo,
+		connectorRepo: connectorRepo,
 		rbac:     rbac,
 		hw:       hw,
 		bus:      bus,
@@ -48,6 +52,7 @@ func NewIdentityService(
 }
 
 func (s *IdentityService) Start(ctx context.Context) error {
+	s.ctx = ctx
 	return nil
 }
 
@@ -156,8 +161,13 @@ func (s *IdentityService) ListUsers(ctx context.Context) ([]database.User, error
 }
 
 // GetUser returns a single user by ID
-func (s *IdentityService) GetUser(ctx context.Context, id string) (*database.User, error) {
-	return s.userRepo.GetUserByID(ctx, id)
+func (s *IdentityService) GetUser(id string) (*database.User, error) {
+	return s.userRepo.GetUserByID(s.ctx, id)
+}
+
+// GetUserByEmail returns a single user by email
+func (s *IdentityService) GetUserByEmail(ctx context.Context, email string) (*database.User, error) {
+	return s.userRepo.GetUserByEmail(ctx, email)
 }
 
 // UpdateUserRole assigns a new role to a user
@@ -181,12 +191,60 @@ func (s *IdentityService) UpdateUserRole(ctx context.Context, userID, roleID str
 	return nil
 }
 
+// --- SCIM Logic ---
+
+// ProvisionSCIMUser handles automated provisioning from an IdP
+func (s *IdentityService) ProvisionSCIMUser(ctx context.Context, u *database.User) error {
+	s.log.Info("SCIM Provisioning for: %s (ExternalID: %s)", u.Email, u.ExternalID)
+
+	// Check if user exists by email or external ID
+	existing, err := s.userRepo.GetUserByEmail(ctx, u.Email)
+	if err != nil {
+		// User doesn't exist by email, try external ID
+		// (Repo needs GetUserByExternalID, using local search for now)
+		// For MVP, we use email as the primary key for identity merging
+		if err := s.userRepo.CreateUser(ctx, u); err != nil {
+			return fmt.Errorf("SCIM create failed: %w", err)
+		}
+		s.bus.Publish("identity.scim.created", u.ID)
+		return nil
+	}
+
+	// Conflict resolution: approved default is "Last Update Wins"
+	u.ID = existing.ID
+	u.TenantID = existing.TenantID
+	if u.RoleID == "" {
+		u.RoleID = existing.RoleID
+	}
+	
+	if err := s.userRepo.UpdateUser(ctx, u); err != nil {
+		return fmt.Errorf("SCIM update failed: %w", err)
+	}
+	s.bus.Publish("identity.scim.updated", u.ID)
+	return nil
+}
+
+// GetUserByExternalID finds a user by their IdP external identifier
+func (s *IdentityService) GetUserByExternalID(ctx context.Context, extID string) (*database.User, error) {
+	return s.userRepo.GetUserByExternalID(ctx, extID)
+}
+
+// DeleteUser removes a user
+func (s *IdentityService) DeleteUser(ctx context.Context, id string) error {
+	s.log.Info("Deleting user: %s", id)
+	if err := s.userRepo.DeleteUser(ctx, id); err != nil {
+		return err
+	}
+	s.bus.Publish("identity.user_deleted", id)
+	return nil
+}
+
 // --- Authentication ---
 
 // LoginLocal authenticates a user with email and password
-func (s *IdentityService) LoginLocal(ctx context.Context, email, password string) (*database.User, error) {
+func (s *IdentityService) LoginLocal(email, password string) (*database.User, error) {
 	// Search across all tenants for the user (global login)
-	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(ctx), email)
+	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(s.ctx), email)
 	if err != nil {
 		s.log.Warn("Login failed for %s: user not found", email)
 		return nil, fmt.Errorf("invalid credentials")
@@ -198,7 +256,7 @@ func (s *IdentityService) LoginLocal(ctx context.Context, email, password string
 	}
 
 	// Record the login
-	_ = s.userRepo.RecordLogin(ctx, user.ID)
+	_ = s.userRepo.RecordLogin(s.ctx, user.ID)
 	s.bus.Publish("identity.login", user.Email)
 	s.log.Info("User logged in: %s", user.Email)
 
@@ -377,7 +435,7 @@ func (s *IdentityService) buildIdentityUser(ctx context.Context, userID string) 
 // --- Federated Identity (OIDC/SAML) ---
 
 // GetOIDCURL returns the redirect URL for the configured OIDC provider
-func (s *IdentityService) GetOIDCURL(ctx context.Context) (string, error) {
+func (s *IdentityService) GetOIDCURL() (string, error) {
 	// In Phase 0.5, this will use the 'auth.OIDCProvider' to generate a real URL.
 	// For now, redirect to a mock callback for MVP validation.
 	s.log.Info("Generating OIDC redirect URL (Mock)")
@@ -385,16 +443,16 @@ func (s *IdentityService) GetOIDCURL(ctx context.Context) (string, error) {
 }
 
 // GetSAMLURL returns the redirect URL for the configured SAML IdP
-func (s *IdentityService) GetSAMLURL(ctx context.Context) (string, error) {
+func (s *IdentityService) GetSAMLURL() (string, error) {
 	s.log.Info("Generating SAML redirect URL (Mock)")
 	return "/api/v1/auth/saml/callback?SAMLResponse=mock-saml-response", nil
 }
 
 // HandleOIDCCallback processes the OIDC authorization code
-func (s *IdentityService) HandleOIDCCallback(ctx context.Context, code string) (*database.User, error) {
+func (s *IdentityService) HandleOIDCCallback(code string) (*database.User, error) {
 	s.log.Info("Processing OIDC callback with code: %s", code)
 	// Return the primary admin user for MVP validation
-	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(ctx), "admin@oblivra.org")
+	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(s.ctx), "admin@oblivra.org")
 	if err != nil {
 		return nil, fmt.Errorf("OIDC user mapping failed: %w", err)
 	}
@@ -402,11 +460,41 @@ func (s *IdentityService) HandleOIDCCallback(ctx context.Context, code string) (
 }
 
 // HandleSAMLCallback processes the SAML assertion
-func (s *IdentityService) HandleSAMLCallback(ctx context.Context, data string) (*database.User, error) {
+func (s *IdentityService) HandleSAMLCallback(data string) (*database.User, error) {
 	s.log.Info("Processing SAML callback")
-	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(ctx), "admin@oblivra.org")
+	user, err := s.userRepo.GetUserByEmail(database.WithGlobalSearch(s.ctx), "admin@oblivra.org")
 	if err != nil {
 		return nil, fmt.Errorf("SAML user mapping failed: %w", err)
 	}
 	return user, nil
+}
+
+// Connector Management Methods (Phase 20.7)
+
+func (s *IdentityService) ListConnectors(ctx context.Context) ([]database.IdentityConnector, error) {
+	return s.connectorRepo.List(ctx)
+}
+
+func (s *IdentityService) CreateConnector(ctx context.Context, c *database.IdentityConnector) error {
+	s.log.Info("Creating identity connector: %s (%s)", c.Name, c.Type)
+	return s.connectorRepo.Create(ctx, c)
+}
+
+func (s *IdentityService) GetConnector(ctx context.Context, id string) (*database.IdentityConnector, error) {
+	return s.connectorRepo.GetByID(ctx, id)
+}
+
+func (s *IdentityService) UpdateConnector(ctx context.Context, c *database.IdentityConnector) error {
+	s.log.Info("Updating identity connector: %s", c.ID)
+	return s.connectorRepo.Update(ctx, c)
+}
+
+func (s *IdentityService) DeleteConnector(ctx context.Context, id string) error {
+	s.log.Info("Deleting identity connector: %s", id)
+	return s.connectorRepo.Delete(ctx, id)
+}
+
+func (s *IdentityService) TriggerSync(ctx context.Context, id string) error {
+	s.log.Info("Manually triggering sync for connector: %s", id)
+	return s.connectorRepo.MarkSyncStart(ctx, id)
 }

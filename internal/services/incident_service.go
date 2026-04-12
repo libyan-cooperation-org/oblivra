@@ -6,6 +6,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/risk"
 )
 
 // IncidentService handles the lifecycle of security incidents and forensic cases.
@@ -13,6 +14,7 @@ type IncidentService struct {
 	repo     database.IncidentStore
 	audit    database.AuditStore
 	evidence database.EvidenceStore
+	risk     *risk.RiskEngine
 	bus      *eventbus.Bus
 	log      *logger.Logger
 }
@@ -22,6 +24,7 @@ func NewIncidentService(
 	repo database.IncidentStore,
 	audit database.AuditStore,
 	evidence database.EvidenceStore,
+	risk *risk.RiskEngine,
 	bus *eventbus.Bus,
 	log *logger.Logger,
 ) *IncidentService {
@@ -29,6 +32,7 @@ func NewIncidentService(
 		repo:     repo,
 		audit:    audit,
 		evidence: evidence,
+		risk:     risk,
 		bus:      bus,
 		log:      log,
 	}
@@ -103,8 +107,28 @@ func (s *IncidentService) GetByRuleAndGroup(ctx context.Context, ruleID string, 
 	return s.repo.GetByRuleAndGroup(ctx, ruleID, groupKey)
 }
 
-// Upsert proxy for incident storage.
+// Upsert proxy for incident storage with automated triage (Phase 20.9).
 func (s *IncidentService) Upsert(ctx context.Context, incident *database.Incident) error {
+	// 1. Triage the incident
+	if s.risk != nil {
+		triage, err := s.risk.TriageIncident(ctx, incident)
+		if err == nil {
+			incident.TriageScore = triage.Score
+			incident.TriageReason = triage.Reason
+			
+			// Auto-escalate severity if triage score is high
+			if triage.Score > 85 {
+				incident.Severity = "Critical"
+			} else if triage.Score > 60 && incident.Severity != "Critical" {
+				incident.Severity = "High"
+			} else if triage.Score > 30 && incident.Severity == "Low" {
+				incident.Severity = "Medium"
+			}
+			
+			s.log.Info("[TRIAGE] Incident %s scored %d: %s", incident.ID, triage.Score, triage.Reason)
+		}
+	}
+
 	return s.repo.Upsert(ctx, incident)
 }
 

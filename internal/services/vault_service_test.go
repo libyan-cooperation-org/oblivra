@@ -112,7 +112,7 @@ func TestVaultService_AddAndGetCredential(t *testing.T) {
 	svc.Setup(pw, "")
 	svc.UnlockWithPassword(pw, false)
 
-	id, err := svc.AddCredential("My API Key", "api_key", "super-secret-value-123")
+	id, err := svc.AddCredential(context.TODO(), "My API Key", "api_key", "super-secret-value-123")
 	if err != nil {
 		t.Fatalf("AddCredential: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestVaultService_AddAndGetCredential(t *testing.T) {
 		t.Fatal("expected non-empty credential ID")
 	}
 
-	decrypted, err := svc.GetDecryptedCredential(id)
+	decrypted, err := svc.GetDecryptedCredential(context.TODO(), id)
 	if err != nil {
 		t.Fatalf("GetDecryptedCredential: %v", err)
 	}
@@ -137,10 +137,10 @@ func TestVaultService_CredentialInaccessibleWhenLocked(t *testing.T) {
 	svc.Setup(pw, "")
 	svc.UnlockWithPassword(pw, false)
 
-	id, _ := svc.AddCredential("secret", "password", "value")
+	id, _ := svc.AddCredential(context.TODO(), "secret", "password", "value")
 	svc.Lock()
 
-	_, err := svc.GetDecryptedCredential(id)
+	_, err := svc.GetDecryptedCredential(context.TODO(), id)
 	if err == nil {
 		t.Fatal("expected error when vault is locked, got nil")
 	}
@@ -154,12 +154,12 @@ func TestVaultService_DeleteCredential(t *testing.T) {
 	svc.Setup(pw, "")
 	svc.UnlockWithPassword(pw, false)
 
-	id, _ := svc.AddCredential("to-delete", "token", "token-value")
-	if err := svc.DeleteCredential(id); err != nil {
+	id, _ := svc.AddCredential(context.TODO(), "to-delete", "token", "token-value")
+	if err := svc.DeleteCredential(context.TODO(), id); err != nil {
 		t.Fatalf("DeleteCredential: %v", err)
 	}
 
-	_, err := svc.GetDecryptedCredential(id)
+	_, err := svc.GetDecryptedCredential(context.TODO(), id)
 	if err == nil {
 		t.Error("expected error getting deleted credential, got nil")
 	}
@@ -176,11 +176,11 @@ func TestVaultService_PasswordHealthAudit(t *testing.T) {
 	svc.UnlockWithPassword(pw, false)
 
 	// Weak password — short
-	svc.AddCredential("weak", "password", "abc") //nolint:errcheck
+	svc.AddCredential(context.TODO(), "weak", "password", "abc") //nolint:errcheck
 	// Strong password
-	svc.AddCredential("strong", "password", "Tr0ub4dor&3xtr@L0ng!P@ss#2026") //nolint:errcheck
+	svc.AddCredential(context.TODO(), "strong", "password", "Tr0ub4dor&3xtr@L0ng!P@ss#2026") //nolint:errcheck
 
-	results, err := svc.PasswordHealthAudit()
+	results, err := svc.PasswordHealthAudit(context.TODO())
 	if err != nil {
 		t.Fatalf("PasswordHealthAudit: %v", err)
 	}

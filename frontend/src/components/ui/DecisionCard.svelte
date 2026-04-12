@@ -5,7 +5,6 @@
   and one-click resolve / escalate / dismiss controls.
 -->
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import type { DecisionCardData } from './decision.types';
 

@@ -85,6 +85,15 @@ func (r *SCIMResolver) loadCore() {
 	r.addAlias("sha256", "file.hashes.sha256", 1)
 	r.addAlias("md5", "file.hashes.md5", 1)
 
+	// Identity Integration (Phase 20.1)
+	r.addAlias("dept", "identity.department", 1)
+	r.addAlias("org", "identity.organization", 1)
+	r.addAlias("job_title", "identity.title", 1)
+	r.addAlias("title", "identity.title", 1)
+	r.addAlias("display_name", "identity.display_name", 1)
+	r.addAlias("is_active", "identity.active", 1)
+	r.addAlias("groups", "identity.groups", 1)
+
 	r.FieldMeta["src.ip.address"] = FieldMeta{Type: FieldIP, Indexed: true, Searchable: true, DataModel: "Network"}
 	r.FieldMeta["dst.ip.address"] = FieldMeta{Type: FieldIP, Indexed: true, Searchable: true, DataModel: "Network"}
 	r.FieldMeta["src.port"] = FieldMeta{Type: FieldNumber, Indexed: true, DataModel: "Network"}
@@ -103,6 +112,14 @@ func (r *SCIMResolver) loadCore() {
 	r.FieldMeta["metadata.source.host_id"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Base"}
 	r.FieldMeta["metadata.event.type"] = FieldMeta{Type: FieldString, Indexed: true, DataModel: "Base"}
 	r.FieldMeta["metadata.event_id"] = FieldMeta{Type: FieldNumber, Indexed: true, DataModel: "Base"}
+
+	// Identity Metadata
+	r.FieldMeta["identity.display_name"] = FieldMeta{Type: FieldString, Searchable: true, DataModel: "Identity"}
+	r.FieldMeta["identity.title"] = FieldMeta{Type: FieldString, Searchable: true, DataModel: "Identity"}
+	r.FieldMeta["identity.department"] = FieldMeta{Type: FieldString, Indexed: true, Searchable: true, DataModel: "Identity"}
+	r.FieldMeta["identity.organization"] = FieldMeta{Type: FieldString, Indexed: true, Searchable: true, DataModel: "Identity"}
+	r.FieldMeta["identity.active"] = FieldMeta{Type: FieldBoolean, DataModel: "Identity"}
+	r.FieldMeta["identity.groups"] = FieldMeta{Type: FieldString, Searchable: true, DataModel: "Identity"}
 }
 
 func (r *SCIMResolver) Resolve(f FieldRef) FieldRef {

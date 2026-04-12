@@ -684,24 +684,24 @@
 - [x] `tests/smoke_test.go` — expanded with alerting, Sigma, diagnostics, observability subtests
 - [x] **5 operator docs** in `docs/operator/`: `quickstart.md`, `detection-authoring.md`, `sigma-rules.md`, `alerting-config.md`, `api-reference.md`
 
-### 20.1 — SovereignQL (OQL)
-- [ ] Custom pipe-based query language (OQL) for tactical analytics 🏗️
-- [ ] **Query Language Identity** — formalized grammar definition, query planner guarantees, computational cost modeling
+### 20.1 — SovereignQL (OQL) ✅
+- [x] Custom pipe-based query language (OQL) for tactical analytics ✅
+- [x] **Query Language Identity** — identity integration, field resolution, and metadata flattening ✅
 
-### 20.4 — SCIM Normalization
-- [ ] Identity data ingestion and normalization (SCIM) 🌐
+### 20.4 — SCIM Normalization ✅
+- [x] Identity data ingestion and normalization (SCIM) 🌐
 
-### 20.7 — Identity Connectors
-- [ ] Native integration connectors for Active Directory, Okta, and major IdPs 🌐
+### 20.7 — Identity Connectors ✅
+- [x] Native integration connectors for Active Directory, Okta, and major IdPs ✅
 
-### 20.9 — Automated Triage
-- [ ] Automated incident triage scoring based on RBA and Asset Intel 🏗️
+### 20.9 — Automated Triage ✅
+- [x] Automated incident triage scoring based on RBA and Asset Intel ✅
 
-### 20.10 — Report Factory
-- [ ] Automated generation of scheduled reports 🌐
+### 20.10 — Report Factory ✅
+- [x] Automated generation of scheduled reports ✅
 
-### 20.11 — Dashboard Studio
-- [ ] Custom dashboard builder with widget canvas 🌐
+### 20.11 — Dashboard Studio ✅
+- [x] Custom dashboard builder with widget canvas ✅
 
 ---
 

@@ -88,7 +88,7 @@ func TestFullFlow(t *testing.T) {
 		var results []database.HostEvent
 		var searchErr error
 		for i := 0; i < 20; i++ {
-			results, searchErr = container.SIEM.SIEMService.SearchHostEvents("INTEGRATION_TEST", 10)
+			results, searchErr = container.SIEM.SIEMService.SearchHostEvents(context.TODO(), "INTEGRATION_TEST", 10)
 			if searchErr == nil && len(results) > 0 {
 				break
 			}
@@ -189,12 +189,12 @@ func TestFullFlow(t *testing.T) {
 			t.Error("Vault should be unlocked")
 		}
 
-		_, err = container.Product.VaultService.AddCredential("Test Cred", "ssh_password", "supersecretpassword")
+		_, err = container.Product.VaultService.AddCredential(context.TODO(), "Test Cred", "ssh_password", "supersecretpassword")
 		if err != nil {
 			t.Errorf("Failed to store credential: %v", err)
 		}
 
-		creds, err := container.Product.VaultService.ListCredentials("")
+		creds, err := container.Product.VaultService.ListCredentials(context.TODO(), "")
 		if err != nil || len(creds) == 0 {
 			t.Errorf("Failed to retrieve credentials: %v", err)
 		}

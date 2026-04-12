@@ -4,7 +4,6 @@ package api
 
 import (
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -109,8 +108,8 @@ func (s *RESTServer) handleFusionCampaigns(w http.ResponseWriter, r *http.Reques
 							AlertCount:   count,
 							TacticStages: []string{"Command & Control"},
 							StageCount:   1,
-							Confidence:   0.40 + rand.Float64()*0.3,
-							FirstSeen:    time.Now().Add(-time.Duration(rand.Intn(3600)) * time.Second).Format(time.RFC3339),
+							Confidence:   0.0,
+							FirstSeen:    time.Now().Format(time.RFC3339),
 							LastSeen:     time.Now().Format(time.RFC3339),
 							Status:       "active",
 							KillChainProgress: 8,
@@ -265,9 +264,9 @@ func (s *RESTServer) handlePeerDeviations(w http.ResponseWriter, r *http.Request
 				continue
 			}
 			// Find the group this entity belongs to (simple heuristic)
-			group := groups[rand.Intn(len(groups))]
-			entityRisk := 40.0 + rand.Float64()*50.0
-			sigma := (entityRisk - group.AvgRiskScore) / 15.0
+			group := groups[0] // Heuristic: first group
+			entityRisk := 0.0
+			sigma := 0.0
 			if sigma < 1.0 {
 				continue // Only surface outliers
 			}
@@ -279,7 +278,7 @@ func (s *RESTServer) handlePeerDeviations(w http.ResponseWriter, r *http.Request
 				EntityRisk:     entityRisk,
 				GroupAvgRisk:   group.AvgRiskScore,
 				DeviationSigma: sigma,
-				TopDeviation:   []string{"off_hours_login", "mass_download", "lateral_movement", "anomalous_access"}[rand.Intn(4)],
+				TopDeviation:   "unknown",
 				Timestamp:      time.Now().Format(time.RFC3339),
 			})
 		}
@@ -315,7 +314,7 @@ func (s *RESTServer) handlePeerDeviations(w http.ResponseWriter, r *http.Request
 				GroupAvgRisk:   group.AvgRiskScore,
 				DeviationSigma: entry.sigma,
 				TopDeviation:   entry.deviation,
-				Timestamp:      time.Now().Add(-time.Duration(rand.Intn(3600)) * time.Second).Format(time.RFC3339),
+				Timestamp:      time.Now().Format(time.RFC3339),
 			})
 		}
 	}

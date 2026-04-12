@@ -58,7 +58,7 @@ func (s *LedgerService) AppendEvidence(payload string, dataType string) *ledger.
 func (s *LedgerService) VerifyChain() string {
 	err := s.chain.Verify()
 	if err != nil {
-		s.log.Error("Ledger Verification Failed: " + err.Error())
+		s.log.Error("Ledger Verification Failed: %v", err)
 		return err.Error()
 	}
 	s.log.Info("Ledger verified successfully")

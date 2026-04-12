@@ -8,6 +8,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/auth"
+	"github.com/kingknull/oblivrashell/internal/cloud"
 	"github.com/kingknull/oblivrashell/internal/compliance"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/decision"
@@ -151,6 +152,9 @@ func (c *Container) initInfra() error {
 	}
 	c.Infra.HotStore = hotStore
 
+	c.Infra.CloudAssets = database.NewCloudAssetRepository(c.Infra.DB)
+	c.Infra.TenantRepo = database.NewTenantRepository(c.Infra.DB)
+
 	return nil
 }
 
@@ -161,6 +165,8 @@ func (c *Container) initSecurity(_ context.Context) error {
 
 	userRepo := database.NewUserRepository(c.Infra.DB)
 	roleRepo := database.NewRoleRepository(c.Infra.DB)
+	connectorRepo := database.NewIdentityConnectorRepository(c.Infra.DB, c.Infra.Vault)
+	reportRepo := database.NewReportRepository(c.Infra.DB)
 	rbacEngine := auth.NewRBACEngine(c.Log)
 
 	var hwProvider auth.HardwareRootedIdentity
@@ -168,7 +174,13 @@ func (c *Container) initSecurity(_ context.Context) error {
 		hwProvider = auth.NewTPMIdentityProvider(tpm, 0x81000001)
 	}
 
-	c.Security.IdentityService = services.NewIdentityService(userRepo, roleRepo, rbacEngine, hwProvider, c.Infra.Bus, c.Log)
+	c.Security.IdentityService = services.NewIdentityService(userRepo, roleRepo, connectorRepo, rbacEngine, hwProvider, c.Infra.Bus, c.Log)
+	c.Security.IdentitySyncService = services.NewIdentitySyncService(connectorRepo, c.Security.IdentityService, c.Infra.TenantRepo, c.Log)
+	
+	// ReportService depends on AnalyticsService which is initialized in initSIEM/initIntel
+	// So we proxy the repo here and finish wiring in initIntel
+	c.Security.ReportService = services.NewReportService(reportRepo, nil, c.Infra.TenantRepo, c.Log)
+	
 	c.Security.SecurityService = services.NewSecurityService(c.Security.FIDO2Manager, nil, nil, c.Infra.Bus, c.Log)
 
 	policyEngine := policy.NewEngine(policy.Config{ActiveTier: policy.TierEnterprise}, c.Log)
@@ -201,7 +213,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 
 	temporalEngine := temporal.NewIntegrityService(temporal.DefaultPolicy(), c.Infra.Bus, c.Log)
 	c.SIEM.TemporalEngine = temporalEngine
-	pipeline := ingest.NewPipeline(100000, wal, c.Infra.AnalyticsEngine, siemRepo, c.Infra.Bus, c.Log, temporalEngine)
+	pipeline := ingest.NewPartitionedPipeline(100000, wal, c.Infra.AnalyticsEngine, siemRepo, c.Infra.Bus, c.Log, temporalEngine, c.Infra.MetricsCollector)
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, "", "", "", c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.Bus, c.Log)
@@ -209,6 +221,10 @@ func (c *Container) initSIEM(_ context.Context) error {
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)
 	c.SIEM.AlertingService = services.NewAlertingService(nil, c.Infra.Notifier, c.Infra.AnalyticsEngine, siemRepo, nil, evaluator, c.Infra.Bus, c.Log)
+
+	// Inject the rule engine and identity resolver into the pipeline shards for parallel detection/enrichment
+	pipeline.SetEvaluator(evaluator)
+	pipeline.SetIdentityResolver(c.Security.IdentityService)
 	
 	c.SIEM.NDRService = services.NewNDRService(ndr.NewFlowCollector(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.UEBAService = services.NewUEBAService(uebapkg.NewUEBAService(database.NewHostRepository(c.Infra.DB, c.Infra.Vault), c.Infra.Bus, c.Infra.HotStore, c.Log), c.Infra.Bus, c.Log)
@@ -228,17 +244,33 @@ func (c *Container) initIntel(_ context.Context) error {
 	c.Intel.TemporalService = services.NewTemporalService(nil, c.Infra.Bus, c.Log)
 	c.Intel.GraphEngine = graph.NewGraphEngine(c.Infra.Bus, c.Log)
 	c.Intel.GraphService = services.NewGraphService(c.Intel.GraphEngine, c.Log)
-	c.Intel.RiskEngine = risk.NewRiskEngine(c.Infra.Bus, c.Infra.DB, nil, c.Log)
+	
+	hostRepo := database.NewHostRepository(c.Infra.DB, c.Infra.Vault)
+	userRepo := database.NewUserRepository(c.Infra.DB)
+	c.Intel.RiskEngine = risk.NewRiskEngine(c.Infra.Bus, c.Infra.DB, hostRepo, userRepo, c.Log)
 	c.Intel.RiskService = services.NewRiskService(c.Intel.RiskEngine, c.Infra.Bus, c.Log)
 	c.Intel.DecisionService = services.NewDecisionService(decision.NewDecisionEngine(c.Infra.Bus, c.Log), c.Log)
+	
+	// Wire AnalyticsService to ReportService
+	if c.Security.ReportService != nil {
+		// We use the already populated repo from initSecurity
+		c.Security.ReportService = services.NewReportService(
+			database.NewReportRepository(c.Infra.DB), 
+			c.Intel.AnalyticsService, 
+			c.Infra.TenantRepo, 
+			c.Log,
+		)
+	}
+
 	c.Intel.CounterfactualService = services.NewCounterfactualService(nil, nil, c.Log)
 	c.Intel.LineageService = services.NewLineageService(lineage.NewLineageEngine(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
+	c.Intel.DashboardService = services.NewDashboardService(database.NewDashboardRepository(c.Infra.DB), c.Intel.AnalyticsService, c.Log)
 
 	return nil
 }
 
 func (c *Container) initResponse() error {
-	c.Response.IncidentService = services.NewIncidentService(c.Infra.DB, nil, nil, c.Infra.Bus, c.Log)
+	c.Response.IncidentService = services.NewIncidentService(c.Infra.DB, nil, nil, c.Intel.RiskEngine, c.Infra.Bus, c.Log)
 	c.Response.PlaybookService = services.NewPlaybookService(nil)
 	c.Response.NetworkIsolatorService = services.NewNetworkIsolatorService(nil, nil, c.Infra.Bus, c.Log)
 	c.Response.RansomwareService = services.NewRansomwareService(nil, c.Infra.Bus, c.Log)
@@ -312,7 +344,7 @@ func (c *Container) initPlatform() error {
 	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), c.SIEM.IngestService.Pipeline(), c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {
@@ -338,6 +370,8 @@ func (c *Container) initPlatform() error {
 		)
 	}
 
+	c.Platform.CloudDiscovery = cloud.NewCloudDiscoveryManager(c.Infra.CloudAssets, c.Log)
+
 	return nil
 }
 
@@ -360,6 +394,8 @@ func (c *Container) registerServices() {
 	// Security
 	c.mustRegister(c.Security.SecurityService)
 	c.mustRegister(c.Security.IdentityService)
+	c.mustRegister(c.Security.IdentitySyncService)
+	c.mustRegister(c.Security.ReportService)
 	c.mustRegister(c.Security.PolicyService)
 	c.mustRegister(c.Security.TrustService)
 	c.mustRegister(c.Security.CanaryDeployment)
@@ -428,6 +464,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Intel.CounterfactualService)
 	c.mustRegister(c.Intel.LineageService)
 	c.mustRegister(c.Intel.TemporalService)
+	c.mustRegister(c.Intel.DashboardService)
 
 	// Response
 	c.mustRegister(c.Response.IncidentService)

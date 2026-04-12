@@ -2,10 +2,13 @@ package dag
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/database"
+	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -15,11 +18,11 @@ import (
 type SIEMNode struct {
 	BaseNode
 	siem database.SIEMStore
-	bus  *eventbus.Bus
+	bus  eventbus.EventPublisher
 	log  *logger.Logger
 }
 
-func NewSIEMNode(siem database.SIEMStore, bus *eventbus.Bus, log *logger.Logger) *SIEMNode {
+func NewSIEMNode(siem database.SIEMStore, bus eventbus.EventPublisher, log *logger.Logger) *SIEMNode {
 	return &SIEMNode{
 		BaseNode: BaseNode{nodeName: "SIEM_Destination"},
 		siem:     siem,
@@ -119,4 +122,109 @@ func (n *WASMFilterNode) Process(ctx context.Context, evt *Event) ([]*Event, err
 	}
 
 	return []*Event{evt}, nil
+}
+
+// DetectionNode handles real-time security rule evaluation.
+type DetectionNode struct {
+	BaseNode
+	engine *detection.Evaluator
+	bus    eventbus.EventPublisher
+	log    *logger.Logger
+}
+
+func NewDetectionNode(e *detection.Evaluator, bus eventbus.EventPublisher, log *logger.Logger) *DetectionNode {
+	return &DetectionNode{
+		BaseNode: BaseNode{nodeName: "Detection_Engine"},
+		engine:   e,
+		bus:      bus,
+		log:      log,
+	}
+}
+
+func (n *DetectionNode) Process(ctx context.Context, evt *Event) ([]*Event, error) {
+	if n.engine == nil {
+		return []*Event{evt}, nil
+	}
+
+	detEvt := detection.Event{
+		TenantID:  evt.TenantID,
+		EventType: evt.EventType,
+		SourceIP:  evt.SourceIp,
+		User:      evt.User,
+		HostID:    evt.Host,
+		RawLog:    evt.RawLine,
+		Timestamp: evt.Timestamp,
+	}
+
+	matches := n.engine.ProcessEvent(detEvt)
+	for _, match := range matches {
+		if n.bus != nil {
+			// Publish match for AlertingService to pick up
+			n.bus.Publish("detection.match", match)
+		}
+	}
+
+	return []*Event{evt}, nil
+}
+
+// ── Identity Enrichment Node ─────────────────────────────────────────────────
+
+type UserResolver interface {
+	GetUserByEmail(ctx context.Context, email string) (*database.User, error)
+}
+
+type IdentityEnrichmentNode struct {
+	BaseNode
+	resolver UserResolver
+	cache    sync.Map
+	log      *logger.Logger
+}
+
+func NewIdentityEnrichmentNode(r UserResolver, log *logger.Logger) *IdentityEnrichmentNode {
+	return &IdentityEnrichmentNode{
+		BaseNode: BaseNode{nodeName: "Identity_Enrichment"},
+		resolver: r,
+		log:      log,
+	}
+}
+
+func (n *IdentityEnrichmentNode) Process(ctx context.Context, evt *Event) ([]*Event, error) {
+	if evt.User == "" || n.resolver == nil {
+		return []*Event{evt}, nil
+	}
+
+	// Cache lookup
+	if val, ok := n.cache.Load(evt.User); ok {
+		n.enrich(evt, val.(*database.User))
+		return []*Event{evt}, nil
+	}
+
+	// DB lookup
+	user, err := n.resolver.GetUserByEmail(ctx, evt.User)
+	if err != nil {
+		// User not found or error, proceed without enrichment
+		return []*Event{evt}, nil
+	}
+
+	// Ingress caching
+	n.cache.Store(evt.User, user)
+	n.enrich(evt, user)
+
+	return []*Event{evt}, nil
+}
+
+func (n *IdentityEnrichmentNode) enrich(evt *Event, u *database.User) {
+	// Inject SCIM metadata into event metadata
+	if evt.Metadata == nil {
+		evt.Metadata = make(map[string]string)
+	}
+	evt.Metadata["identity.display_name"] = u.DisplayName
+	evt.Metadata["identity.title"] = u.Title
+	evt.Metadata["identity.department"] = u.Department
+	evt.Metadata["identity.organization"] = u.Organization
+	evt.Metadata["identity.active"] = fmt.Sprintf("%v", u.Active)
+	
+	if u.GroupsJSON != "" {
+		evt.Metadata["identity.groups"] = u.GroupsJSON
+	}
 }

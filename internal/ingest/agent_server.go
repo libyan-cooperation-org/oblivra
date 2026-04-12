@@ -26,7 +26,7 @@ import (
 // AgentServer listens for incoming telemetry from deployed Oblivra agents
 // It handles mTLS, payload decompression (zlib), and JSON decoding into the ingest pipeline
 type AgentServer struct {
-	pipeline  *Pipeline
+	pipeline  IngestionPipeline
 	port      int
 	server    *http.Server
 	log       *logger.Logger
@@ -63,7 +63,7 @@ type AgentInfo struct {
 }
 
 // NewAgentServer creates a new agent ingestion server
-func NewAgentServer(pipeline *Pipeline, port int, certFile, keyFile, caFile string, log *logger.Logger) *AgentServer {
+func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caFile string, log *logger.Logger) *AgentServer {
 	return &AgentServer{
 		pipeline:     pipeline,
 		port:         port,

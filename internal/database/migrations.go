@@ -357,7 +357,8 @@ var migrations = []migration{
 		version: 13,
 		name:    "fk_constraints_and_totp_encryption",
 		sql: `
-			PRAGMA foreign_keys = ON;
+			-- Foreign keys are enabled globally in the connection DSN or init logic.
+			-- PRAGMA foreign_keys = ON is a no-op inside a transaction.
 
 			-- Add FK indexes for tables missing them
 			CREATE INDEX IF NOT EXISTS idx_credentials_tenant ON credentials(tenant_id);
@@ -381,6 +382,164 @@ var migrations = []migration{
 			ALTER TABLE tenants ADD COLUMN status TEXT DEFAULT 'Active';
 			ALTER TABLE tenants ADD COLUMN crypto_salt TEXT DEFAULT '';
 			ALTER TABLE tenants ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+		`,
+	},
+	{
+		version: 15,
+		name:    "create_cloud_assets",
+		sql: `
+			CREATE TABLE IF NOT EXISTS cloud_assets (
+				id TEXT,
+				tenant_id TEXT DEFAULT 'default_tenant',
+				provider TEXT NOT NULL,
+				region TEXT NOT NULL,
+				account_id TEXT NOT NULL,
+				type TEXT NOT NULL,
+				name TEXT NOT NULL,
+				status TEXT DEFAULT 'active',
+				metadata TEXT DEFAULT '{}',
+				tags TEXT DEFAULT '{}',
+				first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+				last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (id, tenant_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_cloud_assets_tenant_provider ON cloud_assets(tenant_id, provider);
+			CREATE INDEX IF NOT EXISTS idx_cloud_assets_account ON cloud_assets(account_id);
+		`,
+	},
+	{
+		version: 16,
+		name:    "scim_normalization_extension",
+		sql: `
+			ALTER TABLE users ADD COLUMN external_id TEXT DEFAULT '';
+			ALTER TABLE users ADD COLUMN active BOOLEAN DEFAULT 1;
+			ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT '';
+			ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'user';
+			ALTER TABLE users ADD COLUMN title TEXT DEFAULT '';
+			ALTER TABLE users ADD COLUMN department TEXT DEFAULT '';
+			ALTER TABLE users ADD COLUMN organization TEXT DEFAULT '';
+			ALTER TABLE users ADD COLUMN preferred_language TEXT DEFAULT 'en-US';
+			ALTER TABLE users ADD COLUMN groups_json TEXT DEFAULT '[]';
+			ALTER TABLE users ADD COLUMN scim_attributes_json TEXT DEFAULT '{}';
+
+			CREATE UNIQUE INDEX IF NOT EXISTS idx_users_external_id ON users(external_id) WHERE external_id <> '';
+		`,
+	},
+	{
+		version: 17,
+		name:    "identity_connector_persistence",
+		sql: `
+			CREATE TABLE IF NOT EXISTS identity_connectors (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				type TEXT NOT NULL,
+				enabled BOOLEAN DEFAULT 1,
+				config_json TEXT NOT NULL,
+				sync_interval_mins INTEGER DEFAULT 60,
+				last_sync DATETIME,
+				status TEXT DEFAULT 'ok',
+				error_message TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE INDEX IF NOT EXISTS idx_identity_connectors_tenant ON identity_connectors(tenant_id);
+		`,
+	},
+	{
+		version: 18,
+		name:    "automated_triage_extension",
+		sql: `
+			ALTER TABLE incidents ADD COLUMN triage_score INTEGER DEFAULT 0;
+			ALTER TABLE incidents ADD COLUMN triage_reason TEXT DEFAULT '';
+		`,
+	},
+	{
+		version: 19,
+		name:    "report_factory_init",
+		sql: `
+			CREATE TABLE IF NOT EXISTS report_templates (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				description TEXT,
+				sections_json TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+
+			CREATE TABLE IF NOT EXISTS report_schedules (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				template_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				interval_mins INTEGER DEFAULT 1440,
+				next_run_at DATETIME,
+				recipients_json TEXT,
+				is_active BOOLEAN DEFAULT 1,
+				last_run_at DATETIME,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (template_id) REFERENCES report_templates(id) ON DELETE CASCADE
+			);
+
+			CREATE TABLE IF NOT EXISTS generated_reports (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				schedule_id TEXT,
+				template_id TEXT NOT NULL,
+				title TEXT NOT NULL,
+				period_start DATETIME,
+				period_end DATETIME,
+				file_path TEXT,
+				status TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (template_id) REFERENCES report_templates(id) ON DELETE CASCADE
+			);
+			CREATE INDEX IF NOT EXISTS idx_reports_tenant ON generated_reports(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_schedules_next ON report_schedules(next_run_at) WHERE is_active = 1;
+		`,
+	},
+	{
+		version: 20,
+		name:    "dashboard_studio_init",
+		sql: `
+			CREATE TABLE IF NOT EXISTS dashboards (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				description TEXT,
+				layout TEXT DEFAULT 'grid',
+				owner_id TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+
+			CREATE TABLE IF NOT EXISTS dashboard_widgets (
+				id TEXT PRIMARY KEY,
+				dashboard_id TEXT NOT NULL,
+				title TEXT NOT NULL,
+				viz_type TEXT NOT NULL,
+				query_oql TEXT NOT NULL,
+				layout_x INTEGER DEFAULT 0,
+				layout_y INTEGER DEFAULT 0,
+				layout_w INTEGER DEFAULT 4,
+				layout_h INTEGER DEFAULT 4,
+				refresh_interval_secs INTEGER DEFAULT 0,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (dashboard_id) REFERENCES dashboards(id) ON DELETE CASCADE
+			);
+			CREATE INDEX IF NOT EXISTS idx_dash_tenant ON dashboards(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_widgets_dash ON dashboard_widgets(dashboard_id);
+		`,
+	},
+	{
+		version: 21,
+		name:    "asset_intel_init",
+		sql: `
+			ALTER TABLE hosts ADD COLUMN criticality_score INTEGER DEFAULT 1;
+			ALTER TABLE hosts ADD COLUMN criticality_reason TEXT;
+			ALTER TABLE users ADD COLUMN criticality_score INTEGER DEFAULT 1;
+			ALTER TABLE users ADD COLUMN criticality_reason TEXT;
 		`,
 	},
 }

@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
 	"runtime"
 	"sync"
@@ -12,8 +13,11 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/monitoring"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"github.com/kingknull/oblivrashell/internal/detection"
+	"github.com/kingknull/oblivrashell/internal/engine/dag"
 	"golang.org/x/time/rate"
 )
 
@@ -39,7 +43,8 @@ type PartitionedPipeline struct {
 	limiters  map[string]*rate.Limiter
 	limiterMu sync.RWMutex
 	maxEPS    int
-	log       *logger.Logger
+	log              *logger.Logger
+	metricsCollector *monitoring.MetricsCollector
 }
 
 // PartitionedMetrics aggregates stats across all shards.
@@ -59,16 +64,19 @@ func NewPartitionedPipeline(
 	bus *eventbus.Bus,
 	log *logger.Logger,
 	temporal *temporal.IntegrityService,
+	mc *monitoring.MetricsCollector,
 ) *PartitionedPipeline {
 	pp := &PartitionedPipeline{
-		log:      log.WithPrefix("partitioned-pipeline"),
-		limiters: make(map[string]*rate.Limiter),
-		maxEPS:   1000, // Default 1000 EPS per tenant
+		log:              log.WithPrefix("partitioned-pipeline"),
+		limiters:         make(map[string]*rate.Limiter),
+		maxEPS:           1000, // Default 1000 EPS per tenant
+		metricsCollector: mc,
 	}
 
 	for i := 0; i < PartitionCount; i++ {
+		shardID := fmt.Sprintf("%d", i)
 		pp.shards[i] = NewPipeline(bufferPerShard, wal, ae, siem, bus,
-			log.WithPrefix("shard-"+string(rune('0'+i))), temporal)
+			log.WithPrefix("shard-"+shardID), temporal, mc, map[string]string{"shard": shardID}, nil)
 	}
 
 	return pp
@@ -95,6 +103,44 @@ func (pp *PartitionedPipeline) Stop() {
 	}
 	wg.Wait()
 	pp.log.Info("[PART] All pipeline shards stopped")
+}
+
+// SetEvaluator distributes clones of the detection engine to all shards.
+func (pp *PartitionedPipeline) SetEvaluator(e *detection.Evaluator) {
+	if e == nil {
+		return
+	}
+	for _, shard := range pp.shards {
+		// Shard-local evaluators get their own isolation (no shared mutex contention)
+		shard.SetEvaluator(e.Clone())
+	}
+}
+
+// SetIdentityResolver distributes the identity service to all shards for event enrichment.
+func (pp *PartitionedPipeline) SetIdentityResolver(r dag.UserResolver) {
+	if r == nil {
+		return
+	}
+	for _, shard := range pp.shards {
+		shard.SetIdentityResolver(r)
+	}
+}
+
+// Shutdown drains and stops all shards.
+func (pp *PartitionedPipeline) Shutdown() {
+	pp.Stop()
+}
+
+// GetLoadStatus returns the worst status across all shards.
+func (pp *PartitionedPipeline) GetLoadStatus() LoadStatus {
+	worst := LoadHealthy
+	for _, s := range pp.shards {
+		status := s.GetLoadStatus()
+		if status > worst {
+			worst = status
+		}
+	}
+	return worst
 }
 
 // QueueEvent routes the event to the correct shard using a stable hash of HostID.
@@ -198,4 +244,9 @@ func (pp *PartitionedPipeline) Bus() *eventbus.Bus {
 // non-deterministic across shards anyway, so single-shard replay is correct.
 func (pp *PartitionedPipeline) Replay(ctx context.Context) error {
 	return pp.shards[0].Replay(ctx)
+}
+
+// GetMetricsCollector returns the centralized metrics collector.
+func (pp *PartitionedPipeline) GetMetricsCollector() *monitoring.MetricsCollector {
+	return pp.metricsCollector
 }

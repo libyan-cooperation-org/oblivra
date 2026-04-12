@@ -4,7 +4,7 @@
  * Central application state. Replaces the SolidJS createStore + Context pattern.
  * Uses Svelte 5 $state runes for fine-grained reactivity.
  *
- * Usage from any Svelte component:
+ * Usage:
  *   import { appStore } from '@lib/stores/app.svelte';
  *   appStore.hosts; // reactive read
  *   appStore.setHosts(newHosts); // mutation
@@ -21,6 +21,7 @@ import type {
     Transfer,
     NavTab,
     Workspace,
+    SystemHealth,
 } from '../types';
 
 class AppStore {
@@ -39,6 +40,8 @@ class AppStore {
     focusMode = $state(false);
     notifications = $state<Notification[]>([]);
     transfers = $state<Transfer[]>([]);
+    isMaximized = $state(false);
+    systemHealth = $state<SystemHealth>({ status: 'healthy' });
 
     // ── Initialization ───────────────────────────────────────────────
 
@@ -148,6 +151,27 @@ class AppStore {
             );
             this.notify(`Transfer ${data.name} failed: ${data.error}`, 'error');
         });
+
+        subscribe('health_status_changed', (data: any) => {
+            // Data can be a host's health or global service health report.
+            // If it's the ingest service reporting an error, we mark as degraded.
+            if (data && typeof data.status === 'string') {
+                const status = data.status.toLowerCase();
+                if (status.includes('degraded')) {
+                    this.systemHealth = { 
+                        status: 'degraded', 
+                        message: data.message || 'System performance is degraded (High Load)' 
+                    };
+                } else if (status.includes('critical')) {
+                    this.systemHealth = { 
+                        status: 'critical', 
+                        message: data.message || 'System is in a critical state (Saturation)' 
+                    };
+                } else if (status === 'healthy' || status === 'online') {
+                    this.systemHealth = { status: 'healthy' };
+                }
+            }
+        });
     }
 
     // ── Actions ──────────────────────────────────────────────────────
@@ -222,10 +246,10 @@ class AppStore {
         }
         try {
             const { StartLocalSession } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
-            const session = await StartLocalSession();
-            if (session) {
-                this.addSession(session);
-                this.setActiveSession(session.id);
+            const sessionId = await StartLocalSession();
+            if (sessionId) {
+                // The session:started event handler in init() will add it to the list
+                this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
                 push('/terminal');
             }
@@ -248,10 +272,10 @@ class AppStore {
         
         try {
             const { Connect } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
-            const session = await Connect(host.id);
-            if (session) {
-                this.addSession(session);
-                this.setActiveSession(session.id);
+            const sessionId = await Connect(host.id);
+            if (sessionId) {
+                // The session:started event handler in init() will add it to the list
+                this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
                 push('/terminal');
             }

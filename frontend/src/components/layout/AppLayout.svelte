@@ -14,6 +14,7 @@
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import AddHostModal from '@components/sidebar/AddHostModal.svelte';
   import TransferDrawer from '@components/terminal/TransferDrawer.svelte';
+  import SystemBanner from '@components/ui/SystemBanner.svelte';
 
   interface Props {
     children: Snippet;
@@ -84,6 +85,8 @@
   {#if !appStore.focusMode}
     <TitleBar />
   {/if}
+
+  <SystemBanner />
 
   <!-- Body: Rail + Content -->
   <div class="flex flex-1 overflow-hidden bg-surface-0">

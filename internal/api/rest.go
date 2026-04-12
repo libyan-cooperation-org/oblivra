@@ -27,6 +27,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/lookup"
 	"github.com/kingknull/oblivrashell/internal/notifications"
+	"github.com/kingknull/oblivrashell/internal/oql"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/mcp"
@@ -36,10 +37,51 @@ import (
 type IdentityProvider interface {
 	LoginLocal(email, password string) (*database.User, error)
 	GetUser(id string) (*database.User, error)
+	ListUsers(ctx context.Context) ([]database.User, error)
+	GetUserByExternalID(ctx context.Context, extID string) (*database.User, error)
+	ProvisionSCIMUser(ctx context.Context, u *database.User) error
+	DeleteUser(ctx context.Context, id string) error
 	GetOIDCURL() (string, error)
 	GetSAMLURL() (string, error)
 	HandleOIDCCallback(code string) (*database.User, error)
 	HandleSAMLCallback(data string) (*database.User, error)
+
+	// Connector management (Phase 20.7)
+	ListConnectors(ctx context.Context) ([]database.IdentityConnector, error)
+	CreateConnector(ctx context.Context, c *database.IdentityConnector) error
+	GetConnector(ctx context.Context, id string) (*database.IdentityConnector, error)
+	UpdateConnector(ctx context.Context, c *database.IdentityConnector) error
+	DeleteConnector(ctx context.Context, id string) error
+	TriggerSync(ctx context.Context, id string) error
+}
+
+// ReportingProvider defines the subset of ReportService required by the REST API.
+type ReportingProvider interface {
+	ListTemplates(ctx context.Context) ([]database.ReportTemplate, error)
+	CreateTemplate(ctx context.Context, t *database.ReportTemplate) error
+	ListGeneratedReports(ctx context.Context, limit int) ([]database.GeneratedReport, error)
+	GenerateManualReport(ctx context.Context, templateID string, start, end string) (string, error)
+	GetReportPath(ctx context.Context, id string) (string, error)
+}
+
+// DashboardProvider defines the subset of DashboardService required by the REST API.
+type DashboardProvider interface {
+	ListDashboards(ctx context.Context) ([]database.Dashboard, error)
+	CreateDashboard(ctx context.Context, d *database.Dashboard) error
+	GetDashboard(ctx context.Context, id string) (*database.Dashboard, error)
+	UpdateDashboard(ctx context.Context, d *database.Dashboard) error
+	DeleteDashboard(ctx context.Context, id string) error
+	GetDashboardData(ctx context.Context, id string) (*DashboardData, error)
+	
+	AddWidget(ctx context.Context, w *database.DashboardWidget) error
+	UpdateWidget(ctx context.Context, w *database.DashboardWidget) error
+	DeleteWidget(ctx context.Context, dashboardID, widgetID string) error
+}
+
+// DashboardData is a DTO for returning batched widget results.
+type DashboardData struct {
+	DashboardID string                      `json:"dashboard_id"`
+	Results     map[string]*oql.QueryResult `json:"results"`
 }
 
 // RESTServer exposes backend capabilities to external clients (headless mode)
@@ -47,7 +89,7 @@ type RESTServer struct {
 	port     int
 	server   *http.Server
 	siem     database.SIEMStore
-	pipeline *ingest.Pipeline
+	pipeline ingest.IngestionPipeline
 	auth     *auth.APIKeyMiddleware
 	identity IdentityProvider
 	bus      *eventbus.Bus
@@ -82,6 +124,8 @@ type RESTServer struct {
 	mcpHandler  *mcp.Handler
 
 	tenantRepo *database.TenantRepository
+	reports    ReportingProvider
+	dashboards DashboardProvider
 }
 
 // AgentInfo tracks a registered agent.
@@ -103,7 +147,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, pipeline *ingest.Pipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, pipeline ingest.IngestionPipeline, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -127,6 +171,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		mcpRegistry: mcpRegistry,
 		mcpHandler:  mcpHandler,
 		tenantRepo:  tenantRepo,
+		reports:     reports,
+		dashboards:  dashboards,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -243,6 +289,25 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/ueba/profiles", s.handleUEBAProfiles)
 	mux.HandleFunc("/api/v1/ueba/anomalies", s.handleUEBAAnomalies)
 	mux.HandleFunc("/api/v1/ueba/stats", s.handleUEBAStats)
+
+	// SCIM 2.0 — Phase 20.4
+	mux.HandleFunc("/api/scim/v2/Users", s.handleSCIMUsers)
+	mux.HandleFunc("/api/scim/v2/Users/", s.handleSCIMUserByID)
+	mux.HandleFunc("/api/scim/v2/Groups", s.handleSCIMGroups)
+	
+	// Identity Connectors — Phase 20.7
+	mux.HandleFunc("/api/v1/identity/connectors", s.handleIdentityConnectors)
+	mux.HandleFunc("/api/v1/identity/connectors/", s.handleIdentityConnectorByID)
+	
+	// Report Factory — Phase 20.10
+	mux.HandleFunc("/api/v1/reports/templates", s.handleReportTemplates)
+	mux.HandleFunc("/api/v1/reports/generated", s.handleGeneratedReports)
+	mux.HandleFunc("/api/v1/reports/generate", s.handleReportGenerate)
+	mux.HandleFunc("/api/v1/reports/view/", s.handleReportView)
+
+	// Dashboard Studio — Phase 20.11
+	mux.HandleFunc("/api/v1/dashboards", s.handleDashboards)
+	mux.HandleFunc("/api/v1/dashboards/", s.handleDashboardByID)
 
 	// NDR endpoints (Phase 11)
 	mux.HandleFunc("/api/v1/ndr/flows", s.handleNDRFlows)
@@ -383,6 +448,9 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		// 3. Security Headers
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:;")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
 		// Handle preflight
@@ -421,36 +489,28 @@ func (s *RESTServer) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	// 1. Gather SIEM-level metrics (e.g., active alerts) into the collector if not already there
+	if s.siem != nil && s.pipeline != nil {
+		mc := s.pipeline.GetMetricsCollector()
+		if mc != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			alerts, _ := s.siem.SearchHostEvents(ctx, "EventType:security_alert", 100)
+			cancel()
+			mc.SetGauge("siem_active_alerts", float64(len(alerts)), nil)
+		}
+	}
 
-	eps := int64(0)
-	total := int64(0)
+	// 2. Delegate to the centralized Prometheus handler
 	if s.pipeline != nil {
-		m := s.pipeline.GetMetrics()
-		eps = m.EventsPerSecond
-		total = m.TotalProcessed
+		if mc := s.pipeline.GetMetricsCollector(); mc != nil {
+			mc.PrometheusHandler().ServeHTTP(w, r)
+			return
+		}
 	}
 
-	activeAlerts := 0
-	if s.siem != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		alerts, _ := s.siem.SearchHostEvents(ctx, "EventType:security_alert", 100)
-		cancel()
-		activeAlerts = len(alerts)
-	}
-
-	// Output minimal Prometheus formatted metrics
-	fmt.Fprintf(w, "# HELP oblivra_ingest_eps Current events processed per second\n")
-	fmt.Fprintf(w, "# TYPE oblivra_ingest_eps gauge\n")
-	fmt.Fprintf(w, "oblivra_ingest_eps %d\n\n", eps)
-
-	fmt.Fprintf(w, "# HELP oblivra_ingest_total Total events processed\n")
-	fmt.Fprintf(w, "# TYPE oblivra_ingest_total counter\n")
-	fmt.Fprintf(w, "oblivra_ingest_total %d\n\n", total)
-
-	fmt.Fprintf(w, "# HELP oblivra_active_alerts Current active security anomalies\n")
-	fmt.Fprintf(w, "# TYPE oblivra_active_alerts gauge\n")
-	fmt.Fprintf(w, "oblivra_active_alerts %d\n", activeAlerts)
+	// Fallback if collector is missing
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(w, "# No metrics available\n")
 }
 
 func (s *RESTServer) handleSIEMSearch(w http.ResponseWriter, r *http.Request) {

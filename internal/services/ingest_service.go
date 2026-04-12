@@ -13,7 +13,7 @@ import (
 // IngestService provides frontend controls for the syslog server and ingestion pipeline
 type IngestService struct {
 	BaseService
-	pipeline *ingest.Pipeline
+	pipeline ingest.IngestionPipeline
 	server   *ingest.SyslogServer
 	agentSrv *ingest.AgentServer
 	bus      *eventbus.Bus
@@ -28,7 +28,7 @@ func (s *IngestService) Dependencies() []string {
 }
 
 // NewIngestService injects the ingestion dependencies
-func NewIngestService(p *ingest.Pipeline, srv *ingest.SyslogServer, agentSrv *ingest.AgentServer, bus *eventbus.Bus, log *logger.Logger) *IngestService {
+func NewIngestService(p ingest.IngestionPipeline, srv *ingest.SyslogServer, agentSrv *ingest.AgentServer, bus *eventbus.Bus, log *logger.Logger) *IngestService {
 	return &IngestService{
 		pipeline: p,
 		server:   srv,
@@ -38,8 +38,8 @@ func NewIngestService(p *ingest.Pipeline, srv *ingest.SyslogServer, agentSrv *in
 	}
 }
 
-// Pipeline returns the underlying ingest.Pipeline for cross-service wiring.
-func (s *IngestService) Pipeline() *ingest.Pipeline {
+// Pipeline returns the underlying ingest.IngestionPipeline for cross-service wiring.
+func (s *IngestService) Pipeline() ingest.IngestionPipeline {
 	return s.pipeline
 }
 
@@ -140,4 +140,24 @@ func (s *IngestService) QueueEvent(evt *events.SovereignEvent) error {
 		return fmt.Errorf("pipeline not initialized")
 	}
 	return s.pipeline.QueueEvent(evt)
+}
+
+// Health reports the current operational state of the ingestion pipeline to the platform.
+func (s *IngestService) Health(ctx context.Context) error {
+	if s.pipeline == nil {
+		return fmt.Errorf("pipeline inactive")
+	}
+
+	status := s.pipeline.GetLoadStatus()
+	if status == ingest.LoadDegraded {
+		metrics := s.pipeline.GetMetrics()
+		return fmt.Errorf("ingestion pipeline is DEGRADED (EPS: %d, Drops: %d)", 
+			metrics.EventsPerSecond, metrics.DroppedEvents)
+	}
+	
+	if status == ingest.LoadCritical {
+		return fmt.Errorf("ingestion pipeline is CRITICAL (buffer saturation)")
+	}
+
+	return nil
 }

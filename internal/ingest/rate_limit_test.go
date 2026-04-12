@@ -11,7 +11,7 @@ import (
 func TestPartitionedPipeline_RateLimiting(t *testing.T) {
 	log := logger.NewStdoutLogger()
 	// Create pipeline with very low limit for testing
-	pp := NewPartitionedPipeline(100, nil, nil, nil, nil, log, nil)
+	pp := NewPartitionedPipeline(100, nil, nil, nil, nil, log, nil, nil)
 	pp.maxEPS = 10 // 10 events per second
 
 	tenantA := "tenant-alpha"

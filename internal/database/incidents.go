@@ -27,8 +27,9 @@ func (d *Database) Upsert(ctx context.Context, incident *Incident) error {
 		INSERT INTO incidents (
 			id, rule_id, group_key, status, severity, description,
 			title, first_seen_at, last_seen_at, event_count, owner,
-			mitre_tactics, mitre_techniques, resolution_reason
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			mitre_tactics, mitre_techniques, resolution_reason,
+			triage_score, triage_reason
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			status=excluded.status,
 			severity=excluded.severity,
@@ -39,7 +40,9 @@ func (d *Database) Upsert(ctx context.Context, incident *Incident) error {
 			owner=excluded.owner,
 			mitre_tactics=excluded.mitre_tactics,
 			mitre_techniques=excluded.mitre_techniques,
-			resolution_reason=excluded.resolution_reason
+			resolution_reason=excluded.resolution_reason,
+			triage_score=excluded.triage_score,
+			triage_reason=excluded.triage_reason
 	`
 
 	_, err = db.ExecContext(ctx, query,
@@ -47,7 +50,7 @@ func (d *Database) Upsert(ctx context.Context, incident *Incident) error {
 		incident.Severity, incident.Description, incident.Title,
 		incident.FirstSeenAt, incident.LastSeenAt, incident.EventCount,
 		incident.Owner, string(tacticsJSON), string(techniquesJSON),
-		incident.ResolutionReason,
+		incident.ResolutionReason, incident.TriageScore, incident.TriageReason,
 	)
 	return err
 }
@@ -61,7 +64,7 @@ func (d *Database) GetByID(ctx context.Context, id string) (*Incident, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	row := db.QueryRowContext(ctx, "SELECT id, rule_id, group_key, status, severity, description, title, first_seen_at, last_seen_at, event_count, owner, mitre_tactics, mitre_techniques, resolution_reason FROM incidents WHERE id = ?", id)
+	row := db.QueryRowContext(ctx, "SELECT id, rule_id, group_key, status, severity, description, title, first_seen_at, last_seen_at, event_count, owner, mitre_tactics, mitre_techniques, resolution_reason, triage_score, triage_reason FROM incidents WHERE id = ?", id)
 	return scanIncident(row)
 }
 
@@ -78,7 +81,7 @@ func (d *Database) GetByRuleAndGroup(ctx context.Context, ruleID string, groupKe
 	query := `
 		SELECT id, rule_id, group_key, status, severity, description, title, 
 		       first_seen_at, last_seen_at, event_count, owner, mitre_tactics, 
-			   mitre_techniques, resolution_reason 
+			   mitre_techniques, resolution_reason, triage_score, triage_reason 
 		FROM incidents 
 		WHERE rule_id = ? AND group_key = ? AND status != 'Closed'
 		ORDER BY last_seen_at DESC LIMIT 1
@@ -99,7 +102,7 @@ func (d *Database) Search(ctx context.Context, status string, owner string, limi
 	query := `
 		SELECT id, rule_id, group_key, status, severity, description, title, 
 		       first_seen_at, last_seen_at, event_count, owner, mitre_tactics, 
-			   mitre_techniques, resolution_reason 
+			   mitre_techniques, resolution_reason, triage_score, triage_reason 
 		FROM incidents WHERE 1=1
 	`
 	var args []interface{}
@@ -155,7 +158,7 @@ func scanIncident(row rowScanner) (*Incident, error) {
 	err := row.Scan(
 		&i.ID, &i.RuleID, &i.GroupKey, &i.Status, &i.Severity, &i.Description,
 		&i.Title, &firstSeen, &lastSeen, &i.EventCount, &i.Owner,
-		&tacticsStr, &techniquesStr, &i.ResolutionReason,
+		&tacticsStr, &techniquesStr, &i.ResolutionReason, &i.TriageScore, &i.TriageReason,
 	)
 	if err != nil {
 		return nil, err

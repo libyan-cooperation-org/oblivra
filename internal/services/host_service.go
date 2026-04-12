@@ -139,7 +139,7 @@ func (s *HostService) pollHosts() {
 	wg.Wait()
 
 	if s.ctx != nil {
-		EmitEvent(s.ctx, "host-health-update", statusMap)
+		EmitEvent("host-health-update", statusMap)
 	}
 }
 

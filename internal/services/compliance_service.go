@@ -116,7 +116,7 @@ func (s *ComplianceService) EvaluatePack(packID string) (*compliance.PackResult,
 	auditCount, _ := s.reportGenerator.GetAuditCount()
 
 	// Real-time Identity telemetry
-	identityStats, _ := s.identity.GetSecurityStats()
+	identityStats, _ := s.identity.GetSecurityStats(s.ctx)
 
 	// Real-time API telemetry
 	tlsActive := false

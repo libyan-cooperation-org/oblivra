@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/oql"
@@ -59,11 +60,7 @@ func (s *AnalyticsService) SearchLogs(ctx context.Context, query string, mode st
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
-	tenantID := "default_tenant"
-	if id, ok := ctx.Value("tenant_id").(string); ok {
-		tenantID = id
-	}
-	return s.engine.Search(tenantID, query, mode, limit, offset)
+	return s.engine.Search(ctx, query, mode, limit, offset)
 }
 
 // GetRecordingFrames retrieves the full TTY frame sequence for a session.
@@ -71,11 +68,7 @@ func (s *AnalyticsService) GetRecordingFrames(ctx context.Context, sessionID str
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
-	tenantID := "default_tenant"
-	if id, ok := ctx.Value("tenant_id").(string); ok {
-		tenantID = id
-	}
-	return s.engine.GetRecordingFrames(tenantID, sessionID)
+	return s.engine.GetRecordingFrames(ctx, sessionID)
 }
 
 // SaveDashboard stores a dashboard layout as JSON.
@@ -83,11 +76,7 @@ func (s *AnalyticsService) SaveDashboard(ctx context.Context, id string, layoutJ
 	if s.engine == nil {
 		return fmt.Errorf("analytics engine not localized")
 	}
-	tenantID := "default_tenant"
-	if tid, ok := ctx.Value("tenant_id").(string); ok {
-		tenantID = tid
-	}
-	return s.engine.SaveConfig(tenantID, "dashboard_"+id, layoutJSON)
+	return s.engine.SaveConfig(ctx, "dashboard_"+id, layoutJSON)
 }
 
 // LoadDashboard retrieves a saved dashboard layout.
@@ -95,11 +84,7 @@ func (s *AnalyticsService) LoadDashboard(ctx context.Context, id string) (string
 	if s.engine == nil {
 		return "", fmt.Errorf("analytics engine not localized")
 	}
-	tenantID := "default_tenant"
-	if tid, ok := ctx.Value("tenant_id").(string); ok {
-		tenantID = tid
-	}
-	return s.engine.LoadConfig(tenantID, "dashboard_"+id)
+	return s.engine.LoadConfig(ctx, "dashboard_"+id)
 }
 
 // RunWidgetQuery executes a dashboard widget query.
@@ -107,11 +92,7 @@ func (s *AnalyticsService) RunWidgetQuery(ctx context.Context, query string, lim
 	if s.engine == nil {
 		return nil, fmt.Errorf("analytics engine not localized")
 	}
-	tenantID := "default_tenant"
-	if id, ok := ctx.Value("tenant_id").(string); ok {
-		tenantID = id
-	}
-	return s.engine.Search(tenantID, query, "sql", limit, 0)
+	return s.engine.Search(ctx, query, "sql", limit, 0)
 }
 
 // RunOsquery executes an osquery-style query (stub — osquery integration planned for Phase 6).
@@ -148,7 +129,7 @@ func (s *AnalyticsService) RunOQL(ctx context.Context, query string) (*oql.Query
 	}
 
 	// Fetch raw logs from SQLite to feed into the OQL engine
-	data, err := s.engine.Search(tenantID, "SELECT timestamp, session_id, host, output FROM terminal_logs ORDER BY timestamp DESC LIMIT 50000", "sql", 50000, 0)
+	data, err := s.engine.Search(searchCtx, "SELECT timestamp, session_id, host, output FROM terminal_logs ORDER BY timestamp DESC LIMIT 50000", "sql", 50000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch raw data for OQL fallback: %w", err)
 	}

@@ -43,7 +43,7 @@ func (s *UEBAService) Start(ctx context.Context) error {
 	// Stream anomalies to frontend
 	s.bus.Subscribe(eventbus.EventType("siem.anomaly_detected"), func(e eventbus.Event) {
 		if s.ctx != nil {
-			EmitEvent(s.ctx, "siem:anomaly", e.Data)
+			EmitEvent("siem:anomaly", e.Data)
 		}
 	})
 	return nil

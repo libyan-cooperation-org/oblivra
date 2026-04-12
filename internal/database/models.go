@@ -101,6 +101,52 @@ type HostEvent struct {
 	RawLog    string    `json:"raw_log"`
 }
 
+
+// Phase 20.10 — Report Factory Models
+
+type ReportTemplate struct {
+	ID           string          `json:"id"`
+	TenantID     string          `json:"tenant_id"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	SectionsJSON string                 `json:"sections_json"` // Serialized []GenericReportSection
+	CreatedAt    string                 `json:"created_at"`
+	UpdatedAt    string                 `json:"updated_at"`
+	Sections     []GenericReportSection `json:"sections,omitempty"` // For DTO
+}
+
+type ReportSchedule struct {
+	ID           string `json:"id"`
+	TenantID     string `json:"tenant_id"`
+	TemplateID   string `json:"template_id"`
+	Name         string `json:"name"`
+	IntervalMins int    `json:"interval_mins"`
+	NextRunAt    string `json:"next_run_at"`
+	Recipients   string `json:"recipients_json"`
+	IsActive     bool   `json:"is_active"`
+	LastRunAt    string `json:"last_run_at"`
+	CreatedAt    string `json:"created_at"`
+}
+
+type GeneratedReport struct {
+	ID          string `json:"id"`
+	TenantID    string `json:"tenant_id"`
+	ScheduleID  string `json:"schedule_id,omitempty"`
+	TemplateID  string `json:"template_id"`
+	Title       string `json:"title"`
+	PeriodStart string `json:"period_start"`
+	PeriodEnd   string `json:"period_end"`
+	FilePath    string `json:"file_path"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type GenericReportSection struct {
+	Title string `json:"title"`
+	Type  string `json:"type"` // "table", "summary", "trend"
+	Query string `json:"query"` // OQL Query
+}
+
 type SavedSearch struct {
 	ID        string    `json:"id"`
 	TenantID  string    `json:"tenant_id"`
@@ -125,6 +171,8 @@ type Incident struct {
 	MitreTactics     []string  `json:"mitre_tactics"`
 	MitreTechniques  []string  `json:"mitre_techniques"`
 	ResolutionReason string    `json:"resolution_reason,omitempty"`
+	TriageScore      int       `json:"triage_score"`
+	TriageReason     string    `json:"triage_reason"`
 }
 
 type ConfigChange struct {
@@ -137,6 +185,34 @@ type ConfigChange struct {
 	NewValue  string    `json:"new_value,omitempty"`
 	RiskScore int       `json:"risk_score"`
 	Status    string    `json:"status"` // e.g., "applied"
+}
+
+// Phase 20.11 — Dashboard Studio Models
+
+type Dashboard struct {
+	ID          string            `json:"id"`
+	TenantID    string            `json:"tenant_id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Layout      string            `json:"layout"` // "grid", "freeflow"
+	OwnerID     string            `json:"owner_id"`
+	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at"`
+	Widgets     []DashboardWidget `json:"widgets,omitempty"`
+}
+
+type DashboardWidget struct {
+	ID                  string `json:"id"`
+	DashboardID         string `json:"dashboard_id"`
+	Title               string `json:"title"`
+	VizType             string `json:"viz_type"` // "bar", "line", "summary", "table", "pie"
+	QueryOQL            string `json:"query_oql"`
+	LayoutX             int    `json:"layout_x"`
+	LayoutY             int    `json:"layout_y"`
+	LayoutW             int    `json:"layout_w"`
+	LayoutH             int    `json:"layout_h"`
+	RefreshIntervalSecs int    `json:"refresh_interval_secs"`
+	CreatedAt           string `json:"created_at"`
 }
 
 type EvidenceItem struct {
@@ -166,4 +242,35 @@ type ChainEntry struct {
 	Notes        string    `json:"notes,omitempty"`
 	PreviousHash string    `json:"previous_hash"`
 	EntryHash    string    `json:"entry_hash"`
+}
+
+type CloudAsset struct {
+	ID        string            `json:"id"`
+	TenantID  string            `json:"tenant_id"`
+	Provider  string            `json:"provider"` // aws, azure, gcp
+	Region    string            `json:"region"`
+	AccountID string            `json:"account_id"`
+	Type      string            `json:"type"` // ec2, s3, lambda, etc.
+	Name      string            `json:"name"`
+	Status    string            `json:"status"`
+	Metadata  map[string]string `json:"metadata"`
+	Tags      map[string]string `json:"tags"`
+	FirstSeen string            `json:"first_seen"`
+	LastSeen  string            `json:"last_seen"`
+}
+
+// IdentityConnector represents an external identity provider configuration.
+type IdentityConnector struct {
+	ID               string `json:"id"`
+	TenantID         string `json:"tenant_id"`
+	Name             string `json:"name"`
+	Type             string `json:"type"` // okta, azure_ad, ldap
+	Enabled          bool   `json:"enabled"`
+	ConfigJSON       string `json:"config_json"` // AES-encrypted configuration blob
+	SyncIntervalMins int    `json:"sync_interval_mins"`
+	LastSync         string `json:"last_sync"`
+	Status           string `json:"status"`
+	ErrorMessage     string `json:"error_message"`
+	CreatedAt        string `json:"created_at"`
+	UpdatedAt        string `json:"updated_at"`
 }

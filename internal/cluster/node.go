@@ -110,14 +110,15 @@ func (n *Node) LeaderAddr() string {
 	return string(leaderAddr)
 }
 
-func (n *Node) ApplyWrite(ctx context.Context, query string, args ...interface{}) (int64, int64, error) {
+func (n *Node) ApplyWrite(ctx context.Context, requestID string, query string, args ...interface{}) (int64, int64, error) {
 	if !n.IsLeader() {
 		return 0, 0, ErrNotLeader
 	}
 
 	cmd := SQLWriteCommand{
-		Query: query,
-		Args:  args,
+		RequestID: requestID,
+		Query:     query,
+		Args:      args,
 	}
 
 	data, err := json.Marshal(cmd)

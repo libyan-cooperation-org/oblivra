@@ -79,3 +79,29 @@ func (r *TenantRepository) CryptographicWipe(ctx context.Context, id string) err
 
 	return err
 }
+
+func (r *TenantRepository) ListAllTenants(ctx context.Context) ([]Tenant, error) {
+	r.db.RLock()
+	defer r.db.RUnlock()
+
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := conn.Query("SELECT id, name, tier, status, crypto_salt, created_at, updated_at FROM tenants WHERE status != 'Deleted'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tenants []Tenant
+	for rows.Next() {
+		var t Tenant
+		if err := rows.Scan(&t.ID, &t.Name, &t.Tier, &t.Status, &t.CryptoSalt, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		tenants = append(tenants, t)
+	}
+	return tenants, nil
+}

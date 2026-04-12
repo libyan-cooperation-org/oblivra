@@ -140,8 +140,24 @@ func TranspileSigma(data []byte) (*Rule, error) {
 		rule.Threshold = thresh
 		if len(groupBy) > 0 {
 			rule.GroupBy = groupBy
+			// If we group by something other than Host, it MUST be global to correlate across shards
+			for _, gb := range groupBy {
+				lgb := strings.ToLower(gb)
+				if lgb == "user" || lgb == "source_ip" {
+					rule.IsGlobal = true
+					break
+				}
+			}
 		} else {
 			rule.GroupBy = inferSigmaGroupBy(sigma)
+			// Apply the same global heuristic to inferred groups
+			for _, gb := range rule.GroupBy {
+				lgb := strings.ToLower(gb)
+				if lgb == "user" || lgb == "source_ip" {
+					rule.IsGlobal = true
+					break
+				}
+			}
 		}
 	} else {
 		rule.GroupBy = inferSigmaGroupBy(sigma)

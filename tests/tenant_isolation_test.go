@@ -21,7 +21,7 @@ func TestTenantIsolation(t *testing.T) {
 
 	for i := 0; i < numTenants; i++ {
 		tenantID := fmt.Sprintf("tenant_%d", i)
-		ctx := database.WithTenantID(context.Background(), tenantID)
+		ctx := database.WithTenant(context.Background(), tenantID)
 
 		for j := 0; j < eventsPerTenant; j++ {
 			ev := database.HostEvent{
@@ -46,7 +46,7 @@ func TestTenantIsolation(t *testing.T) {
 		tenantID := fmt.Sprintf("tenant_%d", i)
 		
 		// Setup context as this tenant
-		ctx := database.WithTenantID(context.Background(), tenantID)
+		ctx := database.WithTenant(context.Background(), tenantID)
 
 		results, err := application.SIEMService.Store().SearchHostEvents(ctx, "test_event", 5000)
 		if err != nil {
