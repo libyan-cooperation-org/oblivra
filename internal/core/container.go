@@ -234,6 +234,20 @@ func (c *Container) initIntel(_ context.Context) error {
 	c.Intel.CounterfactualService = services.NewCounterfactualService(nil, nil, c.Log)
 	c.Intel.LineageService = services.NewLineageService(lineage.NewLineageEngine(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
 
+	// CampaignBuilder: bridges graph edge events into the AttackFusionEngine.
+	// This closes the audit gap: campaigns are now built from graph relationships
+	// (entity clusters, edge types mapped to ATT&CK tactics) rather than flat logs.
+	// Requires: GraphEngine (above) + FusionEngine (built in initSIEM, step 3).
+	if c.SIEM.FusionEngine != nil {
+		c.Intel.CampaignBuilder = detection.NewCampaignBuilder(
+			c.SIEM.FusionEngine,
+			c.Intel.GraphEngine,
+			c.Infra.Bus,
+			c.Log,
+		)
+		c.Log.Info("[CONTAINER] CampaignBuilder wired: graph edges → fusion engine")
+	}
+
 	return nil
 }
 
@@ -324,6 +338,15 @@ func (c *Container) initPlatform() error {
 	// Both are initialised by this point (SIEM before Platform).
 	if c.SIEM.IngestService != nil && c.Platform.DiagnosticsService != nil {
 		c.SIEM.IngestService.Pipeline().SetDiagnosticsUpdater(c.Platform.DiagnosticsService)
+	}
+
+	// Wire the Graph Engine into the ingest pipeline.
+	// This inserts the EntityExtractor DAG node so every event automatically
+	// populates the entity graph. Wired here because both Intel (graph) and
+	// SIEM (pipeline) are fully initialised by the time initPlatform runs.
+	if c.SIEM.IngestService != nil && c.Intel.GraphEngine != nil {
+		c.SIEM.IngestService.Pipeline().SetGraphEngine(c.Intel.GraphEngine)
+		c.Log.Info("[CONTAINER] Graph engine wired into ingest pipeline (entity extraction active)")
 	}
 
 	// LicensingService — pubKeyHex injected at build time via ldflags.

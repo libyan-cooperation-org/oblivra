@@ -47,11 +47,12 @@ type Edge struct {
 
 // GraphEngine maintains cross-entity relationships for attack path analysis.
 type GraphEngine struct {
-	mu    sync.RWMutex
-	nodes map[string]Node
-	edges []Edge
-	bus   *eventbus.Bus
-	log   *logger.Logger
+	mu         sync.RWMutex
+	nodes      map[string]Node
+	edges      []Edge
+	richEdges  []RichEdge // integrity-chained edges (see entities.go)
+	bus        *eventbus.Bus
+	log        *logger.Logger
 }
 
 func NewGraphEngine(bus *eventbus.Bus, log *logger.Logger) *GraphEngine {

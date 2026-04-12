@@ -51,6 +51,18 @@ const (
 	EventFIMDeleted     EventType = "fim:deleted"
 	EventFIMRenamed     EventType = "fim:renamed"
 	EventSSHLoginFailed EventType = "ssh:login_failed"
+
+	// ── Graph entity events (Phase 3.4 / audit fix) ────────────────────────────
+	// Published by GraphEngine.UpdateFromContext whenever the pipeline
+	// extracts new nodes or edges from an ingested event.
+	EventGraphNodeUpserted EventType = "graph.node_upserted"
+	EventGraphEdgeCreated  EventType = "graph.edge_created"
+
+	// ── Campaign / Fusion events (Phase 10.6) ─────────────────────────────────
+	// Published by AttackFusionEngine when campaigns are created or updated.
+	EventCampaignCreated EventType = "campaign.created"
+	EventCampaignUpdated EventType = "campaign.updated"
+	EventCampaignClosed  EventType = "campaign.closed"
 )
 
 type Event struct {

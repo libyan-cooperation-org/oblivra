@@ -3,14 +3,16 @@ package services
 import (
 	"context"
 
+	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
 // GraphService exposes the Security Graph Engine to the Wails frontend.
 type GraphService struct {
-	engine *graph.GraphEngine
-	log    *logger.Logger
+	engine          *graph.GraphEngine
+	campaignBuilder interface{ GetActiveClusters() []detection.CampaignCluster }
+	log             *logger.Logger
 }
 
 func NewGraphService(engine *graph.GraphEngine, log *logger.Logger) *GraphService {

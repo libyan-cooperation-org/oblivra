@@ -91,6 +91,7 @@ type IntelCluster struct {
 	TemporalService       *services.TemporalService
 	GraphEngine           *graph.GraphEngine
 	RiskEngine            *risk.RiskEngine
+	CampaignBuilder       *detection.CampaignBuilder // graph → fusion bridge
 }
 
 // ResponseCluster holds incident management and automated response logic.

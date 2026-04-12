@@ -77,13 +77,12 @@ func (r *Registry) dispatchHook(funcName string, args ...lua.LValue) {
 			if (p.Manifest.Hooks.OnConnect && funcName == "on_connect") ||
 				(p.Manifest.Hooks.OnDisconnect && funcName == "on_disconnect") {
 
-				// Convert lua.LValue args to interface{} for the generic Sandbox interface
 				var genericArgs []interface{}
 				for _, arg := range args {
 					if str, ok := arg.(lua.LString); ok {
 						genericArgs = append(genericArgs, string(str))
 					} else {
-						genericArgs = append(genericArgs, arg.String()) // fallback
+						genericArgs = append(genericArgs, arg.String())
 					}
 				}
 
@@ -96,7 +95,9 @@ func (r *Registry) dispatchHook(funcName string, args ...lua.LValue) {
 	}
 }
 
-// Discover scans the plugins directory for installed plugins
+// Discover scans the plugins directory for installed plugins.
+// For each .wasm plugin, it verifies the Ed25519 signature before registering.
+// Plugins that fail signature verification are marked StateError and never activated.
 func (r *Registry) Discover() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -119,7 +120,6 @@ func (r *Registry) Discover() error {
 		pluginPath := filepath.Join(r.pluginsDir, entry.Name())
 		manifest, err := LoadManifest(filepath.Join(pluginPath, "manifest.json"))
 		if err != nil {
-			// Track broken plugins
 			r.plugins[entry.Name()] = &Plugin{
 				State: StateError,
 				Path:  pluginPath,
@@ -128,8 +128,30 @@ func (r *Registry) Discover() error {
 			continue
 		}
 
-		// State management (could be persisted to settings db)
 		manifest.Main = filepath.Join(pluginPath, manifest.Main)
+
+		// ── Ed25519 Signature Verification ────────────────────────────────────
+		// Only enforce for WASM plugins when at least one trusted key is registered.
+		// Lua scripts are sandboxed differently but should also be signed in production.
+		if filepath.Ext(manifest.Main) == ".wasm" && IsTrustEnforced() {
+			if err := VerifyManifestPlugin(manifest); err != nil {
+				r.log.Error("[PLUGIN] SIGNATURE VERIFICATION FAILED for %s: %v — plugin will NOT be loaded",
+					manifest.ID, err)
+				r.plugins[manifest.ID] = &Plugin{
+					Manifest: manifest,
+					State:    StateError,
+					Path:     pluginPath,
+					Error:    fmt.Sprintf("signature verification failed: %v", err),
+				}
+				continue
+			}
+			r.log.Info("[PLUGIN] Signature verified for %s v%s", manifest.ID, manifest.Version)
+		} else if filepath.Ext(manifest.Main) == ".wasm" {
+			// No trusted keys registered — allow in dev mode, warn loudly in production
+			r.log.Warn("[PLUGIN] WARNING: No trusted keys registered. Plugin %s loaded WITHOUT signature check. "+
+				"Call plugin.AddTrustedKey() at startup to enforce trust.", manifest.ID)
+		}
+
 		r.plugins[manifest.ID] = &Plugin{
 			Manifest: manifest,
 			State:    StateInstalled,
@@ -158,7 +180,8 @@ func (r *Registry) Get(id string) (*Plugin, bool) {
 	return p, ok
 }
 
-// Activate prepares the WASM sandbox for a plugin
+// Activate instantiates the sandbox for a plugin and starts it.
+// Refuses to activate any plugin in StateError (failed signature, bad manifest, etc.)
 func (r *Registry) Activate(id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -168,11 +191,14 @@ func (r *Registry) Activate(id string) error {
 		return fmt.Errorf("plugin not found: %s", id)
 	}
 
+	if p.State == StateError {
+		return fmt.Errorf("plugin %s is in error state and cannot be activated: %s", id, p.Error)
+	}
+
 	if p.State == StateActive {
 		return nil
 	}
 
-	// Prepare Sandbox based on file extension
 	var sandbox Sandbox
 	if filepath.Ext(p.Manifest.Main) == ".wasm" {
 		sandbox = NewWasmSandbox(p.Manifest, r.bus, r.log)
@@ -192,7 +218,7 @@ func (r *Registry) Activate(id string) error {
 	return nil
 }
 
-// Deactivate destroys the WASM sandbox
+// Deactivate destroys the sandbox for a plugin.
 func (r *Registry) Deactivate(id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
