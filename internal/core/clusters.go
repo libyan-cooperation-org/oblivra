@@ -97,6 +97,7 @@ type IntelCluster struct {
 	GraphEngine           *graph.GraphEngine
 	RiskEngine            *risk.RiskEngine
 	DashboardService      *services.DashboardService
+	AssetIntelService     *services.AssetIntelService
 }
 
 // ResponseCluster holds incident management and automated response logic.

@@ -51,12 +51,12 @@ func (r *HostRepository) Create(ctx context.Context, host *Host) error {
 		INSERT INTO hosts (
 			id, tenant_id, label, hostname, port, username, password, auth_method,
 			credential_id, jump_host_id, tags, category, color, notes,
-			is_favorite, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			is_favorite, criticality_score, criticality_reason, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		host.ID, host.TenantID, host.Label, host.Hostname, host.Port,
 		host.Username, encryptedPassword, host.AuthMethod, host.CredentialID,
 		host.JumpHostID, string(tags), host.Category, host.Color, host.Notes,
-		host.IsFavorite, host.CreatedAt, host.UpdatedAt,
+		host.IsFavorite, host.CriticalityScore, host.CriticalityReason, host.CreatedAt, host.UpdatedAt,
 	)
 
 	if err != nil {
@@ -80,7 +80,7 @@ func (r *HostRepository) GetByID(ctx context.Context, id string) (*Host, error) 
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
-			last_connected_at, connection_count, created_at, updated_at
+			last_connected_at, connection_count, criticality_score, criticality_reason, created_at, updated_at
 		FROM hosts WHERE id = ? AND tenant_id = ?`, id, tenantID)
 
 	host, err := r.scanHost(row)
@@ -104,7 +104,7 @@ func (r *HostRepository) GetAll(ctx context.Context) ([]Host, error) {
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
-			last_connected_at, connection_count, created_at, updated_at
+			last_connected_at, connection_count, criticality_score, criticality_reason, created_at, updated_at
 		FROM hosts
 		WHERE tenant_id = ?
 		ORDER BY is_favorite DESC, label ASC`, tenantID)
@@ -139,7 +139,7 @@ func (r *HostRepository) GetFavorites(ctx context.Context) ([]Host, error) {
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
-			last_connected_at, connection_count, created_at, updated_at
+			last_connected_at, connection_count, criticality_score, criticality_reason, created_at, updated_at
 		FROM hosts WHERE is_favorite = 1 AND tenant_id = ?
 		ORDER BY label ASC`, tenantID) // conn via Conn() to respect vault-lock guard
 	if err != nil {
@@ -212,7 +212,7 @@ func (r *HostRepository) GetByTag(ctx context.Context, tag string) ([]Host, erro
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
 			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
 			tags, COALESCE(category, ''), color, notes, is_favorite,
-			last_connected_at, connection_count, created_at, updated_at
+			last_connected_at, connection_count, criticality_score, criticality_reason, created_at, updated_at
 		FROM hosts WHERE tags LIKE ? AND tenant_id = ?
 		ORDER BY label ASC`, searchTag, tenantID) // conn via Conn() to respect vault-lock guard
 	if err != nil {
@@ -257,11 +257,13 @@ func (r *HostRepository) Update(ctx context.Context, host *Host) error {
 			label = ?, hostname = ?, port = ?, username = ?, password = ?,
 			auth_method = ?, credential_id = ?, jump_host_id = ?,
 			tags = ?, category = ?, color = ?, notes = ?, is_favorite = ?,
+			criticality_score = ?, criticality_reason = ?,
 			updated_at = ?
 		WHERE id = ? AND tenant_id = ?`,
 		host.Label, host.Hostname, host.Port, host.Username, encryptedPassword,
 		host.AuthMethod, host.CredentialID, host.JumpHostID,
 		string(tags), host.Category, host.Color, host.Notes, host.IsFavorite,
+		host.CriticalityScore, host.CriticalityReason,
 		host.UpdatedAt, host.ID, host.TenantID,
 	)
 	if err != nil {
@@ -427,6 +429,7 @@ func (r *HostRepository) scanHost(row *sql.Row) (*Host, error) {
 		&host.Username, &rawPassword, &host.AuthMethod, &host.CredentialID,
 		&host.JumpHostID, &tagsJSON, &host.Category, &host.Color, &host.Notes,
 		&host.IsFavorite, &lastConnected, &host.ConnectionCount,
+		&host.CriticalityScore, &host.CriticalityReason,
 		&host.CreatedAt, &host.UpdatedAt,
 	)
 	if err != nil {
@@ -467,6 +470,7 @@ func (r *HostRepository) scanHostRows(rows *sql.Rows) (*Host, error) {
 		&host.Username, &rawPassword, &host.AuthMethod, &host.CredentialID,
 		&host.JumpHostID, &tagsJSON, &host.Category, &host.Color, &host.Notes,
 		&host.IsFavorite, &lastConnected, &host.ConnectionCount,
+		&host.CriticalityScore, &host.CriticalityReason,
 		&host.CreatedAt, &host.UpdatedAt,
 	)
 	if err != nil {

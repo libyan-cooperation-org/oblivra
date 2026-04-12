@@ -715,8 +715,8 @@
 - [x] **Bounded Worker Pools** — configurable, backpressure, panic-safe (`internal/platform/worker_pool.go`)
 - [x] `git rm -r --cached frontend/node_modules` — node_modules purged from git tracking
 
-### 21.5 — Asset Intelligence
-- [ ] Foundational asset intelligence and asset criticality scoring 🌐
+### 21.5 — Asset Intelligence ✅
+- [x] Foundational asset intelligence and asset criticality scoring ✅
 
 ---
 

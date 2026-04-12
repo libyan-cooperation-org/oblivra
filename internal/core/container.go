@@ -265,6 +265,7 @@ func (c *Container) initIntel(_ context.Context) error {
 	c.Intel.CounterfactualService = services.NewCounterfactualService(nil, nil, c.Log)
 	c.Intel.LineageService = services.NewLineageService(lineage.NewLineageEngine(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
 	c.Intel.DashboardService = services.NewDashboardService(database.NewDashboardRepository(c.Infra.DB), c.Intel.AnalyticsService, c.Log)
+	c.Intel.AssetIntelService = services.NewAssetIntelService(hostRepo, userRepo, c.Log)
 
 	return nil
 }
@@ -465,6 +466,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Intel.LineageService)
 	c.mustRegister(c.Intel.TemporalService)
 	c.mustRegister(c.Intel.DashboardService)
+	c.mustRegister(c.Intel.AssetIntelService)
 
 	// Response
 	c.mustRegister(c.Response.IncidentService)

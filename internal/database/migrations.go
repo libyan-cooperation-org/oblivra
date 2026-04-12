@@ -542,6 +542,34 @@ var migrations = []migration{
 			ALTER TABLE users ADD COLUMN criticality_reason TEXT;
 		`,
 	},
+	{
+		version: 22,
+		name:    "graph_engine_init",
+		sql: `
+			CREATE TABLE IF NOT EXISTS graph_nodes (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				type TEXT NOT NULL,
+				meta_json TEXT,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE TABLE IF NOT EXISTS graph_edges (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				from_node_id TEXT NOT NULL,
+				to_node_id TEXT NOT NULL,
+				type TEXT NOT NULL,
+				attributes_json TEXT,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY(from_node_id) REFERENCES graph_nodes(id),
+				FOREIGN KEY(to_node_id) REFERENCES graph_nodes(id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_graph_nodes_tenant ON graph_nodes(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_graph_edges_tenant ON graph_edges(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph_edges(from_node_id);
+			CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(to_node_id);
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

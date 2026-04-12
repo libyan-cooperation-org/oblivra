@@ -180,3 +180,19 @@ type DashboardStore interface {
 	UpdateWidget(ctx context.Context, w *DashboardWidget) error
 	DeleteWidget(ctx context.Context, dashboardID, widgetID string) error
 }
+
+// AssetIntelProvider defines logic for criticality scoring and asset intelligence.
+type AssetIntelProvider interface {
+	CalculateHostCriticality(ctx context.Context, host *Host) (int, string)
+	CalculateUserCriticality(ctx context.Context, user *User) (int, string)
+	RefreshAll(ctx context.Context) error
+}
+
+// GraphStore defines the persistence layer for the Security Graph Engine.
+type GraphStore interface {
+	UpsertNode(ctx context.Context, node graph.Node) error
+	UpsertEdge(ctx context.Context, edge graph.Edge) error
+	GetSubGraph(ctx context.Context, startNodeID string, depth int) ([]graph.Node, []graph.Edge, error)
+	FindPath(ctx context.Context, startID, endID string) ([]string, error)
+	DeleteNode(ctx context.Context, id string) error
+}

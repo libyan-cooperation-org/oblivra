@@ -120,30 +120,20 @@ func (e *RiskEngine) TriageIncident(ctx context.Context, inc *database.Incident)
 	score := 0
 	reason := "Automated Triage: "
 
-	// 1. Asset Criticality (Heuristic)
+	// 1. Asset Criticality
 	host, err := e.hosts.GetByID(ctx, inc.GroupKey)
 	if err == nil && host != nil {
-		criticality := 0
-		if host.Label == "Production" || host.Label == "Domain Controller" || host.Label == "Critical" {
-			criticality += 40
-			reason += "High-value asset detected; "
-		}
+		criticality := host.CriticalityScore * 4 // Map 1-10 to 4-40
 		score += criticality
+		reason += fmt.Sprintf("Asset Criticality Level %d (%s); ", host.CriticalityScore, host.CriticalityReason)
 	}
 
-	// 2. Identity Risk (Heuristic)
+	// 2. Identity Risk
 	user, err := e.users.GetUserByEmail(ctx, inc.GroupKey)
 	if err == nil && user != nil {
-		privilege := 0
-		if user.UserType == "admin" || user.UserType == "executive" {
-			privilege += 30
-			reason += "Privileged identity involved; "
-		}
-		if user.Department == "IT" || user.Department == "HR" || user.Department == "Finance" {
-			privilege += 15
-			reason += "Sensitive department; "
-		}
+		privilege := user.CriticalityScore * 3 // Map 1-10 to 3-30
 		score += privilege
+		reason += fmt.Sprintf("Identity Criticality Level %d (%s); ", user.CriticalityScore, user.CriticalityReason)
 	}
 
 	// 3. MITRE Tactic Weighting

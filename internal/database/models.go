@@ -1,5 +1,7 @@
 package database
 
+import "fmt"
+
 
 
 type Host struct {
@@ -22,9 +24,49 @@ type Host struct {
 	Notes           string     `json:"notes"`
 	IsFavorite      bool       `json:"is_favorite"`
 	LastConnectedAt *string `json:"last_connected_at,omitempty"`
-	ConnectionCount int        `json:"connection_count"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	ConnectionCount   int        `json:"connection_count"`
+	CriticalityScore  int        `json:"criticality_score"`
+	CriticalityReason string     `json:"criticality_reason"`
+	CreatedAt         string     `json:"created_at"`
+	UpdatedAt         string    `json:"updated_at"`
+}
+
+// NodeType represents the kind of entity in the graph.
+type NodeType string
+
+const (
+	NodeUser    NodeType = "user"
+	NodeHost    NodeType = "host"
+	NodeProcess NodeType = "process"
+	NodeFile    NodeType = "file"
+	NodeIP      NodeType = "ip"
+)
+
+// EdgeType represents the relationship between two nodes.
+type EdgeType string
+
+const (
+	EdgeAuthenticatedTo EdgeType = "authenticated_to"
+	EdgeExecuted        EdgeType = "executed"
+	EdgeAccessed        EdgeType = "accessed"
+	EdgeConnectedTo     EdgeType = "connected_to"
+	EdgeSpawned         EdgeType = "spawned"
+)
+
+// Node represents a single entity in the security graph.
+type Node struct {
+	ID       string            `json:"id"`
+	TenantID string            `json:"tenant_id"`
+	Type     NodeType          `json:"type"`
+	Meta     map[string]string `json:"meta,omitempty"`
+}
+
+// Edge represents a directed relationship between two nodes.
+type Edge struct {
+	From string   `json:"from"`
+	To   string   `json:"to"`
+	Type EdgeType `json:"type"`
+	Meta map[string]string `json:"meta,omitempty"`
 }
 
 type Credential struct {

@@ -24,6 +24,8 @@ type User struct {
 	CreatedAt         string    `json:"created_at"`
 	UpdatedAt         string    `json:"updated_at"`
 	LastLoginAt       string    `json:"last_login_at"`
+	CriticalityScore  int       `json:"criticality_score"`
+	CriticalityReason string    `json:"criticality_reason"`
 
 	// SCIM Normalization fields
 	ExternalID        string    `json:"external_id"`
@@ -78,12 +80,14 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *User) error {
 			id, tenant_id, email, name, password_hash, auth_provider,
 			is_mfa_enabled, mfa_secret, role_id, created_at, updated_at,
 			external_id, active, display_name, user_type, title,
-			department, organization, preferred_language, groups_json, scim_attributes_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			department, organization, preferred_language, groups_json, scim_attributes_json,
+			criticality_score, criticality_reason
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, u.ID, u.TenantID, u.Email, u.Name, u.PasswordHash, u.AuthProvider,
 		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.CreatedAt, u.UpdatedAt,
 		u.ExternalID, u.Active, u.DisplayName, u.UserType, u.Title,
-		u.Department, u.Organization, u.PreferredLanguage, u.GroupsJSON, u.SCIMAttributes)
+		u.Department, u.Organization, u.PreferredLanguage, u.GroupsJSON, u.SCIMAttributes,
+		u.CriticalityScore, u.CriticalityReason)
 
 	if err != nil {
 		return fmt.Errorf("create user: %w", err)
@@ -142,6 +146,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
 		&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
 		&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
+		&u.CriticalityScore, &u.CriticalityReason,
 	)
 
 	if err == sql.ErrNoRows {
@@ -177,7 +182,8 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
 		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
 		       external_id, active, display_name, user_type, title,
-		       department, organization, preferred_language, groups_json, scim_attributes_json
+		       department, organization, preferred_language, groups_json, scim_attributes_json,
+		       criticality_score, criticality_reason
 		FROM users
 		WHERE id = ? AND tenant_id = ?
 	`, id, tenantID).Scan(
@@ -185,6 +191,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
 		&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
 		&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
+		&u.CriticalityScore, &u.CriticalityReason,
 	)
 
 	if err == sql.ErrNoRows {
@@ -220,7 +227,8 @@ func (r *UserRepository) GetUserByExternalID(ctx context.Context, externalID str
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
 		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
 		       external_id, active, display_name, user_type, title,
-		       department, organization, preferred_language, groups_json, scim_attributes_json
+		       department, organization, preferred_language, groups_json, scim_attributes_json,
+		       criticality_score, criticality_reason
 		FROM users
 		WHERE external_id = ? AND tenant_id = ?
 	`, externalID, tenantID).Scan(
@@ -228,6 +236,7 @@ func (r *UserRepository) GetUserByExternalID(ctx context.Context, externalID str
 		&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
 		&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
 		&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
+		&u.CriticalityScore, &u.CriticalityReason,
 	)
 
 	if err == sql.ErrNoRows {
@@ -258,12 +267,14 @@ func (r *UserRepository) UpdateUser(ctx context.Context, u *User) error {
 			is_mfa_enabled = ?, mfa_secret = ?, role_id = ?, updated_at = ?,
 			external_id = ?, active = ?, display_name = ?, user_type = ?,
 			title = ?, department = ?, organization = ?, preferred_language = ?,
-			groups_json = ?, scim_attributes_json = ?
+			groups_json = ?, scim_attributes_json = ?,
+			criticality_score = ?, criticality_reason = ?
 		WHERE id = ? AND tenant_id = ?
 	`, u.Email, u.Name, u.PasswordHash, u.AuthProvider,
 		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.UpdatedAt,
 		u.ExternalID, u.Active, u.DisplayName, u.UserType, u.Title,
 		u.Department, u.Organization, u.PreferredLanguage, u.GroupsJSON, u.SCIMAttributes,
+		u.CriticalityScore, u.CriticalityReason,
 		u.ID, u.TenantID)
 
 	if err != nil {
@@ -317,7 +328,8 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
 		       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
 		       external_id, active, display_name, user_type, title,
-		       department, organization, preferred_language, groups_json, scim_attributes_json
+		       department, organization, preferred_language, groups_json, scim_attributes_json,
+		       criticality_score, criticality_reason
 		FROM users
 		WHERE tenant_id = ?
 		ORDER BY name ASC
@@ -336,6 +348,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 			&u.IsMFAEnabled, &u.MFASecret, &u.RoleID, &u.CreatedAt, &u.UpdatedAt, &lastLogin,
 			&u.ExternalID, &u.Active, &u.DisplayName, &u.UserType, &u.Title,
 			&u.Department, &u.Organization, &u.PreferredLanguage, &u.GroupsJSON, &u.SCIMAttributes,
+			&u.CriticalityScore, &u.CriticalityReason,
 		); err != nil {
 			return nil, fmt.Errorf("scan user: %w", err)
 		}
