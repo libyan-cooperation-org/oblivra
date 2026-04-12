@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/events"
@@ -28,24 +27,20 @@ type RichNode struct {
 // RichEdge extends the base Edge with timestamps, weights, and a cryptographic
 // integrity hash that chains back to the source event.
 //
-// EdgeHash = SHA-256(FromID + ToID + EdgeType + SourceEventHash)
-//
-// This implements the audit recommendation:
-//   EdgeHash = hash(NodeA + NodeB + EventHash)
+//	EdgeHash = SHA-256(FromID + ToID + EdgeType + SourceEventHash)
 type RichEdge struct {
 	Edge
-	ID          string    `json:"id"`
-	Timestamp   time.Time `json:"timestamp"`
-	Weight      float64   `json:"weight"`
-	EventID     string    `json:"event_id"`      // source SovereignEvent.Id
-	EventHash   string    `json:"event_hash"`    // SHA-256 of the source event's RawLine
-	EdgeHash    string    `json:"edge_hash"`     // integrity chain hash
-	TenantID    string    `json:"tenant_id"`
-	Properties  map[string]string `json:"properties,omitempty"`
+	ID         string            `json:"id"`
+	Timestamp  time.Time         `json:"timestamp"`
+	Weight     float64           `json:"weight"`
+	EventID    string            `json:"event_id"`   // source SovereignEvent.Id
+	EventHash  string            `json:"event_hash"` // SHA-256 of the source event's RawLine
+	EdgeHash   string            `json:"edge_hash"`  // integrity chain hash
+	TenantID   string            `json:"tenant_id"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // computeEdgeHash produces the cryptographic chain hash for an edge.
-// This binds the relationship to its source event, making graph manipulation detectable.
 func computeEdgeHash(from, to string, edgeType EdgeType, eventHash string) string {
 	h := sha256.New()
 	h.Write([]byte(from + "|" + to + "|" + string(edgeType) + "|" + eventHash))
@@ -59,12 +54,12 @@ func computeEventHash(rawLine string) string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GraphContext — the graph-native event context passed to the detection engine
+// GraphContext — graph-native event context passed to the detection engine
 // ─────────────────────────────────────────────────────────────────────────────
 
-// GraphContext replaces []Event in the detection engine for graph-aware rules.
-// It carries the entity nodes, their relationships, and traversal paths extracted
-// from a single SovereignEvent.
+// GraphContext carries the entity nodes, relationships, and traversal paths
+// extracted from a single SovereignEvent. It is the input type for graph-aware
+// detection rules (see detection/graph_rules.go).
 type GraphContext struct {
 	// Source event identity
 	EventID   string
@@ -77,29 +72,31 @@ type GraphContext struct {
 	// Extracted relationships
 	Edges []RichEdge
 
-	// Path: ordered node IDs representing a traversal path (e.g. user→host→ip)
-	// Used by graph-based detection rules for lateral movement, kill-chain analysis.
+	// Path: ordered node IDs representing the traversal implied by the event
+	// (e.g. user→host→ip). Used by graph detection rules for path matching.
 	Path []string
 
-	// Original event (retained for backward-compatible log-based rules)
+	// Original event retained for backward-compatible log-based rules
 	SourceEvent *events.SovereignEvent
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entity Extractor — the missing stage the audit identified
+// Entity Extractor
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ExtractEntities parses a SovereignEvent and returns a GraphContext containing
-// all entity nodes and relationships it implies. This is the new pipeline stage:
+// ExtractEntities parses a SovereignEvent and returns a GraphContext with all
+// implied entity nodes and relationships.
 //
-//   [Ingest] → [Normalize] → [EntityExtractor] → [GraphBuilder] → [Detection]
+// Pipeline stage:
 //
-// It is pure (no side effects) so it can be called concurrently from any worker.
+//	[Ingest] → [Normalize] → [ExtractEntities] → [GraphBuilder] → [Detection]
+//
+// Pure function (no side effects) — safe to call concurrently from any worker.
 func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
-	now := time.Now()
 	if evt == nil {
 		return nil
 	}
+	now := time.Now()
 
 	ctx := &GraphContext{
 		EventID:     evt.Id,
@@ -109,15 +106,12 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 	}
 
 	eventHash := computeEventHash(evt.RawLine)
+	var nodeIDs []string
 
-	// ── Extract nodes from well-known fields ──────────────────────────────────
-
-	var nodeIDs []string // track order for path construction
-
-	// Host node
+	// ── Host node ────────────────────────────────────────────────────────────
 	if evt.Host != "" {
 		ctx.Nodes = append(ctx.Nodes, RichNode{
-			Node:       Node{ID: hostNodeID(evt.TenantID, evt.Host), Type: NodeHost},
+			Node:       Node{ID: hostNodeID(evt.TenantID, evt.Host), Type: NodeHost, LastSeen: now},
 			FirstSeen:  now, LastSeen: now,
 			TenantID:   evt.TenantID,
 			Properties: map[string]string{"hostname": evt.Host},
@@ -125,10 +119,10 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 		nodeIDs = append(nodeIDs, hostNodeID(evt.TenantID, evt.Host))
 	}
 
-	// User node
+	// ── User node ────────────────────────────────────────────────────────────
 	if evt.User != "" {
 		ctx.Nodes = append(ctx.Nodes, RichNode{
-			Node:       Node{ID: userNodeID(evt.TenantID, evt.User), Type: NodeUser},
+			Node:       Node{ID: userNodeID(evt.TenantID, evt.User), Type: NodeUser, LastSeen: now},
 			FirstSeen:  now, LastSeen: now,
 			TenantID:   evt.TenantID,
 			Properties: map[string]string{"username": evt.User},
@@ -136,10 +130,10 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 		nodeIDs = append(nodeIDs, userNodeID(evt.TenantID, evt.User))
 	}
 
-	// IP node
+	// ── IP node ──────────────────────────────────────────────────────────────
 	if evt.SourceIp != "" {
 		ctx.Nodes = append(ctx.Nodes, RichNode{
-			Node:       Node{ID: ipNodeID(evt.SourceIp), Type: NodeIP},
+			Node:       Node{ID: ipNodeID(evt.SourceIp), Type: NodeIP, LastSeen: now},
 			FirstSeen:  now, LastSeen: now,
 			TenantID:   evt.TenantID,
 			Properties: map[string]string{"ip": evt.SourceIp},
@@ -147,11 +141,11 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 		nodeIDs = append(nodeIDs, ipNodeID(evt.SourceIp))
 	}
 
-	// Process/command node from metadata (populated by Windows/Linux parsers)
+	// ── Process node (from metadata) ─────────────────────────────────────────
 	if cmdLine, ok := evt.Metadata["CommandLine"]; ok && cmdLine != "" {
 		procID := processNodeID(evt.TenantID, evt.Host, cmdLine)
 		ctx.Nodes = append(ctx.Nodes, RichNode{
-			Node:       Node{ID: procID, Type: NodeProcess},
+			Node:       Node{ID: procID, Type: NodeProcess, LastSeen: now},
 			FirstSeen:  now, LastSeen: now,
 			TenantID:   evt.TenantID,
 			Properties: map[string]string{"CommandLine": cmdLine, "host": evt.Host},
@@ -159,10 +153,11 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 		nodeIDs = append(nodeIDs, procID)
 	}
 
+	// ── File node (from metadata) ─────────────────────────────────────────────
 	if filePath, ok := evt.Metadata["FilePath"]; ok && filePath != "" {
 		fileID := fileNodeID(evt.TenantID, filePath)
 		ctx.Nodes = append(ctx.Nodes, RichNode{
-			Node:       Node{ID: fileID, Type: NodeFile},
+			Node:       Node{ID: fileID, Type: NodeFile, LastSeen: now},
 			FirstSeen:  now, LastSeen: now,
 			TenantID:   evt.TenantID,
 			Properties: map[string]string{"path": filePath},
@@ -171,10 +166,9 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 	}
 
 	// ── Derive edges from event type semantics ────────────────────────────────
-
 	hostID := hostNodeID(evt.TenantID, evt.Host)
 	userID := userNodeID(evt.TenantID, evt.User)
-	ipID   := ipNodeID(evt.SourceIp)
+	ipID := ipNodeID(evt.SourceIp)
 
 	switch evt.EventType {
 	case "failed_login", "successful_login", "ssh_login":
@@ -211,7 +205,6 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 		}
 
 	default:
-		// Fallback: connect user→host and host→ip if all three are present
 		if evt.User != "" && evt.Host != "" {
 			ctx.Edges = append(ctx.Edges, makeEdge(userID, hostID, EdgeAuthenticatedTo, evt, eventHash))
 		}
@@ -220,18 +213,17 @@ func ExtractEntities(evt *events.SovereignEvent) *GraphContext {
 		}
 	}
 
-	// Path = ordered node IDs reflecting the traversal implied by the event
 	ctx.Path = nodeIDs
-
 	return ctx
 }
 
 // makeEdge constructs a RichEdge with a full integrity chain hash.
 func makeEdge(from, to string, edgeType EdgeType, evt *events.SovereignEvent, eventHash string) RichEdge {
+	now := time.Now()
 	return RichEdge{
-		Edge:      Edge{From: from, To: to, Type: edgeType},
+		Edge:      Edge{From: from, To: to, Type: edgeType, Timestamp: now},
 		ID:        fmt.Sprintf("%s|%s|%s", from, to, edgeType),
-		Timestamp: time.Now(),
+		Timestamp: now,
 		Weight:    1.0,
 		EventID:   evt.Id,
 		EventHash: eventHash,
@@ -273,37 +265,44 @@ func fileNodeID(tenantID, path string) string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Graph updater — integrates GraphContext into the live GraphEngine
+// UpdateFromContext — integrates a GraphContext into the live GraphEngine
 // ─────────────────────────────────────────────────────────────────────────────
 
 // UpdateFromContext applies all nodes and edges from a GraphContext into the
-// live GraphEngine. Nodes are upserted (updated if existing), edges appended.
-// This is called from the pipeline DAG after entity extraction.
+// live GraphEngine. Nodes are upserted (LastSeen refreshed if existing),
+// edges are appended. Called from the pipeline DAG GraphNode.
 func (e *GraphEngine) UpdateFromContext(ctx *GraphContext) {
 	if ctx == nil {
 		return
 	}
+
 	e.mu.Lock()
-	defer e.mu.Unlock()
 
 	for _, rn := range ctx.Nodes {
 		if existing, ok := e.nodes[rn.ID]; ok {
-			// Update last-seen + event count on existing node
+			// Refresh LastSeen and merge metadata on existing nodes
+			existing.LastSeen = rn.LastSeen
 			existing.Meta = mergeMap(existing.Meta, rn.Properties)
 			e.nodes[rn.ID] = existing
 		} else {
-			// New node
-			e.nodes[rn.ID] = rn.Node
+			// New node — stamp LastSeen
+			n := rn.Node
+			n.LastSeen = rn.LastSeen
+			e.nodes[rn.ID] = n
 		}
 	}
 
 	for _, re := range ctx.Edges {
+		// Stamp Timestamp on the base edge so TTL eviction works
+		baseEdge := re.Edge
+		baseEdge.Timestamp = re.Timestamp
 		e.richEdges = append(e.richEdges, re)
-		// Also keep the base edges slice in sync for BFS/subgraph traversal
-		e.edges = append(e.edges, re.Edge)
+		e.edges = append(e.edges, baseEdge)
 	}
 
-	// Publish bus events for downstream consumers (FusionEngine, campaign tracker)
+	e.mu.Unlock()
+
+	// Publish outside the lock — bus.Publish acquires its own lock
 	if e.bus != nil {
 		for _, rn := range ctx.Nodes {
 			e.bus.Publish("graph.node_upserted", rn)
@@ -314,11 +313,6 @@ func (e *GraphEngine) UpdateFromContext(ctx *GraphContext) {
 	}
 }
 
-// richEdges stores integrity-chained edges. Declared here since we extend GraphEngine.
-// We use a package-level extension pattern to avoid modifying the existing engine.go.
-var richEdgesMu sync.RWMutex
-var globalRichEdges []RichEdge
-
 // GetRichEdges returns all integrity-chained edges for audit export.
 func (e *GraphEngine) GetRichEdges() []RichEdge {
 	e.mu.RLock()
@@ -328,9 +322,10 @@ func (e *GraphEngine) GetRichEdges() []RichEdge {
 	return out
 }
 
+// mergeMap merges overlay into base, returning base.
 func mergeMap(base, overlay map[string]string) map[string]string {
 	if base == nil {
-		base = make(map[string]string)
+		base = make(map[string]string, len(overlay))
 	}
 	for k, v := range overlay {
 		base[k] = v

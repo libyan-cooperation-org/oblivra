@@ -16,6 +16,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/monitoring"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"github.com/kingknull/oblivrashell/internal/integrity"
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
 	"golang.org/x/time/rate"
@@ -113,6 +114,16 @@ func (pp *PartitionedPipeline) SetEvaluator(e *detection.Evaluator) {
 	for _, shard := range pp.shards {
 		// Shard-local evaluators get their own isolation (no shared mutex contention)
 		shard.SetEvaluator(e.Clone())
+	}
+}
+
+// SetIntegrityTree distributes the integrity MerkleTree to all shards.
+func (pp *PartitionedPipeline) SetIntegrityTree(t *integrity.MerkleTree) {
+	if t == nil {
+		return
+	}
+	for _, shard := range pp.shards {
+		shard.SetIntegrityTree(t)
 	}
 }
 

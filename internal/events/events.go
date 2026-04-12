@@ -19,6 +19,8 @@ type SovereignEvent struct {
 	Version   int32             `json:"version"`
 	Metadata  map[string]string `json:"metadata"`
 	Signature string            `json:"signature"`
+	IntegrityHash string       `json:"integrity_hash,omitempty"`
+	IntegrityIndex int32       `json:"integrity_index,omitempty"`
 
 	// Context for tracing and cancellation across the pipeline
 	Ctx context.Context `json:"-"`

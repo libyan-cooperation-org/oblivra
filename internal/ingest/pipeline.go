@@ -21,6 +21,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
 	"github.com/kingknull/oblivrashell/internal/events"
+	"github.com/kingknull/oblivrashell/internal/integrity"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -87,6 +88,7 @@ type Pipeline struct {
 	labels           map[string]string
 	evaluator        *detection.Evaluator
 	identityResolver dag.UserResolver
+	integrityTree    *integrity.MerkleTree
 }
 
 func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) { p.diagnostics = d }
@@ -94,6 +96,10 @@ func (p *Pipeline) SetDiagnosticsUpdater(d DiagnosticsUpdater) { p.diagnostics =
 func (p *Pipeline) SetGraphEngine(g *graph.GraphEngine) {
 	p.graphEngine = g
 	p.dag = p.buildProductionDAG()
+}
+
+func (p *Pipeline) SetIntegrityTree(t *integrity.MerkleTree) {
+	p.integrityTree = t
 }
 
 // SetLoadStatus updates the current operational state of the pipeline.
@@ -382,6 +388,15 @@ func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent)
 	if p.wal != nil {
 		if err := p.wal.Append([]byte(evt.RawLine)); err != nil {
 			p.log.Error("[INGEST] WAL write failure: %v", err)
+		}
+	}
+	if p.integrityTree != nil {
+		hash, idx, err := p.integrityTree.AddLeaf([]byte(evt.RawLine))
+		if err != nil {
+			p.log.Error("[INGEST] Integrity hashing failed: %v", err)
+		} else {
+			evt.IntegrityHash = hash
+			evt.IntegrityIndex = int32(idx)
 		}
 	}
 	if p.temporal != nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/ingest"
+	"github.com/kingknull/oblivrashell/internal/integrity"
 	"github.com/kingknull/oblivrashell/internal/lineage"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/logsources"
@@ -214,6 +215,12 @@ func (c *Container) initSIEM(_ context.Context) error {
 	temporalEngine := temporal.NewIntegrityService(temporal.DefaultPolicy(), c.Infra.Bus, c.Log)
 	c.SIEM.TemporalEngine = temporalEngine
 	pipeline := ingest.NewPartitionedPipeline(100000, wal, c.Infra.AnalyticsEngine, siemRepo, c.Infra.Bus, c.Log, temporalEngine, c.Infra.MetricsCollector)
+
+	merkleTree := integrity.NewWithPersistence(func(index int, hash string, data []byte) error {
+		// Log the persistence event if needed or write to BadgerDB here.
+		return nil
+	})
+	pipeline.SetIntegrityTree(merkleTree)
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, "", "", "", c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.Bus, c.Log)

@@ -1,0 +1,32 @@
+id: G-LM-001
+name: Graph Lateral Movement — Authenticated Chain (3+ Hosts)
+type: graph
+severity: high
+version: "1.0.0"
+description: >
+  A single user entity has authenticated to 3 or more distinct hosts within
+  a 5-minute window. This pattern is characteristic of automated lateral
+  movement tools (PsExec, wmiexec, CrackMapExec) scanning an environment
+  after initial compromise.
+
+mitre_tactics:
+  - TA0008   # Lateral Movement
+
+mitre_techniques:
+  - T1021    # Remote Services
+  - T1021.002 # SMB/Windows Admin Shares
+
+# Graph structural requirements — ALL must be satisfied
+conditions:
+  node_types: "user,host"
+  edge_types: "authenticated_to"
+  min_path_len: "2"
+  # Require at least 3 distinct authenticated_to edges within the window
+  edge_threshold.authenticated_to: "3"
+
+window_sec: 300
+dedup_window_sec: 120
+
+# Run in CorrelationHub so lateral movement across different shard-local
+# pipelines (multiple ingest sources) is still caught.
+is_global: true
