@@ -90,7 +90,7 @@ func GenerateCert(caPair *CertificatePair, commonName string, usages []x509.ExtK
 
 	if commonName == "127.0.0.1" || commonName == "localhost" {
 		template.DNSNames = []string{"localhost"}
-		template.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
+		template.IPAddresses = []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, template, caCert, &priv.PublicKey, caKey)

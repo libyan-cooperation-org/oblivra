@@ -208,9 +208,13 @@ func (w *WAL) Replay(fn func(payload []byte) error) error {
 		}
 
 		// 4. Verify Checksum
+		// 4. Verify Checksum
 		actualChecksum := crc32.ChecksumIEEE(payload)
 		if actualChecksum != expectedChecksum {
-			return fmt.Errorf("checksum mismatch on record %d: expected %x, got %x (bit-rot detected)", count, expectedChecksum, actualChecksum)
+			if w.log != nil {
+				w.log.Error("[STORAGE] Checksum mismatch on record %d: expected %x, got %x (skipping corrupt entry)", count, expectedChecksum, actualChecksum)
+			}
+			continue
 		}
 
 		// 5. Invoke user function

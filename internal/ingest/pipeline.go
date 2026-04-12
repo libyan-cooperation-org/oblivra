@@ -228,10 +228,6 @@ func (p *Pipeline) Start() {
 
 	p.log.Info("[INGEST] Starting high-throughput pipeline (Buffer: %d, EPS target: %d)", p.metrics.BufferCapacity, EPSTarget)
 
-	if err := p.Replay(p.ctx); err != nil {
-		p.log.Error("[INGEST] WAL Replay failed: %v", err)
-	}
-
 	numWorkers := runtime.NumCPU()
 	if numWorkers < 2 {
 		numWorkers = 2

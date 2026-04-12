@@ -200,6 +200,7 @@ func (s *AgentServer) getVisitor(ip string) *rate.Limiter {
 }
 
 func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
+	s.log.Info("Received ingestion request from %s", r.RemoteAddr)
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -265,13 +266,12 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(incomingEvents) == 0 {
-		w.WriteHeader(http.StatusAccepted)
-		return
+	// Update agent tracking
+	host := r.Header.Get("X-Agent-Hostname")
+	if len(incomingEvents) > 0 && incomingEvents[0].Host != "" {
+		host = incomingEvents[0].Host
 	}
 
-	// Update agent tracking based on the first event's host
-	host := incomingEvents[0].Host
 	if host != "" {
 		s.mu.Lock()
 		_, isNew := s.activeAgents[host]

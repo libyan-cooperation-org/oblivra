@@ -19,9 +19,10 @@ import (
 // Transport handles secure communication with the OBLIVRA server.
 // It supports mTLS, retry with backoff, and WAL-based offline buffering.
 type Transport struct {
-	cfg    Config
-	client *http.Client
-	log    *logger.Logger
+	cfg      Config
+	client   *http.Client
+	hostname string
+	log      *logger.Logger
 }
 
 // NewTransport creates a new transport with optional mTLS.
@@ -59,18 +60,20 @@ func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 		},
 	}
 
+	hostname, _ := os.Hostname()
 	return &Transport{
-		cfg:    cfg,
-		client: client,
-		log:    log,
+		cfg:      cfg,
+		client:   client,
+		hostname: hostname,
+		log:      log,
 	}, nil
 }
 
 // Send transmits a batch of events to the server.
 // It returns a pointer to a FleetConfig and a slice of PendingActions if the server provides an update.
 func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) {
-	if len(events) == 0 {
-		return nil, nil, nil
+	if events == nil {
+		events = []Event{} // Send empty slice for heartbeat
 	}
 
 	data, err := json.Marshal(events)
@@ -97,6 +100,7 @@ func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", contentEncoding)
 	req.Header.Set("X-Agent-Version", t.cfg.Version)
+	req.Header.Set("X-Agent-Hostname", t.hostname)
 
 	resp, err := t.client.Do(req)
 	if err != nil {
@@ -152,8 +156,8 @@ func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig, []PendingActi
 	if err != nil {
 		return err
 	}
-	if len(events) == 0 {
-		return nil
+	if err != nil {
+		return err
 	}
 
 	cfg, actions, err := t.Send(events)

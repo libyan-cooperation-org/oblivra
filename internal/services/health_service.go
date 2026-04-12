@@ -135,7 +135,6 @@ func (s *HealthService) GetAllHealth() map[string]interface{} {
 	status := "Operational"
 	if s.registry != nil {
 		if vault, ok := s.registry.Get("vault-service"); ok && vault != nil {
-			// Type assertion for IsUnlocked (assuming VaultService implements it)
 			if vs, ok := vault.(interface{ IsUnlocked() bool }); ok {
 				if !vs.IsUnlocked() {
 					status = "Locked"
@@ -143,7 +142,10 @@ func (s *HealthService) GetAllHealth() map[string]interface{} {
 			}
 		}
 	}
+	
+	// If any service is still starting, or WAL is replaying, we might still be initializing
+	// but for now, "Operational" or "Locked" are the key states.
 	result["Status"] = status
-
+	s.log.Info("[HEALTH] System Status: %s, Registered Services: %d", status, len(servicesHealth))
 	return result
 }

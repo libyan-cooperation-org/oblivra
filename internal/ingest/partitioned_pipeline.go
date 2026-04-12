@@ -97,6 +97,12 @@ func NewPartitionedPipeline(
 func (pp *PartitionedPipeline) Start() {
 	pp.log.Info("[PART] Starting %d pipeline shards (%d workers each, %d max)",
 		PartitionCount, runtime.NumCPU(), runtime.NumCPU()*4)
+	
+	// Replay WAL once before starting any shards to avoid race on single WAL file
+	if err := pp.Replay(context.Background()); err != nil {
+		pp.log.Error("[PART] Global WAL Replay failed: %v", err)
+	}
+
 	for _, s := range pp.shards {
 		s.Start()
 	}
