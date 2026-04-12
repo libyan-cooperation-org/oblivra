@@ -8,8 +8,7 @@ func TestTenantQuotaEnforcement(t *testing.T) {
 	const bufferSize = 100
 	const limitPct = 0.70
 	const maxPerTenant = 70
-	
-	qm := NewTenantQuotaManager(bufferSize, limitPct)
+	qm := NewTenantQuotaManager(bufferSize, limitPct, nil)
 	
 	tenantA := "tenant-alpha"
 	tenantB := "tenant-beta"

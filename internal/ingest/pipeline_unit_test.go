@@ -107,12 +107,11 @@ func BenchmarkPipeline_Throughput(b *testing.B) {
 	p.Start()
 	defer p.Stop()
 
-	e := mkEvent("bench-1", "syslog", "bench-host",
-		"<34>1 2026-01-01T00:00:00Z bench-host sshd - - Failed password for root from 1.2.3.4")
-
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
+		e := mkEvent("bench-1", "syslog", "bench-host",
+			"<34>1 2026-01-01T00:00:00Z bench-host sshd - - Failed password for root from 1.2.3.4")
 		p.QueueEvent(e) //nolint:errcheck
 	}
 }

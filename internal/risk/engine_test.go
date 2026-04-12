@@ -34,8 +34,7 @@ func TestRiskScoring(t *testing.T) {
 			"dev-01":  {ID: "dev-01", Label: "Development"},
 		},
 	}
-
-	engine := NewRiskEngine(bus, nil, mockHosts, log)
+	engine := NewRiskEngine(bus, nil, mockHosts, nil, log)
 
 	tests := []struct {
 		name     string

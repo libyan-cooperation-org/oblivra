@@ -19,6 +19,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/integrity"
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
+	"github.com/kingknull/oblivrashell/internal/graph"
 	"golang.org/x/time/rate"
 )
 
@@ -124,6 +125,16 @@ func (pp *PartitionedPipeline) SetIntegrityTree(t *integrity.MerkleTree) {
 	}
 	for _, shard := range pp.shards {
 		shard.SetIntegrityTree(t)
+	}
+}
+
+// SetGraphEngine distributes the graph engine to all shards for entity extraction.
+func (pp *PartitionedPipeline) SetGraphEngine(g *graph.GraphEngine) {
+	if g == nil {
+		return
+	}
+	for _, shard := range pp.shards {
+		shard.SetGraphEngine(g)
 	}
 }
 

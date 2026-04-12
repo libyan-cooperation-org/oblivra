@@ -1,7 +1,5 @@
 package database
 
-import "fmt"
-
 
 
 type Host struct {

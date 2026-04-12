@@ -95,17 +95,18 @@ func (ac *AdaptiveController) adjust() {
 	if newStatus != ac.pipeline.GetLoadStatus() {
 		ac.pipeline.SetLoadStatus(newStatus)
 		msg := "Pipeline performance is nominal."
-		if newStatus == LoadDegraded {
+		switch newStatus {
+		case LoadDegraded:
 			msg = fmt.Sprintf("Pipeline pressure high (EPS: %d, Buffer: %.1f%%). Scaling up workers.", eps, bufUsage*100)
 			ac.pipeline.log.Warn("[ADAPTIVE] %s", msg)
-		} else if newStatus == LoadCritical {
+		case LoadCritical:
 			msg = fmt.Sprintf("Critical Pipeline STALL (Buffer: %.1f%%). No events processed for >2m.", bufUsage*100)
 			ac.pipeline.log.Error("[ADAPTIVE] %s", msg)
 			// Emergency: spawn immediate "Rescue Workers"
 			for i := 0; i < ac.baseWorkers; i++ {
 				ac.scaleUp()
 			}
-		} else {
+		default:
 			ac.pipeline.log.Info("[ADAPTIVE] Pipeline state returned to HEALTHY")
 		}
 

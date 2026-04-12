@@ -55,6 +55,8 @@ type IngestionPipeline interface {
 	SetIdentityResolver(r dag.UserResolver)
 	Bus() *eventbus.Bus
 	Replay(ctx context.Context) error
+	SetGraphEngine(g *graph.GraphEngine)
+	SetIntegrityTree(t *integrity.MerkleTree)
 }
 
 // DiagnosticsUpdater is satisfied by services.DiagnosticsService.
@@ -197,8 +199,6 @@ if p.evaluator != nil {
 detNode := &dag.Node{Processor: dag.NewDetectionNode(p.evaluator, p.bus, p.log)}
 fanoutNode.Children = append(fanoutNode.Children, detNode)
 }
-
-	}
 
 	siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
 	siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}

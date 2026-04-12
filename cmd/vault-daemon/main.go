@@ -89,7 +89,7 @@ func main() {
 		if err != nil {
 			break
 		}
-		go handleConnection(conn, v, appLog)
+		go handleConnection(conn, v)
 	}
 }
 
@@ -109,7 +109,7 @@ func monitorParent(ppid int) {
 	}
 }
 
-func handleConnection(conn net.Conn, v *vault.Vault, appLog *logger.Logger) {
+func handleConnection(conn net.Conn, v *vault.Vault) {
 	defer conn.Close()
 
 	for {
