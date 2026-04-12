@@ -48,7 +48,7 @@ func init() {
 //   - No single channel becomes the bottleneck
 //   - Emergency shedding is per-shard, never drops cross-entity events
 type PartitionedPipeline struct {
-	shards    [PartitionCount]*Pipeline
+	shards    []*Pipeline
 	Metrics   PartitionedMetrics
 	limiters  map[string]*rate.Limiter
 	limiterMu sync.RWMutex
@@ -77,6 +77,7 @@ func NewPartitionedPipeline(
 	mc *monitoring.MetricsCollector,
 ) *PartitionedPipeline {
 	pp := &PartitionedPipeline{
+		shards:           make([]*Pipeline, PartitionCount),
 		log:              log.WithPrefix("partitioned-pipeline"),
 		limiters:         make(map[string]*rate.Limiter),
 		maxEPS:           getEnvInt("OBLIVRA_MAX_EPS_PER_TENANT", 1000),
@@ -236,8 +237,8 @@ func (pp *PartitionedPipeline) shardFor(evt *events.SovereignEvent) *Pipeline {
 		h *= 16777619
 	}
 	
-	idx := h % PartitionCount
-	return pp.shards[idx]
+	shardIdx := h % uint32(PartitionCount)
+	return pp.shards[shardIdx]
 }
 
 // GetMetrics aggregates metrics across all shards.

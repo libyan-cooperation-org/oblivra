@@ -67,15 +67,15 @@ func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 }
 
 // Send transmits a batch of events to the server.
-// It returns a pointer to a FleetConfig if the server provides a configuration update.
-func (t *Transport) Send(events []Event) (*FleetConfig, error) {
+// It returns a pointer to a FleetConfig and a slice of PendingActions if the server provides an update.
+func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) {
 	if len(events) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	data, err := json.Marshal(events)
 	if err != nil {
-		return nil, fmt.Errorf("marshal events: %w", err)
+		return nil, nil, fmt.Errorf("marshal events: %w", err)
 	}
 
 	// Zstd compression
@@ -92,7 +92,7 @@ func (t *Transport) Send(events []Event) (*FleetConfig, error) {
 	url := fmt.Sprintf("https://%s/api/v1/agent/ingest", t.cfg.ServerAddr)
 	req, err := http.NewRequest(http.MethodPost, url, bytesReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", contentEncoding)
@@ -100,12 +100,12 @@ func (t *Transport) Send(events []Event) (*FleetConfig, error) {
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send events: %w", err)
+		return nil, nil, fmt.Errorf("send events: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
+		return nil, nil, fmt.Errorf("server returned %d", resp.StatusCode)
 	}
 
 	// Parse configuration and actions from response
@@ -114,14 +114,14 @@ func (t *Transport) Send(events []Event) (*FleetConfig, error) {
 		Actions []PendingAction `json:"actions"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, nil // Empty body or invalid json
+		return nil, nil, nil // Empty body or invalid json
 	}
 
 	return &response.Config, response.Actions, nil
 }
 
 // FlushLoop continuously drains the WAL and sends events to the server.
-func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, onConfig func(FleetConfig)) {
+func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, onConfig func(FleetConfig, []PendingAction)) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -147,7 +147,7 @@ func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, onConfig func(Fleet
 	}
 }
 
-func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig)) error {
+func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig, []PendingAction)) error {
 	events, err := wal.ReadAll()
 	if err != nil {
 		return err

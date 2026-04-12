@@ -1266,8 +1266,8 @@ func (ex *Executor) execPredict(ctx context.Context, c *PredictCommand, rows []R
 
 	// Predict next N points
 	future := 5
-	if c.FutureSteps > 0 {
-		future = c.FutureSteps
+	if c.Future > 0 {
+		future = c.Future
 	}
 
 	for i := 0; i < future; i++ {
@@ -1289,7 +1289,10 @@ func (ex *Executor) execAnomalyDetection(_ context.Context, c *AnomalyDetectionC
 		return rows, nil
 	}
 
-	field := c.Field.Canonical()
+	if len(c.Fields) == 0 {
+		return rows, nil
+	}
+	field := c.Fields[0].Canonical()
 	vals := make([]float64, 0, len(rows))
 	for _, row := range rows {
 		if v, ok := ToNumber(row[field]); ok {

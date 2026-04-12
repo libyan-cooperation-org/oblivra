@@ -129,7 +129,7 @@ func (s *UEBAService) ProcessEvent(event *database.HostEvent) {
 			{"key": "itdr_score", "value": itdrScore, "threshold": 0.3, "description": "Identity Threat detection heuristics"},
 		}
 
-		s.bus.Publish(eventbus.EventType("siem.anomaly_detected"), map[string]interface{}{
+		anomaly := map[string]interface{}{
 			"entity_id":     event.User,
 			"entity_type":   "user",
 			"risk_score":    totalRisk,
