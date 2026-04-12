@@ -11,6 +11,7 @@
  */
 import { subscribe } from '../bridge';
 import { IS_BROWSER } from '../context';
+import { push } from '../router.svelte';
 import type {
     Host,
     Session,
@@ -74,7 +75,7 @@ class AppStore {
         if (!IS_BROWSER) {
             try {
                 const { IsUnlocked } = await import(
-                    '../../../wailsjs/go/services/VaultService'
+                    '@wailsjs/github.com/kingknull/oblivrashell/internal/services/vaultservice'
                 );
                 const unlocked = await IsUnlocked();
                 this.vaultUnlocked = unlocked;
@@ -206,7 +207,7 @@ class AppStore {
     async refreshHosts() {
         if (IS_BROWSER) return;
         try {
-            const { ListHosts } = await import('../../../wailsjs/go/services/HostService');
+            const { ListHosts } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/hostservice');
             const hosts = await ListHosts();
             this.hosts = hosts || [];
         } catch (e) {
@@ -220,7 +221,7 @@ class AppStore {
             return;
         }
         try {
-            const { StartLocalSession } = await import('../../../wailsjs/go/services/LocalService');
+            const { StartLocalSession } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
             const session = await StartLocalSession();
             if (session) {
                 this.addSession(session);
@@ -246,7 +247,7 @@ class AppStore {
         }
         
         try {
-            const { Connect } = await import('../../../wailsjs/go/services/SSHService');
+            const { Connect } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
             const session = await Connect(host.id);
             if (session) {
                 this.addSession(session);

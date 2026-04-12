@@ -42,7 +42,7 @@
     }
     loading = true;
     try {
-      const { ExecuteOQL } = await import('@wailsjs/go/services/SIEMService.js');
+      const { ExecuteOQL } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
       const query = searchQuery || 'severity:>=info';
       const result = await ExecuteOQL(query);
       if (result && result.Events) {

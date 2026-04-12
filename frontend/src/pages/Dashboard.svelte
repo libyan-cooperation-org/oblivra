@@ -27,8 +27,8 @@
     if (IS_BROWSER) return;
     loading = true;
     try {
-      const { GetAllHealth } = await import('@wailsjs/go/services/HealthService.js');
-      const { GetGlobalThreatStats } = await import('@wailsjs/go/services/SIEMService.js');
+      const { GetAllHealth } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/healthservice');
+      const { GetGlobalThreatStats } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
       
       const [h, s] = await Promise.all([
         GetAllHealth(),

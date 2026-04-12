@@ -7,19 +7,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
-
-  export interface DecisionCardData {
-    id: string;
-    title: string;
-    severity: 'P0' | 'P1' | 'P2' | 'P3';
-    confidence: number;          // 0–100
-    recommendedAction: string;
-    impactSeconds: number;       // seconds until impact (countdown)
-    source?: string;
-    host?: string;
-    mitre?: string;
-    timestamp?: string;
-  }
+  import type { DecisionCardData } from './decision.types';
 
   interface Props {
     card: DecisionCardData;
@@ -32,19 +20,31 @@
   let { card, onResolve, onEscalate, onDismiss, compact = false }: Props = $props();
 
   // ── Countdown ─────────────────────────────────────────────────────
-  let remaining = $state(card.impactSeconds);
-  let expired = $state(card.impactSeconds <= 0);
+  let remaining = $state(0);
+  let expired = $state(false);
   let interval: ReturnType<typeof setInterval>;
 
-  onMount(() => {
-    if (card.impactSeconds > 0) {
+  $effect(() => {
+    // Reset/initialize state when card configuration changes
+    remaining = card.impactSeconds;
+    expired = card.impactSeconds <= 0;
+
+    if (interval) clearInterval(interval);
+
+    if (remaining > 0) {
       interval = setInterval(() => {
         remaining = Math.max(0, remaining - 1);
-        if (remaining === 0) { expired = true; clearInterval(interval); }
+        if (remaining === 0) {
+          expired = true;
+          clearInterval(interval);
+        }
       }, 1000);
     }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   });
-  onDestroy(() => clearInterval(interval));
 
   function formatCountdown(secs: number): string {
     if (secs <= 0) return 'NOW';

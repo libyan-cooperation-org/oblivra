@@ -30,7 +30,7 @@
     }
     loading = true;
     try {
-        const { ListCompliancePacks } = await import('@wailsjs/go/services/ComplianceService.js');
+        const { ListCompliancePacks } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/complianceservice');
         const packs = await ListCompliancePacks();
         // Flatten or filter based on active tab if the service returns nested data
         // For now, we'll assume a list of controls for the mock-up

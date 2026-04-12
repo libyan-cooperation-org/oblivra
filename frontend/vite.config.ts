@@ -18,7 +18,7 @@ export default defineConfig({
       '@pages': resolve(__dirname, 'src/pages'),
       '@styles': resolve(__dirname, 'src/styles'),
       '@assets': resolve(__dirname, 'src/assets'),
-      '@wailsjs': resolve(__dirname, 'wailsjs'),
+      '@wailsjs': resolve(__dirname, 'bindings'),
     },
   },
 

@@ -13,6 +13,8 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    "allowJs": true,
+    "checkJs": false,
     "paths": {
       "@/*": ["./src/*"],
       "@components/*": ["./src/components/*"],
@@ -20,7 +22,7 @@
       "@pages/*": ["./src/pages/*"],
       "@styles/*": ["./src/styles/*"],
       "@assets/*": ["./src/assets/*"],
-      "@wailsjs/*": ["./wailsjs/*"]
+      "@wailsjs/*": ["./bindings/*"]
     },
     "baseUrl": ".",
     "types": ["svelte"]

@@ -65,7 +65,7 @@
     // Restore workspace state (desktop only)
     if (!IS_BROWSER) {
       try {
-        const { GetActive } = await import('../../../wailsjs/go/services/WorkspaceService');
+        const { GetActive } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/workspaceservice');
         const ws = await GetActive();
         if (ws?.active_tab) {
           appStore.setActiveNavTab(ws.active_tab as any);

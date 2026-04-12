@@ -30,7 +30,7 @@
     }
     loading = true;
     try {
-        const { ListEvidence } = await import('@wailsjs/go/services/ForensicsService.js');
+        const { ListEvidence } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
         const items = await ListEvidence(""); // All evidence
         artifacts = items || [];
     } catch (err) {

@@ -82,12 +82,12 @@
     // ── Outgoing Data (Frontend -> Backend)
     term.onData(async (data) => {
       try {
-        const { Write } = await import('@wailsjs/go/services/SSHService.js');
+        const { Write } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
         await Write(sessionId, data);
       } catch {
         // Fallback to LocalService if SSH fails (or if session is local)
         try {
-          const { WriteLocal } = await import('@wailsjs/go/services/LocalService.js');
+          const { WriteLocal } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
           await WriteLocal(sessionId, data);
         } catch {}
       }
@@ -96,11 +96,11 @@
     // ── Resize handling
     term.onResize(async ({ cols, rows }) => {
       try {
-        const { Resize } = await import('@wailsjs/go/services/SSHService.js');
+        const { Resize } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
         await Resize(sessionId, cols, rows);
       } catch {
         try {
-          const { ResizeLocal } = await import('@wailsjs/go/services/LocalService.js');
+          const { ResizeLocal } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
           await ResizeLocal(sessionId, cols, rows);
         } catch {}
       }

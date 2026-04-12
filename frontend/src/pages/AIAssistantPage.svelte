@@ -21,7 +21,7 @@
         return;
     }
     try {
-        const { GetChatHistory } = await import('@wailsjs/go/services/AIService.js');
+        const { GetChatHistory } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/aiservice');
         const history = await GetChatHistory();
         chatHistory = history || [];
     } catch (err) {
@@ -46,7 +46,7 @@
     }
 
     try {
-        const { SendMessage } = await import('@wailsjs/go/services/AIService.js');
+        const { SendMessage } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/aiservice');
         const response = await SendMessage(userMsg);
         chatHistory = [...chatHistory, { Role: 'assistant', Content: response }];
     } catch (err) {

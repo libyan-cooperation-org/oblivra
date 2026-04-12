@@ -31,7 +31,7 @@
     }
     loading = true;
     try {
-        const { GetDetectionRules } = await import('@wailsjs/go/services/AlertingService.js');
+        const { GetDetectionRules } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/alertingservice');
         const data = await GetDetectionRules();
         rules = data || [];
     } catch (err) {

@@ -9,7 +9,8 @@
  * Also provides rpcGuard() — a per-method debounce that prevents
  * accidental double-fires and rate-limits destructive Wails RPC calls.
  */
-export { APP_CONTEXT } from './context';
+import { APP_CONTEXT } from './context';
+export { APP_CONTEXT };
 
 // Conditionally import Wails runtime — only safe when running inside Wails.
 // In browser mode window.runtime doesn't exist, so these are no-ops.
@@ -200,7 +201,7 @@ export async function guardedUnlock(
 ): Promise<void> {
     return rpcGuard('VaultService.Unlock', 3_000, async () => {
         const { UnlockWithPassword } = await import(
-            '../../wailsjs/go/services/VaultService'
+            '@wailsjs/github.com/kingknull/oblivrashell/internal/services/vaultservice'
         );
         return UnlockWithPassword(passphrase, remember);
     });
@@ -213,7 +214,7 @@ export async function guardedUnlock(
 export async function guardedDeleteHost(hostId: string): Promise<void> {
     return rpcGuard(`HostService.Delete:${hostId}`, 2_000, async () => {
         const { Delete } = await import(
-            '../../wailsjs/go/services/HostService'
+            '@wailsjs/github.com/kingknull/oblivrashell/internal/services/hostservice'
         );
         return Delete(hostId);
     });
@@ -227,7 +228,7 @@ export async function guardedDeleteHost(hostId: string): Promise<void> {
 export async function guardedNuclearDestruction(): Promise<void> {
     return rpcGuard('SettingsService.ClearDatabase', 30_000, async () => {
         const { ClearDatabase } = await import(
-            '../../wailsjs/go/services/SettingsService'
+            '@wailsjs/github.com/kingknull/oblivrashell/internal/services/settingsservice'
         );
         return ClearDatabase();
     });

@@ -21,7 +21,7 @@
     if (IS_BROWSER) return;
     loading = true;
     try {
-        const { GetThreatIntelStats } = await import('@wailsjs/go/services/SIEMService.js');
+        const { GetThreatIntelStats } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
         threatStats = await GetThreatIntelStats();
     } catch (err) {
         console.error('Threat intel load failed', err);

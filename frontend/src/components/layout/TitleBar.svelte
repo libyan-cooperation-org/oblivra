@@ -20,9 +20,9 @@
   onMount(async () => {
     if (IS_BROWSER) return;
     try {
-      const { WindowIsMaximised } = await import('@wailsjs/runtime/runtime.js');
+      const { Window } = await import('@wailsio/runtime');
       const checkMax = async () => {
-        const max = await WindowIsMaximised();
+        const max = await Window.IsMaximised();
         isMaximized = max;
       };
       checkMax();
@@ -32,16 +32,16 @@
   });
 
   async function windowClose() {
-    const r = await import('@wailsjs/runtime/runtime.js');
-    r.Quit();
+    const { Application } = await import('@wailsio/runtime');
+    Application.Quit();
   }
   async function windowMinimize() {
-    const r = await import('@wailsjs/runtime/runtime.js');
-    r.WindowMinimise();
+    const { Window } = await import('@wailsio/runtime');
+    Window.Minimise();
   }
   async function windowToggleMax() {
-    const r = await import('@wailsjs/runtime/runtime.js');
-    r.WindowToggleMaximise();
+    const { Window } = await import('@wailsio/runtime');
+    Window.ToggleMaximise();
   }
 </script>
 

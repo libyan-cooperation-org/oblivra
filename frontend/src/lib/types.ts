@@ -1,4 +1,4 @@
-import type { database } from '../../wailsjs/go/models';
+import * as database from '@wailsjs/github.com/kingknull/oblivrashell/internal/database';
 
 export type Host = database.Host;
 
