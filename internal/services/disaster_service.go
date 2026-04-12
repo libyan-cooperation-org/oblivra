@@ -227,7 +227,8 @@ func (s *DisasterService) ImportResilienceBundle(path string, passphrase string)
 	for _, f := range zr.File {
 		// HARDENING: Prevent Path Traversal
 		destPath := filepath.Join(s.dataDir, f.Name)
-		if !strings.HasPrefix(filepath.Clean(destPath), filepath.Clean(s.dataDir)) {
+		rel, err := filepath.Rel(s.dataDir, destPath)
+		if err != nil || strings.HasPrefix(rel, "..") || strings.HasPrefix(rel, "/") || strings.HasPrefix(rel, "\\") {
 			s.log.Warn("Refusing to extract suspicious file path: %s", f.Name)
 			continue
 		}

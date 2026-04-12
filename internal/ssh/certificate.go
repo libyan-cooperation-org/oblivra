@@ -57,8 +57,19 @@ func (m *CertificateManager) ParseCertificateData(data []byte) (*CertificateInfo
 	}
 
 	now := time.Now()
-	validAfter := time.Unix(int64(cert.ValidAfter), 0)
-	validBefore := time.Unix(int64(cert.ValidBefore), 0)
+	// G115: Prevent integer overflow when converting uint64 to int64.
+	// SSH certificates use 0xffffffffffffffff for 'forever'.
+	var validAfter, validBefore time.Time
+	if cert.ValidAfter == 0xffffffffffffffff {
+		validAfter = time.Unix(0, 0)
+	} else {
+		validAfter = time.Unix(int64(cert.ValidAfter), 0)
+	}
+	if cert.ValidBefore == 0xffffffffffffffff {
+		validBefore = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
+	} else {
+		validBefore = time.Unix(int64(cert.ValidBefore), 0)
+	}
 
 	info := &CertificateInfo{
 		KeyID:           cert.KeyId,

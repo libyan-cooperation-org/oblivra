@@ -17,6 +17,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/mcp"
+	"time"
 )
 
 // threatIntelWrapper bridges threatintel.MatchEngine to mcp.ThreatIntel
@@ -38,6 +39,7 @@ type APIService struct {
 	server *api.RESTServer
 	bus    *eventbus.Bus
 	log    *logger.Logger
+	ctx    context.Context
 }
 
 func (s *APIService) Name() string { return "api-service" }
@@ -90,18 +92,23 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 
 // Startup boots the headless REST API in the background
 func (s *APIService) Start(ctx context.Context) error {
+	s.ctx = ctx
 	s.log.Info("Starting APIService on boot...")
 	s.server.Start()
 
 	// EMERGENCY LISTENERS
 	s.bus.Subscribe(eventbus.EventType("disaster:killswitch"), func(event eventbus.Event) {
 		s.log.Warn("🚨 APIService: Emergency Kill-Switch received. Terminating API listeners.")
-		s.server.Stop(context.Background())
+		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+		defer cancel()
+		s.server.Stop(ctx)
 	})
 
 	s.bus.Subscribe(eventbus.EventType("disaster:nuclear"), func(event eventbus.Event) {
 		s.log.Warn("☢️ APIService: Nuclear Destruction received. Purging REST state.")
-		s.server.Stop(context.Background())
+		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+		defer cancel()
+		s.server.Stop(ctx)
 	})
 	return nil
 }

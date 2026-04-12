@@ -6,9 +6,26 @@ import (
 	"math"
 	mathrand "math/rand"
 	"sync"
+	"time"
 )
 
-// IsolationForest represents the ensemble of isolation trees.
+// cryptoRandSource implements math/rand.Source using crypto/rand.
+type cryptoRandSource struct{}
+
+func (s *cryptoRandSource) Int63() int64 {
+	var b [8]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		// Fallback to time if crypto/rand fails (extremely rare)
+		return time.Now().UnixNano() & 0x7fffffffffffffff
+	}
+	return int64(binary.BigEndian.Uint64(b[:]) & 0x7fffffffffffffff)
+}
+
+func (s *cryptoRandSource) Seed(seed int64) {
+	// crypto/rand source is non-deterministic, so Seed is a no-op.
+}
+
 type IsolationForest struct {
 	mu        sync.RWMutex
 	Trees     []*IsolationTree
@@ -31,12 +48,10 @@ type Node struct {
 }
 
 func NewIsolationForest(numTrees int, subsample int) *IsolationForest {
-	var seed int64
-	_ = binary.Read(rand.Reader, binary.BigEndian, &seed)
 	return &IsolationForest{
 		Trees:     make([]*IsolationTree, numTrees),
 		Subsample: subsample,
-		rng:       mathrand.New(mathrand.NewSource(seed)),
+		rng:       mathrand.New(&cryptoRandSource{}),
 	}
 }
 

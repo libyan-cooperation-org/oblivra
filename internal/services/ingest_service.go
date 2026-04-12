@@ -8,6 +8,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"time"
 )
 
 // IngestService provides frontend controls for the syslog server and ingestion pipeline
@@ -58,7 +59,9 @@ func (s *IngestService) Start(ctx context.Context) error {
 
 	s.bus.Subscribe(eventbus.EventType("disaster:nuclear"), func(event eventbus.Event) {
 		s.log.Warn("☢️ IngestService: Nuclear Destruction received. Homing pipeline.")
-		s.Stop(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.Stop(ctx)
 	})
 	return nil
 }

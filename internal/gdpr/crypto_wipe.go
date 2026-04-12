@@ -61,9 +61,9 @@ func validateTableName(tableName string) error {
 }
 
 // CryptoWipe — GDPR-compliant secure deletion
-// SECURITY: tableName is validated against a whitelist. whereClause MUST be
-// constructed internally and never contain unsanitized user input.
-func (s *DataDestructionService) CryptoWipe(tableName, whereClause string) error {
+// SECURITY: tableName is validated against a whitelist. whereClause should use
+// positional parameters (?) and values should be passed in args.
+func (s *DataDestructionService) CryptoWipe(tableName, whereClause string, args ...interface{}) error {
 	if err := validateTableName(tableName); err != nil {
 		return fmt.Errorf("crypto wipe refused: %w", err)
 	}
@@ -94,16 +94,16 @@ func (s *DataDestructionService) CryptoWipe(tableName, whereClause string) error
 	// 2. Overwrite sensitive columns with random data if they exist
 	if cols, ok := tableSensitiveColumns[tableName]; ok {
 		for _, col := range cols {
-			// Check if column exists (optional but safer)
+			// SECURITY: Parameters (?) in whereClause are handled by s.db.Exec
 			query := fmt.Sprintf("UPDATE %s SET %s = randomblob(length(%s)) WHERE %s", tableName, col, col, whereClause)
 			// We don't fail if a specific column update fails (e.g. if it doesn't exist in this DB version)
-			_, _ = s.db.Exec(query)
+			_, _ = s.db.Exec(query, args...)
 		}
 	}
 
 	// 3. DELETE (frees space for reuse, secure_delete ensures zero-fill)
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s", tableName, whereClause)
-	if _, err := s.db.Exec(query); err != nil {
+	if _, err := s.db.Exec(query, args...); err != nil {
 		return fmt.Errorf("delete failed: %w", err)
 	}
 

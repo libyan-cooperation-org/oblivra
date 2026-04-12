@@ -207,7 +207,9 @@ func (s *DataLifecycleService) purgeCategory(category string, cutoff time.Time) 
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s < ?", category, tsCol)
-	result, err := s.db.ReplicatedExecContext(context.Background(), query, cutoff)
+	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+	defer cancel()
+	result, err := s.db.ReplicatedExecContext(ctx, query, cutoff)
 	if err != nil {
 		return 0, err
 	}

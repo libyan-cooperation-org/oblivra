@@ -95,6 +95,10 @@ func (s *LuaSandbox) Start() error {
 
 	// Execute the main script
 	if err := s.state.DoFile(s.manifest.Main); err != nil {
+		if s.cancelCtx != nil {
+			s.cancelCtx()
+			s.cancelCtx = nil
+		}
 		s.state.Close()
 		s.state = nil
 		return fmt.Errorf("failed to load lua script %s: %w", s.manifest.Main, err)

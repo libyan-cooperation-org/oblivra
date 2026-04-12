@@ -5,48 +5,14 @@
 <script lang="ts">
   import { Shield, Activity, RefreshCw } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { onMount } from 'svelte';
+  import { dashboardStore } from '@lib/stores/dashboard.svelte';
   import { KPI, Badge, Button, PageLayout } from '@components/ui';
-  import { IS_BROWSER } from '@lib/context';
 
-  const activeSessionCount = $derived(appStore.sessions.filter(s => s.status === 'active').length);
-
-  // State
-  let health = $state<any>({});
-  let siemStats = $state<any>({});
-  let loading = $state(false);
-
-  // Derived health sub-scores — sourced from health API or safe defaults
+  // Derived health sub-scores — sourced from live store or safe defaults
   const healthScores = $derived({
-    compute: health?.compute ?? { usage: '14', status: 'success' },
-    network: health?.network ?? { latency: '2', status: 'success' },
-    storage: health?.storage ?? { throughput: '4.2', status: 'info' },
-  });
-
-  async function refreshDashboard() {
-    if (IS_BROWSER) return;
-    loading = true;
-    try {
-      const { GetAllHealth } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/healthservice');
-      const { GetGlobalThreatStats } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
-      
-      const [h, s] = await Promise.all([
-        GetAllHealth(),
-        GetGlobalThreatStats()
-      ]);
-      health = h || {};
-      siemStats = s || {};
-    } catch (err) {
-      console.error('Dashboard refresh failed', err);
-    } finally {
-      loading = false;
-    }
-  }
-
-  onMount(() => {
-    refreshDashboard();
-    const interval = setInterval(refreshDashboard, 30000); // 30s refresh
-    return () => clearInterval(interval);
+    compute: dashboardStore.health?.compute ?? { usage: '14', status: 'success' },
+    network: dashboardStore.health?.network ?? { latency: '2', status: 'success' },
+    storage: dashboardStore.health?.storage ?? { throughput: '4.2', status: 'info' },
   });
 </script>
 
@@ -61,10 +27,10 @@
   <div class="flex flex-col h-full gap-6">
     <!-- Primary KPI Strip -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Active Alerts" value={health.AlertCount || 0} trend="up" trendValue="+2 new" variant="critical" />
-      <KPI label="Engine Status" value={health.Status || 'Operational'} trend="stable" trendValue="Nominal" variant="success" />
-      <KPI label="Storage Capacity" value="{siemStats.StorageUsage || '42'}GB" trend="stable" />
-      <KPI label="Events / Second" value={siemStats.EPS || '1.2k'} trend="stable" variant="accent" />
+      <KPI label="Active Alerts" value={dashboardStore.health.AlertCount || 0} trend="up" trendValue="+2 new" variant="critical" />
+      <KPI label="Engine Status" value={dashboardStore.health.Status || 'Operational'} trend="stable" trendValue="Nominal" variant="success" />
+      <KPI label="Storage Capacity" value="{dashboardStore.siemStats.StorageUsage || '42'}GB" trend="stable" />
+      <KPI label="Events / Second" value={dashboardStore.siemStats.EPS || '1.2k'} trend="stable" variant="accent" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -75,8 +41,8 @@
               <Activity size={12} />
               Real-time System Audit
            </div>
-           <Button variant="secondary" size="sm" onclick={refreshDashboard}>
-            <RefreshCw size={14} class="mr-1 {loading ? 'animate-spin' : ''}" />
+           <Button variant="secondary" size="sm" onclick={() => dashboardStore.refresh()}>
+            <RefreshCw size={14} class="mr-1 {dashboardStore.loading ? 'animate-spin' : ''}" />
             Refresh
           </Button>
         </div>

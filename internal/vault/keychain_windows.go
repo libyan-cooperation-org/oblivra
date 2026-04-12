@@ -61,11 +61,16 @@ func (k *windowsKeychain) Set(key string, value []byte) error {
 		blobPtr = &blob[0]
 	}
 
+	blobSize := len(blob)
+	if blobSize > 0xFFFFFFFF {
+		return fmt.Errorf("credential too large (max 4GB supported by Windows API)")
+	}
+
 	cred := winCredential{
 		Type:               credTypeGeneric,
 		TargetName:         targetPtr,
 		UserName:           userPtr,
-		CredentialBlobSize: uint32(len(blob)),
+		CredentialBlobSize: uint32(blobSize),
 		CredentialBlob:     blobPtr,
 		Persist:            credPersistLocalMachine,
 	}

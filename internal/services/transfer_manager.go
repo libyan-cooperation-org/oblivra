@@ -136,6 +136,7 @@ func (m *TransferManager) GetTransferState() []TransferJob {
 }
 
 func (m *TransferManager) executeDownload(job *TransferJob) {
+	defer job.cancelFn()
 	m.updateJobStatus(job.ID, StatusInProgress, nil)
 
 	session, ok := m.sessionProvider.GetSession(job.SessionID)
@@ -200,6 +201,7 @@ func (m *TransferManager) executeDownload(job *TransferJob) {
 }
 
 func (m *TransferManager) executeUpload(job *TransferJob) {
+	defer job.cancelFn()
 	m.updateJobStatus(job.ID, StatusInProgress, nil)
 
 	session, ok := m.sessionProvider.GetSession(job.SessionID)

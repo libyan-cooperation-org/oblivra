@@ -113,7 +113,7 @@ func (s *LocalService) StartLocalSession() (sessionID string, retErr error) {
 	}
 
 	// Per-session cancel context for read goroutines
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.ctx)
 
 	// Use the cmd from the ptySession — on Windows ConPTY mode this is a
 	// bare wrapper cmd, not the original exec.Command we built above.
