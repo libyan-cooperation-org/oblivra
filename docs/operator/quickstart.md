@@ -9,13 +9,13 @@ Get Oblivra Sovereign Terminal running and ingesting real data in under 15 minut
 | Requirement | Version | Notes |
 |---|---|---|
 | Go | ≥ 1.25 | `go version` |
-| Wails CLI | ≥ 2.11 | `wails version` |
+| Wails CLI | ≥ 3.0 | `wails version` |
 | Bun | latest | Frontend build |
 | WebView2 | any | Windows only — usually pre-installed |
 
 ```powershell
 # Install Wails CLI
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+go install github.com/wailsapp/wails/v3/cmd/wails@latest
 ```
 
 ---

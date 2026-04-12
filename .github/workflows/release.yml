@@ -69,7 +69,7 @@ jobs:
         run: npm install -g bun
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails@latest
 
       - name: Build binary
         env:

@@ -46,7 +46,7 @@ jobs:
           bun-version: latest
 
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v3/cmd/wails@latest
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'

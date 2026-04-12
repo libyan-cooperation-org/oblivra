@@ -12,7 +12,7 @@ func TestWatchdogStallDetection(t *testing.T) {
 	// 1. Setup a small pipeline with a real logger
 	bufferSize := 10
 	log, _ := logger.New(logger.Config{Level: logger.InfoLevel, OutputPath: "/dev/null"})
-	p := NewPipeline(bufferSize, nil, nil, nil, nil, log, nil, nil, nil)
+	p := NewPipeline(bufferSize, nil, nil, nil, nil, log, nil, nil, nil, nil)
 	
 	// 2. Mock a stall: fill buffer and set backdated heartbeat
 	for i := 0; i < 9; i++ { // 90% full

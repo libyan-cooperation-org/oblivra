@@ -16,7 +16,7 @@ func newTestPipeline(t *testing.T) *ingest.Pipeline {
 	log := logger.NewStdoutLogger()
 	bus := eventbus.NewBus(log)
 	t.Cleanup(func() { bus.Close() })
-	return ingest.NewPipeline(10000, nil, nil, nil, bus, log, nil, nil, nil)
+	return ingest.NewPipeline(10000, nil, nil, nil, bus, log, nil, nil, nil, nil)
 }
 
 func mkEvent(id, eventType, host, rawLine string) *events.SovereignEvent {
@@ -56,7 +56,7 @@ func TestPipeline_DropsBeyondBuffer(t *testing.T) {
 	defer bus.Close()
 
 	// Tiny buffer of 5 — do NOT start workers so events accumulate
-	p := ingest.NewPipeline(5, nil, nil, nil, bus, log, nil, nil, nil)
+	p := ingest.NewPipeline(5, nil, nil, nil, bus, log, nil, nil, nil, nil)
 
 	dropped := 0
 	for i := 0; i < 10; i++ {
@@ -103,7 +103,7 @@ func BenchmarkPipeline_Throughput(b *testing.B) {
 	log := logger.NewStdoutLogger()
 	bus := eventbus.NewBus(log)
 	defer bus.Close()
-	p := ingest.NewPipeline(100000, nil, nil, nil, bus, log, nil, nil, nil)
+	p := ingest.NewPipeline(100000, nil, nil, nil, bus, log, nil, nil, nil, nil)
 	p.Start()
 	defer p.Stop()
 

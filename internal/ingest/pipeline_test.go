@@ -25,7 +25,7 @@ func TestPipeline_TemporalIntegrity(t *testing.T) {
 	temporalSvc := temporal.NewIntegrityService(policy, bus, log)
 
 	// Initialize pipeline with temporal integrity
-	p := NewPipeline(100, nil, ae, nil, bus, log, temporalSvc, nil, nil)
+	p := NewPipeline(100, nil, ae, nil, bus, log, temporalSvc, nil, nil, nil)
 	p.Start()
 	defer p.Shutdown()
 
