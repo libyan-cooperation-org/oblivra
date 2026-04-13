@@ -25,11 +25,9 @@ func NewEBPFCollector(hostname string, log *logger.Logger) *EBPFCollector {
 func (c *EBPFCollector) Name() string { return "ebpf" }
 
 func (c *EBPFCollector) Start(ctx context.Context, ch chan<- Event) error {
-	if runtime.GOOS != "linux" {
-		c.log.Info("eBPF is only available on Linux, skipping")
-		<-ctx.Done()
-		return nil
-	}
+	c.log.Info("eBPF is only available on Linux, skipping")
+	<-ctx.Done()
+	return nil
 
 	// On Linux, this would attach eBPF programs to:
 	// - sys_enter_execve (process execution)

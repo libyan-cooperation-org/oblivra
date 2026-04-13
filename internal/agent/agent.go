@@ -72,6 +72,7 @@ type Agent struct {
 	cfg      Config
 	eventCh  chan Event // shared channel across all collectors
 	mu       sync.Mutex
+	ctx      context.Context
 	cancel   context.CancelFunc
 
 	collectors []Collector
@@ -181,7 +182,8 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 
 // Start begins all collectors and the transport loop.
 func (a *Agent) Start(ctx context.Context) error {
-	ctx, a.cancel = context.WithCancel(ctx)
+	a.ctx, a.cancel = context.WithCancel(ctx)
+	ctx = a.ctx
 
 	// Register with server before starting data flow
 	if err := a.transport.Register(ctx); err != nil {
@@ -313,22 +315,12 @@ func (a *Agent) hotToggle(name string, enable bool) {
 	}
 
 	a.collectors = append(a.collectors, c)
-	// We need the current running context — stored via a.cancel's parent.
-	// Use a detached background context for hot-added collectors; they will
-	// be stopped via c.Stop() on the next hotToggle(false) call.
+	
 	ctx := context.Background()
-	if a.cancel != nil {
-		// Best effort: wrap a new cancellable context so the collector can
-		// be stopped when the agent shuts down. The wg.Wait in Stop() ensures
-		// the goroutine is joined.
-		var collectorCtx context.Context
-		collectorCtx, _ = context.WithCancel(ctx)
-		// Replace ctx with one derived from the agent's own cancel context.
-		// We do this by creating a fresh cancel pair here.
-		collectorCtx, cancelFn := context.WithCancel(context.Background())
-		_ = cancelFn // The collector is stopped via c.Stop(); context is advisory.
-		ctx = collectorCtx
+	if a.ctx != nil {
+		ctx = a.ctx
 	}
+	
 	a.startCollector(ctx, c)
 	a.log.Info("[hot-toggle] Started collector: %s", name)
 }

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -90,7 +91,8 @@ func (t *Transport) Register(ctx context.Context) error {
 		return err
 	}
 
-	url := fmt.Sprintf("https://%s/api/v1/agent/register", t.cfg.ServerAddr)
+	base := t.normalizeURL(t.cfg.ServerAddr)
+	url := fmt.Sprintf("%s/api/v1/agent/register", base)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
 		return err
@@ -134,7 +136,8 @@ func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) 
 		body = data
 	}
 
-	url := fmt.Sprintf("https://%s/api/v1/agent/ingest", t.cfg.ServerAddr)
+	base := t.normalizeURL(t.cfg.ServerAddr)
+	url := fmt.Sprintf("%s/api/v1/agent/ingest", base)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
@@ -244,6 +247,14 @@ func (t *Transport) setHeaders(req *http.Request, contentEncoding string) {
 	req.Header.Set("X-Agent-Version", t.cfg.Version)
 	req.Header.Set("X-Agent-Hostname", t.hostname)
 	req.Header.Set("Content-Encoding", contentEncoding)
+}
+
+func (t *Transport) normalizeURL(addr string) string {
+	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+		return addr
+	}
+	// Default to HTTPS if no scheme provided
+	return "https://" + addr
 }
 
 // zlibCompress compresses data using zlib (RFC 1950 / deflate).

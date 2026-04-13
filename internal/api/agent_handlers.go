@@ -174,9 +174,20 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Mark agents as degraded/offline based on last_seen
+	// Priority: Use the agent provider (which bridges to the Ingest/AgentServer)
+	if s.agentProvider != nil {
+		fleet := s.agentProvider.GetFleet()
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"total":  len(fleet),
+			"agents": fleet,
+		})
+		return
+	}
+
+	// Fallback/Legacy: Use locally registered agents
 	s.agentsMu.Lock()
 	now := time.Now()
+	fleet := make([]*AgentInfo, 0, len(s.agents))
 	for _, agent := range s.agents {
 		ts, _ := time.Parse(time.RFC3339, agent.LastSeen)
 		since := now.Sub(ts)
@@ -188,9 +199,6 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 		default:
 			agent.Status = "offline"
 		}
-	}
-	fleet := make([]*AgentInfo, 0, len(s.agents))
-	for _, agent := range s.agents {
 		fleet = append(fleet, agent)
 	}
 	s.agentsMu.Unlock()

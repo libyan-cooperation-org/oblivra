@@ -22,9 +22,7 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/kingknull/oblivrashell/internal/auth"
 )
@@ -76,93 +74,10 @@ func (s *RESTServer) tenantMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// requireTenantMatch checks that resourceTenantID matches the caller's tenant scope.
-// Returns an error that callers should translate to HTTP 403 Forbidden.
-//
-// Usage in handlers:
-//
-//   if err := requireTenantMatch(r.Context(), alert.TenantID); err != nil {
-//       http.Error(w, err.Error(), http.StatusForbidden)
-//       return
-//   }
-//
-// Rules:
-//   - If the caller has no tenant restriction (admin / GLOBAL), always passes.
-//   - If the resource has no tenant, always passes (unscoped legacy data).
-//   - If both are set, they must match exactly.
-func requireTenantMatch(ctx context.Context, resourceTenantID string) error {
-	callerTenant := TenantFromContext(ctx)
-	if callerTenant == "" {
-		// Admin / GLOBAL caller — unrestricted.
-		return nil
-	}
-	if resourceTenantID == "" {
-		// Unscoped resource — allow.
-		return nil
-	}
-	if callerTenant != resourceTenantID {
-		return fmt.Errorf("forbidden: resource belongs to tenant %q, caller is tenant %q",
-			resourceTenantID, callerTenant)
-	}
-	return nil
-}
 
-// tenantScopedQuery appends a tenant_id WHERE clause to a SQL query.
-//
-// If tenantID is empty (admin / GLOBAL), the query is returned unchanged.
-// Otherwise:
-//   - If the query already has a WHERE clause, AND tenant_id = ? is appended.
-//   - If not, WHERE tenant_id = ? is appended.
-//
-// The caller must add the tenantID string to their args slice at the matching
-// position. tenantScopedQuery returns both the modified query and a bool
-// indicating whether a tenant arg was appended (so the caller knows to add it).
-//
-// Example:
-//
-//   q, scoped := tenantScopedQuery("SELECT * FROM host_events", tenantID)
-//   if scoped {
-//       rows, err = db.QueryContext(ctx, q, tenantID)
-//   } else {
-//       rows, err = db.QueryContext(ctx, q)
-//   }
-func tenantScopedQuery(query, tenantID string) (string, bool) {
-	if tenantID == "" {
-		return query, false
-	}
 
-	upper := strings.ToUpper(query)
-	if strings.Contains(upper, " WHERE ") {
-		return query + " AND tenant_id = ?", true
-	}
-	return query + " WHERE tenant_id = ?", true
-}
 
-// tenantFilter returns the SQL fragment and args to append to any query
-// for tenant isolation. Used by handlers that build queries dynamically.
-//
-// Returns ("", nil) when the caller is unrestricted (admin).
-// Returns ("AND tenant_id = ?", []interface{}{tenantID}) otherwise.
-//
-// This is the preferred helper for parameterized queries because it avoids
-// string interpolation entirely — the tenant value is always a bind parameter.
-func tenantFilter(ctx context.Context) (clause string, args []interface{}) {
-	tenantID := TenantFromContext(ctx)
-	if tenantID == "" {
-		return "", nil
-	}
-	return "AND tenant_id = ?", []interface{}{tenantID}
-}
 
-// assertTenantInQuery panics in development if a handler is trying to execute
-// a SELECT on a tenant-bearing table without a tenant_id condition.
-// This is a defence-in-depth compile-time helper — not a runtime guard.
-// Use in tests:
-//
-//	assertTenantInQuery(t, query, tenantID)
-func assertTenantInQuery(query, tenantID string) bool {
-	if tenantID == "" {
-		return true // admin path, no assertion needed
-	}
-	return strings.Contains(strings.ToLower(query), "tenant_id")
-}
+
+
+

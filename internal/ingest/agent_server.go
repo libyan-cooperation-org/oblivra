@@ -79,6 +79,9 @@ type AgentInfo struct {
 	Version       string    `json:"version"`
 	LastSeen      string    `json:"last_seen"`
 	RemoteAddress string    `json:"remote_address"`
+	OS            string    `json:"os"`
+	Arch          string    `json:"arch"`
+	Collectors    []string  `json:"collectors"`
 }
 
 
@@ -267,17 +270,23 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update agent tracking
-	host := r.Header.Get("X-Agent-Hostname")
-	if len(incomingEvents) > 0 && incomingEvents[0].Host != "" {
-		host = incomingEvents[0].Host
+	agentID := r.Header.Get("X-Agent-ID")
+	hostname := r.Header.Get("X-Agent-Hostname")
+
+	// If headers are missing, try to infer from events
+	if agentID == "" && len(incomingEvents) > 0 {
+		agentID = incomingEvents[0].AgentID
+	}
+	if hostname == "" && len(incomingEvents) > 0 {
+		hostname = incomingEvents[0].Host
 	}
 
-	if host != "" {
+	if agentID != "" {
 		s.mu.Lock()
-		_, isNew := s.activeAgents[host]
-		s.activeAgents[host] = AgentInfo{
-			ID:            host,
-			Hostname:      host,
+		_, exists := s.activeAgents[agentID]
+		s.activeAgents[agentID] = AgentInfo{
+			ID:            agentID,
+			Hostname:      hostname,
 			Version:       agentVersion,
 			LastSeen:      time.Now().Format(time.RFC3339),
 			RemoteAddress: r.RemoteAddr,
@@ -285,17 +294,18 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 
 		if s.pipeline != nil && s.pipeline.Bus() != nil {
-			if !isNew {
+			if !exists {
 				// First time we've seen this agent — fire registration event
 				s.pipeline.Bus().Publish("agent.registered", map[string]interface{}{
-					"host_id":        host,
+					"host_id":        agentID,
+					"hostname":       hostname,
 					"remote_address": r.RemoteAddr,
 					"version":        agentVersion,
 				})
 			} else {
 				// Subsequent contact — fire heartbeat event
 				s.pipeline.Bus().Publish("agent.heartbeat", map[string]interface{}{
-					"host_id":  host,
+					"host_id":  agentID,
 					"last_seen": time.Now().Format(time.RFC3339),
 				})
 			}
@@ -344,13 +354,13 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		ingested++
 	}
 
-	s.log.Debug("Ingested %d events from agent %s", ingested, host)
+	s.log.Debug("Ingested %d events from agent %s", ingested, agentID)
 
 	// Return the desired configuration and pending actions in the response
 	s.mu.Lock()
 	config := s.desiredConfig
-	actions := s.pendingActions[host]
-	delete(s.pendingActions, host) // Hand off to agent
+	actions := s.pendingActions[agentID]
+	delete(s.pendingActions, agentID) // Hand off to agent
 	s.mu.Unlock()
 
 	response := struct {
@@ -374,12 +384,58 @@ func (s *AgentServer) AddAction(agentID string, action PendingAction) {
 	s.log.Info("Queued action %s (%s) for agent %s", action.ID, action.Type, agentID)
 }
 
-// handleRegister accepts heartbeat check-ins from the agent
+// handleRegister accepts heartbeat check-ins from the agent and populates the fleet registry
 func (s *AgentServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.log.Info("Agent registered successfully: %s", r.RemoteAddr)
+
+	var reg struct {
+		ID         string   `json:"id"`
+		Hostname   string   `json:"hostname"`
+		Version    string   `json:"version"`
+		OS         string   `json:"os"`
+		Arch       string   `json:"arch"`
+		Collectors []string `json:"collectors"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&reg); err != nil {
+		s.log.Error("Failed to decode registration: %v", err)
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
+
+	if reg.ID == "" {
+		http.Error(w, "Missing Agent ID", http.StatusBadRequest)
+		return
+	}
+
+	s.mu.Lock()
+	s.activeAgents[reg.ID] = AgentInfo{
+		ID:            reg.ID,
+		Hostname:      reg.Hostname,
+		Version:       reg.Version,
+		OS:            reg.OS,
+		Arch:          reg.Arch,
+		Collectors:    reg.Collectors,
+		LastSeen:      time.Now().Format(time.RFC3339),
+		RemoteAddress: r.RemoteAddr,
+	}
+	s.mu.Unlock()
+
+	s.log.Info("Agent registered successfully: %s (%s)", reg.ID, reg.Hostname)
+	
+	if s.pipeline != nil && s.pipeline.Bus() != nil {
+		s.pipeline.Bus().Publish("agent.registered", map[string]interface{}{
+			"host_id":        reg.ID,
+			"hostname":       reg.Hostname,
+			"remote_address": r.RemoteAddr,
+			"version":        reg.Version,
+			"os":             reg.OS,
+			"arch":           reg.Arch,
+		})
+	}
+
 	w.WriteHeader(http.StatusOK)
 }

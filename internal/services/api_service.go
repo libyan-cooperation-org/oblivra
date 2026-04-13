@@ -52,6 +52,29 @@ func (e *unifiedForensicEngine) KillProcess(hostID string, pid int) error {
 	return e.agents.KillProcess(hostID, pid)
 }
 
+// agentProviderBridge satisfies api.AgentProvider using AgentService
+type agentProviderBridge struct {
+	service *AgentService
+}
+
+func (b *agentProviderBridge) GetFleet() []api.AgentInfo {
+	dtos := b.service.ListAgents()
+	fleet := make([]api.AgentInfo, len(dtos))
+	for i, d := range dtos {
+		fleet[i] = api.AgentInfo{
+			ID:         d.ID,
+			Hostname:   d.Hostname,
+			Version:    d.Version,
+			OS:         d.OS,
+			Arch:       d.Arch,
+			Collectors: d.Collectors,
+			LastSeen:   d.LastSeen,
+			Status:     d.Status,
+		}
+	}
+	return fleet
+}
+
 // APIService manages the standalone REST API server lifecycle.
 type APIService struct {
 	BaseService
@@ -101,7 +124,8 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
-	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
+	agentBridge := &agentProviderBridge{service: agentService}
+	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, agentBridge, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server: server,

@@ -92,6 +92,11 @@ type DashboardData struct {
 	Results     map[string]*oql.QueryResult `json:"results"`
 }
 
+// AgentProvider enables the REST API to query agents from the ingestion engine.
+type AgentProvider interface {
+	GetFleet() []AgentInfo
+}
+
 // RESTServer exposes backend capabilities to external clients (headless mode)
 type RESTServer struct {
 	port     int
@@ -109,6 +114,7 @@ type RESTServer struct {
 	matchEngine *threatintel.MatchEngine
 	agents   map[string]*AgentInfo // registered agent fleet
 	agentsMu sync.RWMutex           // protects agents map
+	agentProvider AgentProvider     // provider for agent fleet data
 	limiter  *rate.Limiter
 	upgrader websocket.Upgrader
 
@@ -155,7 +161,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, agentProvider AgentProvider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -186,6 +192,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		replayer:      ingest.NewEventReplayer(log),
 		graphEngine:   graphEngine,
 		ueba:          ueba,
+		agentProvider: agentProvider,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -491,6 +498,7 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		allowedOrigins := map[string]bool{
 			"https://wails.localhost": true,
 			"wails://wails":           true,
+			"http://localhost:3000":   true,
 		}
 		if allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)

@@ -22,13 +22,7 @@
     { key: 'message', label: 'EVENT MESSAGE' },
   ];
 
-  const mockLogs = [
-    { id: 1, time: '2026-04-10 02:40:01', type: 'critical', host: 'oblivra-core-01', message: 'Unauthorized egress attempt to 45.33.2.1 blocked by NDR policy #442' },
-    { id: 2, time: '2026-04-10 02:41:12', type: 'info', host: 'jump-proxy-de', message: 'SSH session established for user: maverick' },
-    { id: 3, time: '2026-04-10 02:42:05', type: 'warning', host: 'prod-api-05', message: 'Unexpected process "nc" executed in /tmp' },
-    { id: 4, time: '2026-04-10 02:43:33', type: 'error', host: 'vault-auth-01', message: 'MFA failure: Invalid TOTP for account: root' },
-    { id: 5, time: '2026-04-10 02:44:10', type: 'info', host: 'oblivra-core-01', message: 'Kernel integrity check passed' },
-  ];
+
 
   let activeTab = $state('feed');
   let searchQuery = $state('');
@@ -36,25 +30,41 @@
   let loading = $state(false);
 
   async function refreshLogs() {
-    if (IS_BROWSER) {
-      logs = mockLogs;
-      return;
-    }
     loading = true;
     try {
-      const { ExecuteOQL } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
       const query = searchQuery || 'severity:>=info';
-      const result = await ExecuteOQL(query);
+      let result;
+
+      if (IS_BROWSER) {
+        // Fallback to REST API for browser context via Vite proxy
+        const res = await fetch('/api/v1/siem/search?q=' + encodeURIComponent(query), {
+          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
+        });
+        if (!res.ok) throw new Error('API error: ' + res.status);
+        result = await res.json();
+        // Adjust the REST result payload to match the desktop IPC format just in case
+        if (result.events) {
+          result.Events = result.events;
+        }
+      } else {
+        // Native Wails IPC context
+        const { ExecuteOQL } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
+        result = await ExecuteOQL(query);
+      }
+
       if (result && result.Events) {
         logs = result.Events.map((ev: any) => ({
-          id: ev.ID,
-          time: new Date(ev.Timestamp).toLocaleString(),
-          type: ev.Severity || 'info',
-          host: ev.HostName || 'unknown',
-          message: ev.Message || ev.RawData || 'No message',
+          id: ev.ID || ev.id,
+          time: new Date(ev.Timestamp || ev.timestamp).toLocaleString(),
+          type: ev.Severity || ev.severity || 'info',
+          host: ev.HostName || ev.host_id || 'unknown',
+          message: ev.Message || ev.raw_log || 'No message',
         }));
+      } else {
+        logs = [];
       }
     } catch (err) {
+      console.error(err);
       appStore.notify('Failed to execute OQL query', 'error', (err as Error).message);
     } finally {
       loading = false;
@@ -105,7 +115,7 @@
               </div>
             {/if}
             <DataTable data={logs} columns={logColumns} striped compact>
-              {#snippet render({ col, row, value })}
+              {#snippet render({ col, value })}
                 {#if col.key === 'type'}
                   <Badge variant={value === 'error' || value === 'critical' ? 'critical' : value === 'warning' ? 'warning' : 'info'}>
                     {value}

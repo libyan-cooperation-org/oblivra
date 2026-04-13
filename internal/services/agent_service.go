@@ -47,9 +47,12 @@ type AgentDTO struct {
 	ID            string `json:"id"`
 	Hostname      string `json:"hostname"`
 	Version       string `json:"version"`
-	LastSeen      string `json:"last_seen"` // ISO8601 string
-	RemoteAddress string `json:"remote_address"`
-	Status        string `json:"status"` // "online" | "offline"
+	LastSeen      string   `json:"last_seen"` // ISO8601 string
+	RemoteAddress string   `json:"remote_address"`
+	Status        string   `json:"status"` // "online" | "offline"
+	OS            string   `json:"os"`
+	Arch          string   `json:"arch"`
+	Collectors    []string `json:"collectors"`
 }
 
 // ListAgents retrieves the list of currently active agents
@@ -74,6 +77,9 @@ func (s *AgentService) ListAgents() []AgentDTO {
 			LastSeen:      a.LastSeen,
 			RemoteAddress: a.RemoteAddress,
 			Status:        status,
+			OS:            a.OS,
+			Arch:          a.Arch,
+			Collectors:    a.Collectors,
 		})
 	}
 	return dtos

@@ -6,7 +6,7 @@ export interface AgentDTO {
   version: string;
   last_seen: string;
   remote_address: string;
-  status: 'online' | 'offline';
+  status: string;
 }
 
 export class AgentStore {
@@ -22,12 +22,23 @@ export class AgentStore {
   }
 
   async refresh() {
-    if (IS_BROWSER) return;
     this.loading = true;
     try {
-      const { ListAgents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
-      const list = await ListAgents();
-      this.agents = list || [];
+      if (IS_BROWSER) {
+        // Fallback to REST API for browser context via Vite Proxy
+        const res = await fetch('/api/v1/agent/fleet', {
+          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
+        });
+        if (!res.ok) throw new Error('API error: ' + res.status);
+        const data = await res.json();
+        // The API returns { total: X, agents: [...] }
+        this.agents = data.agents || [];
+      } else {
+        // Native Wails IPC context
+        const { ListAgents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
+        const list = await ListAgents();
+        this.agents = list || [];
+      }
       this.error = null;
     } catch (err: any) {
       console.error('[AgentStore] Refresh failed:', err);
