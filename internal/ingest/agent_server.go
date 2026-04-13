@@ -109,7 +109,7 @@ func (s *AgentServer) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/agent/ingest", s.handleIngest)
-
+	mux.HandleFunc("/api/v1/agent/register", s.handleRegister)
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 	}
@@ -240,7 +240,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 	// Handle zstd/zlib compression
 	encoding := r.Header.Get("Content-Encoding")
-	if encoding == "zstd" {
+	if encoding == "zstd" || encoding == "deflate" {
 		// Agent uses zlib writer, despite "zstd" terminology in transport.go fallback
 		zr, err := zlib.NewReader(r.Body)
 		if err != nil {
@@ -372,4 +372,14 @@ func (s *AgentServer) AddAction(agentID string, action PendingAction) {
 	defer s.mu.Unlock()
 	s.pendingActions[agentID] = append(s.pendingActions[agentID], action)
 	s.log.Info("Queued action %s (%s) for agent %s", action.ID, action.Type, agentID)
+}
+
+// handleRegister accepts heartbeat check-ins from the agent
+func (s *AgentServer) handleRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.log.Info("Agent registered successfully: %s", r.RemoteAddr)
+	w.WriteHeader(http.StatusOK)
 }
