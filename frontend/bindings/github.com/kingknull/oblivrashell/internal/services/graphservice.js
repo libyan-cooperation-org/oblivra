@@ -11,6 +11,10 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as graph$0 from "../graph/models.js";
+
 /**
  * @param {string} $from
  * @param {string} to
@@ -55,6 +59,42 @@ export function FindAttackPath(startID, endID) {
 }
 
 /**
+ * GetActiveClusters returns all active entity clusters tracked by the
+ * CampaignBuilder. Each cluster represents a group of related entities
+ * (user, host, IP) that have interacted within the correlation window,
+ * along with which ATT&CK tactics have been observed across those edges.
+ * Wails-bound: called by FusionDashboard.tsx for the campaign cluster graph.
+ * @returns {$CancellablePromise<{ [_ in string]?: any }[]>}
+ */
+export function GetActiveClusters() {
+    return $Call.ByID(2378667306).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
+ * GetFullGraph returns the entire live graph state.
+ * @returns {$CancellablePromise<{ [_ in string]?: any }>}
+ */
+export function GetFullGraph() {
+    return $Call.ByID(997138094).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * GetRichEdges returns all integrity-chained graph edges for audit export.
+ * Each edge carries an EdgeHash = SHA-256(NodeA + NodeB + EdgeType + EventHash)
+ * allowing forensic verification that graph data was not tampered with.
+ * @returns {$CancellablePromise<graph$0.RichEdge[]>}
+ */
+export function GetRichEdges() {
+    return $Call.ByID(2917623533).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * GetSubGraph returns a subset of the graph centered on a target entity.
  * @param {string} nodeID
  * @param {number} hops
@@ -74,6 +114,16 @@ export function Name() {
 }
 
 /**
+ * SetCampaignBuilder wires the campaign builder after container init.
+ * Called by the container once both GraphEngine and CampaignBuilder exist.
+ * @param {any} cb
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetCampaignBuilder(cb) {
+    return $Call.ByID(3339788068, cb);
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function Start() {
@@ -90,3 +140,6 @@ export function Stop() {
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = graph$0.RichEdge.createFrom;
+const $$createType4 = $Create.Array($$createType3);

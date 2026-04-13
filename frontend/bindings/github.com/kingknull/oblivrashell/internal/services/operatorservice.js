@@ -29,7 +29,6 @@ export function Dependencies() {
 
 /**
  * GetBannerText returns a one-line status string for the terminal tab bar.
- * This is the lightweight version of GetContext for frequent polling.
  * @param {string} hostID
  * @returns {$CancellablePromise<string>}
  */
@@ -39,7 +38,6 @@ export function GetBannerText(hostID) {
 
 /**
  * GetContext returns the full security context for a host.
- * This powers the "anomaly banner" on the terminal tab bar.
  * @param {string} hostID
  * @returns {$CancellablePromise<$models.OperatorContext | null>}
  */

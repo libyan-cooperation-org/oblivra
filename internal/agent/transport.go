@@ -156,9 +156,6 @@ func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig, []PendingActi
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
 
 	cfg, actions, err := t.Send(events)
 	if err != nil {

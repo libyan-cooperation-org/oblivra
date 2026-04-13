@@ -15,6 +15,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as ingest$0 from "../ingest/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as monitoring$0 from "../monitoring/models.js";
 
 /**
@@ -82,6 +85,17 @@ export function Stop() {
  */
 export function UpdateIngestMetrics(eps, target, dropped, bufFill, workers) {
     return $Call.ByID(566810533, eps, target, dropped, bufFill, workers);
+}
+
+/**
+ * UpdateLoadStatus is called by the adaptive controller during workload transitions.
+ * It maps internal LoadStatus to user-facing health events.
+ * @param {ingest$0.LoadStatus} status
+ * @param {string} message
+ * @returns {$CancellablePromise<void>}
+ */
+export function UpdateLoadStatus(status, message) {
+    return $Call.ByID(2259050350, status, message);
 }
 
 // Private type creation functions

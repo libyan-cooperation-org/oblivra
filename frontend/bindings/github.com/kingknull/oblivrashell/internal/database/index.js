@@ -8,6 +8,7 @@ export {
     EvidenceItem,
     Host,
     HostEvent,
+    IdentityConnector,
     Incident,
     Role,
     SavedSearch,

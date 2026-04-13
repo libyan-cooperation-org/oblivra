@@ -59,6 +59,18 @@ export function Name() {
 }
 
 /**
+ * ProcessAgentDecision evaluates the user's input with cognitive context
+ * and executes autonomous containment actions via the Sovereign bus if required.
+ * @param {string} content
+ * @returns {$CancellablePromise<$models.AIResponse | null>}
+ */
+export function ProcessAgentDecision(content) {
+    return $Call.ByID(1431663015, content).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
  * @param {string} content
  * @returns {$CancellablePromise<string>}
  */

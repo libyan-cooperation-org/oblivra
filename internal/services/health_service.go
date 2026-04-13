@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -103,6 +104,13 @@ func (s *HealthService) GetHealth(hostID string) map[string]interface{} {
 func (s *HealthService) GetAllHealth() map[string]interface{} {
 	result := make(map[string]interface{})
 
+	// Guard: ctx may be nil if called before Start() (e.g. frontend polls immediately).
+	// Use background context as a safe fallback to prevent panics.
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// 1. External Host Health
 	if s.healthChecker != nil {
 		hosts := s.healthChecker.GetAllHealth()
@@ -116,21 +124,27 @@ func (s *HealthService) GetAllHealth() map[string]interface{} {
 	if s.registry != nil {
 		for name, svc := range s.registry.GetServices() {
 			if reporter, ok := svc.(platform.HealthReporter); ok {
-				// Query the health
-				err := reporter.Health(s.ctx)
-				if err != nil {
-					servicesHealth[name] = "degraded: " + err.Error()
-				} else {
-					servicesHealth[name] = "healthy"
-				}
+				// Wrap in recover — a single panicking service must not crash the entire health endpoint
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							servicesHealth[name] = fmt.Sprintf("panic: %v", r)
+						}
+					}()
+					err := reporter.Health(ctx)
+					if err != nil {
+						servicesHealth[name] = "degraded: " + err.Error()
+					} else {
+						servicesHealth[name] = "healthy"
+					}
+				}()
 			} else {
-				// Implicitly healthy if it doesn't report otherwise, but we omit it or mark as running
-				servicesHealth[name] = "running (no health reporting)"
+				servicesHealth[name] = "running"
 			}
 		}
 	}
 	result["services"] = servicesHealth
-	
+
 	// 3. Overall System Status
 	status := "Operational"
 	if s.registry != nil {
@@ -142,10 +156,7 @@ func (s *HealthService) GetAllHealth() map[string]interface{} {
 			}
 		}
 	}
-	
-	// If any service is still starting, or WAL is replaying, we might still be initializing
-	// but for now, "Operational" or "Locked" are the key states.
+
 	result["Status"] = status
-	s.log.Info("[HEALTH] System Status: %s, Registered Services: %d", status, len(servicesHealth))
 	return result
 }

@@ -26,7 +26,7 @@ export function Dependencies() {
 }
 
 /**
- * GetLiveTraffic returns a snapshot of recent network flows (simulation for Phase 11).
+ * GetLiveTraffic returns a snapshot of recent network flows.
  * @returns {$CancellablePromise<ndr$0.NetworkFlow[]>}
  */
 export function GetLiveTraffic() {

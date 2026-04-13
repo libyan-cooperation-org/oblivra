@@ -17,15 +17,18 @@ interface SIEMStats {
 }
 
 export class DashboardStore {
-  health = $state<HealthStats>({ AlertCount: 0, Status: 'Initializing...' });
+  health = $state<HealthStats>({ AlertCount: 0, Status: 'Active' });
   siemStats = $state<SIEMStats>({ StorageUsage: '0', EPS: '0' });
   loading = $state(false);
   lastRefreshed = $state<Date | null>(null);
 
   constructor() {
     if (!IS_BROWSER) {
-      this.refresh();
-      setInterval(() => this.refresh(), 5000);
+      // Delay first poll by 2s to let Wails services finish Start() before we query
+      setTimeout(() => {
+        this.refresh();
+        setInterval(() => this.refresh(), 5000);
+      }, 2000);
     }
   }
 
@@ -44,8 +47,13 @@ export class DashboardStore {
       this.health = (h as HealthStats) || { AlertCount: 0, Status: 'Unknown' };
       this.siemStats = (s as SIEMStats) || { StorageUsage: '0', EPS: '0' };
       this.lastRefreshed = new Date();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[DashboardStore] Refresh failed:', err);
+      // Don't overwrite Status with raw error text — keep last known good value
+      // or show a compact degraded indicator
+      if (this.health.Status === 'Active' || this.health.Status === 'Operational') {
+        this.health.Status = 'Degraded';
+      }
     } finally {
       this.loading = false;
     }

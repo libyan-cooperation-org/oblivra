@@ -26,22 +26,22 @@ export function Dependencies() {
 }
 
 /**
+ * GetAnomalies returns the recent anomalies.
+ * @returns {$CancellablePromise<{ [_ in string]?: any }[]>}
+ */
+export function GetAnomalies() {
+    return $Call.ByID(1155423051).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
  * GetProfiles returns the current behavioral profiles.
  * @returns {$CancellablePromise<(ueba$0.EntityProfile | null)[]>}
  */
 export function GetProfiles() {
     return $Call.ByID(3662729800).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
-    }));
-}
-
-/**
- * GetAnomalies returns the recent anomalies.
- * @returns {$CancellablePromise<any[]>}
- */
-export function GetAnomalies() {
-    return $Call.ByName("main.UEBAService.GetAnomalies").then(/** @type {($result: any) => any} */(($result) => {
-        return $Create.Array($Create.Any)($result);
+        return $$createType5($result);
     }));
 }
 
@@ -68,6 +68,8 @@ export function Stop() {
 
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = ueba$0.EntityProfile.createFrom;
-const $$createType2 = $Create.Nullable($$createType1);
-const $$createType3 = $Create.Array($$createType2);
+const $$createType1 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = ueba$0.EntityProfile.createFrom;
+const $$createType4 = $Create.Nullable($$createType3);
+const $$createType5 = $Create.Array($$createType4);

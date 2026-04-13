@@ -71,8 +71,6 @@ export function GetIncident(id) {
 
 /**
  * GetTimeline reconstructs the event sequence for an incident.
- * For now, it returns the most recent audit logs.
- * In a follow-up, we can add specific tag filtering to AuditStore.
  * @param {string} incidentID
  * @returns {$CancellablePromise<database$0.AuditLog[]>}
  */
@@ -152,7 +150,7 @@ export function UpdateStatus(id, status, reason) {
 }
 
 /**
- * Upsert proxy for incident storage.
+ * Upsert proxy for incident storage with automated triage (Phase 20.9).
  * @param {database$0.Incident | null} incident
  * @returns {$CancellablePromise<void>}
  */

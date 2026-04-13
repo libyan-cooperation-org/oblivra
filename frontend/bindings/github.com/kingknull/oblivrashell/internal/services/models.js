@@ -1412,6 +1412,13 @@ export class MultiExecJob {
              */
             this["id"] = "";
         }
+        if (!("tenant_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tenant_id"] = "";
+        }
         if (!("command" in $$source)) {
             /**
              * @member
@@ -1465,14 +1472,14 @@ export class MultiExecJob {
      * @returns {MultiExecJob}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType2;
-        const $$createField3_0 = $$createType7;
+        const $$createField3_0 = $$createType2;
+        const $$createField4_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("host_ids" in $$parsedSource) {
-            $$parsedSource["host_ids"] = $$createField2_0($$parsedSource["host_ids"]);
+            $$parsedSource["host_ids"] = $$createField3_0($$parsedSource["host_ids"]);
         }
         if ("results" in $$parsedSource) {
-            $$parsedSource["results"] = $$createField3_0($$parsedSource["results"]);
+            $$parsedSource["results"] = $$createField4_0($$parsedSource["results"]);
         }
         return new MultiExecJob(/** @type {Partial<MultiExecJob>} */($$parsedSource));
     }

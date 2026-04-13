@@ -19,7 +19,6 @@ import * as forensics$0 from "../forensics/models.js";
 
 /**
  * AcquireDiskImage performs a raw disk acquisition and stores it in the evidence locker.
- * [CAUTION] Requires admin privileges. Desktop-only operation.
  * @param {string} devicePath
  * @param {string} incidentID
  * @returns {$CancellablePromise<{ [_ in string]?: any }>}
@@ -32,7 +31,6 @@ export function AcquireDiskImage(devicePath, incidentID) {
 
 /**
  * AcquireMemoryDump captures the physical memory of the local machine.
- * [CAUTION] Requires admin privileges. Desktop-only operation.
  * @param {string} incidentID
  * @returns {$CancellablePromise<{ [_ in string]?: any }>}
  */

@@ -68,7 +68,6 @@ export function Connect(hostID) {
 
 /**
  * ConnectToSession is a tactical variant of Connect that uses a pre-defined session ID.
- * This is used for pivoting (e.g. from an Alert to the SOC's persistent terminal).
  * @param {string} hostID
  * @param {string} sessionID
  * @returns {$CancellablePromise<string>}
@@ -96,15 +95,6 @@ export function Dependencies() {
  */
 export function DeployKey(hostID, password) {
     return $Call.ByID(415996455, hostID, password);
-}
-
-/**
- * Disconnect closes a specific SSH session
- * @param {string} sessionID
- * @returns {$CancellablePromise<void>}
- */
-export function Disconnect(sessionID) {
-    return $Call.ByID(2840529753, sessionID);
 }
 
 /**
@@ -199,15 +189,6 @@ export function Name() {
 }
 
 /**
- * OnOutput registers a callback for raw terminal output (used by Analytics)
- * @param {any} cb
- * @returns {$CancellablePromise<void>}
- */
-export function OnOutput(cb) {
-    return $Call.ByID(3869885191, cb);
-}
-
-/**
  * PushCredential fetches a secret from the vault and injects it into the session's stdin
  * @param {string} sessionID
  * @param {string} credentialID
@@ -260,7 +241,6 @@ export function Resize(sessionID, cols, rows) {
 }
 
 /**
- * SendInput forwards user input to an SSH session, with tactical REPL interception for /system commands
  * @param {string} sessionID
  * @param {string} data
  * @returns {$CancellablePromise<void>}
@@ -294,7 +274,6 @@ export function SetSnippetService(svc) {
 }
 
 /**
- * SetTransferManager allows breaking circular dependencies during initialization
  * @param {$models.TransferProvider} tm
  * @returns {$CancellablePromise<void>}
  */
@@ -337,7 +316,6 @@ export function SftpUploadAsync(sessionID, localPath, remotePath) {
 }
 
 /**
- * Start initializes the service with the Wails context
  * @returns {$CancellablePromise<void>}
  */
 export function Start() {
@@ -345,7 +323,6 @@ export function Start() {
 }
 
 /**
- * Stop gracefully closes all SSH sessions
  * @returns {$CancellablePromise<void>}
  */
 export function Stop() {

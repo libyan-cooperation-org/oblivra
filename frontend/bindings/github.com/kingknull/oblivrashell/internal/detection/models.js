@@ -208,6 +208,14 @@ export class Evaluator {
      * @param {Partial<Evaluator>} [$$source = {}] - The source object to create the Evaluator.
      */
     constructor($$source = {}) {
+        if (!("IsLocal" in $$source)) {
+            /**
+             * Sharding scope
+             * @member
+             * @type {boolean}
+             */
+            this["IsLocal"] = false;
+        }
 
         Object.assign(this, $$source);
     }
@@ -419,7 +427,6 @@ export class Match {
         }
         if (!("Events" in $$source)) {
             /**
-             * The events that contributed to this match
              * @member
              * @type {Event[]}
              */
@@ -427,11 +434,19 @@ export class Match {
         }
         if (!("Context" in $$source)) {
             /**
-             * Additional context (e.g., grouped by IP)
              * @member
              * @type {{ [_ in string]?: string }}
              */
             this["Context"] = {};
+        }
+        if (!("confidence_score" in $$source)) {
+            /**
+             * ConfidenceScore is 0–100. It reflects how strongly the rule evidence
+             * supports the alert — higher threshold saturation and severity raises it.
+             * @member
+             * @type {number}
+             */
+            this["confidence_score"] = 0;
         }
 
         Object.assign(this, $$source);
@@ -586,6 +601,14 @@ export class Rule {
              */
             this["DedupWindowSec"] = 0;
         }
+        if (!("IsGlobal" in $$source)) {
+            /**
+             * 22.5: Sharding Hint. If true, rule is evaluated in the CorrelationHub, not in local shards.
+             * @member
+             * @type {boolean}
+             */
+            this["IsGlobal"] = false;
+        }
 
         Object.assign(this, $$source);
     }
@@ -673,6 +696,11 @@ export const RuleType = {
      * The Go zero value for the underlying type of the enum.
      */
     $zero: "",
+
+    /**
+     * GraphRuleType is the RuleType constant for graph-aware rules.
+     */
+    GraphRuleType: "graph",
 
     ThresholdRule: "threshold",
     FrequencyRule: "frequency",

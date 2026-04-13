@@ -115,7 +115,7 @@ export function GetFailedLoginsByHost(hostID) {
 }
 
 /**
- * GetGlobalThreatStats returns high-level dashboard metrics
+ * GetGlobalThreatStats aggregates security data across all hosts for the Dashboard KPIs
  * @returns {$CancellablePromise<{ [_ in string]?: any }>}
  */
 export function GetGlobalThreatStats() {

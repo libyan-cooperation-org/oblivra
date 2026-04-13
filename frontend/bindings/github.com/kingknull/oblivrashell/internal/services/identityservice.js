@@ -33,6 +33,14 @@ export function CheckPermission(userID, permission) {
 }
 
 /**
+ * @param {database$0.IdentityConnector | null} c
+ * @returns {$CancellablePromise<void>}
+ */
+export function CreateConnector(c) {
+    return $Call.ByID(3209208862, c);
+}
+
+/**
  * CreateRole creates a new custom role
  * @param {string} name
  * @param {string} description
@@ -60,12 +68,39 @@ export function CreateUser(email, name, password, roleID) {
 }
 
 /**
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function DeleteConnector(id) {
+    return $Call.ByID(3881588939, id);
+}
+
+/**
+ * DeleteUser removes a user
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function DeleteUser(id) {
+    return $Call.ByID(2581269667, id);
+}
+
+/**
  * Dependencies returns service dependencies
  * @returns {$CancellablePromise<string[]>}
  */
 export function Dependencies() {
     return $Call.ByID(2628621486).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType4($result);
+    }));
+}
+
+/**
+ * @param {string} id
+ * @returns {$CancellablePromise<database$0.IdentityConnector | null>}
+ */
+export function GetConnector(id) {
+    return $Call.ByID(1357808456, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
     }));
 }
 
@@ -91,7 +126,7 @@ export function GetSAMLURL() {
  */
 export function GetSecurityStats() {
     return $Call.ByID(2627945726).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType7($result);
     }));
 }
 
@@ -102,6 +137,28 @@ export function GetSecurityStats() {
  */
 export function GetUser(id) {
     return $Call.ByID(2970862970, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * GetUserByEmail returns a single user by email
+ * @param {string} email
+ * @returns {$CancellablePromise<database$0.User | null>}
+ */
+export function GetUserByEmail(email) {
+    return $Call.ByID(3872353825, email).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * GetUserByExternalID finds a user by their IdP external identifier
+ * @param {string} extID
+ * @returns {$CancellablePromise<database$0.User | null>}
+ */
+export function GetUserByExternalID(extID) {
+    return $Call.ByID(571451101, extID).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType3($result);
     }));
 }
@@ -129,12 +186,21 @@ export function HandleSAMLCallback(data) {
 }
 
 /**
+ * @returns {$CancellablePromise<database$0.IdentityConnector[]>}
+ */
+export function ListConnectors() {
+    return $Call.ByID(1864735023).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
+}
+
+/**
  * ListRoles returns all roles in the current tenant
  * @returns {$CancellablePromise<database$0.Role[]>}
  */
 export function ListRoles() {
     return $Call.ByID(2314395700).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType9($result);
     }));
 }
 
@@ -144,7 +210,7 @@ export function ListRoles() {
  */
 export function ListUsers() {
     return $Call.ByID(2793001185).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType10($result);
     }));
 }
 
@@ -181,13 +247,22 @@ export function Name() {
 }
 
 /**
+ * ProvisionSCIMUser handles automated provisioning from an IdP
+ * @param {database$0.User | null} u
+ * @returns {$CancellablePromise<void>}
+ */
+export function ProvisionSCIMUser(u) {
+    return $Call.ByID(3100601533, u);
+}
+
+/**
  * SetupTOTP generates a new TOTP secret and QR code for the user
  * @param {string} userID
  * @returns {$CancellablePromise<auth$0.TOTPSetupResult | null>}
  */
 export function SetupTOTP(userID) {
     return $Call.ByID(2045895057, userID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType12($result);
     }));
 }
 
@@ -203,6 +278,22 @@ export function Start() {
  */
 export function Stop() {
     return $Call.ByID(244305675);
+}
+
+/**
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function TriggerSync(id) {
+    return $Call.ByID(2181768738, id);
+}
+
+/**
+ * @param {database$0.IdentityConnector | null} c
+ * @returns {$CancellablePromise<void>}
+ */
+export function UpdateConnector(c) {
+    return $Call.ByID(1634204541, c);
 }
 
 /**
@@ -253,8 +344,11 @@ const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = database$0.User.createFrom;
 const $$createType3 = $Create.Nullable($$createType2);
 const $$createType4 = $Create.Array($Create.Any);
-const $$createType5 = $models.SecurityStats.createFrom;
-const $$createType6 = $Create.Array($$createType0);
-const $$createType7 = $Create.Array($$createType2);
-const $$createType8 = auth$0.TOTPSetupResult.createFrom;
-const $$createType9 = $Create.Nullable($$createType8);
+const $$createType5 = database$0.IdentityConnector.createFrom;
+const $$createType6 = $Create.Nullable($$createType5);
+const $$createType7 = $models.SecurityStats.createFrom;
+const $$createType8 = $Create.Array($$createType5);
+const $$createType9 = $Create.Array($$createType0);
+const $$createType10 = $Create.Array($$createType2);
+const $$createType11 = auth$0.TOTPSetupResult.createFrom;
+const $$createType12 = $Create.Nullable($$createType11);

@@ -419,6 +419,20 @@ export class Host {
              */
             this["connection_count"] = 0;
         }
+        if (!("criticality_score" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["criticality_score"] = 0;
+        }
+        if (!("criticality_reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["criticality_reason"] = "";
+        }
         if (!("created_at" in $$source)) {
             /**
              * @member
@@ -538,6 +552,116 @@ export class HostEvent {
     }
 }
 
+/**
+ * IdentityConnector represents an external identity provider configuration.
+ */
+export class IdentityConnector {
+    /**
+     * Creates a new IdentityConnector instance.
+     * @param {Partial<IdentityConnector>} [$$source = {}] - The source object to create the IdentityConnector.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("tenant_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tenant_id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * okta, azure_ad, ldap
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("config_json" in $$source)) {
+            /**
+             * AES-encrypted configuration blob
+             * @member
+             * @type {string}
+             */
+            this["config_json"] = "";
+        }
+        if (!("sync_interval_mins" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sync_interval_mins"] = 0;
+        }
+        if (!("last_sync" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["last_sync"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("error_message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["error_message"] = "";
+        }
+        if (!("created_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["created_at"] = "";
+        }
+        if (!("updated_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["updated_at"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new IdentityConnector instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {IdentityConnector}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new IdentityConnector(/** @type {Partial<IdentityConnector>} */($$parsedSource));
+    }
+}
+
 export class Incident {
     /**
      * Creates a new Incident instance.
@@ -650,6 +774,20 @@ export class Incident {
              * @type {string | undefined}
              */
             this["resolution_reason"] = undefined;
+        }
+        if (!("triage_score" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["triage_score"] = 0;
+        }
+        if (!("triage_reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["triage_reason"] = "";
         }
 
         Object.assign(this, $$source);
@@ -1049,7 +1187,6 @@ export class User {
         }
         if (!("auth_provider" in $$source)) {
             /**
-             * local, saml, oidc
              * @member
              * @type {string}
              */
@@ -1089,6 +1226,91 @@ export class User {
              * @type {string}
              */
             this["last_login_at"] = "";
+        }
+        if (!("criticality_score" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["criticality_score"] = 0;
+        }
+        if (!("criticality_reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["criticality_reason"] = "";
+        }
+        if (!("external_id" in $$source)) {
+            /**
+             * SCIM Normalization fields
+             * @member
+             * @type {string}
+             */
+            this["external_id"] = "";
+        }
+        if (!("active" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["active"] = false;
+        }
+        if (!("display_name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["display_name"] = "";
+        }
+        if (!("user_type" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["user_type"] = "";
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("department" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["department"] = "";
+        }
+        if (!("organization" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["organization"] = "";
+        }
+        if (!("preferred_language" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["preferred_language"] = "";
+        }
+        if (!("groups_json" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["groups_json"] = "";
+        }
+        if (!("scim_attributes_json" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["scim_attributes_json"] = "";
         }
 
         Object.assign(this, $$source);

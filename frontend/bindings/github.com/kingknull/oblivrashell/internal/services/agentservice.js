@@ -26,6 +26,16 @@ export function Dependencies() {
 }
 
 /**
+ * KillProcess sends a termination signal for a specific process on a remote agent
+ * @param {string} agentID
+ * @param {number} pid
+ * @returns {$CancellablePromise<void>}
+ */
+export function KillProcess(agentID, pid) {
+    return $Call.ByID(1993517421, agentID, pid);
+}
+
+/**
  * ListAgents retrieves the list of currently active agents
  * @returns {$CancellablePromise<$models.AgentDTO[]>}
  */
@@ -70,23 +80,13 @@ export function Stop() {
 }
 
 /**
- * KillProcess sends a termination signal for a specific process on a remote agent
- * @param {string} agentID
- * @param {number} pid
- * @returns {$CancellablePromise<void>}
- */
-export function KillProcess(agentID, pid) {
-    return $Call.ByName("main.AgentService.KillProcess", agentID, pid);
-}
-
-/**
  * ToggleQuarantine isolates or restores an agent's network access
  * @param {string} agentID
  * @param {boolean} enabled
  * @returns {$CancellablePromise<void>}
  */
 export function ToggleQuarantine(agentID, enabled) {
-    return $Call.ByName("main.AgentService.ToggleQuarantine", agentID, enabled);
+    return $Call.ByID(97485764, agentID, enabled);
 }
 
 // Private type creation functions

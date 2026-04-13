@@ -38,7 +38,7 @@
     <!-- Fleet KPI Grid -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <KPI label="Managed Agents" value={stats.total} trend="stable" trendValue="Active Mesh" />
-      <KPI label="Agent Availability" value="{((stats.online / stats.total) * 100).toFixed(1)}%" variant="success" trend="stable" trendValue="Optimal" />
+      <KPI label="Agent Availability" value={stats.total > 0 ? ((stats.online / stats.total) * 100).toFixed(1) + '%' : '—'} variant="success" trend="stable" trendValue="Optimal" />
       <KPI label="Global Version" value="v2.4.1" trend="up" trendValue="85% coverage" variant="accent" />
       <KPI label="Mesh Latency" value="14ms" trend="stable" trendValue="Nominal" variant="success" />
     </div>

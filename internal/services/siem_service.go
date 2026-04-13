@@ -219,9 +219,6 @@ func (s *SIEMService) GetRiskScoreByHost(ctx context.Context, hostID string) (in
 
 // SearchHostEvents performs a global search across all host anomaly events
 func (s *SIEMService) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
-		return nil, err
-	}
 	searchCtx, cancel := context.WithTimeout(ctx, 20*time.Second) // Search gets a bit more time
 	defer cancel()
 	return s.repo.SearchHostEvents(searchCtx, query, limit)
@@ -229,9 +226,6 @@ func (s *SIEMService) SearchHostEvents(ctx context.Context, query string, limit 
 
 // GetGlobalThreatStats aggregates security data across all hosts for the Dashboard KPIs
 func (s *SIEMService) GetGlobalThreatStats(ctx context.Context) (map[string]interface{}, error) {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
-		return nil, err
-	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.GetGlobalThreatStats(searchCtx)
@@ -239,9 +233,6 @@ func (s *SIEMService) GetGlobalThreatStats(ctx context.Context) (map[string]inte
 
 // GetEventTrend returns security event counts over time
 func (s *SIEMService) GetEventTrend(ctx context.Context, days int) ([]map[string]interface{}, error) {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
-		return nil, err
-	}
 	searchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	return s.repo.GetEventTrend(searchCtx, days)
