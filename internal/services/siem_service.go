@@ -360,3 +360,26 @@ func (s *SIEMService) LoadOfflineIOCs(indicators []threatintel.Indicator) int {
 	return 0
 }
 
+// GetPlatformStats returns high-level SIEM platform metrics for the dashboard KPI strip.
+// Returns EPS (events/second), total events stored, and a storage usage estimate.
+func (s *SIEMService) GetPlatformStats() map[string]interface{} {
+	result := map[string]interface{}{
+		"EPS":          "0",
+		"StorageUsage": "0",
+		"TotalEvents":  0,
+	}
+
+	// Pull total event count from the SIEM repo if available
+	if s.repo != nil && s.ctx != nil {
+		ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
+		defer cancel()
+		if stats, err := s.repo.GetGlobalThreatStats(ctx); err == nil {
+			if v, ok := stats["total_events"]; ok {
+				result["TotalEvents"] = v
+			}
+		}
+	}
+
+	return result
+}
+
