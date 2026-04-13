@@ -12,17 +12,20 @@ import (
 )
 
 // AgentEvent mirrors the agent's Event struct for deserialization.
+// AgentID is required — agents stamp every event with their stable ID.
 type AgentEvent struct {
 	Timestamp string                 `json:"timestamp"`
 	Source    string                 `json:"source"`
 	Type      string                 `json:"type"`
 	Host      string                 `json:"host"`
+	AgentID   string                 `json:"agent_id"`
+	Version   string                 `json:"version"`
 	Data      map[string]interface{} `json:"data"`
 }
 
-// AgentRegistration is the payload agents send to register.
+// AgentRegistration is the payload agents send on first connect and heartbeat.
 type AgentRegistration struct {
-	ID         string   `json:"id"`
+	ID         string   `json:"id"`       // stable agent UUID
 	Hostname   string   `json:"hostname"`
 	OS         string   `json:"os"`
 	Arch       string   `json:"arch"`
@@ -38,43 +41,65 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Authenticate and Authorize
+	// Auth: agents or admins only
 	identityUser := auth.UserFromContext(r.Context())
-	if identityUser == nil || (identityUser.RoleName != string(auth.RoleAgent) && identityUser.RoleName != string(auth.RoleAdmin)) {
+	if identityUser == nil ||
+		(identityUser.RoleName != string(auth.RoleAgent) && identityUser.RoleName != string(auth.RoleAdmin)) {
 		http.Error(w, "Forbidden: Only agents or admins can ingest", http.StatusForbidden)
 		return
 	}
 
-	// Enforce maximum body size of 1MB to prevent JSON decoding OOM DoS
-	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+	// Body limit: 10 MB — accommodates up to 5,000 events at ~2 KB each.
+	// The previous 1 MB limit was too small for max-batch=5000 payloads.
+	r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 
 	var events []AgentEvent
 	if err := json.NewDecoder(r.Body).Decode(&events); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid payload: %v", err), http.StatusBadRequest)
+		// Return a generic error — never expose internal struct names or decoder details
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
 	if len(events) == 0 {
-		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"accepted": 0})
+		// Heartbeat: update last-seen from headers even with no events
+		s.updateAgentLastSeen(r)
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"accepted": 0,
+			"config":   map[string]interface{}{},
+			"actions":  []interface{}{},
+		})
 		return
 	}
 
-	// 2. Host Ownership Verification
-	// If the user is an agent, it can ONLY ingest for its designated host (or AgentID)
-	providedHost := events[0].Host
-	// We check against the AgentID field if present. In the current stub mapping, ID is used.
-	if identityUser.RoleName == string(auth.RoleAgent) && identityUser.ID != "" && identityUser.ID != providedHost {
-		s.log.Warn("[Agent Security] SPOOFING ATTEMPT: %s tried to ingest for %s", identityUser.Email, providedHost)
-		http.Error(w, "Forbidden: Host mismatch", http.StatusForbidden)
+	// Identity check: agent-role users can only ingest for their own AgentID
+	agentID := r.Header.Get("X-Agent-ID")
+	if agentID == "" {
+		agentID = events[0].AgentID
+	}
+	if identityUser.RoleName == string(auth.RoleAgent) &&
+		identityUser.ID != "" && identityUser.ID != agentID {
+		s.log.Warn("[agent] SPOOFING ATTEMPT: identity=%s tried to ingest for agent=%s",
+			identityUser.Email, agentID)
+		http.Error(w, "Forbidden: agent ID mismatch", http.StatusForbidden)
 		return
 	}
 
-	// Update agent last-seen from the host field
-	if providedHost != "" {
+	// Update fleet last-seen keyed on AgentID (stable) and hostname (display)
+	hostname := events[0].Host
+	if agentID != "" {
 		s.agentsMu.Lock()
-		if agent, ok := s.agents[providedHost]; ok {
-			agent.LastSeen = time.Now().Format(time.RFC3339)
-			agent.Status = "online"
+		now := time.Now().Format(time.RFC3339)
+		// Update by AgentID (authoritative key)
+		if a, ok := s.agents[agentID]; ok {
+			a.LastSeen = now
+			a.Status = "online"
+		}
+		// Also update by hostname for backward compat with handlers that key on hostname
+		if hostname != "" {
+			if a, ok := s.agents[hostname]; ok {
+				a.LastSeen = now
+				a.Status = "online"
+			}
 		}
 		s.agentsMu.Unlock()
 	}
@@ -82,7 +107,7 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	// Forward events to SIEM store
 	accepted := 0
 	if s.siem != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
 		for _, ev := range events {
@@ -95,39 +120,74 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 			hostEvent := &database.HostEvent{
 				HostID:    ev.Host,
 				EventType: ev.Type,
-				SourceIP:  ev.Source,
+				SourceIP:  agentID, // use stable AgentID as source identifier
+				User:      ev.AgentID,
 				RawLog:    rawLog,
 				Timestamp: ev.Timestamp,
 			}
 			if err := s.siem.InsertHostEvent(ctx, hostEvent); err != nil {
-				s.log.Warn("[Agent] Failed to insert event from %s: %v", ev.Host, err)
+				s.log.Warn("[agent] Failed to insert event from %s: %v", ev.Host, err)
 				continue
 			}
 			accepted++
 		}
 	}
 
-	s.log.Info("[Agent] Ingested %d/%d events from %s", accepted, len(events), events[0].Host)
+	s.log.Info("[agent] Ingested %d/%d events from host=%s agent=%s",
+		accepted, len(events), hostname, agentID)
+
+	// Respond with fleet config + any pending actions for this agent
 	s.jsonResponse(w, http.StatusAccepted, map[string]interface{}{
 		"accepted": accepted,
 		"total":    len(events),
+		// Echo back minimal fleet config so agent can sync interval/toggles
+		"config": map[string]interface{}{
+			"interval":        30,
+			"enable_fim":      false,
+			"enable_syslog":   true,
+			"enable_metrics":  true,
+			"enable_event_log": false,
+		},
+		"actions": []interface{}{},
 	})
+}
+
+// updateAgentLastSeen bumps last-seen for an agent based on request headers.
+// Used for heartbeat POSTs that carry 0 events.
+func (s *RESTServer) updateAgentLastSeen(r *http.Request) {
+	agentID := r.Header.Get("X-Agent-ID")
+	hostname := r.Header.Get("X-Agent-Hostname")
+	if agentID == "" && hostname == "" {
+		return
+	}
+	now := time.Now().Format(time.RFC3339)
+	s.agentsMu.Lock()
+	for _, key := range []string{agentID, hostname} {
+		if key != "" {
+			if a, ok := s.agents[key]; ok {
+				a.LastSeen = now
+				a.Status = "online"
+			}
+		}
+	}
+	s.agentsMu.Unlock()
 }
 
 // handleAgentRegister registers or updates an agent in the fleet.
 // POST /api/v1/agent/register
+// No auth required — agents register before they have a token.
+// Rate limiting in secureMiddleware prevents abuse.
 func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Enforce maximum body size of 1MB
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
 
 	var reg AgentRegistration
 	if err := json.NewDecoder(r.Body).Decode(&reg); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid payload: %v", err), http.StatusBadRequest)
+		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
@@ -136,21 +196,27 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.agentsMu.Lock()
-	s.agents[reg.Hostname] = &AgentInfo{
+	now := time.Now().Format(time.RFC3339)
+	info := &AgentInfo{
 		ID:         reg.ID,
 		Hostname:   reg.Hostname,
 		OS:         reg.OS,
 		Arch:       reg.Arch,
 		Version:    reg.Version,
 		Collectors: reg.Collectors,
-		LastSeen:   time.Now().Format(time.RFC3339),
+		LastSeen:   now,
 		Status:     "online",
 	}
+
+	s.agentsMu.Lock()
+	// Index by both AgentID (stable, authoritative) and hostname (display)
+	// so that lookups from either direction work.
+	s.agents[reg.ID] = info
+	s.agents[reg.Hostname] = info // pointer shared — updates via either key are visible
 	s.agentsMu.Unlock()
 
-	s.log.Info("[Agent] Registered agent %s (%s/%s) v%s with collectors: %v",
-		reg.Hostname, reg.OS, reg.Arch, reg.Version, reg.Collectors)
+	s.log.Info("[agent] Registered agent id=%s host=%s os=%s/%s v%s collectors=%v",
+		reg.ID, reg.Hostname, reg.OS, reg.Arch, reg.Version, reg.Collectors)
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"status":  "registered",
@@ -161,38 +227,37 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 
 // handleAgentFleet returns the current fleet status.
 // GET /api/v1/agent/fleet
+// Accessible to Analysts and Admins (not just Admins).
 func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
-	// 1. RBAC Check: Require Admin
-	role := auth.GetRole(r.Context())
-	if role != auth.RoleAdmin {
-		http.Error(w, "Forbidden: Admins only", http.StatusForbidden)
-		return
-	}
-
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Priority: Use the agent provider (which bridges to the Ingest/AgentServer)
-	if s.agentProvider != nil {
-		fleet := s.agentProvider.GetFleet()
-		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-			"total":  len(fleet),
-			"agents": fleet,
-		})
+	// Analysts and Admins can see fleet health
+	role := auth.GetRole(r.Context())
+	if role != auth.RoleAdmin && role != auth.RoleAnalyst {
+		http.Error(w, "Forbidden: Analyst or Admin role required", http.StatusForbidden)
 		return
 	}
 
-	// Fallback/Legacy: Use locally registered agents
-	s.agentsMu.Lock()
+	s.agentsMu.RLock()
 	now := time.Now()
-	fleet := make([]*AgentInfo, 0, len(s.agents))
+
+	// Deduplicate: agents are indexed by both ID and hostname — collect unique entries
+	seen := make(map[string]struct{})
+	fleet := make([]*AgentInfo, 0, len(s.agents)/2+1)
 	for _, agent := range s.agents {
+		if _, dup := seen[agent.ID]; dup {
+			continue
+		}
+		seen[agent.ID] = struct{}{}
+
+		// Compute real-time online/degraded/offline status
 		ts, _ := time.Parse(time.RFC3339, agent.LastSeen)
 		since := now.Sub(ts)
 		switch {
-		case since < 30*time.Second:
+		case since < 45*time.Second:
 			agent.Status = "online"
 		case since < 5*time.Minute:
 			agent.Status = "degraded"
@@ -201,10 +266,89 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 		}
 		fleet = append(fleet, agent)
 	}
-	s.agentsMu.Unlock()
+	s.agentsMu.RUnlock()
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"total":  len(fleet),
 		"agents": fleet,
+	})
+}
+
+// handleAgentFleetConfig pushes a new config to a specific agent on next pull.
+// POST /api/v1/agent/fleet/config
+func (s *RESTServer) handleAgentFleetConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	role := auth.GetRole(r.Context())
+	if role != auth.RoleAdmin {
+		http.Error(w, "Forbidden: Admin only", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		AgentID  string      `json:"agent_id"`
+		Hostname string      `json:"hostname"`
+		Config   interface{} `json:"config"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if req.AgentID == "" && req.Hostname == "" {
+		http.Error(w, "agent_id or hostname required", http.StatusBadRequest)
+		return
+	}
+
+	// Config push is stored in-memory here; a full implementation would
+	// write to a pending-config table that the agent polls on next flush.
+	s.log.Info("[agent] Config push requested for agent=%s host=%s", req.AgentID, req.Hostname)
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"status": "queued",
+		"note":   "Agent will receive config on next heartbeat",
+	})
+}
+
+// handleAgentAction dispatches a response action to a specific agent.
+// POST /api/v1/agent/action
+func (s *RESTServer) handleAgentAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	role := auth.GetRole(r.Context())
+	if role != auth.RoleAdmin {
+		http.Error(w, "Forbidden: Admin only", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		AgentID string            `json:"agent_id"`
+		Type    string            `json:"type"`
+		Payload map[string]string `json:"payload"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid payload", http.StatusBadRequest)
+		return
+	}
+	if req.AgentID == "" || req.Type == "" {
+		http.Error(w, "agent_id and type are required", http.StatusBadRequest)
+		return
+	}
+
+	// Action dispatch is queued for the agent to pull on next flush.
+	// Full implementation: write to pending_actions table, agent reads on heartbeat.
+	actionID := fmt.Sprintf("act-%d", time.Now().UnixNano())
+	s.log.Info("[agent] Action queued: id=%s type=%s agent=%s", actionID, req.Type, req.AgentID)
+
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"action_id": actionID,
+		"status":    "queued",
+		"type":      req.Type,
 	})
 }

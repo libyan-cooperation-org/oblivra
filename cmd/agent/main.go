@@ -21,22 +21,22 @@ var (
 )
 
 func main() {
-	// ── CLI flags ────────────────────────────────────────────────────────────
-	serverAddr    := flag.String("server",       "localhost:8443",         "OBLIVRA server address (host:port)")
-	dataDir       := flag.String("data-dir",     defaultDataDir(),         "Local data directory for WAL, cache, and agent ID")
-	interval      := flag.Int("interval",        30,                       "Collection interval in seconds")
-	maxWAL        := flag.Int64("max-wal-events", 500_000,                  "Maximum events to buffer on disk (0=unlimited)")
-	maxBatch      := flag.Int("max-batch",        5_000,                    "Maximum events per HTTP POST to server")
-	enableFIM     := flag.Bool("fim",             false,                    "Enable File Integrity Monitoring")
-	enableSyslog  := flag.Bool("syslog",          true,                     "Enable log file tailing")
-	enableMetrics := flag.Bool("metrics",         true,                     "Enable system metrics collection")
-	enableEventLog:= flag.Bool("eventlog",        false,                    "Enable Windows Event Log collection")
-	tlsCert       := flag.String("tls-cert",      "",                       "Path to TLS client certificate (mTLS)")
-	tlsKey        := flag.String("tls-key",       "",                       "Path to TLS client key (mTLS)")
-	tlsCA         := flag.String("tls-ca",        "",                       "Path to CA certificate for server verification")
-	showVersion   := flag.Bool("version",         false,                    "Print version and exit")
-	logJSON       := flag.Bool("log-json",        false,                    "Enable JSON structured logging")
-	logPath       := flag.String("log-path",      "",                       "Path to agent log file (default: <data-dir>/agent.log)")
+	// ── CLI flags ─────────────────────────────────────────────────────────────
+	serverAddr     := flag.String("server",        "localhost:8443",  "OBLIVRA server address (host:port or https://host:port)")
+	dataDir        := flag.String("data-dir",      defaultDataDir(),  "Local data directory for WAL, cache, and agent ID")
+	interval       := flag.Int("interval",         30,                "Collection interval in seconds")
+	maxWAL         := flag.Int64("max-wal-events", 500_000,           "Maximum events to buffer on disk (0=unlimited)")
+	maxBatch       := flag.Int("max-batch",         5_000,            "Maximum events per HTTP POST to server")
+	enableFIM      := flag.Bool("fim",              false,            "Enable File Integrity Monitoring")
+	enableSyslog   := flag.Bool("syslog",           true,             "Enable log file tailing")
+	enableMetrics  := flag.Bool("metrics",          true,             "Enable system metrics collection")
+	enableEventLog := flag.Bool("eventlog",         false,            "Enable Windows Event Log collection")
+	tlsCert        := flag.String("tls-cert",       "",               "Path to TLS client certificate (mTLS)")
+	tlsKey         := flag.String("tls-key",        "",               "Path to TLS client key (mTLS)")
+	tlsCA          := flag.String("tls-ca",         "",               "Path to CA certificate for server verification")
+	showVersion    := flag.Bool("version",          false,            "Print version and exit")
+	logJSON        := flag.Bool("log-json",         false,            "Enable JSON structured logging")
+	logPath        := flag.String("log-path",       "",               "Path to agent log file (default: <data-dir>/agent.log)")
 
 	flag.Parse()
 
@@ -45,7 +45,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// ── Logger setup ─────────────────────────────────────────────────────────
+	// ── Logger ────────────────────────────────────────────────────────────────
 	finalLogPath := *logPath
 	if finalLogPath == "" {
 		finalLogPath = filepath.Join(*dataDir, "agent.log")
@@ -62,13 +62,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	l.Info("OBLIVRA Agent %s starting on %s/%s", version, runtime.GOOS, runtime.GOARCH)
+	l.Info("OBLIVRA Agent %s starting on %s/%s (build: %s)", version, runtime.GOOS, runtime.GOARCH, buildTime)
 	l.Info("  Server:        %s", *serverAddr)
 	l.Info("  DataDir:       %s", *dataDir)
+	l.Info("  LogPath:       %s", finalLogPath)
+	l.Info("  Interval:      %ds", *interval)
 	l.Info("  MaxWALEvents:  %d", *maxWAL)
-	l.Info("  MaxBatchSize:  %d", *maxBatch)
+	l.Info("  MaxBatch:      %d", *maxBatch)
+	l.Info("  FIM:           %v  Syslog: %v  Metrics: %v  EventLog: %v",
+		*enableFIM, *enableSyslog, *enableMetrics, *enableEventLog)
 
-	// ── Agent config ─────────────────────────────────────────────────────────
+	// ── Config ────────────────────────────────────────────────────────────────
 	cfg := agent.Config{
 		ServerAddr:     *serverAddr,
 		DataDir:        *dataDir,
@@ -100,11 +104,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Emit the "Connected" log line that the troubleshooting guide expects
+	l.Info("Connected to server: https://%s", *serverAddr)
+
 	// ── Shutdown ──────────────────────────────────────────────────────────────
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigCh
-	l.Warn("Received signal %s — shutting down", sig)
+	l.Warn("Received signal %s — shutting down gracefully", sig)
 
 	cancel()
 	a.Stop()

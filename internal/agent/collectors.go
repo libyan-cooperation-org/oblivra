@@ -8,14 +8,37 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// stopOnce — safe single-close helper used by every collector's stop channel
+// ─────────────────────────────────────────────────────────────────────────────
+
+// stopOnce wraps a chan struct{} with sync.Once so calling Stop() multiple
+// times (e.g. from hotToggle and from agent.Stop()) never panics.
+type stopOnce struct {
+	ch   chan struct{}
+	once sync.Once
+}
+
+func newStopOnce() stopOnce {
+	return stopOnce{ch: make(chan struct{})}
+}
+
+func (s *stopOnce) stop() {
+	s.once.Do(func() { close(s.ch) })
+}
+
+func (s *stopOnce) C() <-chan struct{} {
+	return s.ch
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MetricsCollector — real OS-level system metrics using stdlib + /proc
@@ -25,12 +48,11 @@ import (
 // On Linux it reads /proc/meminfo, /proc/stat, /proc/net/dev and /proc/loadavg.
 // On all platforms it also reports Go runtime stats.
 type MetricsCollector struct {
-	hostname string
-	agentID  string
-	interval time.Duration
-	log      *logger.Logger
-	stop     chan struct{}
-	// CPU accounting: previous /proc/stat sample for delta calculation
+	hostname     string
+	agentID      string
+	interval     time.Duration
+	log          *logger.Logger
+	stop         stopOnce
 	prevCPUTotal uint64
 	prevCPUIdle  uint64
 }
@@ -41,12 +63,12 @@ func NewMetricsCollector(hostname, agentID string, interval time.Duration, log *
 		agentID:  agentID,
 		interval: interval,
 		log:      log,
-		stop:     make(chan struct{}),
+		stop:     newStopOnce(),
 	}
 }
 
 func (c *MetricsCollector) Name() string { return "metrics" }
-func (c *MetricsCollector) Stop()        { close(c.stop) }
+func (c *MetricsCollector) Stop()        { c.stop.stop() }
 
 func (c *MetricsCollector) Start(ctx context.Context, ch chan<- Event) error {
 	ticker := time.NewTicker(c.interval)
@@ -55,14 +77,14 @@ func (c *MetricsCollector) Start(ctx context.Context, ch chan<- Event) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-c.stop:
+		case <-c.stop.C():
 			return nil
 		case <-ticker.C:
 			evt := c.collect()
 			select {
 			case ch <- evt:
 			default:
-				c.log.Warn("[metrics] channel full, dropping metrics event")
+				c.log.Warn("[metrics] channel full, dropping event")
 			}
 		}
 	}
@@ -73,48 +95,41 @@ func (c *MetricsCollector) collect() Event {
 	runtime.ReadMemStats(&m)
 
 	data := map[string]interface{}{
-		"os":              runtime.GOOS,
-		"arch":            runtime.GOARCH,
-		"go_goroutines":   runtime.NumGoroutine(),
-		"go_heap_alloc":   m.HeapAlloc,
-		"go_heap_sys":     m.HeapSys,
-		"go_gc_count":     m.NumGC,
-		"num_cpu":         runtime.NumCPU(),
-		"process_count":   countProcesses(),
+		"os":            runtime.GOOS,
+		"arch":          runtime.GOARCH,
+		"go_goroutines": runtime.NumGoroutine(),
+		"go_heap_alloc": m.HeapAlloc,
+		"go_heap_sys":   m.HeapSys,
+		"go_gc_count":   m.NumGC,
+		"num_cpu":       runtime.NumCPU(),
+		"process_count": countProcesses(),
 	}
 
-	// Linux-specific /proc metrics
 	if runtime.GOOS == "linux" {
 		if memFree, memTotal, memAvail := readProcMeminfo(); memTotal > 0 {
-			data["mem_total_bytes"] = memTotal
-			data["mem_free_bytes"] = memFree
-			data["mem_available_bytes"] = memAvail
-			data["mem_used_bytes"] = memTotal - memFree
-			if memTotal > 0 {
-				data["mem_used_percent"] = float64(memTotal-memAvail) / float64(memTotal) * 100
-			}
+			data["mem_total_bytes"]    = memTotal
+			data["mem_free_bytes"]     = memFree
+			data["mem_available_bytes"]= memAvail
+			data["mem_used_bytes"]     = memTotal - memFree
+			data["mem_used_percent"]   = float64(memTotal-memAvail) / float64(memTotal) * 100
 		}
-
 		if cpuPct := c.readCPUPercent(); cpuPct >= 0 {
 			data["cpu_percent"] = cpuPct
 		}
-
-		if load1, load5, load15 := readLoadAvg(); load1 >= 0 {
-			data["load_avg_1"] = load1
-			data["load_avg_5"] = load5
-			data["load_avg_15"] = load15
+		if l1, l5, l15 := readLoadAvg(); l1 >= 0 {
+			data["load_avg_1"]  = l1
+			data["load_avg_5"]  = l5
+			data["load_avg_15"] = l15
 		}
-
-		if rxBytes, txBytes := readNetIO(); rxBytes >= 0 {
-			data["net_bytes_recv"] = rxBytes
-			data["net_bytes_sent"] = txBytes
+		if rxB, txB := readNetIO(); rxB >= 0 {
+			data["net_bytes_recv"] = rxB
+			data["net_bytes_sent"] = txB
 		}
-
-		if diskFree, diskTotal := readDiskUsage("/"); diskTotal > 0 {
-			data["disk_total_bytes"] = diskTotal
-			data["disk_free_bytes"] = diskFree
-			data["disk_used_bytes"] = diskTotal - diskFree
-			data["disk_used_percent"] = float64(diskTotal-diskFree) / float64(diskTotal) * 100
+		if diskFree, diskTotal := statfsDiskUsage("/"); diskTotal > 0 {
+			data["disk_total_bytes"]   = diskTotal
+			data["disk_free_bytes"]    = diskFree
+			data["disk_used_bytes"]    = diskTotal - diskFree
+			data["disk_used_percent"]  = float64(diskTotal-diskFree) / float64(diskTotal) * 100
 		}
 	}
 
@@ -128,14 +143,12 @@ func (c *MetricsCollector) collect() Event {
 	}
 }
 
-// readProcMeminfo parses /proc/meminfo and returns (free, total, available) bytes.
 func readProcMeminfo() (free, total, available uint64) {
 	f, err := os.Open("/proc/meminfo")
 	if err != nil {
-		return 0, 0, 0
+		return
 	}
 	defer f.Close()
-
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		parts := strings.Fields(scanner.Text())
@@ -143,7 +156,7 @@ func readProcMeminfo() (free, total, available uint64) {
 			continue
 		}
 		val, _ := strconv.ParseUint(parts[1], 10, 64)
-		val *= 1024 // kB → bytes
+		val *= 1024
 		switch parts[0] {
 		case "MemTotal:":
 			total = val
@@ -156,15 +169,12 @@ func readProcMeminfo() (free, total, available uint64) {
 	return
 }
 
-// readCPUPercent returns CPU usage % since last call by diffing /proc/stat.
-// Returns -1 if unavailable.
 func (c *MetricsCollector) readCPUPercent() float64 {
 	f, err := os.Open("/proc/stat")
 	if err != nil {
 		return -1
 	}
 	defer f.Close()
-
 	scanner := bufio.NewScanner(f)
 	if !scanner.Scan() {
 		return -1
@@ -173,36 +183,28 @@ func (c *MetricsCollector) readCPUPercent() float64 {
 	if len(fields) < 5 || fields[0] != "cpu" {
 		return -1
 	}
-
 	var vals [10]uint64
 	for i := 1; i < len(fields) && i <= 10; i++ {
 		vals[i-1], _ = strconv.ParseUint(fields[i], 10, 64)
 	}
-	// user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice
 	idle := vals[3] + vals[4]
-	total := uint64(0)
+	var total uint64
 	for _, v := range vals {
 		total += v
 	}
-
 	if c.prevCPUTotal == 0 {
-		c.prevCPUTotal = total
-		c.prevCPUIdle = idle
+		c.prevCPUTotal, c.prevCPUIdle = total, idle
 		return 0
 	}
-
-	deltaTotal := total - c.prevCPUTotal
-	deltaIdle := idle - c.prevCPUIdle
-	c.prevCPUTotal = total
-	c.prevCPUIdle = idle
-
-	if deltaTotal == 0 {
+	dTotal := total - c.prevCPUTotal
+	dIdle := idle - c.prevCPUIdle
+	c.prevCPUTotal, c.prevCPUIdle = total, idle
+	if dTotal == 0 {
 		return 0
 	}
-	return (1.0 - float64(deltaIdle)/float64(deltaTotal)) * 100
+	return (1.0 - float64(dIdle)/float64(dTotal)) * 100
 }
 
-// readLoadAvg parses /proc/loadavg.
 func readLoadAvg() (load1, load5, load15 float64) {
 	data, err := os.ReadFile("/proc/loadavg")
 	if err != nil {
@@ -218,18 +220,15 @@ func readLoadAvg() (load1, load5, load15 float64) {
 	return
 }
 
-// readNetIO sums RX/TX bytes across all non-loopback interfaces from /proc/net/dev.
 func readNetIO() (rxBytes, txBytes int64) {
 	f, err := os.Open("/proc/net/dev")
 	if err != nil {
 		return -1, -1
 	}
 	defer f.Close()
-
 	scanner := bufio.NewScanner(f)
-	// Skip header lines
-	scanner.Scan()
-	scanner.Scan()
+	scanner.Scan() // header 1
+	scanner.Scan() // header 2
 	for scanner.Scan() {
 		parts := strings.Fields(scanner.Text())
 		if len(parts) < 10 {
@@ -247,27 +246,23 @@ func readNetIO() (rxBytes, txBytes int64) {
 	return
 }
 
-// readDiskUsage returns (free, total) bytes for a mount point using syscall.Statfs.
-func readDiskUsage(path string) (free, total uint64) {
-	return statfsDiskUsage(path)
-}
-
-// countProcesses counts entries in /proc that are numeric (PIDs).
 func countProcesses() int {
+	if runtime.GOOS != "linux" {
+		return 0
+	}
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return 0
 	}
-	count := 0
+	n := 0
 	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		if _, err := strconv.Atoi(e.Name()); err == nil {
-			count++
+		if e.IsDir() {
+			if _, err := strconv.Atoi(e.Name()); err == nil {
+				n++
+			}
 		}
 	}
-	return count
+	return n
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -279,7 +274,7 @@ type FileTailCollector struct {
 	agentID  string
 	paths    []string
 	log      *logger.Logger
-	stop     chan struct{}
+	stop     stopOnce
 }
 
 func NewFileTailCollector(hostname, agentID string, paths []string, log *logger.Logger) *FileTailCollector {
@@ -288,12 +283,12 @@ func NewFileTailCollector(hostname, agentID string, paths []string, log *logger.
 		agentID:  agentID,
 		paths:    paths,
 		log:      log,
-		stop:     make(chan struct{}),
+		stop:     newStopOnce(),
 	}
 }
 
 func (c *FileTailCollector) Name() string { return "file_tail" }
-func (c *FileTailCollector) Stop()        { close(c.stop) }
+func (c *FileTailCollector) Stop()        { c.stop.stop() }
 
 func (c *FileTailCollector) Start(ctx context.Context, ch chan<- Event) error {
 	for _, path := range c.paths {
@@ -305,7 +300,7 @@ func (c *FileTailCollector) Start(ctx context.Context, ch chan<- Event) error {
 	}
 	select {
 	case <-ctx.Done():
-	case <-c.stop:
+	case <-c.stop.C():
 	}
 	return nil
 }
@@ -318,7 +313,6 @@ func (c *FileTailCollector) tailFile(ctx context.Context, path string, ch chan<-
 	}
 	defer f.Close()
 
-	// Seek to end — only emit new lines, not historical content
 	if _, err := f.Seek(0, io.SeekEnd); err != nil {
 		c.log.Warn("[file_tail] Seek failed %s: %v", path, err)
 		return
@@ -334,13 +328,13 @@ func (c *FileTailCollector) tailFile(ctx context.Context, path string, ch chan<-
 		select {
 		case <-ctx.Done():
 			return
-		case <-c.stop:
+		case <-c.stop.C():
 			return
 		case <-poll.C:
-			// Check for log rotation (file replaced)
+			// Log rotation check
 			if fi1, err1 := f.Stat(); err1 == nil {
 				if fi2, err2 := os.Stat(path); err2 == nil && !os.SameFile(fi1, fi2) {
-					c.log.Info("[file_tail] Rotation detected for %s, reopening", path)
+					c.log.Info("[file_tail] Rotation detected: %s", path)
 					f.Close()
 					if f, err = os.Open(path); err != nil {
 						c.log.Warn("[file_tail] Reopen failed %s: %v", path, err)
@@ -350,8 +344,7 @@ func (c *FileTailCollector) tailFile(ctx context.Context, path string, ch chan<-
 					scanner.Buffer(make([]byte, 128*1024), 128*1024)
 				}
 			}
-
-			// Drain all available new lines
+			// Drain new lines
 			for scanner.Scan() {
 				line := scanner.Text()
 				if line == "" {
@@ -369,7 +362,7 @@ func (c *FileTailCollector) tailFile(ctx context.Context, path string, ch chan<-
 				case ch <- evt:
 				case <-ctx.Done():
 					return
-				case <-c.stop:
+				case <-c.stop.C():
 					return
 				default:
 					c.log.Warn("[file_tail] channel full, dropping line from %s", path)
@@ -389,15 +382,14 @@ type fileBaseline struct {
 	Size    int64
 }
 
-// FIMCollector monitors files and directories for integrity changes.
-// Detection is SHA-256 content hash comparison, NOT modtime alone — modtime
-// is trivially reset by attackers. A hidden file change is caught regardless.
+// FIMCollector monitors files and directories for content changes.
+// Uses SHA-256 rather than modtime — modtime is trivially reset by attackers.
 type FIMCollector struct {
 	hostname string
 	agentID  string
 	paths    []string
 	log      *logger.Logger
-	stop     chan struct{}
+	stop     stopOnce
 }
 
 func NewFIMCollector(hostname, agentID string, paths []string, log *logger.Logger) *FIMCollector {
@@ -406,12 +398,12 @@ func NewFIMCollector(hostname, agentID string, paths []string, log *logger.Logge
 		agentID:  agentID,
 		paths:    paths,
 		log:      log,
-		stop:     make(chan struct{}),
+		stop:     newStopOnce(),
 	}
 }
 
 func (c *FIMCollector) Name() string { return "fim" }
-func (c *FIMCollector) Stop()        { close(c.stop) }
+func (c *FIMCollector) Stop()        { c.stop.stop() }
 
 func (c *FIMCollector) Start(ctx context.Context, ch chan<- Event) error {
 	baseline := make(map[string]fileBaseline)
@@ -420,7 +412,7 @@ func (c *FIMCollector) Start(ctx context.Context, ch chan<- Event) error {
 			baseline[p] = b
 		}
 	}
-	c.log.Info("[fim] Baseline: %d paths", len(baseline))
+	c.log.Info("[fim] Baseline established: %d paths", len(baseline))
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -428,7 +420,7 @@ func (c *FIMCollector) Start(ctx context.Context, ch chan<- Event) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-c.stop:
+		case <-c.stop.C():
 			return nil
 		case <-ticker.C:
 			c.scan(baseline, ch)
@@ -460,7 +452,8 @@ func (c *FIMCollector) scan(baseline map[string]fileBaseline, ch chan<- Event) {
 }
 
 func (c *FIMCollector) emit(ch chan<- Event, evType, path, oldHash, newHash string, oldSize, newSize int64) {
-	evt := Event{
+	select {
+	case ch <- Event{
 		Timestamp: time.Now().Format(time.RFC3339),
 		Source:    "fim",
 		Type:      evType,
@@ -473,11 +466,9 @@ func (c *FIMCollector) emit(ch chan<- Event, evType, path, oldHash, newHash stri
 			"old_size": oldSize,
 			"new_size": newSize,
 		},
-	}
-	select {
-	case ch <- evt:
+	}:
 	default:
-		c.log.Warn("[fim] channel full, dropping FIM event for %s", path)
+		c.log.Warn("[fim] channel full, dropping event for %s", path)
 	}
 }
 
@@ -487,7 +478,6 @@ func (c *FIMCollector) hashPath(path string) (fileBaseline, error) {
 		return fileBaseline{}, err
 	}
 	if info.IsDir() {
-		// For directories, hash the listing rather than content
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return fileBaseline{}, err
@@ -526,7 +516,7 @@ type EventLogCollector struct {
 	hostname string
 	agentID  string
 	log      *logger.Logger
-	stop     chan struct{}
+	stop     stopOnce
 }
 
 func NewEventLogCollector(hostname, agentID string, log *logger.Logger) *EventLogCollector {
@@ -534,33 +524,30 @@ func NewEventLogCollector(hostname, agentID string, log *logger.Logger) *EventLo
 		hostname: hostname,
 		agentID:  agentID,
 		log:      log,
-		stop:     make(chan struct{}),
+		stop:     newStopOnce(),
 	}
 }
 
 func (c *EventLogCollector) Name() string { return "eventlog" }
-func (c *EventLogCollector) Stop()        { close(c.stop) }
+func (c *EventLogCollector) Stop()        { c.stop.stop() }
 
 func (c *EventLogCollector) Start(ctx context.Context, ch chan<- Event) error {
 	if runtime.GOOS != "windows" {
 		select {
 		case <-ctx.Done():
-		case <-c.stop:
+		case <-c.stop.C():
 		}
 		return nil
 	}
-
-	// Full Windows Event Log streaming is in collectors_windows.go.
-	// This path is reached only on Windows, and the platform-specific file
-	// provides the actual implementation. The heartbeat below is a safety net
-	// if the Windows-specific code is not compiled in.
+	// Windows-specific implementation in collectors_windows.go provides real
+	// Event Log streaming. This fallback heartbeat fires if that file isn't built.
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-c.stop:
+		case <-c.stop.C():
 			return nil
 		case <-ticker.C:
 			select {
@@ -579,50 +566,15 @@ func (c *EventLogCollector) Start(ctx context.Context, ch chan<- Event) error {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// readProcFile — shared /proc reader used by eBPF fallback and collectors
 // ─────────────────────────────────────────────────────────────────────────────
 
-// hashFilePath returns a SHA-256 hex hash of a file's content.
-func hashFilePath(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// fileBaseName safely extracts the file name from a path.
-func fileBaseName(path string) string {
-	return filepath.Base(path)
-}
-
-// statfsDiskUsage is implemented in platform-specific files.
-// On Linux/Darwin it uses syscall.Statfs; on Windows it uses
-// GetDiskFreeSpaceEx via golang.org/x/sys/windows.
-// Signature: func statfsDiskUsage(path string) (free, total uint64)
-// The implementation is in collectors_unix.go and collectors_windows.go.
-
-// procStatFile returns the path prefix for a given process.
-func procStatFile(pid int, name string) string {
-	return fmt.Sprintf("/proc/%d/%s", pid, name)
-}
-
-// readProcFile reads a small /proc file and returns its content as a string.
+// readProcFile reads a small /proc file and returns its content trimmed of
+// trailing newlines and null bytes. Returns empty string on error.
 func readProcFile(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
 	return strings.TrimRight(string(data), "\n\x00")
-}
-
-// parseUint64Field is a helper for /proc parsers.
-func parseUint64Field(s string) uint64 {
-	v, _ := strconv.ParseUint(strings.TrimSpace(s), 10, 64)
-	return v
 }

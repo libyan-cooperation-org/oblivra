@@ -2,66 +2,180 @@ package agent
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-func TestResponseActionKillProcessRejectsInvalid(t *testing.T) {
-	log, _ := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
-	executor := NewResponseActionExecutor(log)
-
-	// Invalid PID
-	if err := executor.KillProcess(0); err == nil {
-		t.Error("Expected error for PID 0")
-	}
-	if err := executor.KillProcess(-1); err == nil {
-		t.Error("Expected error for negative PID")
-	}
-
-	// PID 1 (init) should be refused
-	if err := executor.KillProcess(1); err == nil {
-		t.Error("Expected error for PID 1")
-	}
-
-	// Own PID should be refused
-	if err := executor.KillProcess(os.Getpid()); err == nil {
-		t.Error("Expected error for own PID")
-	}
-}
-
-func TestResponseActionCollectSnapshot(t *testing.T) {
-	log, _ := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
-	executor := NewResponseActionExecutor(log)
-
-	// Snapshot of own process should succeed (we just read metadata)
-	snapshot, err := executor.CollectProcessSnapshot(os.Getpid())
+func newTestExecutor(t *testing.T) *ResponseActionExecutor {
+	t.Helper()
+	log, err := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
 	if err != nil {
-		t.Fatalf("CollectProcessSnapshot of self failed: %v", err)
+		t.Fatalf("logger: %v", err)
 	}
-
-	if snapshot.PID != os.Getpid() {
-		t.Errorf("Expected PID %d, got %d", os.Getpid(), snapshot.PID)
-	}
-
-	if snapshot.CapturedAt == "" {
-		t.Error("Expected non-empty CapturedAt timestamp")
-	}
-
-	t.Logf("Self snapshot: PID=%d, Name=%q, OpenFiles=%d", snapshot.PID, snapshot.Name, snapshot.OpenFiles)
+	return NewResponseActionExecutor(log)
 }
 
-func TestResponseActionRejectsInvalidSnapshot(t *testing.T) {
-	log, _ := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
-	executor := NewResponseActionExecutor(log)
+func TestKillProcessRejectsInvalidPID(t *testing.T) {
+	ex := newTestExecutor(t)
+	for _, pid := range []int{0, -1, -99} {
+		if err := ex.KillProcess(pid); err == nil {
+			t.Errorf("expected error for PID %d, got nil", pid)
+		}
+	}
+}
 
-	_, err := executor.CollectProcessSnapshot(0)
-	if err == nil {
-		t.Error("Expected error for PID 0 snapshot")
+func TestKillProcessRefusesSelf(t *testing.T) {
+	ex := newTestExecutor(t)
+	if err := ex.KillProcess(os.Getpid()); err == nil {
+		t.Error("expected error when killing own PID")
+	}
+}
+
+func TestKillProcessRefusesProtectedPIDs(t *testing.T) {
+	ex := newTestExecutor(t)
+	protected := []int{1, 4}
+	if runtime.GOOS == "linux" {
+		protected = append(protected, 2)
+	}
+	for _, pid := range protected {
+		if err := ex.KillProcess(pid); err == nil {
+			t.Errorf("expected error for protected PID %d, got nil", pid)
+		}
+	}
+}
+
+func TestCollectProcessSnapshotSelf(t *testing.T) {
+	ex := newTestExecutor(t)
+	snap, err := ex.CollectProcessSnapshot(os.Getpid())
+	if err != nil {
+		t.Fatalf("CollectProcessSnapshot(self) failed: %v", err)
+	}
+	if snap.PID != os.Getpid() {
+		t.Errorf("expected PID %d, got %d", os.Getpid(), snap.PID)
+	}
+	if snap.CapturedAt == "" {
+		t.Error("expected non-empty CapturedAt")
+	}
+	t.Logf("self snapshot: PID=%d name=%q open_files=%d mem_bytes=%d",
+		snap.PID, snap.Name, snap.OpenFiles, snap.Memory)
+}
+
+func TestCollectProcessSnapshotRejectsInvalid(t *testing.T) {
+	ex := newTestExecutor(t)
+	for _, pid := range []int{0, -1} {
+		if _, err := ex.CollectProcessSnapshot(pid); err == nil {
+			t.Errorf("expected error for PID %d, got nil", pid)
+		}
+	}
+}
+
+func TestPIIRedactorDoesNotRedactIPs(t *testing.T) {
+	r := NewPIIRedactor()
+	// IPs must pass through — they are security signals
+	input := "Connection from 192.168.1.42 port 22"
+	got := r.RedactString(input)
+	if got != input {
+		t.Errorf("IP address was unexpectedly redacted: %q → %q", input, got)
+	}
+}
+
+func TestPIIRedactorRedactsSecrets(t *testing.T) {
+	r := NewPIIRedactor()
+	cases := []struct {
+		input    string
+		mustDrop string
+	}{
+		{"my email is user@example.com in logs", "user@example.com"},
+		{"token=sk-abcdef1234567890secret", "sk-abcdef1234567890secret"},
+		{"AWS key AKIAIOSFODNN7EXAMPLE found", "AKIAIOSFODNN7EXAMPLE"},
+	}
+	for _, tc := range cases {
+		out := r.RedactString(tc.input)
+		if out == tc.input {
+			t.Errorf("expected %q to be redacted in %q, got %q", tc.mustDrop, tc.input, out)
+		}
+	}
+}
+
+func TestStopOnceNoPanic(t *testing.T) {
+	so := newStopOnce()
+	// Calling stop multiple times must not panic
+	so.stop()
+	so.stop()
+	so.stop()
+}
+
+func TestWALWriteAndRead(t *testing.T) {
+	dir := t.TempDir()
+	wal, err := NewWAL(dir+"/wal", 1000)
+	if err != nil {
+		t.Fatalf("NewWAL: %v", err)
+	}
+	defer wal.Close()
+
+	evt := Event{
+		Timestamp: "2026-01-01T00:00:00Z",
+		Source:    "test",
+		Type:      "unit_test",
+		Host:      "testhost",
+		AgentID:   "test-agent-id",
+		Data:      map[string]interface{}{"key": "value"},
+	}
+	if err := wal.Write(evt); err != nil {
+		t.Fatalf("WAL Write: %v", err)
 	}
 
-	_, err = executor.CollectProcessSnapshot(-1)
-	if err == nil {
-		t.Error("Expected error for negative PID snapshot")
+	events, err := wal.ReadAll()
+	if err != nil {
+		t.Fatalf("WAL ReadAll: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if events[0].Type != "unit_test" {
+		t.Errorf("expected type unit_test, got %s", events[0].Type)
+	}
+}
+
+func TestWALCapEnforced(t *testing.T) {
+	dir := t.TempDir()
+	wal, err := NewWAL(dir+"/wal", 3) // cap of 3
+	if err != nil {
+		t.Fatalf("NewWAL: %v", err)
+	}
+	defer wal.Close()
+
+	evt := Event{Source: "test", Type: "t", Host: "h", AgentID: "a"}
+	for i := 0; i < 3; i++ {
+		if err := wal.Write(evt); err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+	}
+	// 4th write must be rejected
+	if err := wal.Write(evt); err != ErrWALFull {
+		t.Errorf("expected ErrWALFull, got %v", err)
+	}
+}
+
+func TestWALTruncate(t *testing.T) {
+	dir := t.TempDir()
+	wal, err := NewWAL(dir+"/wal", 1000)
+	if err != nil {
+		t.Fatalf("NewWAL: %v", err)
+	}
+	defer wal.Close()
+
+	evt := Event{Source: "test", Type: "t", Host: "h", AgentID: "a"}
+	for i := 0; i < 5; i++ {
+		_ = wal.Write(evt)
+	}
+	if err := wal.Truncate(); err != nil {
+		t.Fatalf("Truncate: %v", err)
+	}
+	events, _ := wal.ReadAll()
+	if len(events) != 0 {
+		t.Errorf("expected 0 events after truncate, got %d", len(events))
 	}
 }

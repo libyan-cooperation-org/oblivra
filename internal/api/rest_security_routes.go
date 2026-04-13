@@ -1,24 +1,21 @@
 package api
 
-// rest_security_routes.go — registers the security hardening endpoints added
-// by the audit implementation cycle.
-//
-// Routes added here:
-//   GET /api/v1/detection/explained  — explainability ring buffer
-//
-// These routes follow the same pattern as the rest of rest.go but are isolated
-// here so the large constructor stays readable.
-//
-// IMPORTANT: Call RegisterSecurityRoutes(mux) from within NewRESTServer,
-// immediately after the existing route blocks, passing the *http.ServeMux.
-// Alternatively, wire via the init_routes hook below which is called at the
-// end of NewRESTServer via s.initSecurityRoutes(mux).
-
 import "net/http"
 
-// initSecurityRoutes registers the audit-implementation routes on the provided mux.
-// Called from NewRESTServer after all existing routes are registered.
+// rest_security_routes.go — registers security hardening + agent management endpoints.
+//
+// Routes:
+//   GET  /api/v1/detection/explained    — explainability ring buffer
+//   POST /api/v1/agent/fleet/config     — push fleet config to an agent
+//   POST /api/v1/agent/action           — dispatch response action to an agent
+//
+// Call initSecurityRoutes(mux) from NewRESTServer after all existing routes.
+
 func (s *RESTServer) initSecurityRoutes(mux *http.ServeMux) {
-	// Detection explainability ring buffer — "why did this alert fire?"
+	// Detection explainability ring buffer
 	mux.HandleFunc("/api/v1/detection/explained", s.handleExplainedMatches)
+
+	// Agent fleet management — config push and action dispatch
+	mux.HandleFunc("/api/v1/agent/fleet/config", s.handleAgentFleetConfig)
+	mux.HandleFunc("/api/v1/agent/action", s.handleAgentAction)
 }

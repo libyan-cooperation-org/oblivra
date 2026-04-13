@@ -3,11 +3,19 @@ package agent
 import (
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // PIIRedactor scrubs sensitive data from event payloads before transmission.
 // Runs at the edge (on-agent) to ensure PII never leaves the endpoint.
+//
+// IMPORTANT: IP addresses are intentionally NOT redacted here.
+// Source IPs are essential security signals — redacting them would break
+// SIEM detection rules that match on SourceIP, geo-enrichment, and TI lookups.
+// IP redaction should be applied selectively at the query layer for regulated exports,
+// not at the ingest layer where it would destroy detection signal.
 type PIIRedactor struct {
+	mu       sync.RWMutex
 	patterns []*redactionRule
 }
 
@@ -18,6 +26,7 @@ type redactionRule struct {
 }
 
 // NewPIIRedactor creates a redactor with standard PII patterns.
+// Note: IPv4 addresses are excluded — see struct comment above.
 func NewPIIRedactor() *PIIRedactor {
 	return &PIIRedactor{
 		patterns: []*redactionRule{
@@ -26,11 +35,7 @@ func NewPIIRedactor() *PIIRedactor {
 				pattern: regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`),
 				replace: "[REDACTED_EMAIL]",
 			},
-			{
-				name:    "ipv4",
-				pattern: regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`),
-				replace: "[REDACTED_IP]",
-			},
+			// IPv4 addresses intentionally omitted — they are security signals.
 			{
 				name:    "ssn",
 				pattern: regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`),
@@ -66,21 +71,31 @@ func NewPIIRedactor() *PIIRedactor {
 }
 
 // RedactEvent scrubs PII from all string fields in an event's Data map.
+// The Host, Source, AgentID, and Type fields are never redacted — they are
+// routing metadata required for correct SIEM indexing and fleet management.
 func (r *PIIRedactor) RedactEvent(event *Event) {
 	if event.Data == nil {
 		return
 	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for key, val := range event.Data {
 		if str, ok := val.(string); ok {
-			event.Data[key] = r.RedactString(str)
+			event.Data[key] = r.redactString(str)
 		}
 	}
-	// Redact source field if it contains PII
-	event.Source = r.RedactString(event.Source)
 }
 
-// RedactString applies all PII patterns to a string.
+// RedactString applies all PII patterns to a string and returns the result.
+// Thread-safe.
 func (r *PIIRedactor) RedactString(s string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.redactString(s)
+}
+
+// redactString is the non-locking internal implementation.
+func (r *PIIRedactor) redactString(s string) string {
 	for _, rule := range r.patterns {
 		s = rule.pattern.ReplaceAllString(s, rule.replace)
 	}
@@ -94,12 +109,14 @@ func (r *PIIRedactor) RedactEvents(events []Event) {
 	}
 }
 
-// AddPattern adds a custom redaction rule.
+// AddPattern adds a custom redaction rule. Thread-safe.
 func (r *PIIRedactor) AddPattern(name, pattern, replacement string) error {
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.patterns = append(r.patterns, &redactionRule{
 		name:    name,
 		pattern: compiled,
@@ -108,7 +125,8 @@ func (r *PIIRedactor) AddPattern(name, pattern, replacement string) error {
 	return nil
 }
 
-// SensitiveFieldNames returns field names that should be fully redacted.
+// SensitiveFieldNames is the set of data field names that are fully replaced
+// with [FULLY_REDACTED] regardless of their value.
 var SensitiveFieldNames = map[string]bool{
 	"password":      true,
 	"passwd":        true,
@@ -123,7 +141,8 @@ var SensitiveFieldNames = map[string]bool{
 	"cookie":        true,
 }
 
-// RedactSensitiveFields fully redacts any field whose name matches sensitive patterns.
+// RedactSensitiveFields fully redacts any data field whose name matches
+// SensitiveFieldNames. Called after RedactEvent for defence-in-depth.
 func (r *PIIRedactor) RedactSensitiveFields(event *Event) {
 	if event.Data == nil {
 		return
