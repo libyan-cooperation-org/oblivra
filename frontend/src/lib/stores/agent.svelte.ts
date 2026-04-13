@@ -15,10 +15,8 @@ export class AgentStore {
   error = $state<string | null>(null);
 
   constructor() {
-    if (!IS_BROWSER) {
-      this.refresh();
-      setInterval(() => this.refresh(), 10000); // 10s heartbeat check
-    }
+    this.refresh();
+    setInterval(() => this.refresh(), 10000); // 10s heartbeat check
   }
 
   async refresh() {
