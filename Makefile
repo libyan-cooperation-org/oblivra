@@ -1,4 +1,4 @@
-.PHONY: build build-headless test clean soak-test smoke-test docs
+.PHONY: build build-headless build-agent test clean soak-test smoke-test docs
 
 default: build
 
@@ -11,6 +11,10 @@ build:
 build-headless:
 	@echo "Building Headless CLI/Server..."
 	go build -o build/bin/oblivrashell-server ./cmd/cli
+
+build-agent:
+	@echo "Building OBLIVRA Agent..."
+	go build -o bin/oblivra-agent ./cmd/agent
 
 test:
 	@echo "Running unit tests..."
