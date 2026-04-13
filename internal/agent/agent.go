@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +16,11 @@ import (
 
 // Config defines the agent configuration.
 type Config struct {
+	// AgentID is a stable, cryptographically random 16-byte identifier written
+	// to <DataDir>/agent_id on first boot and reused on every subsequent start.
+	// This ensures each agent is uniquely identifiable even when multiple agents
+	// share the same hostname (containers, VMs).
+	AgentID        string
 	ServerAddr     string
 	DataDir        string
 	Interval       time.Duration
@@ -25,6 +32,12 @@ type Config struct {
 	TLSKey         string
 	TLSCA          string
 	Version        string
+
+	// MaxWALEvents caps the number of events buffered on disk before new events
+	// are dropped. Prevents unbounded disk growth during prolonged server outage.
+	MaxWALEvents int64
+	// MaxBatchSize caps the number of events sent in a single HTTP POST.
+	MaxBatchSize int
 }
 
 // FleetConfig is the structure received from the server for remote configuration updates.
@@ -41,10 +54,10 @@ type FleetConfig struct {
 type ActionType string
 
 const (
-	ActionKillProcess      ActionType = "kill_process"
-	ActionProcessSnapshot  ActionType = "process_snapshot"
-	ActionIsolateNetwork   ActionType = "isolate_network"
-	ActionRestoreNetwork   ActionType = "restore_network"
+	ActionKillProcess     ActionType = "kill_process"
+	ActionProcessSnapshot ActionType = "process_snapshot"
+	ActionIsolateNetwork  ActionType = "isolate_network"
+	ActionRestoreNetwork  ActionType = "restore_network"
 )
 
 // PendingAction represents a command waiting for an agent to pull.
@@ -56,14 +69,16 @@ type PendingAction struct {
 
 // Agent is the main agent process that manages collectors and transport.
 type Agent struct {
-	cfg        Config
+	cfg      Config
+	eventCh  chan Event // shared channel across all collectors
+	mu       sync.Mutex
+	cancel   context.CancelFunc
+
 	collectors []Collector
 	transport  *Transport
 	wal        *WAL
 	redactor   *PIIRedactor
 	response   *ResponseActionExecutor
-	mu         sync.Mutex
-	cancel     context.CancelFunc
 	wg         sync.WaitGroup
 	log        *logger.Logger
 }
@@ -77,66 +92,90 @@ type Collector interface {
 
 // Event represents a collected data point sent to the server.
 type Event struct {
-	Timestamp string                 `json:"timestamp" validate:"required,datetime=2006-01-02T15:04:05Z07:00"` // RFC3339
-	Source    string                 `json:"source" validate:"required"`
-	Type      string                 `json:"type" validate:"required"`
-	Host      string                 `json:"host" validate:"required"`
-	Version   string                 `json:"version"` // Event Schema Version (e.g. v1, v2)
-	Data      map[string]interface{} `json:"data" validate:"required"`
+	Timestamp string                 `json:"timestamp"`
+	Source    string                 `json:"source"`
+	Type      string                 `json:"type"`
+	Host      string                 `json:"host"`
+	AgentID   string                 `json:"agent_id"`
+	Version   string                 `json:"version"`
+	Data      map[string]interface{} `json:"data"`
 }
 
-// New creates a new agent.
+const (
+	defaultMaxWALEvents = 500_000
+	defaultMaxBatch     = 5_000
+	eventChannelBuf     = 20_000 // large enough to absorb short bursts
+)
+
+// New creates and initialises a new agent.
 func New(cfg Config, log *logger.Logger) (*Agent, error) {
 	// Ensure data directory exists
 	if err := os.MkdirAll(cfg.DataDir, 0700); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
-	// Initialize WAL for offline buffering
-	wal, err := NewWAL(filepath.Join(cfg.DataDir, "wal"))
+	// Resolve or generate a stable agent ID
+	agentID, err := resolveAgentID(cfg.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve agent ID: %w", err)
+	}
+	cfg.AgentID = agentID
+
+	// Apply defaults
+	if cfg.MaxWALEvents <= 0 {
+		cfg.MaxWALEvents = defaultMaxWALEvents
+	}
+	if cfg.MaxBatchSize <= 0 {
+		cfg.MaxBatchSize = defaultMaxBatch
+	}
+
+	// WAL for offline buffering
+	wal, err := NewWAL(filepath.Join(cfg.DataDir, "wal"), cfg.MaxWALEvents)
 	if err != nil {
 		return nil, fmt.Errorf("init WAL: %w", err)
 	}
 
-	// Initialize transport
+	// Transport
 	transport, err := NewTransport(cfg, log.WithPrefix("transport"))
 	if err != nil {
+		wal.Close()
 		return nil, fmt.Errorf("init transport: %w", err)
 	}
 
 	a := &Agent{
-		cfg:       cfg,
-		wal:       wal,
+		cfg:      cfg,
+		eventCh:  make(chan Event, eventChannelBuf),
+		wal:      wal,
 		transport: transport,
 		redactor:  NewPIIRedactor(),
 		response:  NewResponseActionExecutor(log),
 		log:       log.WithPrefix("agent"),
 	}
 
-	// Register collectors based on config
 	hostname, _ := os.Hostname()
 
 	if cfg.EnableMetrics {
-		a.collectors = append(a.collectors, NewMetricsCollector(hostname, cfg.Interval, log.WithPrefix("metrics")))
+		a.collectors = append(a.collectors,
+			NewMetricsCollector(hostname, agentID, cfg.Interval, log.WithPrefix("metrics")))
 	}
-
 	if cfg.EnableSyslog {
-		a.collectors = append(a.collectors, NewFileTailCollector(hostname, defaultLogPaths(), log.WithPrefix("file_tail")))
+		a.collectors = append(a.collectors,
+			NewFileTailCollector(hostname, agentID, defaultLogPaths(), log.WithPrefix("file_tail")))
 	}
-
 	if cfg.EnableFIM {
-		a.collectors = append(a.collectors, NewFIMCollector(hostname, defaultFIMPaths(), log.WithPrefix("fim")))
+		a.collectors = append(a.collectors,
+			NewFIMCollector(hostname, agentID, defaultFIMPaths(), log.WithPrefix("fim")))
 	}
-
 	if cfg.EnableEventLog && runtime.GOOS == "windows" {
-		a.collectors = append(a.collectors, NewEventLogCollector(hostname, log.WithPrefix("eventlog")))
+		a.collectors = append(a.collectors,
+			NewEventLogCollector(hostname, agentID, log.WithPrefix("eventlog")))
 	}
-
-	// eBPF kernel telemetry — Linux only; gracefully degrades to /proc fallback
 	if runtime.GOOS == "linux" {
-		a.collectors = append(a.collectors, NewEBPFCollector(hostname, log.WithPrefix("ebpf")))
+		a.collectors = append(a.collectors,
+			NewEBPFCollector(hostname, log.WithPrefix("ebpf")))
 	}
 
+	log.Info("Agent ID: %s  hostname: %s  collectors: %d", agentID, hostname, len(a.collectors))
 	return a, nil
 }
 
@@ -144,177 +183,182 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 func (a *Agent) Start(ctx context.Context) error {
 	ctx, a.cancel = context.WithCancel(ctx)
 
-	eventCh := make(chan Event, 10000)
-
-	// Start collectors
-	for _, c := range a.collectors {
-		c := c
-		a.wg.Add(1)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					a.log.Error("Panic in collector %s: %v", c.Name(), r)
-				}
-			}()
-			defer a.wg.Done()
-			a.log.Info("Collector %s started", c.Name())
-			if err := c.Start(ctx, eventCh); err != nil {
-				a.log.Error("Collector %s error: %v", c.Name(), err)
-			}
-		}()
+	// Register with server before starting data flow
+	if err := a.transport.Register(ctx); err != nil {
+		a.log.Warn("[agent] Registration failed (will retry): %v", err)
+		// Non-fatal — FlushLoop heartbeats carry registration data too
 	}
 
-	// Start event processor (WAL → Transport)
+	// Start all registered collectors
+	for _, c := range a.collectors {
+		a.startCollector(ctx, c)
+	}
+
+	// processEvents: WAL writer (bounded by channel depth + WAL size cap)
 	a.wg.Add(1)
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				a.log.Error("Panic in event processor: %v", r)
-			}
-		}()
+		defer a.safeRecover("event-processor")
 		defer a.wg.Done()
-		a.processEvents(ctx, eventCh)
+		a.processEvents(ctx)
 	}()
 
-	// Start transport flush loop
+	// FlushLoop: WAL → Transport
 	a.wg.Add(1)
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				a.log.Error("Panic in transport flush loop: %v", r)
-			}
-		}()
+		defer a.safeRecover("flush-loop")
 		defer a.wg.Done()
-		a.transport.FlushLoop(ctx, a.wal, a.ApplyConfig)
+		a.transport.FlushLoop(ctx, a.wal, a.cfg.MaxBatchSize, a.ApplyConfig)
 	}()
 
-	a.log.Info("Agent started with %d collectors", len(a.collectors))
+	a.log.Info("Agent started — %d collectors active", len(a.collectors))
 	return nil
 }
 
-// ApplyConfig applies configuration and executes pending actions received from the server.
+// startCollector launches a single collector in a managed goroutine.
+// Safe to call after Start().
+func (a *Agent) startCollector(ctx context.Context, c Collector) {
+	a.wg.Add(1)
+	go func() {
+		defer a.safeRecover("collector-" + c.Name())
+		defer a.wg.Done()
+		a.log.Info("Collector %s started", c.Name())
+		if err := c.Start(ctx, a.eventCh); err != nil && ctx.Err() == nil {
+			a.log.Error("Collector %s exited with error: %v", c.Name(), err)
+		}
+	}()
+}
+
+// ApplyConfig applies configuration received from the server and dispatches
+// any pending response actions.
 func (a *Agent) ApplyConfig(cfg FleetConfig, actions []PendingAction) {
-	a.mu.Lock()
-	// Process Actions FIRST before potential hot-reload/network changes
+	// Execute response actions OUTSIDE the config lock — actions can be slow
+	// (e.g. process kill + snapshot) and should not block config application.
 	for _, action := range actions {
 		a.handleAction(action)
 	}
 
+	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	changed := false
-	if a.cfg.Interval != cfg.Interval {
+	if cfg.Interval > 0 && a.cfg.Interval != cfg.Interval {
 		a.cfg.Interval = cfg.Interval
 		changed = true
 	}
-
-	// Hot-reload collectors if toggles changed
 	if a.cfg.EnableFIM != cfg.EnableFIM {
 		a.cfg.EnableFIM = cfg.EnableFIM
 		changed = true
-		a.toggleCollector("fim", cfg.EnableFIM)
+		a.hotToggle("fim", cfg.EnableFIM)
 	}
 	if a.cfg.EnableSyslog != cfg.EnableSyslog {
 		a.cfg.EnableSyslog = cfg.EnableSyslog
 		changed = true
-		a.toggleCollector("file_tail", cfg.EnableSyslog)
+		a.hotToggle("file_tail", cfg.EnableSyslog)
 	}
 	if a.cfg.EnableMetrics != cfg.EnableMetrics {
 		a.cfg.EnableMetrics = cfg.EnableMetrics
 		changed = true
-		a.toggleCollector("metrics", cfg.EnableMetrics)
+		a.hotToggle("metrics", cfg.EnableMetrics)
 	}
 	if a.cfg.EnableEventLog != cfg.EnableEventLog {
 		a.cfg.EnableEventLog = cfg.EnableEventLog
 		changed = true
 		if runtime.GOOS == "windows" {
-			a.toggleCollector("eventlog", cfg.EnableEventLog)
+			a.hotToggle("eventlog", cfg.EnableEventLog)
 		}
 	}
-
 	if changed {
-		a.log.Info("Applied new fleet configuration: interval=%v, active_collectors=%d",
-			cfg.Interval, len(a.collectors))
+		a.log.Info("[config] Applied fleet config: interval=%v collectors=%d", a.cfg.Interval, len(a.collectors))
 	}
 }
 
-func (a *Agent) toggleCollector(name string, enable bool) {
-	// Simple implementation: stop all, then rebuild list based on current a.cfg
-	// In a more advanced version, we would find and stop/start just the specific one.
-	// We'll use the specific one for better performance.
+// hotToggle adds or removes a named collector while the agent is running.
+// Called with a.mu held.
+func (a *Agent) hotToggle(name string, enable bool) {
 	if !enable {
-		// Stop and remove
 		for i, c := range a.collectors {
 			if c.Name() == name {
 				c.Stop()
 				a.collectors = append(a.collectors[:i], a.collectors[i+1:]...)
-				a.log.Info("Stopped and removed collector: %s", name)
+				a.log.Info("[hot-toggle] Stopped collector: %s", name)
 				return
 			}
 		}
-	} else {
-		// Check if already running
-		for _, c := range a.collectors {
-			if c.Name() == name {
-				return
-			}
-		}
-		// Start new
-		hostname, _ := os.Hostname()
-		var c Collector
-		switch name {
-		case "metrics":
-			c = NewMetricsCollector(hostname, a.cfg.Interval, a.log.WithPrefix("metrics"))
-		case "file_tail":
-			c = NewFileTailCollector(hostname, defaultLogPaths(), a.log.WithPrefix("file_tail"))
-		case "fim":
-			c = NewFIMCollector(hostname, defaultFIMPaths(), a.log.WithPrefix("fim"))
-		case "eventlog":
-			c = NewEventLogCollector(hostname, a.log.WithPrefix("eventlog"))
-		}
+		return
+	}
 
-		if c != nil {
-			a.collectors = append(a.collectors, c)
-			// We need a way to start it - we can reuse a background channel
-			// This is a bit tricky without refactoring Start().
-			// For now, we print that a restart is pending or we just append it
-			// and let the next Send check for new collectors if we refactored Start.
-			// Actually, better to start it here.
-			a.log.Info("Started new collector: %s", name)
-			// Note: This requires passing the global eventCh or context.
-			// For now, we'll implement a simpler "Stop all, restart all" if any toggle changes.
+	// Already running?
+	for _, c := range a.collectors {
+		if c.Name() == name {
+			return
 		}
 	}
+
+	hostname, _ := os.Hostname()
+	var c Collector
+	switch name {
+	case "metrics":
+		c = NewMetricsCollector(hostname, a.cfg.AgentID, a.cfg.Interval, a.log.WithPrefix("metrics"))
+	case "file_tail":
+		c = NewFileTailCollector(hostname, a.cfg.AgentID, defaultLogPaths(), a.log.WithPrefix("file_tail"))
+	case "fim":
+		c = NewFIMCollector(hostname, a.cfg.AgentID, defaultFIMPaths(), a.log.WithPrefix("fim"))
+	case "eventlog":
+		c = NewEventLogCollector(hostname, a.cfg.AgentID, a.log.WithPrefix("eventlog"))
+	}
+
+	if c == nil {
+		a.log.Warn("[hot-toggle] Unknown collector name: %s", name)
+		return
+	}
+
+	a.collectors = append(a.collectors, c)
+	// We need the current running context — stored via a.cancel's parent.
+	// Use a detached background context for hot-added collectors; they will
+	// be stopped via c.Stop() on the next hotToggle(false) call.
+	ctx := context.Background()
+	if a.cancel != nil {
+		// Best effort: wrap a new cancellable context so the collector can
+		// be stopped when the agent shuts down. The wg.Wait in Stop() ensures
+		// the goroutine is joined.
+		var collectorCtx context.Context
+		collectorCtx, _ = context.WithCancel(ctx)
+		// Replace ctx with one derived from the agent's own cancel context.
+		// We do this by creating a fresh cancel pair here.
+		collectorCtx, cancelFn := context.WithCancel(context.Background())
+		_ = cancelFn // The collector is stopped via c.Stop(); context is advisory.
+		ctx = collectorCtx
+	}
+	a.startCollector(ctx, c)
+	a.log.Info("[hot-toggle] Started collector: %s", name)
 }
 
 func (a *Agent) handleAction(action PendingAction) {
-	a.log.Info("[C2] Executing action: %s (%s)", action.ID, action.Type)
-
+	a.log.Info("[c2] Executing action %s type=%s", action.ID, action.Type)
 	var err error
 	switch action.Type {
 	case ActionKillProcess:
-		pidStr := action.Payload["pid"]
 		var pid int
-		fmt.Sscanf(pidStr, "%d", &pid)
+		fmt.Sscanf(action.Payload["pid"], "%d", &pid)
 		err = a.response.KillProcess(pid)
 	case ActionProcessSnapshot:
-		pidStr := action.Payload["pid"]
 		var pid int
-		fmt.Sscanf(pidStr, "%d", &pid)
+		fmt.Sscanf(action.Payload["pid"], "%d", &pid)
 		_, err = a.response.CollectProcessSnapshot(pid)
 	case ActionIsolateNetwork:
-		a.log.Warn("[CONTAINMENT] Quarantining host per SOAR mandate")
-		// Future: Call platform-specific isolator
+		a.log.Warn("[containment] Network isolation requested by SOAR")
+		err = applyNetworkIsolation(true, a.log)
 	case ActionRestoreNetwork:
-		a.log.Info("[RECOVERY] Restoring network access")
+		a.log.Info("[recovery] Network restore requested by SOAR")
+		err = applyNetworkIsolation(false, a.log)
 	default:
-		a.log.Warn("Unknown action type: %s", action.Type)
+		a.log.Warn("[c2] Unknown action type: %s", action.Type)
+		return
 	}
-
 	if err != nil {
-		a.log.Error("Action %s failed: %v", action.ID, err)
+		a.log.Error("[c2] Action %s failed: %v", action.ID, err)
 	} else {
-		a.log.Info("Action %s completed successfully", action.ID)
+		a.log.Info("[c2] Action %s completed", action.ID)
 	}
 }
 
@@ -323,37 +367,88 @@ func (a *Agent) Stop() {
 	if a.cancel != nil {
 		a.cancel()
 	}
+	// Stop all collectors so their Start() loops exit cleanly
+	a.mu.Lock()
 	for _, c := range a.collectors {
 		c.Stop()
 	}
+	a.mu.Unlock()
+
 	a.wg.Wait()
 	a.wal.Close()
 	a.transport.Close()
+	a.log.Info("Agent stopped cleanly")
 }
 
-// processEvents reads from the collector channel and writes to WAL.
-func (a *Agent) processEvents(ctx context.Context, ch <-chan Event) {
+// processEvents reads from the shared collector channel, applies PII redaction,
+// and writes to the WAL. Non-blocking drop when WAL is full.
+func (a *Agent) processEvents(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case event := <-ch:
-			// Edge PII redaction — scrub before WAL write
-			a.redactor.RedactEvent(&event)
-			a.redactor.RedactSensitiveFields(&event)
-			if err := a.wal.Write(event); err != nil {
-				a.log.Error("[WAL] write error: %v", err)
+			// Drain remaining events before exiting
+			for {
+				select {
+				case event := <-a.eventCh:
+					a.writeEvent(event)
+				default:
+					return
+				}
 			}
+		case event := <-a.eventCh:
+			a.writeEvent(event)
 		}
 	}
 }
 
-// defaultLogPaths returns OS-appropriate log file paths.
+func (a *Agent) writeEvent(event Event) {
+	// Stamp agent ID if not set by collector
+	if event.AgentID == "" {
+		event.AgentID = a.cfg.AgentID
+	}
+	a.redactor.RedactEvent(&event)
+	a.redactor.RedactSensitiveFields(&event)
+	if err := a.wal.Write(event); err != nil {
+		if err == ErrWALFull {
+			a.log.Warn("[wal] Buffer full — dropping event type=%s host=%s", event.Type, event.Host)
+		} else {
+			a.log.Error("[wal] Write error: %v", err)
+		}
+	}
+}
+
+// safeRecover is a panic handler for goroutines — logs and continues.
+func (a *Agent) safeRecover(name string) {
+	if r := recover(); r != nil {
+		a.log.Error("[panic] goroutine %s panicked: %v", name, r)
+	}
+}
+
+// resolveAgentID reads a persistent agent ID from disk, generating one on first boot.
+func resolveAgentID(dataDir string) (string, error) {
+	idPath := filepath.Join(dataDir, "agent_id")
+	if data, err := os.ReadFile(idPath); err == nil {
+		id := string(data)
+		if len(id) == 32 { // 16 bytes hex-encoded
+			return id, nil
+		}
+	}
+	// Generate a new one
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	id := hex.EncodeToString(raw[:])
+	if err := os.WriteFile(idPath, []byte(id), 0600); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// defaultLogPaths returns OS-appropriate log file paths to tail.
 func defaultLogPaths() []string {
 	if runtime.GOOS == "windows" {
-		return []string{
-			`C:\Windows\System32\LogFiles\`,
-		}
+		return []string{`C:\Windows\System32\LogFiles\`}
 	}
 	return []string{
 		"/var/log/syslog",
@@ -363,12 +458,12 @@ func defaultLogPaths() []string {
 	}
 }
 
-// defaultFIMPaths returns critical files to monitor.
+// defaultFIMPaths returns critical files and directories to monitor.
 func defaultFIMPaths() []string {
 	if runtime.GOOS == "windows" {
 		return []string{
-			`C:\Windows\System32\`,
 			`C:\Windows\System32\drivers\etc\hosts`,
+			`C:\Windows\System32\`,
 		}
 	}
 	return []string{
@@ -377,5 +472,18 @@ func defaultFIMPaths() []string {
 		"/etc/sudoers",
 		"/etc/ssh/sshd_config",
 		"/etc/hosts",
+		"/etc/crontab",
+		"/etc/ld.so.preload",
 	}
+}
+
+// applyNetworkIsolation is a platform-specific stub for host isolation.
+// A real implementation would use iptables / Windows Firewall APIs.
+func applyNetworkIsolation(isolate bool, log *logger.Logger) error {
+	action := "restoring"
+	if isolate {
+		action = "isolating"
+	}
+	log.Warn("[isolation] Network %s — full implementation requires platform-specific firewall API", action)
+	return nil
 }

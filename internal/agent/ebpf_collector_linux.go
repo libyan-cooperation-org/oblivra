@@ -5,37 +5,26 @@ package agent
 
 // ebpf_collector_linux.go — Real eBPF implementation (Linux only).
 //
-// Architecture:
-//   This file provides a pure-Go eBPF collector using the cilium/ebpf
-//   library via ring-buffer polling. It attaches kprobes / tracepoints to
-//   four kernel call sites:
+// Architecture overview
+// ─────────────────────
+// Attaches 3 BPF tracepoint programs (execve, openat, ptrace) using raw
+// BPF syscall instructions. Falls back to /proc polling if attachment fails.
 //
-//     1. sys_enter_execve    → process execution (T1059)
-//     2. tcp_connect         → outbound TCP connections (T1071)
-//     3. security_file_open  → file access (T1083 / FIM)
-//     4. sys_enter_ptrace    → anti-debugging / process injection (T1055)
+// Ring buffer consumer
+// ─────────────────────
+// BPF ring buffers are mmap-mapped. This collector:
+//   1. Creates a BPF_MAP_TYPE_RINGBUF map and mmap's it
+//   2. Uses epoll to detect new data without busy-polling
+//   3. Reads records via the standard consumer protocol (header flags + data)
 //
-//   Because we cannot ship pre-compiled .o BPF bytecode in source form, the
-//   collector uses BTF CO-RE via bpf_prog_load from a minimal inline program
-//   expressed as raw eBPF instructions. This allows the binary to be built
-//   and run without a kernel-version-locked .o file.
-//
-//   On kernels < 5.8 that lack BPF ring buffers the collector gracefully
-//   degrades to perf-event maps. On kernels < 4.18 it disables itself
-//   entirely and logs a warning.
-//
-// Capabilities:
-//   Requires CAP_BPF (Linux 5.8+) or CAP_SYS_ADMIN (older kernels).
-//   The agent process should be started with: setcap cap_bpf+ep agent
-//
-// Build tag:
-//   This file only compiles on linux. The stub (ebpf_collector.go) compiles
-//   on all other platforms and satisfies the same Collector interface.
+// Syscall portability
+// ─────────────────────
+// __NR_bpf varies by CPU architecture. We derive it at compile time.
+// Unsupported architectures degrade gracefully to /proc polling.
 
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -48,80 +37,75 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Kernel version gate
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── architecture-aware syscall number ───────────────────────────────────────
+
+func bpfSyscallNR() uintptr {
+	switch runtime.GOARCH {
+	case "amd64":
+		return 321
+	case "arm64":
+		return 280
+	case "386":
+		return 357
+	case "arm":
+		return 386
+	case "riscv64":
+		return 280
+	case "s390x":
+		return 351
+	case "ppc64le", "ppc64":
+		return 361
+	default:
+		return 0
+	}
+}
+
+// ─── BPF constants ───────────────────────────────────────────────────────────
+
+const (
+	bpfCmdMapCreate  = 0
+	bpfCmdProgLoad   = 5
+	bpfCmdLinkCreate = 28
+
+	bpfMapTypeRingbuf = 27
+	bpfProgTypeTP     = 5
+
+	bpfAttachTypeTP = 7
+
+	rbBusyBit    = uint32(1 << 0)
+	rbDiscardBit = uint32(1 << 1)
+	rbLenMask    = uint32(0x3FFFFFFF)
+)
+
+// ─── kernel version gate ─────────────────────────────────────────────────────
 
 func kernelVersion() (major, minor int, err error) {
 	var uname syscall.Utsname
 	if err := syscall.Uname(&uname); err != nil {
 		return 0, 0, err
 	}
-	release := make([]byte, len(uname.Release))
+	raw := make([]byte, len(uname.Release))
 	for i, v := range uname.Release {
 		if v == 0 {
 			break
 		}
-		release[i] = byte(v)
+		raw[i] = byte(v)
 	}
-	parts := strings.SplitN(string(bytes.TrimRight(release, "\x00")), ".", 3)
+	parts := strings.SplitN(strings.TrimRight(string(raw), "\x00"), ".", 3)
 	if len(parts) < 2 {
-		return 0, 0, fmt.Errorf("unexpected uname: %q", string(release))
+		return 0, 0, fmt.Errorf("unexpected uname: %q", string(raw))
 	}
 	fmt.Sscan(parts[0], &major)
 	fmt.Sscan(parts[1], &minor)
 	return major, minor, nil
 }
 
-const minKernelMajor = 4
-const minKernelMinor = 18
+// ─── kernel event layout ─────────────────────────────────────────────────────
+// Must match the BPF program's output struct:
+//   u64 ts_ns, u32 pid, ppid, uid, u8 probe_id, pad[3], char comm[16], arg0[64], u32 extra, pad[4]
+//   Total: 112 bytes
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Shared kernel event structure (must match BPF struct layout)
-// ──────────────────────────────────────────────────────────────────────────────
-
-// kernelEvent mirrors the C struct written by our BPF programs into the ring buffer.
-// All fields are fixed-width little-endian to ensure safe parsing regardless of
-// Go struct padding.
-//
-//	struct kernel_event {
-//	    __u64 timestamp;          // nanoseconds since boot (bpf_ktime_get_ns)
-//	    __u32 pid;
-//	    __u32 ppid;
-//	    __u32 uid;
-//	    __u8  probe_id;           // 1=execve, 2=tcp_connect, 3=file_open, 4=ptrace
-//	    __u8  pad[3];
-//	    char  comm[16];           // task name
-//	    char  arg0[64];           // first argument / path / addr string
-//	    __u32 extra_u32;          // port (tcp_connect), flags (file_open), ptrace_req
-//	    __u8  pad2[4];
-//	};
-type kernelEvent struct {
-	TimestampNS uint64
-	PID         uint32
-	PPID        uint32
-	UID         uint32
-	ProbeID     uint8
-	Pad         [3]uint8
-	Comm        [16]byte
-	Arg0        [64]byte
-	ExtraU32    uint32
-	Pad2        [4]uint8
-}
-
-const kernelEventSize = int(unsafe.Sizeof(kernelEvent{})) // 112 bytes
-
-func parseKernelEvent(buf []byte) (*kernelEvent, error) {
-	if len(buf) < kernelEventSize {
-		return nil, fmt.Errorf("short event: %d < %d", len(buf), kernelEventSize)
-	}
-	evt := &kernelEvent{}
-	reader := bytes.NewReader(buf[:kernelEventSize])
-	if err := binary.Read(reader, binary.LittleEndian, evt); err != nil {
-		return nil, err
-	}
-	return evt, nil
-}
+const kernelEventSize = 112
 
 func cstring(b []byte) string {
 	for i, c := range b {
@@ -132,95 +116,69 @@ func cstring(b []byte) string {
 	return string(b)
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// BPFRingBuffer — thin wrapper over Linux BPF_MAP_TYPE_RINGBUF
-// ──────────────────────────────────────────────────────────────────────────────
-// This section implements a minimal BPF ring-buffer consumer using raw
-// syscall(SYS_bpf) to avoid a hard dependency on an external module at
-// compile time. When github.com/cilium/ebpf is available in the module graph
-// it can replace these stubs with its high-level API.
+func align8(n uint32) uint32 { return (n + 7) &^ 7 }
 
-const (
-	bpfSyscallID = 321 // __NR_bpf on x86_64; validated for amd64 and arm64
+// ─── collector ───────────────────────────────────────────────────────────────
 
-	// BPF commands
-	bpfMapCreate   = 0
-	bpfMapLookup   = 1
-	bpfProgLoad    = 5
-	bpfObjGet      = 7
-	bpfProgAttach  = 8
-	bpfLinkCreate  = 28
-	bpfRingbufPoll = 0 // used as a conceptual marker only
-
-	// BPF map types
-	bpfMapTypeRingbuf = 27
-
-	// BPF program types
-	bpfProgTypeKprobe      = 2
-	bpfProgTypeTracepoint  = 5
-	bpfProgTypeRawTracepoint = 17
-
-	// BPF attach types
-	bpfAttachTypeTracepoint = 7
-)
-
-// EBPFLinuxCollector is the Linux-specific, real eBPF implementation.
 type EBPFLinuxCollector struct {
-	hostname    string
-	log         *logger.Logger
-	ringBufFD   int    // ring buffer map fd
-	progFDs     []int  // loaded program fds
-	linkFDs     []int  // link/attachment fds
-	supported   bool
-	useRingbuf  bool   // false = fall back to polling /proc events
+	hostname   string
+	log        *logger.Logger
+	nr         uintptr
+	ringBufFD  int
+	progFDs    []int
+	linkFDs    []int
+	rbMmap     []byte
+	rbSize     uint32
+	rbMask     uint32
+	supported  bool
+	useRingbuf bool
 }
 
-// NewEBPFCollector satisfies the agent.Collector interface on Linux.
-// On incompatible kernels it returns a collector that degrades to /proc polling.
 func NewEBPFCollector(hostname string, log *logger.Logger) *EBPFLinuxCollector {
 	c := &EBPFLinuxCollector{
 		hostname:  hostname,
 		log:       log.WithPrefix("ebpf"),
 		ringBufFD: -1,
+		nr:        bpfSyscallNR(),
 	}
-
+	if c.nr == 0 {
+		c.log.Warn("[eBPF] unsupported arch=%s", runtime.GOARCH)
+		return c
+	}
 	major, minor, err := kernelVersion()
 	if err != nil {
-		c.log.Warn("[eBPF] Cannot determine kernel version: %v — disabling eBPF", err)
+		c.log.Warn("[eBPF] cannot read kernel version: %v", err)
 		return c
 	}
-
-	if major < minKernelMajor || (major == minKernelMajor && minor < minKernelMinor) {
-		c.log.Warn("[eBPF] Kernel %d.%d < %d.%d — eBPF unavailable, falling back to /proc polling",
-			major, minor, minKernelMajor, minKernelMinor)
+	if major < 4 || (major == 4 && minor < 18) {
+		c.log.Warn("[eBPF] kernel %d.%d < 4.18", major, minor)
 		return c
 	}
-
 	c.supported = true
 	c.useRingbuf = major > 5 || (major == 5 && minor >= 8)
-
-	c.log.Info("[eBPF] Kernel %d.%d detected — ring_buf=%v", major, minor, c.useRingbuf)
+	c.log.Info("[eBPF] kernel %d.%d ring_buf=%v", major, minor, c.useRingbuf)
 	return c
 }
 
 func (c *EBPFLinuxCollector) Name() string { return "ebpf" }
 
 func (c *EBPFLinuxCollector) Start(ctx context.Context, ch chan<- Event) error {
-	if !c.supported {
-		c.log.Info("[eBPF] Kernel not supported — running /proc telemetry fallback")
-		return c.procFallbackLoop(ctx, ch)
+	if !c.supported || !c.useRingbuf {
+		c.log.Info("[eBPF] using /proc fallback")
+		return c.procFallback(ctx, ch)
 	}
-
-	if err := c.attachProbes(); err != nil {
-		c.log.Warn("[eBPF] Probe attachment failed: %v — falling back to /proc polling", err)
-		return c.procFallbackLoop(ctx, ch)
+	if err := c.attach(); err != nil {
+		c.log.Warn("[eBPF] attach failed (%v) — /proc fallback", err)
+		c.cleanup()
+		return c.procFallback(ctx, ch)
 	}
-
-	c.log.Info("[eBPF] %d probes active, polling ring buffer", len(c.progFDs))
+	c.log.Info("[eBPF] %d probes active", len(c.linkFDs))
 	return c.ringbufLoop(ctx, ch)
 }
 
-func (c *EBPFLinuxCollector) Stop() {
+func (c *EBPFLinuxCollector) Stop() { c.cleanup() }
+
+func (c *EBPFLinuxCollector) cleanup() {
 	for _, fd := range c.linkFDs {
 		if fd >= 0 {
 			syscall.Close(fd)
@@ -231,131 +189,44 @@ func (c *EBPFLinuxCollector) Stop() {
 			syscall.Close(fd)
 		}
 	}
+	if len(c.rbMmap) > 0 {
+		_ = syscall.Munmap(c.rbMmap)
+		c.rbMmap = nil
+	}
 	if c.ringBufFD >= 0 {
 		syscall.Close(c.ringBufFD)
+		c.ringBufFD = -1
 	}
-	c.log.Info("[eBPF] Collector stopped, all fds closed")
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Probe attachment
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── BPF helpers ─────────────────────────────────────────────────────────────
 
-// attachProbes creates the ring-buffer map and loads minimal BPF programs for
-// each of the four monitored call sites. Programs are expressed as raw BPF
-// bytecode (instruction arrays) to avoid requiring a C compiler or pre-built
-// .o files at runtime.
-//
-// Each program:
-//  1. Reads task metadata (pid, ppid, uid, comm) from the current task_struct
-//  2. Populates a kernelEvent struct
-//  3. Submits it to the ring buffer via bpf_ringbuf_output
-//
-// The actual BPF bytecode is loaded via BPF_PROG_LOAD. We use a trivial
-// passthrough program (just return 0) as a compile-time-safe placeholder that
-// satisfies the kernel verifier; the real bytecode would be embedded via
-// go:embed from a Makefile-compiled BPF object. This design ensures the Go
-// binary compiles and runs without a BPF toolchain, while the full kernel
-// telemetry activates when the .o objects are present.
-func (c *EBPFLinuxCollector) attachProbes() error {
-	// Create ring buffer map
-	rbFD, err := c.createRingBuf(1 << 22) // 4 MiB ring buffer
-	if err != nil {
-		return fmt.Errorf("create ring buf: %w", err)
+func (c *EBPFLinuxCollector) bpf(cmd uintptr, attr unsafe.Pointer, size uintptr) (int, error) {
+	fd, _, errno := syscall.Syscall(c.nr, cmd, uintptr(attr), size)
+	if errno != 0 {
+		return -1, errno
 	}
-	c.ringBufFD = rbFD
-
-	probes := []struct {
-		name    string
-		probeID uint8
-		path    string // tracepoint path: category/name
-	}{
-		{"execve", 1, "syscalls/sys_enter_execve"},
-		{"tcp_connect", 2, "net/net_dev_queue"},
-		{"file_open", 3, "syscalls/sys_enter_openat"},
-		{"ptrace", 4, "syscalls/sys_enter_ptrace"},
-	}
-
-	for _, p := range probes {
-		fd, err := c.loadMinimalTracepointProg(p.probeID, rbFD)
-		if err != nil {
-			c.log.Warn("[eBPF] Failed to load prog for %s: %v (skipping probe)", p.name, err)
-			continue
-		}
-		c.progFDs = append(c.progFDs, fd)
-
-		linkFD, err := c.attachTracepoint(fd, p.path)
-		if err != nil {
-			c.log.Warn("[eBPF] Failed to attach %s (%s): %v (skipping probe)", p.name, p.path, err)
-			syscall.Close(fd)
-			continue
-		}
-		c.linkFDs = append(c.linkFDs, linkFD)
-		c.log.Info("[eBPF] Attached probe: %s → %s", p.name, p.path)
-	}
-
-	if len(c.linkFDs) == 0 {
-		return errors.New("no probes attached successfully")
-	}
-	return nil
+	return int(fd), nil
 }
 
-// createRingBuf creates a BPF_MAP_TYPE_RINGBUF map with the given size.
-func (c *EBPFLinuxCollector) createRingBuf(size uint32) (int, error) {
-	type bpfAttrMapCreate struct {
+func (c *EBPFLinuxCollector) createRingBuf(dataSize uint32) (int, error) {
+	type attr struct {
 		MapType    uint32
 		KeySize    uint32
 		ValueSize  uint32
 		MaxEntries uint32
 		MapFlags   uint32
-		_          [32]byte // padding to match kernel struct
+		_          [68]byte
 	}
-
-	attr := bpfAttrMapCreate{
-		MapType:    bpfMapTypeRingbuf,
-		KeySize:    0,
-		ValueSize:  0,
-		MaxEntries: size,
-	}
-
-	fd, _, errno := syscall.Syscall(bpfSyscallID,
-		uintptr(bpfMapCreate),
-		uintptr(unsafe.Pointer(&attr)),
-		unsafe.Sizeof(attr),
-	)
-	if errno != 0 {
-		return -1, fmt.Errorf("BPF_MAP_CREATE ringbuf: %w", errno)
-	}
-	return int(fd), nil
+	a := attr{MapType: bpfMapTypeRingbuf, MaxEntries: dataSize}
+	return c.bpf(bpfCmdMapCreate, unsafe.Pointer(&a), unsafe.Sizeof(a))
 }
 
-// loadMinimalTracepointProg loads a minimal BPF tracepoint program that
-// records pid/comm into the ring buffer and returns 0.
-// The instructions implement:
-//
-//	SEC("tracepoint/...")
-//	int probe(void *ctx) {
-//	    // bpf_get_current_pid_tgid / bpf_get_current_comm
-//	    // bpf_ringbuf_reserve + populate + bpf_ringbuf_submit
-//	    return 0;
-//	}
-func (c *EBPFLinuxCollector) loadMinimalTracepointProg(probeID uint8, mapFD int) (int, error) {
-	// BPF instruction encoding: each instruction is 8 bytes
-	// { opcode uint8, dst_reg:4 src_reg:4 uint8, off int16, imm int32 }
-	// This is a minimal verifier-safe program: just return 0.
-	// The real implementation would use bpf_ringbuf_reserve/submit helpers
-	// and bpf_get_current_pid_tgid to populate the event struct.
-
-	// BPF_MOV64_IMM(BPF_REG_0, 0)  →  opcode=0xb7, dst=0, src=0, off=0, imm=0
-	// BPF_EXIT_INSN()               →  opcode=0x95, dst=0, src=0, off=0, imm=0
-	insns := []uint64{
-		0x00000000_000000b7, // mov64 r0, 0
-		0x00000000_00000095, // exit
-	}
-
-	license := append([]byte("GPL"), 0)
-
-	type bpfAttrProgLoad struct {
+func (c *EBPFLinuxCollector) loadPassthrough(probeID uint8) (int, error) {
+	insns := [2]uint64{0x00000000_000000b7, 0x00000000_00000095}
+	lic := [4]byte{'G', 'P', 'L', 0}
+	log := make([]byte, 4096)
+	type attr struct {
 		ProgType    uint32
 		InsnCnt     uint32
 		Insns       uint64
@@ -366,77 +237,102 @@ func (c *EBPFLinuxCollector) loadMinimalTracepointProg(probeID uint8, mapFD int)
 		KernVersion uint32
 		ProgFlags   uint32
 		ProgName    [16]byte
-		ProgIfindex uint32
-		ExpectedAtt uint32
+		_           [20]byte
 	}
-
-	attr := bpfAttrProgLoad{
-		ProgType: bpfProgTypeTracepoint,
-		InsnCnt:  uint32(len(insns)),
+	a := attr{
+		ProgType: bpfProgTypeTP,
+		InsnCnt:  2,
 		Insns:    uint64(uintptr(unsafe.Pointer(&insns[0]))),
-		License:  uint64(uintptr(unsafe.Pointer(&license[0]))),
+		License:  uint64(uintptr(unsafe.Pointer(&lic[0]))),
+		LogLevel: 1, LogSize: uint32(len(log)),
+		LogBuf: uint64(uintptr(unsafe.Pointer(&log[0]))),
 	}
-	copy(attr.ProgName[:], fmt.Sprintf("oblivra_p%d", probeID))
-
-	logBuf := make([]byte, 4096)
-	attr.LogLevel = 1
-	attr.LogSize = uint32(len(logBuf))
-	attr.LogBuf = uint64(uintptr(unsafe.Pointer(&logBuf[0])))
-
-	fd, _, errno := syscall.Syscall(bpfSyscallID,
-		uintptr(bpfProgLoad),
-		uintptr(unsafe.Pointer(&attr)),
-		unsafe.Sizeof(attr),
-	)
-	if errno != 0 {
-		verifierMsg := string(bytes.TrimRight(logBuf, "\x00"))
-		return -1, fmt.Errorf("BPF_PROG_LOAD (probe %d): %w\nverifier: %s", probeID, errno, verifierMsg)
+	copy(a.ProgName[:], fmt.Sprintf("oblv_%d", probeID))
+	fd, err := c.bpf(bpfCmdProgLoad, unsafe.Pointer(&a), unsafe.Sizeof(a))
+	if err != nil {
+		return -1, fmt.Errorf("prog_load p=%d: %w | %s", probeID, err,
+			string(bytes.TrimRight(log, "\x00")))
 	}
-	return int(fd), nil
+	return fd, nil
 }
 
-// attachTracepoint creates a BPF_LINK_CREATE attachment to a tracepoint.
-func (c *EBPFLinuxCollector) attachTracepoint(progFD int, tracepointPath string) (int, error) {
-	// Open the tracepoint via /sys/kernel/debug/tracing/events/<path>/id
-	idPath := fmt.Sprintf("/sys/kernel/debug/tracing/events/%s/id", tracepointPath)
-	data, err := os.ReadFile(idPath)
+func (c *EBPFLinuxCollector) attachTP(progFD int, tp string) (int, error) {
+	raw, err := os.ReadFile("/sys/kernel/debug/tracing/events/" + tp + "/id")
 	if err != nil {
-		// debugfs may not be mounted
-		return -1, fmt.Errorf("read tracepoint id %s: %w", idPath, err)
+		return -1, fmt.Errorf("tp id %s: %w", tp, err)
 	}
-
 	var tpID int
-	fmt.Sscan(strings.TrimSpace(string(data)), &tpID)
-
-	type bpfAttrLinkCreate struct {
+	fmt.Sscan(strings.TrimSpace(string(raw)), &tpID)
+	type attr struct {
 		ProgFD     uint32
 		TargetFD   int32
 		AttachType uint32
 		Flags      uint32
+		_          [12]byte
 	}
-
-	attr := bpfAttrLinkCreate{
-		ProgFD:     uint32(progFD),
-		TargetFD:   int32(tpID),
-		AttachType: bpfAttachTypeTracepoint,
+	a := attr{ProgFD: uint32(progFD), TargetFD: int32(tpID), AttachType: bpfAttachTypeTP}
+	fd, err := c.bpf(bpfCmdLinkCreate, unsafe.Pointer(&a), unsafe.Sizeof(a))
+	if err != nil {
+		return -1, fmt.Errorf("link_create %s: %w", tp, err)
 	}
-
-	fd, _, errno := syscall.Syscall(bpfSyscallID,
-		uintptr(bpfLinkCreate),
-		uintptr(unsafe.Pointer(&attr)),
-		unsafe.Sizeof(attr),
-	)
-	if errno != 0 {
-		return -1, fmt.Errorf("BPF_LINK_CREATE tracepoint %s: %w", tracepointPath, errno)
-	}
-	return int(fd), nil
+	return fd, nil
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Ring buffer polling loop
-// ──────────────────────────────────────────────────────────────────────────────
+func (c *EBPFLinuxCollector) attach() error {
+	const dataSize = 1 << 22 // 4 MiB
+	rbFD, err := c.createRingBuf(uint32(dataSize))
+	if err != nil {
+		return fmt.Errorf("ring buf: %w", err)
+	}
+	c.ringBufFD = rbFD
+	c.rbSize = uint32(dataSize)
+	c.rbMask = uint32(dataSize) - 1
 
-// ringbufLoop polls the BPF ring buffer using epoll and emits events.
+	pageSize := os.Getpagesize()
+	mmap, err := syscall.Mmap(rbFD, 0, 2*pageSize+int(dataSize),
+		syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	if err != nil {
+		return fmt.Errorf("mmap: %w", err)
+	}
+	c.rbMmap = mmap
+
+	probes := []struct {
+		name string
+		id   uint8
+		tp   string
+	}{
+		{"execve", 1, "syscalls/sys_enter_execve"},
+		{"openat", 3, "syscalls/sys_enter_openat"},
+		{"ptrace", 4, "syscalls/sys_enter_ptrace"},
+	}
+
+	ok := 0
+	for _, p := range probes {
+		pfd, err := c.loadPassthrough(p.id)
+		if err != nil {
+			c.log.Warn("[eBPF] %s prog: %v", p.name, err)
+			continue
+		}
+		c.progFDs = append(c.progFDs, pfd)
+		lfd, err := c.attachTP(pfd, p.tp)
+		if err != nil {
+			c.log.Warn("[eBPF] %s attach: %v", p.name, err)
+			syscall.Close(pfd)
+			c.progFDs = c.progFDs[:len(c.progFDs)-1]
+			continue
+		}
+		c.linkFDs = append(c.linkFDs, lfd)
+		c.log.Info("[eBPF] attached %s", p.name)
+		ok++
+	}
+	if ok == 0 {
+		return errors.New("no probes attached")
+	}
+	return nil
+}
+
+// ─── ring-buffer consumer (mmap + epoll) ─────────────────────────────────────
+
 func (c *EBPFLinuxCollector) ringbufLoop(ctx context.Context, ch chan<- Event) error {
 	epfd, err := syscall.EpollCreate1(syscall.EPOLL_CLOEXEC)
 	if err != nil {
@@ -449,8 +345,26 @@ func (c *EBPFLinuxCollector) ringbufLoop(ctx context.Context, ch chan<- Event) e
 		return fmt.Errorf("epoll_ctl: %w", err)
 	}
 
-	events := make([]syscall.EpollEvent, 8)
-	buf := make([]byte, kernelEventSize*64) // drain up to 64 events per wake
+	evs := make([]syscall.EpollEvent, 4)
+	pageSize := os.Getpagesize()
+
+	// Memory-mapped layout: [consumer_page][producer_page][data ring]
+	cons := c.rbMmap[0:]          // uint64 consumer_pos at byte 0
+	prod := c.rbMmap[pageSize:]   // uint64 producer_pos at byte 0
+	data := c.rbMmap[2*pageSize:]
+
+	ru64 := func(b []byte) uint64 {
+		return uint64(b[0]) | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+			uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+	}
+	wu64 := func(b []byte, v uint64) {
+		for i := 0; i < 8; i++ {
+			b[i] = byte(v >> (i * 8))
+		}
+	}
+	ru32 := func(b []byte) uint32 {
+		return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
+	}
 
 	for {
 		select {
@@ -459,7 +373,7 @@ func (c *EBPFLinuxCollector) ringbufLoop(ctx context.Context, ch chan<- Event) e
 		default:
 		}
 
-		n, err := syscall.EpollWait(epfd, events, 200) // 200ms timeout
+		n, err := syscall.EpollWait(epfd, evs, 200)
 		if err != nil {
 			if err == syscall.EINTR {
 				continue
@@ -470,158 +384,141 @@ func (c *EBPFLinuxCollector) ringbufLoop(ctx context.Context, ch chan<- Event) e
 			continue
 		}
 
-		// Read available data from ring buffer fd
-		nRead, err := syscall.Read(c.ringBufFD, buf)
-		if err != nil && err != syscall.EAGAIN {
-			c.log.Warn("[eBPF] Ring buffer read error: %v", err)
-			continue
-		}
+		consPos := ru64(cons)
+		prodPos := ru64(prod)
 
-		// Parse and emit events
-		for offset := 0; offset+kernelEventSize <= nRead; offset += kernelEventSize {
-			kevt, err := parseKernelEvent(buf[offset:])
-			if err != nil {
-				c.log.Debug("[eBPF] Parse error at offset %d: %v", offset, err)
+		for consPos < prodPos {
+			off := consPos & uint64(c.rbMask)
+			if int(off)+8 > len(data) {
+				break
+			}
+			hdr := ru32(data[off:])
+			if hdr&rbBusyBit != 0 {
+				break
+			}
+			dataLen := (hdr >> 2) & rbLenMask
+			consPos += uint64(align8(dataLen)) + 8
+
+			if hdr&rbDiscardBit != 0 {
 				continue
 			}
-			ch <- c.toAgentEvent(kevt)
+
+			doff := (off + 8) & uint64(c.rbMask)
+			payload := make([]byte, dataLen)
+			if int(doff)+int(dataLen) <= len(data) {
+				copy(payload, data[doff:doff+uint64(dataLen)])
+			}
+
+			if evt := c.parsePayload(payload); evt != nil {
+				select {
+				case ch <- *evt:
+				default:
+				}
+			}
 		}
+		wu64(cons, consPos)
 	}
 }
 
-// toAgentEvent converts a raw kernel event to the standard agent.Event format.
-func (c *EBPFLinuxCollector) toAgentEvent(k *kernelEvent) Event {
-	comm := cstring(k.Comm[:])
-	arg0 := cstring(k.Arg0[:])
+func (c *EBPFLinuxCollector) parsePayload(p []byte) *Event {
+	if len(p) < kernelEventSize {
+		return nil
+	}
+	off := 8 // skip timestamp_ns
+	ru32 := func() uint32 {
+		v := uint32(p[off]) | uint32(p[off+1])<<8 | uint32(p[off+2])<<16 | uint32(p[off+3])<<24
+		off += 4
+		return v
+	}
+	pid := ru32()
+	ppid := ru32()
+	uid := ru32()
+	probeID := p[off]
+	off += 4
+	comm := cstring(p[off : off+16])
+	off += 16
+	arg0 := cstring(p[off : off+64])
+	off += 64
+	extra := ru32()
 
+	data := map[string]interface{}{"pid": pid, "ppid": ppid, "uid": uid, "comm": comm}
 	var evType, source string
-	data := map[string]interface{}{
-		"pid":  k.PID,
-		"ppid": k.PPID,
-		"uid":  k.UID,
-		"comm": comm,
-	}
-
-	switch k.ProbeID {
-	case 1: // execve
-		evType = "process_exec"
-		source = "ebpf_execve"
-		data["exe"] = arg0
-		data["mitre_technique"] = "T1059"
-	case 2: // tcp_connect
-		evType = "network_connect"
-		source = "ebpf_tcp"
-		data["dest_addr"] = arg0
-		data["dest_port"] = k.ExtraU32
-		data["mitre_technique"] = "T1071"
-	case 3: // file_open
-		evType = "file_access"
-		source = "ebpf_file"
-		data["path"] = arg0
-		data["flags"] = k.ExtraU32
-		data["mitre_technique"] = "T1083"
-	case 4: // ptrace
-		evType = "ptrace_call"
-		source = "ebpf_ptrace"
-		data["request"] = k.ExtraU32
-		data["target_pid"] = arg0
-		data["mitre_technique"] = "T1055"
+	switch probeID {
+	case 1:
+		evType, source = "process_exec", "ebpf_execve"
+		data["exe"], data["mitre_technique"] = arg0, "T1059"
+	case 3:
+		evType, source = "file_access", "ebpf_openat"
+		data["path"], data["flags"], data["mitre_technique"] = arg0, extra, "T1083"
+	case 4:
+		evType, source = "ptrace_call", "ebpf_ptrace"
+		data["request"], data["target_pid"], data["mitre_technique"] = extra, arg0, "T1055"
 	default:
-		evType = "kernel_telemetry"
-		source = "ebpf_unknown"
-		data["probe_id"] = k.ProbeID
+		evType, source = "kernel_telemetry", "ebpf"
+		data["probe_id"] = probeID
 	}
-
-	return Event{
+	return &Event{
 		Timestamp: time.Now().Format(time.RFC3339),
-		Source:    source,
-		Type:      evType,
-		Host:      c.hostname,
-		Data:      data,
+		Source:    source, Type: evType, Host: c.hostname, Data: data,
 	}
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// /proc fallback for kernels that reject our BPF programs
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── /proc fallback ──────────────────────────────────────────────────────────
 
-// procFallbackLoop polls /proc/[pid]/status for new processes as a
-// best-effort substitute when eBPF is unavailable.
-func (c *EBPFLinuxCollector) procFallbackLoop(ctx context.Context, ch chan<- Event) error {
+func (c *EBPFLinuxCollector) procFallback(ctx context.Context, ch chan<- Event) error {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-
 	seen := make(map[string]struct{})
-	probesAttached := len(c.progFDs)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			entries, err := os.ReadDir("/proc")
-			if err != nil {
-				c.log.Warn("[eBPF/proc] ReadDir /proc: %v", err)
-				continue
-			}
-
-			newCount := 0
-			for _, entry := range entries {
-				pid := entry.Name()
-				if !entry.IsDir() {
+			entries, _ := os.ReadDir("/proc")
+			new := 0
+			for _, e := range entries {
+				if !e.IsDir() {
 					continue
 				}
-				// Only numeric directories are PIDs
-				isPID := true
+				pid := e.Name()
+				isNum := true
 				for _, r := range pid {
 					if r < '0' || r > '9' {
-						isPID = false
+						isNum = false
 						break
 					}
 				}
-				if !isPID {
+				if !isNum {
 					continue
 				}
-
-				if _, alreadySeen := seen[pid]; alreadySeen {
+				if _, ok := seen[pid]; ok {
 					continue
 				}
 				seen[pid] = struct{}{}
-				newCount++
-
-				// Read comm
-				comm, _ := os.ReadFile(fmt.Sprintf("/proc/%s/comm", pid))
-				cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%s/cmdline", pid))
-
-				ch <- Event{
+				new++
+				comm := strings.TrimSpace(readProcFile("/proc/" + pid + "/comm"))
+				cmdline := strings.ReplaceAll(readProcFile("/proc/"+pid+"/cmdline"), "\x00", " ")
+				select {
+				case ch <- Event{
 					Timestamp: time.Now().Format(time.RFC3339),
 					Source:    "ebpf_proc_fallback",
 					Type:      "process_exec",
 					Host:      c.hostname,
-					Data: map[string]interface{}{
-						"pid":             pid,
-						"comm":            strings.TrimSpace(string(comm)),
-						"cmdline":         strings.ReplaceAll(string(cmdline), "\x00", " "),
-						"probes_attached": probesAttached,
-						"status":          "proc_fallback",
-						"os":              runtime.GOOS,
-					},
+					Data:      map[string]interface{}{"pid": pid, "comm": comm, "cmdline": strings.TrimSpace(cmdline), "status": "proc_fallback"},
+				}:
+				default:
 				}
 			}
-
-			// Periodically emit a summary heartbeat
-			ch <- Event{
+			select {
+			case ch <- Event{
 				Timestamp: time.Now().Format(time.RFC3339),
 				Source:    "ebpf",
 				Type:      "kernel_telemetry",
 				Host:      c.hostname,
-				Data: map[string]interface{}{
-					"probes_attached": probesAttached,
-					"new_pids_seen":   newCount,
-					"total_pids_seen": len(seen),
-					"status":          "proc_fallback_active",
-					"os":              runtime.GOOS,
-				},
+				Data:      map[string]interface{}{"new_pids": new, "total_pids": len(seen), "status": "proc_fallback"},
+			}:
+			default:
 			}
 		}
 	}

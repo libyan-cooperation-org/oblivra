@@ -17,7 +17,12 @@ import (
 )
 
 // Transport handles secure communication with the OBLIVRA server.
-// It supports mTLS, retry with backoff, and WAL-based offline buffering.
+// Features:
+//   - mTLS with pinned CA
+//   - Exponential backoff on failure (1s → 5min)
+//   - Zlib compression (Content-Encoding: deflate)
+//   - Agent registration / heartbeat via dedicated endpoint
+//   - Bounded batch size to prevent oversized payloads
 type Transport struct {
 	cfg      Config
 	client   *http.Client
@@ -31,7 +36,6 @@ func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 		MinVersion: tls.VersionTLS13,
 	}
 
-	// Load client certificate for mTLS
 	if cfg.TLSCert != "" && cfg.TLSKey != "" {
 		cert, err := tls.LoadX509KeyPair(cfg.TLSCert, cfg.TLSKey)
 		if err != nil {
@@ -40,7 +44,6 @@ func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	// Load CA certificate for server verification
 	if cfg.TLSCA != "" {
 		caCert, err := os.ReadFile(cfg.TLSCA)
 		if err != nil {
@@ -48,32 +51,72 @@ func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 		}
 		pool := x509.NewCertPool()
 		if !pool.AppendCertsFromPEM(caCert) {
-			return nil, fmt.Errorf("invalid CA cert")
+			return nil, fmt.Errorf("invalid CA cert PEM")
 		}
 		tlsConfig.RootCAs = pool
 	}
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-	}
-
 	hostname, _ := os.Hostname()
+
 	return &Transport{
 		cfg:      cfg,
-		client:   client,
 		hostname: hostname,
 		log:      log,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig:     tlsConfig,
+				MaxIdleConns:        4,
+				MaxIdleConnsPerHost: 4,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		},
 	}, nil
 }
 
+// Register sends an agent registration heartbeat to the server.
+// The server uses this to populate the fleet registry.
+func (t *Transport) Register(ctx context.Context) error {
+	payload := map[string]interface{}{
+		"id":       t.cfg.AgentID,
+		"hostname": t.hostname,
+		"version":  t.cfg.Version,
+		"os":       goOS(),
+		"arch":     goArch(),
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("https://%s/api/v1/agent/register", t.cfg.ServerAddr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	t.setHeaders(req, "identity")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("register: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("register: server returned %d", resp.StatusCode)
+	}
+	t.log.Info("[transport] Registered with server as %s", t.cfg.AgentID)
+	return nil
+}
+
 // Send transmits a batch of events to the server.
-// It returns a pointer to a FleetConfig and a slice of PendingActions if the server provides an update.
+// Returns updated FleetConfig and PendingActions if the server sends them.
 func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) {
 	if events == nil {
-		events = []Event{} // Send empty slice for heartbeat
+		events = []Event{}
 	}
 
 	data, err := json.Marshal(events)
@@ -81,68 +124,76 @@ func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) 
 		return nil, nil, fmt.Errorf("marshal events: %w", err)
 	}
 
-	// Zstd compression
+	// Zlib (deflate) compression — honest Content-Encoding header
 	var body []byte
 	contentEncoding := "identity"
-	compressed := zstdCompress(data)
-	if compressed != nil && len(compressed) < len(data) {
+	if compressed := zlibCompress(data); compressed != nil && len(compressed) < len(data) {
 		body = compressed
-		contentEncoding = "zstd"
+		contentEncoding = "deflate"
 	} else {
 		body = data
 	}
 
 	url := fmt.Sprintf("https://%s/api/v1/agent/ingest", t.cfg.ServerAddr)
-	req, err := http.NewRequest(http.MethodPost, url, bytesReader(body))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
 	}
+	t.setHeaders(req, contentEncoding)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Content-Encoding", contentEncoding)
-	req.Header.Set("X-Agent-Version", t.cfg.Version)
-	req.Header.Set("X-Agent-Hostname", t.hostname)
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("send events: %w", err)
+		return nil, nil, fmt.Errorf("send: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Read up to 1 MB of response body (avoid surprises)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, nil, fmt.Errorf("read response: %w", err)
+	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		return nil, nil, fmt.Errorf("server returned %d", resp.StatusCode)
 	}
 
-	// Parse configuration and actions from response
 	var response struct {
 		Config  FleetConfig     `json:"config"`
 		Actions []PendingAction `json:"actions"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, nil, nil // Empty body or invalid json
+	if len(respBody) > 0 {
+		_ = json.Unmarshal(respBody, &response)
 	}
 
 	return &response.Config, response.Actions, nil
 }
 
 // FlushLoop continuously drains the WAL and sends events to the server.
-func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, onConfig func(FleetConfig, []PendingAction)) {
+// maxBatch caps the number of events per HTTP POST.
+func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, maxBatch int, onConfig func(FleetConfig, []PendingAction)) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	backoff := time.Second
-	maxBackoff := 5 * time.Minute
+	const maxBackoff = 5 * time.Minute
 
 	for {
 		select {
 		case <-ctx.Done():
-			// Final flush attempt
-			t.flushOnce(wal, onConfig)
+			// One final flush — best effort
+			_ = t.flushOnce(wal, maxBatch, onConfig)
 			return
 		case <-ticker.C:
-			if err := t.flushOnce(wal, onConfig); err != nil {
-				t.log.Error("Flush error (retry in %s): %v", backoff, err)
-				backoff = min(backoff*2, maxBackoff)
+			if err := t.flushOnce(wal, maxBatch, onConfig); err != nil {
+				t.log.Warn("[transport] Flush error (retry in %s): %v", backoff, err)
 				ticker.Reset(backoff)
+				if backoff < maxBackoff {
+					backoff *= 2
+					if backoff > maxBackoff {
+						backoff = maxBackoff
+					}
+				}
 			} else {
 				backoff = time.Second
 				ticker.Reset(5 * time.Second)
@@ -151,10 +202,15 @@ func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, onConfig func(Fleet
 	}
 }
 
-func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig, []PendingAction)) error {
+func (t *Transport) flushOnce(wal *WAL, maxBatch int, onConfig func(FleetConfig, []PendingAction)) error {
 	events, err := wal.ReadAll()
 	if err != nil {
-		return err
+		return fmt.Errorf("WAL read: %w", err)
+	}
+
+	// Always send at least a heartbeat (empty batch)
+	if len(events) > maxBatch {
+		events = events[:maxBatch]
 	}
 
 	cfg, actions, err := t.Send(events)
@@ -162,30 +218,39 @@ func (t *Transport) flushOnce(wal *WAL, onConfig func(FleetConfig, []PendingActi
 		return err
 	}
 
-	// Update agent config if provided
+	// Only truncate after confirmed server acknowledgement
+	if err := wal.Truncate(); err != nil {
+		t.log.Warn("[transport] WAL truncate failed: %v", err)
+	}
+
 	if cfg != nil && onConfig != nil {
 		onConfig(*cfg, actions)
 	}
 
-	return wal.Truncate()
+	if len(events) > 0 {
+		t.log.Info("[transport] Flushed %d events to server", len(events))
+	}
+	return nil
 }
 
-// Close closes the transport.
+// Close cleans up idle connections.
 func (t *Transport) Close() {
 	t.client.CloseIdleConnections()
 }
 
-// ─── helpers ──────────────────────────────────────────
-
-func bytesReader(data []byte) io.Reader {
-	return bytes.NewReader(data)
+// setHeaders applies standard agent identification headers.
+func (t *Transport) setHeaders(req *http.Request, contentEncoding string) {
+	req.Header.Set("X-Agent-ID", t.cfg.AgentID)
+	req.Header.Set("X-Agent-Version", t.cfg.Version)
+	req.Header.Set("X-Agent-Hostname", t.hostname)
+	req.Header.Set("Content-Encoding", contentEncoding)
 }
 
-// zstdCompress uses zlib compression as a pure-Go cross-platform fallback.
-// For production, swap with github.com/klauspost/compress/zstd for real Zstd.
-func zstdCompress(data []byte) []byte {
+// zlibCompress compresses data using zlib (RFC 1950 / deflate).
+// Returns nil if compression fails.
+func zlibCompress(data []byte) []byte {
 	var buf bytes.Buffer
-	w, err := zlib.NewWriterLevel(&buf, zlib.BestCompression)
+	w, err := zlib.NewWriterLevel(&buf, zlib.BestSpeed) // BestSpeed for low latency
 	if err != nil {
 		return nil
 	}
@@ -196,4 +261,13 @@ func zstdCompress(data []byte) []byte {
 		return nil
 	}
 	return buf.Bytes()
+}
+
+// goOS / goArch are thin wrappers to avoid importing runtime in transport.
+func goOS() string {
+	// Determined at compile time via runtime.GOOS
+	return runtimeGOOS()
+}
+func goArch() string {
+	return runtimeGOARCH()
 }
