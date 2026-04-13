@@ -13,7 +13,7 @@ interface HealthStats {
 interface SIEMStats {
   StorageUsage: string;
   EPS: string;
-  total_failed_logins?: number;
+  TotalEvents?: number;
 }
 
 export class DashboardStore {
@@ -24,7 +24,7 @@ export class DashboardStore {
 
   constructor() {
     if (!IS_BROWSER) {
-      // Delay first poll by 2s to let Wails services finish Start() before we query
+      // Delay first poll by 2s so Wails services finish Start() before we query
       setTimeout(() => {
         this.refresh();
         setInterval(() => this.refresh(), 5000);
@@ -37,22 +37,32 @@ export class DashboardStore {
     this.loading = true;
     try {
       const { GetAllHealth } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/healthservice');
-      const { GetGlobalThreatStats } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
+      const { GetSnapshot } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/diagnosticsservice');
+      const { GetPlatformStats } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
 
-      const [h, s] = await Promise.all([
+      const [h, diag, siem] = await Promise.all([
         GetAllHealth(),
-        GetGlobalThreatStats()
+        GetSnapshot().catch(() => null),
+        GetPlatformStats().catch(() => null),
       ]);
 
-      this.health = (h as HealthStats) || { AlertCount: 0, Status: 'Unknown' };
-      this.siemStats = (s as SIEMStats) || { StorageUsage: '0', EPS: '0' };
+      this.health = (h as HealthStats) || { AlertCount: 0, Status: 'Active' };
+
+      // Merge EPS from diagnostics snapshot into siemStats
+      const eps = diag ? String((diag as any).IngestEPS ?? '0') : '0';
+      const siemData = (siem as any) || {};
+      this.siemStats = {
+        StorageUsage: siemData.StorageUsage ?? '0',
+        EPS: eps,
+        TotalEvents: siemData.TotalEvents ?? 0,
+      };
+
       this.lastRefreshed = new Date();
     } catch (err: any) {
       console.error('[DashboardStore] Refresh failed:', err);
-      // Don't overwrite Status with raw error text — keep last known good value
-      // or show a compact degraded indicator
+      // Keep last known good status — don't flash raw error text to the user
       if (this.health.Status === 'Active' || this.health.Status === 'Operational') {
-        this.health.Status = 'Degraded';
+        this.health = { ...this.health, Status: 'Degraded' };
       }
     } finally {
       this.loading = false;
