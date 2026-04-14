@@ -80,29 +80,35 @@
     unsubscribes.push(unsubOut);
 
     // ── Outgoing Data (Frontend -> Backend)
+    // Detect session type by prefix: 'local-' sessions use LocalService, rest use SSHService
+    const isLocal = sessionId.startsWith('local-');
+
     term.onData(async (data) => {
       try {
-        const { Write } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
-        await Write(sessionId, data);
-      } catch {
-        // Fallback to LocalService if SSH fails (or if session is local)
-        try {
-          const { WriteLocal } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
-          await WriteLocal(sessionId, data);
-        } catch {}
+        if (isLocal) {
+          const { SendInput } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
+          await SendInput(sessionId, data);
+        } else {
+          const { SendInput } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
+          await SendInput(sessionId, data);
+        }
+      } catch (e) {
+        console.warn('[xterm] SendInput failed:', e);
       }
     });
 
     // ── Resize handling
     term.onResize(async ({ cols, rows }) => {
       try {
-        const { Resize } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
-        await Resize(sessionId, cols, rows);
-      } catch {
-        try {
-          const { ResizeLocal } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
-          await ResizeLocal(sessionId, cols, rows);
-        } catch {}
+        if (isLocal) {
+          const { Resize } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
+          await Resize(sessionId, cols, rows);
+        } else {
+          const { Resize } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
+          await Resize(sessionId, cols, rows);
+        }
+      } catch (e) {
+        console.warn('[xterm] Resize failed:', e);
       }
     });
 

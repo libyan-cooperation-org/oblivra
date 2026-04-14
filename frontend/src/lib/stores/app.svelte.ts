@@ -3,11 +3,6 @@
  *
  * Central application state. Replaces the SolidJS createStore + Context pattern.
  * Uses Svelte 5 $state runes for fine-grained reactivity.
- *
- * Usage:
- *   import { appStore } from '@lib/stores/app.svelte';
- *   appStore.hosts; // reactive read
- *   appStore.setHosts(newHosts); // mutation
  */
 import { subscribe } from '../bridge';
 import { IS_BROWSER } from '../context';
@@ -43,20 +38,12 @@ class AppStore {
     isMaximized = $state(false);
     systemHealth = $state<SystemHealth>({ status: 'healthy' });
 
-    // ── Initialization ───────────────────────────────────────────────
-
     private _initialized = false;
 
-    /**
-     * Initialize event subscriptions and load initial state.
-     * Must be called once from the root App.svelte onMount.
-     */
     async init() {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Register ALL event listeners FIRST — before any async calls — so we
-        // never miss events that fire during startup race conditions.
         subscribe('vault:unlocked', () => {
             this.vaultUnlocked = true;
             this.refreshHosts();
@@ -74,7 +61,6 @@ class AppStore {
             this.refreshHosts();
         });
 
-        // Initial vault/host state — desktop only.
         if (!IS_BROWSER) {
             try {
                 const { IsUnlocked } = await import(
@@ -153,19 +139,17 @@ class AppStore {
         });
 
         subscribe('health_status_changed', (data: any) => {
-            // Data can be a host's health or global service health report.
-            // If it's the ingest service reporting an error, we mark as degraded.
             if (data && typeof data.status === 'string') {
                 const status = data.status.toLowerCase();
                 if (status.includes('degraded')) {
-                    this.systemHealth = { 
-                        status: 'degraded', 
-                        message: data.message || 'System performance is degraded (High Load)' 
+                    this.systemHealth = {
+                        status: 'degraded',
+                        message: data.message || 'System performance is degraded (High Load)',
                     };
                 } else if (status.includes('critical')) {
-                    this.systemHealth = { 
-                        status: 'critical', 
-                        message: data.message || 'System is in a critical state (Saturation)' 
+                    this.systemHealth = {
+                        status: 'critical',
+                        message: data.message || 'System is in a critical state (Saturation)',
                     };
                 } else if (status === 'healthy' || status === 'online') {
                     this.systemHealth = { status: 'healthy' };
@@ -176,56 +160,37 @@ class AppStore {
 
     // ── Actions ──────────────────────────────────────────────────────
 
-    setHosts(hosts: Host[]) {
-        this.hosts = hosts;
-    }
+    setHosts(hosts: Host[]) { this.hosts = hosts; }
+    addHost(host: Host) { this.hosts = [...this.hosts, host]; }
+    removeHost(id: string) { this.hosts = this.hosts.filter((h) => h.id !== id); }
+    setActiveSession(id: string | null) { this.activeSessionId = id; }
+    addSession(session: Session) { this.sessions = [...this.sessions, session]; }
+    removeSession(id: string) { this.sessions = this.sessions.filter((s) => s.id !== id); }
+    setVaultUnlocked(unlocked: boolean) { this.vaultUnlocked = unlocked; }
+    toggleSidebar() { this.sidebarOpen = !this.sidebarOpen; }
+    setTheme(theme: string) { this.theme = theme; }
+    setLoading(loading: boolean) { this.loading = loading; }
+    setActiveNavTab(tab: NavTab) { this.activeNavTab = tab; }
+    setWorkspace(ws: Workspace) { this.workspace = ws; }
+    toggleFocusMode() { this.focusMode = !this.focusMode; }
 
-    addHost(host: Host) {
-        this.hosts = [...this.hosts, host];
-    }
-
-    removeHost(id: string) {
-        this.hosts = this.hosts.filter((h) => h.id !== id);
-    }
-
-    setActiveSession(id: string | null) {
-        this.activeSessionId = id;
-    }
-
-    addSession(session: Session) {
-        this.sessions = [...this.sessions, session];
-    }
-
-    removeSession(id: string) {
-        this.sessions = this.sessions.filter((s) => s.id !== id);
-    }
-
-    setVaultUnlocked(unlocked: boolean) {
-        this.vaultUnlocked = unlocked;
-    }
-
-    toggleSidebar() {
-        this.sidebarOpen = !this.sidebarOpen;
-    }
-
-    setTheme(theme: string) {
-        this.theme = theme;
-    }
-
-    setLoading(loading: boolean) {
-        this.loading = loading;
-    }
-
-    setActiveNavTab(tab: NavTab) {
-        this.activeNavTab = tab;
-    }
-
-    setWorkspace(ws: Workspace) {
-        this.workspace = ws;
-    }
-
-    toggleFocusMode() {
-        this.focusMode = !this.focusMode;
+    /**
+     * navigate — programmatic navigation helper used by page components.
+     * Navigates to a named route, optionally storing context in sessionStorage
+     * for the target page to read (e.g. pre-selecting an agent by ID).
+     *
+     * Usage:
+     *   appStore.navigate('agent-console', { id: row.id })
+     *   appStore.navigate('/fleet')
+     */
+    navigate(routeOrTab: string, params?: Record<string, string>) {
+        // Store params for the destination page to pick up
+        if (params && Object.keys(params).length > 0) {
+            sessionStorage.setItem('oblivra:nav_params', JSON.stringify(params));
+        }
+        // Resolve route: if it starts with '/' use directly, else prepend '/'
+        const route = routeOrTab.startsWith('/') ? routeOrTab : '/' + routeOrTab;
+        push(route);
     }
 
     async refreshHosts() {
@@ -241,14 +206,14 @@ class AppStore {
 
     async connectToLocal() {
         if (IS_BROWSER) {
-            this.notify('Local shell requires the desktop binary.', 'error');
+            this.notify('Local shell requires the desktop binary.', 'error',
+                'Download the OBLIVRA desktop app to use the local PTY terminal.');
             return;
         }
         try {
             const { StartLocalSession } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
             const sessionId = await StartLocalSession();
             if (sessionId) {
-                // The session:started event handler in init() will add it to the list
                 this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
                 push('/terminal');
@@ -260,7 +225,8 @@ class AppStore {
 
     async connectToHost(hostId: string) {
         if (IS_BROWSER) {
-            this.notify('SSH connections require the desktop binary.', 'error');
+            this.notify('SSH connections require the desktop binary.', 'error',
+                'Download the OBLIVRA desktop app to open SSH sessions.');
             return;
         }
         let host = this.hosts.find((h) => h.id === hostId);
@@ -269,12 +235,10 @@ class AppStore {
             this.notify(`Host not found: ${hostId}. Please add it first.`, 'error');
             return;
         }
-        
         try {
             const { Connect } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
             const sessionId = await Connect(host.id);
             if (sessionId) {
-                // The session:started event handler in init() will add it to the list
                 this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
                 push('/terminal');
@@ -284,12 +248,10 @@ class AppStore {
         }
     }
 
-
     notify(message: string, type: Notification['type'] = 'info', details?: string, duration = 5000) {
         const id = Math.random().toString(36).substring(2, 9);
         const notification: Notification = { id, message, type, details, duration };
         this.notifications = [...this.notifications, notification];
-
         if (duration > 0) {
             setTimeout(() => this.dismissNotification(id), duration);
         }

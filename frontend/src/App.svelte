@@ -79,6 +79,8 @@
   import EntityView from '@pages/EntityView.svelte';
   import AIAssistantPage from '@pages/AIAssistantPage.svelte';
   import WarMode from '@pages/WarMode.svelte';
+  import CaseManagement from '@pages/CaseManagement.svelte';
+  import FleetMap from '@pages/FleetMap.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
 
   // ── Types
@@ -87,14 +89,9 @@
     component: any;
   }
 
-  // ── Shell state
   let showCommandPalette = $state(false);
-
-  // ── App state
   let ready = $state(false);
   let error = $state<string | null>(null);
-
-  // ── Crisis Mode: apply/remove CSS class on <main> reactively ──────
   let mainEl = $state<HTMLElement | null>(null);
 
   $effect(() => {
@@ -106,104 +103,106 @@
     }
   });
 
-  // ── Route definitions — Unified & Cleaned
   const routes: RouteDefinition[] = [
     // Root & General
-    { path: '/', component: Dashboard },
-    { path: '/dashboard', component: Dashboard },
-    { path: '/monitoring', component: Dashboard },
-    { path: '/analytics', component: ExecutiveDash },
-    { path: '/executive', component: ExecutiveDash },
+    { path: '/',            component: Dashboard },
+    { path: '/dashboard',   component: Dashboard },
+    { path: '/monitoring',  component: Dashboard },
+    { path: '/analytics',   component: ExecutiveDash },
+    { path: '/executive',   component: ExecutiveDash },
 
     // SIEM & Intelligence
-    { path: '/siem', component: SIEMPanel },
-    { path: '/siem-search', component: SIEMSearch },
-    { path: '/alerts', component: AlertDashboard },
-    { path: '/alert-management', component: AlertManagement },
-    { path: '/threat-intel', component: ThreatIntelPanel },
+    { path: '/siem',                   component: SIEMPanel },
+    { path: '/siem-search',            component: SIEMSearch },
+    { path: '/alerts',                 component: AlertDashboard },
+    { path: '/alert-management',       component: AlertManagement },
+    { path: '/threat-intel',           component: ThreatIntelPanel },
     { path: '/threat-intel-dashboard', component: ThreatIntelPanel },
-    { path: '/threat-hunter', component: ThreatHunter },
-    { path: '/threat-graph', component: ThreatGraph },
-    { path: '/threat-map', component: ThreatMap },
-    { path: '/ueba', component: UEBAOverview },
-    { path: '/ueba-overview', component: UEBAOverview },
-    { path: '/ndr', component: NDROverview },
-    { path: '/ndr-overview', component: NDROverview },
-    { path: '/enrichment', component: EnrichmentViewer },
-    { path: '/credentials', component: CredentialIntel },
+    { path: '/threat-hunter',          component: ThreatHunter },
+    { path: '/threat-graph',           component: ThreatGraph },
+    { path: '/graph',                  component: ThreatGraph },   // CommandRail 'graph' → here
+    { path: '/threat-map',             component: ThreatMap },
+    { path: '/ueba',                   component: UEBAOverview },
+    { path: '/ueba-overview',          component: UEBAOverview },
+    { path: '/ndr',                    component: NDROverview },
+    { path: '/ndr-overview',           component: NDROverview },
+    { path: '/enrichment',             component: EnrichmentViewer },
+    { path: '/credentials',            component: CredentialIntel },
 
     // Operations & Terminal
-    { path: '/ops', component: OpsCenter },
-    { path: '/terminal', component: TerminalPage },
-    { path: '/ssh', component: SSHBookmarks },
-    { path: '/tunnels', component: TunnelsPage },
-    { path: '/recordings', component: RecordingsPage },
+    { path: '/ops',              component: OpsCenter },
+    { path: '/terminal',         component: TerminalPage },
+    { path: '/ssh',              component: SSHBookmarks },
+    { path: '/tunnels',          component: TunnelsPage },
+    { path: '/recordings',       component: RecordingsPage },
     { path: '/session-playback', component: SessionPlayback },
-    { path: '/tasks', component: TasksPage },
-    { path: '/snippets', component: SnippetsPage },
-    { path: '/notes', component: NotesPage },
-    { path: '/agent-console', component: AgentConsole },
+    { path: '/tasks',            component: TasksPage },
+    { path: '/snippets',         component: SnippetsPage },
+    { path: '/notes',            component: NotesPage },
+    { path: '/agent-console',    component: AgentConsole },
 
     // Fleet & Workspace
-    { path: '/fleet', component: FleetDashboard },
+    { path: '/fleet',            component: FleetDashboard },
     { path: '/fleet-management', component: FleetDashboard },
-    { path: '/hosts', component: FleetDashboard },
-    { path: '/soc', component: FleetDashboard },
-    { path: '/agents', component: FleetDashboard },
-    { path: '/workspace', component: Dashboard },
-    { path: '/fusion', component: FusionDashboard },
+    { path: '/hosts',            component: FleetDashboard },
+    { path: '/soc',              component: FleetDashboard },
+    { path: '/agents',           component: FleetDashboard },
+    { path: '/fleet-map',        component: FleetMap },
+    { path: '/workspace',        component: Dashboard },
+    { path: '/fusion',           component: FusionDashboard },
 
     // Security & Incident Response
-    { path: '/response', component: IncidentResponse },
-    { path: '/escalation', component: EscalationCenter },
+    { path: '/response',         component: IncidentResponse },
+    { path: '/cases',            component: CaseManagement },  // was missing
+    { path: '/escalation',       component: EscalationCenter },
     { path: '/playbook-builder', component: PlaybookBuilder },
-    { path: '/purple-team', component: PurpleTeam },
-    { path: '/war-mode', component: WarMode },
+    { path: '/purple-team',      component: PurpleTeam },
+    { path: '/war-mode',         component: WarMode },
     { path: '/data-destruction', component: DataDestruction },
-    { path: '/ransomware', component: RansomwareUI },
-    { path: '/ransomware-ui', component: RansomwareUI },
-    { path: '/simulation', component: SimulationPanel },
+    { path: '/ransomware',       component: RansomwareUI },
+    { path: '/ransomware-ui',    component: RansomwareUI },
+    { path: '/simulation',       component: SimulationPanel },
 
     // Forensics & Audit
-    { path: '/forensics', component: ForensicsPage },
-    { path: '/remote-forensics', component: ForensicsPage },
+    { path: '/forensics',          component: ForensicsPage },
+    { path: '/remote-forensics',   component: ForensicsPage },
     { path: '/terminal-forensics', component: TerminalForensics },
-    { path: '/lineage', component: LineageExplorer },
-    { path: '/decisions', component: DecisionInspector },
-    { path: '/oql', component: OQLDashboard },
-    { path: '/evidence', component: EvidenceLedger },
-    { path: '/ledger', component: EvidenceLedger },
-    { path: '/chain-of-custody', component: ChainOfCustody },
-    { path: '/soar', component: SOARPanel },
+    { path: '/lineage',            component: LineageExplorer },
+    { path: '/decisions',          component: DecisionInspector },
+    { path: '/oql',                component: OQLDashboard },
+    { path: '/evidence',           component: EvidenceLedger },
+    { path: '/ledger',             component: EvidenceLedger },
+    { path: '/chain-of-custody',   component: ChainOfCustody },
+    { path: '/soar',               component: SOARPanel },
     { path: '/temporal-integrity', component: TemporalIntegrity },
-    { path: '/response-replay', component: ResponseReplay },
+    { path: '/response-replay',    component: ResponseReplay },
 
     // Topology
-    { path: '/topology', component: TopologyPage },
-    { path: '/network-map', component: NetworkMap },
+    { path: '/topology',        component: TopologyPage },
+    { path: '/network-map',     component: NetworkMap },
     { path: '/global-topology', component: GlobalTopology },
-    { path: '/mitre-heatmap', component: MitreHeatmap },
+    { path: '/mitre-heatmap',   component: MitreHeatmap },
 
     // Governance, Trust & Identity
-    { path: '/compliance', component: CompliancePage },
-    { path: '/governance', component: CompliancePage },
-    { path: '/vault', component: VaultManager },
-    { path: '/trust', component: RuntimeTrust },
-    { path: '/runtime-trust', component: RuntimeTrust },
-    { path: '/identity', component: IdentityAdmin },
+    { path: '/compliance',     component: CompliancePage },
+    { path: '/governance',     component: CompliancePage },
+    { path: '/vault',          component: VaultManager },
+    { path: '/trust',          component: RuntimeTrust },
+    { path: '/runtime-trust',  component: RuntimeTrust },
+    { path: '/identity',       component: IdentityAdmin },
     { path: '/identity-admin', component: IdentityAdmin },
 
     // Management
-    { path: '/settings', component: Settings },
-    { path: '/plugins', component: PluginManager },
-    { path: '/team', component: TeamDashboard },
-    { path: '/sync', component: SyncPage },
+    { path: '/settings',       component: Settings },
+    { path: '/plugins',        component: PluginManager },
+    { path: '/team',           component: TeamDashboard },
+    { path: '/sync',           component: SyncPage },
     { path: '/offline-update', component: OfflineUpdate },
-    { path: '/license', component: LicensePage },
-    { path: '/features', component: FeaturesPage },
-    { path: '/risk', component: ConfigRisk },
-    { path: '/entity', component: EntityView },
-    { path: '/ai-assistant', component: AIAssistantPage },
+    { path: '/license',        component: LicensePage },
+    { path: '/features',       component: FeaturesPage },
+    { path: '/risk',           component: ConfigRisk },
+    { path: '/entity',         component: EntityView },
+    { path: '/ai-assistant',   component: AIAssistantPage },
 
     // Fallback
     { path: '*', component: DevelopmentPage },
@@ -213,7 +212,6 @@
     try {
       await initBridge();
 
-      // Hook global system events
       const rt = (window as any).runtime;
       if (rt && APP_CONTEXT !== 'browser') {
         rt.EventsOn('system.error', (msg: string) => {
@@ -224,10 +222,8 @@
         });
       }
 
-      // Initialize stores
       await appStore.init();
       crisisStore.init();
-
       ready = true;
     } catch (e: any) {
       console.error('App init failed:', e);
@@ -235,19 +231,12 @@
     }
   });
 
-  function togglePalette() {
-    showCommandPalette = !showCommandPalette;
-  }
+  function togglePalette() { showCommandPalette = !showCommandPalette; }
 
-  // Handle global shortcuts
   function onKeyDown(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       togglePalette();
-    }
-    // Escape stands down Crisis Mode banner (does not disarm)
-    if (e.key === 'Escape' && crisisStore.active && !showCommandPalette) {
-      // intentionally not standing down — user must explicitly stand down
     }
   }
 </script>
@@ -305,7 +294,6 @@
 </main>
 
 <style>
-  /* Crisis Mode — shell-level visual shift */
   :global(main.crisis-mode-active) {
     --surface-1: #1f0e0e;
     --surface-2: #2a1111;

@@ -113,7 +113,7 @@
   ];
 
   const operate: NavItem[] = [
-    { id: 'terminal', icon: 'terminal', label: 'Shell', context: 'desktop' },
+    { id: 'terminal', icon: 'terminal', label: 'Shell' },
     { id: 'ssh', icon: 'vault', label: 'SSH', context: 'desktop' },
     { id: 'tunnels', icon: 'tunnels', label: 'Tunnels', context: 'desktop' },
     { id: 'hosts', icon: 'hosts', label: 'Hosts' },
