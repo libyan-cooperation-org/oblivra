@@ -1,76 +1,139 @@
 <!--
   OBLIVRA — Tunnel Manager (Svelte 5)
-  SSH Port Forwarding and Reverse Tunnels orchestration.
+  SSH Port Forwarding and Reverse Tunnels orchestration — live from TunnelService.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { KPI, Badge, DataTable, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
+  import { IS_BROWSER } from '@lib/context';
 
-  // Mock data for tunnels
-  const mockTunnels = [
-    { id: 't1', label: 'Local DB Proxy', local_port: 5432, remote_host: 'localhost', remote_port: 5432, target: 'prod-db-master', status: 'active', speed: '128 KB/s' },
-    { id: 't2', label: 'Admin Web Console', local_port: 8080, remote_host: '127.0.0.1', remote_port: 80, target: 'edge-gw-01', status: 'paused', speed: '0 B/s' },
-    { id: 't3', label: 'Internal API', local_port: 3000, remote_host: 'staging-api', remote_port: 3000, target: 'staging-app-01', status: 'error', speed: 'NaN' },
-  ];
+  interface TunnelInfo {
+    ID: string;
+    SessionID: string;
+    Type: string;
+    LocalHost: string;
+    LocalPort: number;
+    RemoteHost: string;
+    RemotePort: number;
+    Status: string;
+    BytesSent: number;
+    BytesReceived: number;
+    StartedAt: string;
+  }
 
-  let searchQuery = $state('');
-  const filteredTunnels = $derived(
-    mockTunnels.filter(t => t.label.toLowerCase().includes(searchQuery.toLowerCase()) || t.target.toLowerCase().includes(searchQuery.toLowerCase()))
+  let tunnels  = $state<TunnelInfo[]>([]);
+  let loading  = $state(false);
+  let searchQ  = $state('');
+
+  const filtered = $derived(
+    searchQ.trim()
+      ? tunnels.filter(t =>
+          `${t.LocalPort} ${t.RemoteHost} ${t.RemotePort} ${t.Type} ${t.SessionID}`
+            .toLowerCase().includes(searchQ.toLowerCase())
+        )
+      : tunnels
   );
 
+  const activeCnt = $derived(tunnels.filter(t => t.Status === 'active' || t.Status === 'running').length);
+
+  async function load() {
+    if (IS_BROWSER) return;
+    loading = true;
+    try {
+      const { GetAll } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/tunnelservice');
+      tunnels = ((await GetAll()) || []) as TunnelInfo[];
+    } catch (e: any) {
+      appStore.notify('Could not load tunnels', 'error', e?.message);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function stopTunnel(id: string) {
+    if (IS_BROWSER) return;
+    try {
+      const { StopTunnel } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/tunnelservice');
+      await StopTunnel(id);
+      await load();
+      appStore.notify('Tunnel stopped', 'info');
+    } catch (e: any) {
+      appStore.notify('Stop failed', 'error', e?.message);
+    }
+  }
+
   const columns = [
-    { key: 'label', label: 'Label', sortable: true },
-    { key: 'local_port', label: 'Local Port', width: '100px' },
-    { key: 'target', label: 'Exit Node', width: '150px' },
-    { key: 'remote_port', label: 'Remote', width: '120px' },
-    { key: 'speed', label: 'Throughput', width: '100px' },
-    { key: 'status', label: 'Status', width: '100px' },
+    { key: 'type',        label: 'Type',         width: '90px'  },
+    { key: 'local',       label: 'Local',         width: '110px' },
+    { key: 'remote',      label: 'Remote',        width: '180px' },
+    { key: 'session',     label: 'Session',       width: '130px' },
+    { key: 'status',      label: 'Status',        width: '100px' },
+    { key: 'actions',     label: '',              width: '60px'  },
   ];
 
-  function toggleTunnel(id: string) {
-    appStore.notify(`Tunnel ${id} state updated`, 'info');
-  }
+  onMount(load);
 </script>
 
 <PageLayout title="Tunnel Manager" subtitle="Encrypted port forwarding and reverse proxy orchestration">
   {#snippet toolbar()}
-    <SearchBar bind:value={searchQuery} placeholder="Filter tunnels..." compact />
-    <Button variant="primary" size="sm" icon="+">New Tunnel</Button>
+    <SearchBar bind:value={searchQ} placeholder="Filter tunnels…" compact />
+    <Button variant="secondary" size="sm" onclick={load}>
+      {loading ? '⟳' : '↺'} Refresh
+    </Button>
   {/snippet}
 
   <div class="flex flex-col h-full gap-5">
-    <!-- Tunnel Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-      <KPI title="Active Tunnels" value={mockTunnels.filter(t => t.status === 'active').length} trend="Encrypted" variant="success" />
-      <KPI title="Total Bandwidth" value="1.2 GB/s" trend="+12%" variant="accent" />
-      <KPI title="Exposed Ports" value="8" trend="Firewalled" />
+      <KPI label="Active Tunnels"  value={activeCnt}       variant={activeCnt > 0 ? 'success' : 'muted'} />
+      <KPI label="Total Tunnels"   value={tunnels.length}  trend="stable" />
+      <KPI label="Mode"            value={IS_BROWSER ? 'Browser (read-only)' : 'Desktop'} variant="accent" />
     </div>
 
-    {#if mockTunnels.length > 0}
-      <DataTable data={filteredTunnels} {columns} striped>
-        {#snippet render({ value, col, row })}
-          {#if col.key === 'status'}
-            <Badge variant={value === 'active' ? 'success' : value === 'paused' ? 'warning' : 'critical'} dot>
-              {value}
-            </Badge>
-          {:else if col.key === 'local_port'}
-            <span class="font-mono text-accent">:{value}</span>
-          {:else if col.key === 'remote_port'}
-            <span class="text-text-muted text-[10px] font-mono">{row.remote_host}:{value}</span>
-          {:else if col.key === 'speed'}
-            <span class="text-[10px] font-mono text-text-muted">{value}</span>
-          {:else if col.key === 'label'}
-            <div class="flex flex-col">
-              <span class="font-bold text-text-heading">{value}</span>
-              <span class="text-[9px] text-text-muted uppercase tracking-tighter">ID: {row.id}</span>
-            </div>
-          {:else}
-            {value}
-          {/if}
-        {/snippet}
-      </DataTable>
+    {#if IS_BROWSER}
+      <EmptyState title="Desktop feature" description="Tunnel management requires the OBLIVRA desktop binary." icon="🔒" />
+    {:else if loading && tunnels.length === 0}
+      <div class="text-[11px] text-text-muted font-mono p-4 animate-pulse">Loading tunnels…</div>
+    {:else if filtered.length === 0}
+      <EmptyState
+        title={searchQ ? 'No matches' : 'No tunnels active'}
+        description={searchQ ? 'Try a different filter.' : 'Open an SSH session and create a tunnel from the terminal toolbar.'}
+        icon="🚇"
+      />
     {:else}
-      <EmptyState title="No tunnels configured" description="Create an SSH tunnel to securely access remote services on your local machine." icon="🚇" />
+      <div class="flex-1 min-h-0 overflow-auto bg-surface-1 border border-border-primary rounded-sm">
+        <table class="w-full text-left min-w-[600px]">
+          <thead class="sticky top-0">
+            <tr class="bg-surface-2 border-b border-border-primary text-[9px] font-bold uppercase tracking-widest text-text-muted">
+              <th class="px-3 py-2">Type</th>
+              <th class="px-3 py-2">Local</th>
+              <th class="px-3 py-2">Remote</th>
+              <th class="px-3 py-2">Session</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filtered as t (t.ID)}
+              <tr class="border-b border-border-primary hover:bg-surface-2/50 transition-colors">
+                <td class="px-3 py-2">
+                  <Badge variant="muted">{t.Type || 'local'}</Badge>
+                </td>
+                <td class="px-3 py-2 font-mono text-[11px] text-accent">:{t.LocalPort}</td>
+                <td class="px-3 py-2 font-mono text-[11px] text-text-secondary">{t.RemoteHost}:{t.RemotePort}</td>
+                <td class="px-3 py-2 text-[10px] text-text-muted font-mono">{t.SessionID?.slice(0, 10) ?? '—'}</td>
+                <td class="px-3 py-2">
+                  <Badge variant={t.Status === 'active' || t.Status === 'running' ? 'success' : t.Status === 'error' ? 'critical' : 'warning'} dot>
+                    {t.Status}
+                  </Badge>
+                </td>
+                <td class="px-3 py-2 text-right">
+                  <Button variant="danger" size="xs" onclick={() => stopTunnel(t.ID)}>Stop</Button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
 </PageLayout>

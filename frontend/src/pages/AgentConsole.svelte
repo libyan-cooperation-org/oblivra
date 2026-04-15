@@ -3,20 +3,36 @@
   Deep inspection, process management and forensic control for specific agents.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { KPI, PageLayout, Badge, Button, DataTable, Toggle } from '@components/ui';
   import { Lock, Globe, RefreshCw } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
 
-  // In a real scenario, we'd get the ID from a route param
-  const agentID = 'prod-web-01';
-  const agent = $derived(agentStore.agents.find(a => a.hostname === agentID || a.id === agentID));
+  // Read the agent ID injected by appStore.navigate('agent-console', { id: '...' })
+  function readNavParam(key: string): string {
+    try {
+      const raw = sessionStorage.getItem('oblivra:nav_params');
+      if (!raw) return '';
+      return (JSON.parse(raw)[key] as string) ?? '';
+    } catch { return ''; }
+  }
 
-  const processes = [
-    { pid: 1421, name: 'nginx', cpu: '2.4%', mem: '142MB', user: 'www-data', risk: 'low' },
-    { pid: 4991, name: 'kworker/u:2', cpu: '12%', mem: '12KB', user: 'root', risk: 'medium' },
-    { pid: 8821, name: './sh -i', cpu: '0.1%', mem: '440KB', user: 'operator', risk: 'critical' },
-  ];
+  let agentID = $state(readNavParam('id'));
+  const agent = $derived(agentStore.agents.find(a => a.id === agentID || a.hostname === agentID));
+
+  // Process list — placeholder until live agent process reporting is wired
+  let processes = $state([
+    { pid: 1421, name: 'nginx',       cpu: '2.4%', mem: '142MB', user: 'www-data', risk: 'low'      },
+    { pid: 4991, name: 'kworker/u:2', cpu: '12%',  mem: '12KB',  user: 'root',     risk: 'medium'   },
+    { pid: 8821, name: './sh -i',     cpu: '0.1%', mem: '440KB', user: 'operator', risk: 'critical' },
+  ]);
+
+  onMount(() => {
+    const id = readNavParam('id');
+    if (id) agentID = id;
+    agentStore.refresh();
+  });
 
   let quarantine = $state(false);
 
@@ -35,12 +51,14 @@
   }
 
   async function killProc(pid: number) {
-     try {
-        await agentStore.killProcess(agentID, pid);
-        appStore.notify(`Kill directive sent for PID ${pid}`, 'info');
-     } catch (err: any) {
-        appStore.notify(`Kill failed: ${err}`, 'error');
-     }
+    if (!agentID) return;
+    try {
+      await agentStore.killProcess(agentID, pid);
+      appStore.notify(`Kill directive sent for PID ${pid}`, 'info');
+      processes = processes.filter(p => p.pid !== pid);
+    } catch (err: any) {
+      appStore.notify(`Kill failed: ${err}`, 'error');
+    }
   }
 
   const columns = [
@@ -53,7 +71,7 @@
   ];
 </script>
 
-<PageLayout title="Agent Inspect: prod-web-01" subtitle="Real-time telemetry and atomic control for endpoint AG-01">
+<PageLayout title={agent ? `Agent: ${agent.hostname}` : agentID ? `Agent: ${agentID}` : 'Agent Console'} subtitle="Real-time telemetry and atomic control for endpoint">
   {#snippet toolbar()}
     <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/30 rounded-full">

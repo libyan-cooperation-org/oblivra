@@ -60,7 +60,7 @@
 
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-      <KPI label="Artifacts Found" value={mockArtifacts.length} variant="default" />
+      <KPI label="Artifacts Found" value={artifacts.length} variant="default" />
       <KPI label="Suspicious Files" value="2" variant="critical" />
       <KPI label="Imaging State" value="Idle" variant="accent" />
     </div>

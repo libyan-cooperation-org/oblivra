@@ -23,11 +23,15 @@
   ];
 
   async function handleUnlock() {
+    if (!unlockPassword.trim()) return;
     unlocking = true;
     try {
-      // Logic for guardedUnlock
-      await new Promise(r => setTimeout(r, 1000));
-      appStore.vaultUnlocked = true;
+      const { guardedUnlock } = await import('@lib/bridge');
+      await guardedUnlock(unlockPassword, false);
+      // vault:unlocked event will flip appStore.vaultUnlocked via the bridge subscriber
+      unlockPassword = '';
+    } catch (e: any) {
+      appStore.notify('Unlock failed', 'error', e?.message ?? String(e));
     } finally {
       unlocking = false;
     }
