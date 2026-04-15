@@ -1,10 +1,10 @@
-<!--
-  OBLIVRA — System Health Banner (Svelte 5)
-  
-  Displayed at the top of the App Layout when the backend reports
-  Degraded or Critical health states (e.g. Ingestion Overload).
--->
 <script lang="ts">
+  /**
+   * OBLIVRA — System Health Banner (Svelte 5)
+   *
+   * Displayed at the top of the App Layout when the backend reports
+   * Degraded or Critical health states (e.g. Ingestion Overload).
+   */
   import { appStore } from '@lib/stores/app.svelte';
   import { ShieldAlert, AlertTriangle } from 'lucide-svelte';
   import { slide } from 'svelte/transition';
