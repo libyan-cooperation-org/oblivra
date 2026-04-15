@@ -322,13 +322,15 @@ func (e *GraphEngine) GetRichEdges() []RichEdge {
 	return out
 }
 
-// mergeMap merges overlay into base, returning base.
+// mergeMap merges overlay into base, returning a new map to prevent concurrent
+// read/write panics when lock-free readers (e.g. JSON encoders) traverse the map.
 func mergeMap(base, overlay map[string]string) map[string]string {
-	if base == nil {
-		base = make(map[string]string, len(overlay))
+	out := make(map[string]string, len(base)+len(overlay))
+	for k, v := range base {
+		out[k] = v
 	}
 	for k, v := range overlay {
-		base[k] = v
+		out[k] = v
 	}
-	return base
+	return out
 }

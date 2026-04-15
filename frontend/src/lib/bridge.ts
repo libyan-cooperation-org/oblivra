@@ -15,7 +15,7 @@ export { APP_CONTEXT };
 // Conditionally import Wails runtime — only safe when running inside Wails.
 // In browser mode window.runtime doesn't exist, so these are no-ops.
 function getRuntime() {
-    return (window as any)['runtime'] ?? null;
+    return (window as any)['runtime'] ?? (window as any)['wails'] ?? null;
 }
 
 type EventCallback<T = any> = (data: T) => void;
@@ -68,7 +68,11 @@ export function subscribe<T = any>(event: string, callback: EventCallback<T>): (
     const rt = getRuntime();
 
     if (rt) {
-        rt.EventsOn(event, callback as any);
+        if (rt.EventsOn) {
+            rt.EventsOn(event, callback as any);
+        } else if (rt.Events && rt.Events.On) {
+            rt.Events.On(event, callback as any);
+        }
     }
 
     if (!eventListeners.has(event)) eventListeners.set(event, []);
@@ -76,7 +80,11 @@ export function subscribe<T = any>(event: string, callback: EventCallback<T>): (
 
     return () => {
         if (rt) {
-            rt.EventsOff(event);
+            if (rt.EventsOff) {
+                rt.EventsOff(event);
+            } else if (rt.Events && rt.Events.Off) {
+                rt.Events.Off(event); // Try standard v3 Events.Off
+            }
         }
         const listeners = eventListeners.get(event);
         if (listeners) {
@@ -92,7 +100,13 @@ export function subscribe<T = any>(event: string, callback: EventCallback<T>): (
 export function cleanupAllListeners(): void {
     const rt = getRuntime();
     if (rt) {
-        for (const [event] of eventListeners) rt.EventsOff(event);
+        for (const [event] of eventListeners) {
+            if (rt.EventsOff) {
+                rt.EventsOff(event);
+            } else if (rt.Events && rt.Events.Off) {
+                rt.Events.Off(event);
+            }
+        }
     }
     eventListeners.clear();
 }

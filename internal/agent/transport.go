@@ -253,8 +253,13 @@ func (t *Transport) normalizeURL(addr string) string {
 	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
 		return addr
 	}
-	// Default to HTTPS if no scheme provided
-	return "https://" + addr
+	// Use HTTPS only when TLS credentials are configured.
+	// Without certs the ingest server runs plain HTTP, so defaulting
+	// to https:// causes an immediate "gave HTTP response to HTTPS client" error.
+	if t.cfg.TLSCert != "" || t.cfg.TLSCA != "" {
+		return "https://" + addr
+	}
+	return "http://" + addr
 }
 
 // zlibCompress compresses data using zlib (RFC 1950 / deflate).

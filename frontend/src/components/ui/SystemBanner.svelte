@@ -6,39 +6,27 @@
 -->
 <script lang="ts">
   import { appStore } from '@lib/stores/app.svelte';
-  import { ShieldAlert, AlertTriangle, X } from 'lucide-svelte';
+  import { ShieldAlert, AlertTriangle } from 'lucide-svelte';
   import { slide } from 'svelte/transition';
-  
-  interface Props {
-    onClose?: () => void;
-  }
-
-  let { onClose }: Props = $props();
 
   const isDegraded = $derived(appStore.systemHealth.status === 'degraded');
   const isCritical = $derived(appStore.systemHealth.status === 'critical');
   const isVisible = $derived(isDegraded || isCritical);
 
-  function dismiss() {
-    // We don't actually dismiss a system-wide health state from the UI,
-    // but we can provide a "Hide" for the current session if desired.
-    // For now, it stays visible until the backend clears it.
-  }
+  const bannerClasses = $derived(
+    isCritical
+      ? 'bg-red-500/10 border-red-500/30 text-red-400'
+      : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+  );
 </script>
 
 {#if isVisible}
-  <div 
+  <div
     transition:slide={{ duration: 300 }}
-    class="relative z-50 flex items-center justify-between px-4 py-2 border-b transition-colors duration-500"
-    class:bg-amber-500/10={isDegraded}
-    class:border-amber-500/30={isDegraded}
-    class:text-amber-400={isDegraded}
-    class:bg-red-500/10={isCritical}
-    class:border-red-500/30={isCritical}
-    class:text-red-400={isCritical}
+    class="relative z-50 flex items-center justify-between px-4 py-2 border-b transition-colors duration-500 {bannerClasses}"
   >
     <div class="flex items-center gap-3">
-      <div class="flex items-center justify-center w-8 h-8 rounded-full bg-current/10 animate-pulse">
+      <div class="flex items-center justify-center w-8 h-8 rounded-full animate-pulse" style="background: color-mix(in srgb, currentColor 10%, transparent)">
         {#if isCritical}
           <ShieldAlert size={18} />
         {:else}

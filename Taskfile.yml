@@ -3,8 +3,9 @@ version: '3'
 includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+  agent: ./build/agent/Taskfile.yml
   # darwin: ./build/darwin/Taskfile.yml
-  # linux: ./build/linux/Taskfile.yml
   # ios: ./build/ios/Taskfile.yml
   # android: ./build/android/Taskfile.yml
 
@@ -58,3 +59,4 @@ tasks:
     summary: Builds and runs the Docker image
     cmds:
       - task: common:run:docker
+

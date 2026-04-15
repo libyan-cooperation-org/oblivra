@@ -105,7 +105,7 @@ func main() {
 	}
 
 	// Emit the "Connected" log line that the troubleshooting guide expects
-	l.Info("Connected to server: https://%s", *serverAddr)
+	l.Info("Connected to server: %s", *serverAddr)
 
 	// ── Shutdown ──────────────────────────────────────────────────────────────
 	sigCh := make(chan os.Signal, 1)
