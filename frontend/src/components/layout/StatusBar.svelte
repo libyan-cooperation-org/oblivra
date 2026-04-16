@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { IS_BROWSER, APP_CONTEXT, IS_DESKTOP, IS_HYBRID } from '@lib/context';
+  import { APP_CONTEXT } from '@lib/context';
   import { subscribe } from '@lib/bridge';
 
   interface Props {
