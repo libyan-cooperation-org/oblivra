@@ -14,6 +14,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
+	"github.com/kingknull/oblivrashell/internal/ingest"
 )
 
 // SIEMService exposes SIEM configurations to the frontend
@@ -31,6 +32,7 @@ type SIEMService struct {
 	lastRiskCheck *sync.Map
 	oqlExecutor   *oql.Executor
 	rbac          *auth.RBACEngine
+	pipeline      ingest.IngestionPipeline
 }
 
 func (s *SIEMService) Name() string { return "siem-service" }
@@ -41,7 +43,7 @@ func (s *SIEMService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *SIEMService {
+func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger, p ingest.IngestionPipeline) *SIEMService {
 	correlationEngine := detection.NewCorrelationEngine(bus, log.WithPrefix("correlation"))
 	return &SIEMService{
 		repo:          r,
@@ -55,6 +57,7 @@ func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai 
 		log:           log.WithPrefix("siem"),
 		lastRiskCheck: &sync.Map{},
 		oqlExecutor:   oql.NewExecutor(),
+		pipeline:      p,
 	}
 }
 
@@ -63,6 +66,7 @@ func (s *SIEMService) Start(ctx context.Context) error {
 
 	// Stream new SIEM events to the frontend UI
 	s.bus.Subscribe("siem.event_indexed", func(e eventbus.Event) {
+		s.log.Info("[SIEM-STREAM] Received event_indexed event")
 		// e.Data is a database.HostEvent
 		defer func() {
 			if r := recover(); r != nil {
@@ -99,6 +103,7 @@ func (s *SIEMService) Start(ctx context.Context) error {
 			}
 		}
 
+		s.log.Info("[SIEM-STREAM] Emitting event to Wails: type=%s host=%s", evt.EventType, evt.HostID)
 		EmitEvent("siem-stream", evt)
 	})
 
@@ -369,7 +374,13 @@ func (s *SIEMService) GetPlatformStats() map[string]interface{} {
 		"TotalEvents":  0,
 	}
 
-	// Pull total event count from the SIEM repo if available
+	// 1. Pull live EPS from the pipeline
+	if s.pipeline != nil {
+		m := s.pipeline.GetMetrics()
+		result["EPS"] = fmt.Sprintf("%d", m.EventsPerSecond)
+	}
+
+	// 2. Pull total event count from the SIEM repo if available
 	if s.repo != nil && s.ctx != nil {
 		ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
 		defer cancel()

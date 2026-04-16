@@ -199,8 +199,21 @@ func (n *IdentityEnrichmentNode) Process(ctx context.Context, evt *Event) ([]*Ev
 		return []*Event{evt}, nil
 	}
 
-	// DB lookup
-	user, err := n.resolver.GetUserByEmail(ctx, evt.User)
+	// DB lookup with retry
+	var user *database.User
+	var err error
+	for i := 0; i < 3; i++ {
+		user, err = n.resolver.GetUserByEmail(ctx, evt.User)
+		if err == nil {
+			break
+		}
+		// Only retry if it's likely a locking issue (heuristic)
+		if i < 2 {
+			time.Sleep(time.Duration(200*(i+1)) * time.Millisecond)
+			continue
+		}
+	}
+
 	if err != nil {
 		// User not found or error, proceed without enrichment
 		return []*Event{evt}, nil

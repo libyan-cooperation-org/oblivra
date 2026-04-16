@@ -131,11 +131,9 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 	tenantID := database.TenantFromContext(ctx)
 
 	if r.search != nil && *r.search != nil {
-		// Inject strict tenant filter into the query
-		tenantQuery := fmt.Sprintf("+tenant:%s %s", tenantID, query)
-
-		// Attempt to hit Bleve first for actual full-text performance
-		results, err := (*r.search).Search(tenantID, tenantQuery, limit, 0)
+		// Bleve search is already partitioned by tenant in the getIndex() call.
+		// Injecting a redundant +tenant query is unnecessary and can break if analyzer casing differs.
+		results, err := (*r.search).Search(tenantID, query, limit, 0)
 		if err == nil {
 			var events []database.HostEvent
 			for _, res := range results {
@@ -324,11 +322,13 @@ func (r *BadgerSIEMRepository) GetGlobalThreatStats(ctx context.Context) (map[st
 	}
 
 	failedLogins := 0
+	totalEvents := 0
 	attackerIPs := make(map[string]bool)
 	hostFailures := make(map[string]int)
 
 	// Scan last 10000 events to get dashboard stats
 	err := r.store.ReverseIteratePrefix(prefix, 10000, func(key, value []byte) error {
+		totalEvents++
 		if !bytes.Contains(value, []byte(`"event_type":"failed_login"`)) {
 			return nil
 		}
@@ -360,6 +360,7 @@ func (r *BadgerSIEMRepository) GetGlobalThreatStats(ctx context.Context) (map[st
 	stats["total_failed_logins"] = failedLogins
 	stats["unique_attacker_ips"] = len(attackerIPs)
 	stats["high_risk_hosts"] = highRiskCount
+	stats["total_events"] = totalEvents
 
 	return stats, nil
 }

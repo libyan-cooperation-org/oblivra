@@ -30,7 +30,7 @@ func (d *Database) Open(dbPath string, encryptionKey []byte) error {
 
 	// Open initializes the SQLite connection without the key in DSN
 	dsn := fmt.Sprintf(
-		"file:%s?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000",
+		"file:%s?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=10000",
 		dbPath,
 	)
 

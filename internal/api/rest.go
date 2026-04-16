@@ -146,6 +146,7 @@ type RESTServer struct {
 type AgentInfo struct {
 	ID         string    `json:"id"`
 	Hostname   string    `json:"hostname"`
+	TenantID   string    `json:"tenant_id"` // Added for isolation
 	OS         string    `json:"os"`
 	Arch       string    `json:"arch"`
 	Version    string    `json:"version"`
@@ -207,6 +208,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 				allowed := []string{
 					"http://" + host,
 					"https://" + host,
+					"http://localhost:3000",
+					"https://localhost:3000",
 					"wails://wails",
 				}
 				for _, a := range allowed {
@@ -406,26 +409,36 @@ func (s *RESTServer) Start() {
 	
 	if s.certManager != nil {
 		// Initial load
-		if err := s.certManager.Load(); err != nil {
-			s.log.Warn("[REST] Initial TLS certificate load failed: %v", err)
-		}
-		
-		s.server.TLSConfig = &tls.Config{
-			GetCertificate: s.certManager.GetCertificate,
-			MinVersion:     tls.VersionTLS13, // TLS 1.2 is deprecated; require 1.3 for all agent channels
+		if err := s.certManager.Load(); err == nil {
+			s.server.TLSConfig = &tls.Config{
+				GetCertificate: s.certManager.GetCertificate,
+				MinVersion:     tls.VersionTLS13,
+			}
+		} else {
+			s.log.Warn("[REST] TLS certificate load failed: %v — TLS will be disabled", err)
 		}
 	}
 
 	go func() {
-		// If certManager is missing, fail hard.
-		if s.certManager == nil {
-			s.log.Error("[REST] TLS Certificate Manager NOT configured. Headless API is NOT running.")
-			return
+		// Attempt TLS if certs are available
+		if s.certManager != nil && s.server.TLSConfig != nil {
+			s.log.Info("[REST] Starting TLS listener on port %d", s.port)
+			err := s.server.ListenAndServeTLS("", "")
+			if err != nil && err != http.ErrServerClosed {
+				s.log.Warn("[REST] TLS server failed: %v — falling back to plaintext HTTP", err)
+				// Clean up and try plaintext
+			} else {
+				return
+			}
 		}
 
-		err := s.server.ListenAndServeTLS("", "") // cert/key provided by GetCertificate
+		// Fallback to plaintext HTTP
+		s.log.Info("[REST] Starting plaintext HTTP listener on port %d", s.port)
+		// Clear TLSConfig to ensure standard HTTP
+		s.server.TLSConfig = nil
+		err := s.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			s.log.Error("[REST] TLS server failed: %v. Headless API is NOT running.", err)
+			s.log.Error("[REST] HTTP server failed: %v", err)
 		}
 	}()
 }
@@ -760,11 +773,12 @@ func (s *RESTServer) handleAttestation(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"attestation": status,
 		"build":       buildInfo,
-		"uptime_secs": time.Since(attestation.StartupTime).Seconds(),
 	})
 }
 
 func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
+	s.log.Debug("[REST] Event stream upgrade attempt from: %s", r.RemoteAddr)
+
 	// 1. Connection Limit Check
 	if atomic.LoadInt64(&s.activeWS) >= s.maxWS {
 		s.log.Warn("[REST] WebSocket connection limit reached (%d)", s.maxWS)
@@ -792,6 +806,12 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	subCh := make(chan eventbus.Event, 100)
 	ctxDone := make(chan struct{})
+	var closeOnce sync.Once
+	cleanup := func() {
+		closeOnce.Do(func() {
+			close(ctxDone)
+		})
+	}
 
 	// Unsubscribe when the client disconnects to prevent goroutine/memory leaks.
 	subID := s.bus.SubscribeWithID(eventbus.AllEvents, func(e eventbus.Event) {
@@ -804,14 +824,14 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	})
 	defer func() {
-		close(ctxDone)
+		cleanup()
 		s.bus.Unsubscribe(subID)
 		s.log.Info("[REST] Client disconnected from event stream: %s (unsubscribed)", clientAddr)
 	}()
 
 	// Read loop to detect client disconnect
 	go func() {
-		defer close(ctxDone)
+		defer cleanup()
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				return
@@ -828,18 +848,22 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case event, ok := <-subCh:
 			if !ok {
+				s.log.Warn("[REST] Event subscription channel closed for %s", clientAddr)
 				return
 			}
 			data, err := json.Marshal(event)
 			if err != nil {
+				s.log.Error("[REST] Failed to marshal event: %v", err)
 				continue
 			}
 			// Set write deadline for the event
 			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				s.log.Warn("[REST] Failed to send event to %s: %v", clientAddr, err)
 				return
 			}
 		case <-ctxDone:
+			s.log.Debug("[REST] Context done for %s, closing WebSocket", clientAddr)
 			return
 		}
 	}

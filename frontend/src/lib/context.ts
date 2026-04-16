@@ -133,22 +133,22 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     // ── Browser/Server-only ───────────────────────────────────────────────
     {
         path: '/soc',
-        availability: 'browser',
+        availability: 'both',
         unavailableReason: 'The SOC workspace requires multi-analyst server mode.',
     },
     {
         path: '/agents',
-        availability: 'browser',
+        availability: 'both',
         unavailableReason: 'Agent fleet management requires the server backend to receive agent registrations.',
     },
     {
         path: '/fleet',
-        availability: 'browser',
+        availability: 'both',
         unavailableReason: 'Fleet management requires the OBLIVRA server backend.',
     },
     {
         path: '/fleet-management',
-        availability: 'browser',
+        availability: 'both',
         unavailableReason: 'Centralized fleet management requires the server backend.',
     },
     {

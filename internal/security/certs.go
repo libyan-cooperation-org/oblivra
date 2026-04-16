@@ -12,9 +12,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -110,4 +112,45 @@ func SavePair(pair *CertificatePair, certPath, keyPath string) error {
 		return err
 	}
 	return os.WriteFile(keyPath, pair.KeyPEM, 0600)
+}
+
+// EnsureLocalCerts checks for the existence of certPath and keyPath.
+// If missing, it generates a local CA and signs a new certificate for "localhost".
+func EnsureLocalCerts(certPath, keyPath string) error {
+	caPath := filepath.Join(filepath.Dir(certPath), "root_ca.pem")
+
+	if _, err := os.Stat(certPath); err == nil {
+		if _, err := os.Stat(keyPath); err == nil {
+			if _, err := os.Stat(caPath); err == nil {
+				return nil // All exist
+			}
+		}
+	}
+
+	// Missing components, generate new set
+	ca, err := GenerateRootCA()
+	if err != nil {
+		return fmt.Errorf("failed to generate local CA: %w", err)
+	}
+
+	// Sign a cert for localhost
+	server, err := GenerateCert(ca, "localhost", []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth})
+	if err != nil {
+		return fmt.Errorf("failed to sign local certificate: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(certPath), 0755); err != nil {
+		return err
+	}
+
+	// Save CA root for clients to trust
+	if err := os.WriteFile(caPath, ca.CertPEM, 0644); err != nil {
+		return fmt.Errorf("failed to save Root CA: %w", err)
+	}
+
+	if err := SavePair(server, certPath, keyPath); err != nil {
+		return fmt.Errorf("failed to save local certificates: %w", err)
+	}
+
+	return nil
 }

@@ -64,6 +64,7 @@ func (b *agentProviderBridge) GetFleet() []api.AgentInfo {
 		fleet[i] = api.AgentInfo{
 			ID:         d.ID,
 			Hostname:   d.Hostname,
+			TenantID:   d.TenantID,
 			Version:    d.Version,
 			OS:         d.OS,
 			Arch:       d.Arch,

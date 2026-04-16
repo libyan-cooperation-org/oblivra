@@ -16,6 +16,7 @@
 
   let time = $state('');
   let diagGrade = $state<string | null>(null);
+  let ingestEPS = $state(0);
 
   const activeCount = $derived(appStore.sessions.filter(s => s.status === 'active').length);
   const transferCount = $derived(appStore.transfers.filter(t => t.status === 'active' || t.status === 'pending').length);
@@ -50,9 +51,10 @@
     updateTime();
     timer = setInterval(updateTime, 30_000);
 
-    // Diagnostics health grade
+    // Diagnostics health grade & ingest metrics
     unsubDiag = subscribe('diagnostics:snapshot', (data: any) => {
       if (data?.health_grade) diagGrade = data.health_grade;
+      if (data?.ingest) ingestEPS = data.ingest.current_eps;
     });
   });
 
@@ -81,6 +83,14 @@
     <span class="text-{activeHost ? 'text-secondary' : 'text-muted'}">
       {activeHost ? activeHost.label : 'no active session'}
     </span>
+    
+    <span class="text-border-secondary font-mono">|</span>
+
+    <!-- Ingest EPS -->
+    <div class="flex items-center gap-1.5" title="Ingestion events per second">
+      <span class="text-status-online opacity-80 animate-pulse">⚡</span>
+      <span class={ingestEPS > 0 ? 'text-text-secondary' : 'text-text-muted opacity-40'}>{ingestEPS} EPS</span>
+    </div>
   </div>
 
   <!-- Right cluster -->

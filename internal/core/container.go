@@ -224,8 +224,14 @@ func (c *Container) initSIEM(_ context.Context) error {
 
 	certFile := filepath.Join(platform.ConfigDir(), "cert.pem")
 	keyFile := filepath.Join(platform.ConfigDir(), "key.pem")
+
+	// Ensure certificates exist for the agent server
+	if err := security.EnsureLocalCerts(certFile, keyFile); err != nil {
+		c.Log.Warn("[CONTAINER] Failed to ensure local certificates: %v — ingestion may fail", err)
+	}
+
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Log), c.Infra.Bus, c.Log)
-	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log)
+	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline)
 	
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)

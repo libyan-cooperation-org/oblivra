@@ -46,6 +46,7 @@ func NewAgentService(server *ingest.AgentServer, rbac *auth.RBACEngine, log *log
 type AgentDTO struct {
 	ID            string `json:"id"`
 	Hostname      string `json:"hostname"`
+	TenantID      string `json:"tenant_id"`
 	Version       string `json:"version"`
 	LastSeen      string   `json:"last_seen"` // ISO8601 string
 	RemoteAddress string   `json:"remote_address"`
@@ -73,6 +74,7 @@ func (s *AgentService) ListAgents() []AgentDTO {
 		dtos = append(dtos, AgentDTO{
 			ID:            a.ID,
 			Hostname:      a.Hostname,
+			TenantID:      a.TenantID,
 			Version:       a.Version,
 			LastSeen:      a.LastSeen,
 			RemoteAddress: a.RemoteAddress,

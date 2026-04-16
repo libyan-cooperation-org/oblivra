@@ -28,12 +28,24 @@ tasks:
   run:
     summary: Runs the application
     cmds:
+      - task: clean:ports
       - task: "{{OS}}:run"
 
   dev:
     summary: Runs the application in development mode
     cmds:
+      - task: clean:ports
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  clean:ports:
+    summary: Kills processes on OBLIVRA standard ports
+    internal: true
+    cmds:
+      - fuser -k 9090/tcp || true
+      - fuser -k 6060/tcp || true
+      - fuser -k 8080/tcp || true
+      - fuser -k 8443/tcp || true
+      - fuser -k 1514/udp || true
 
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)

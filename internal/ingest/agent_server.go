@@ -76,6 +76,7 @@ type PendingAction struct {
 type AgentInfo struct {
 	ID            string    `json:"id"`
 	Hostname      string    `json:"hostname"`
+	TenantID      string    `json:"tenant_id"` // Added for isolation
 	Version       string    `json:"version"`
 	LastSeen      string    `json:"last_seen"`
 	RemoteAddress string    `json:"remote_address"`
@@ -170,15 +171,21 @@ func (s *AgentServer) GetActiveAgents() []AgentInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	s.log.Info("[AGENT_SERVER] GetActiveAgents called. Total tracked: %d", len(s.activeAgents))
+
 	// Filter out agents not seen in last 5 minutes
 	cutoff := time.Now().Add(-5 * time.Minute)
 	var active []AgentInfo
 
-	for _, info := range s.activeAgents {
-		if parseTime(info.LastSeen).After(cutoff) {
+	for id, info := range s.activeAgents {
+		ts := parseTime(info.LastSeen)
+		isAfter := ts.After(cutoff)
+		s.log.Debug("[AGENT_SERVER] Checking agent %s: LastSeen=%s, Cutoff=%s, After=%v", id, info.LastSeen, cutoff.Format(time.RFC3339), isAfter)
+		if isAfter {
 			active = append(active, info)
 		}
 	}
+	s.log.Info("[AGENT_SERVER] Returning %d active agents", len(active))
 	return active
 }
 
@@ -287,6 +294,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		s.activeAgents[agentID] = AgentInfo{
 			ID:            agentID,
 			Hostname:      hostname,
+			TenantID:      tenantID,
 			Version:       agentVersion,
 			LastSeen:      time.Now().Format(time.RFC3339),
 			RemoteAddress: r.RemoteAddr,
@@ -354,7 +362,7 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		ingested++
 	}
 
-	s.log.Debug("Ingested %d events from agent %s", ingested, agentID)
+	s.log.Info("[INGEST] Successfully ingested %d events for agent %s", ingested, agentID)
 
 	// Return the desired configuration and pending actions in the response
 	s.mu.Lock()
@@ -411,10 +419,16 @@ func (s *AgentServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tenantID := r.Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		tenantID = "GLOBAL"
+	}
+
 	s.mu.Lock()
 	s.activeAgents[reg.ID] = AgentInfo{
 		ID:            reg.ID,
 		Hostname:      reg.Hostname,
+		TenantID:      tenantID,
 		Version:       reg.Version,
 		OS:            reg.OS,
 		Arch:          reg.Arch,

@@ -96,11 +96,11 @@ func (fe *AttackFusionEngine) HandleCorrelationMatch(match CorrelationMatch) {
 
 func (fe *AttackFusionEngine) ingest(entityID, ruleID, name, tactic string) {
 	fe.mu.Lock()
-	defer fe.mu.Unlock()
 
 	// 1. Resolve tactic to ID if it's a name
 	tacticID := fe.resolveTacticID(tactic)
 	if tacticID == "" {
+		fe.mu.Unlock()
 		return
 	}
 
@@ -133,13 +133,30 @@ func (fe *AttackFusionEngine) ingest(entityID, ruleID, name, tactic string) {
 	fe.calculateProbability(camp, n)
 
 	// 5. Check Threshold
+	var shouldTrigger bool
 	if len(camp.Tactics) >= fe.StageThreshold && !camp.IsTriggered {
 		camp.IsTriggered = true
-		fe.triggerFusionAlert(camp)
+		shouldTrigger = true
+	}
+
+	// Copy data for async publish (Deep copy map!)
+	campCopy := *camp
+	campCopy.Tactics = make(map[string]bool, len(camp.Tactics))
+	for k, v := range camp.Tactics {
+		campCopy.Tactics[k] = v
+	}
+	// Note: Alerts is a slice, could technically race if appended without a lock. We should copy it too.
+	campCopy.Alerts = make([]FusionAlertInfo, len(camp.Alerts))
+	copy(campCopy.Alerts, camp.Alerts)
+
+	fe.mu.Unlock() // Release lock early
+
+	if shouldTrigger {
+		fe.triggerFusionAlert(&campCopy)
 	}
 
 	// 6. Publish campaign update for UI live view
-	fe.bus.Publish("fusion.campaign_updated", camp)
+	fe.bus.Publish("fusion.campaign_updated", &campCopy)
 }
 
 func (fe *AttackFusionEngine) calculateProbability(camp *Campaign, n float64) {

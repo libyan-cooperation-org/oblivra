@@ -145,11 +145,17 @@ func (cb *CampaignBuilder) handleEdge(edge graph.RichEdge) {
 		tactic,
 	)
 
+	// Deep copy TacticHits for async publish
+	tacticHitsCopy := make(map[string]int, len(cluster.TacticHits))
+	for k, v := range cluster.TacticHits {
+		tacticHitsCopy[k] = v
+	}
+
 	// Publish campaign update for the FusionDashboard
 	cb.bus.Publish(eventbus.EventCampaignUpdated, map[string]interface{}{
 		"cluster_id":   cluster.ClusterID,
 		"entities":     cb.entityList(cluster),
-		"tactic_hits":  cluster.TacticHits,
+		"tactic_hits":  tacticHitsCopy,
 		"edge_count":   cluster.EdgeCount,
 		"first_seen":   cluster.FirstSeen,
 		"last_seen":    cluster.LastSeen,

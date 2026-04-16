@@ -31,7 +31,11 @@ type Config struct {
 	TLSCert        string
 	TLSKey         string
 	TLSCA          string
-	Version        string
+	InsecureTLS    bool
+	// TenantID is used for multi-tenant isolation.
+	// Defaults to "GLOBAL" if not provided.
+	TenantID string
+	Version  string
 
 	// MaxWALEvents caps the number of events buffered on disk before new events
 	// are dropped. Prevents unbounded disk growth during prolonged server outage.
@@ -122,6 +126,10 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 	}
 	cfg.AgentID = agentID
 
+	if cfg.TenantID == "" {
+		cfg.TenantID = "GLOBAL"
+	}
+
 	// Apply defaults
 	if cfg.MaxWALEvents <= 0 {
 		cfg.MaxWALEvents = defaultMaxWALEvents
@@ -186,7 +194,11 @@ func (a *Agent) Start(ctx context.Context) error {
 	ctx = a.ctx
 
 	// Register with server before starting data flow
-	if err := a.transport.Register(ctx); err != nil {
+	collectorNames := make([]string, len(a.collectors))
+	for i, c := range a.collectors {
+		collectorNames[i] = c.Name()
+	}
+	if err := a.transport.Register(ctx, collectorNames); err != nil {
 		a.log.Warn("[agent] Registration failed (will retry): %v", err)
 		// Non-fatal — FlushLoop heartbeats carry registration data too
 	}

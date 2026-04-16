@@ -7,7 +7,6 @@ import (
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/security"
 	"github.com/kingknull/oblivrashell/internal/ssh"
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // Service defines a standard interface for application services
@@ -25,18 +24,7 @@ func (s *BaseService) Dependencies() []string          { return nil }
 func (s *BaseService) Start(ctx context.Context) error { return nil }
 func (s *BaseService) Stop(ctx context.Context) error  { return nil }
 
-// EmitEvent safely wraps wails runtime.EventsEmit to avoid test panics
-func EmitEvent(eventName string, data interface{}) {
-	// Defensively catch Wails panics if given context lacks expected lifecycle flags
-	defer func() {
-		if r := recover(); r != nil {
-			// Do nothing on panic
-		}
-	}()
-	if app := application.Get(); app != nil {
-		app.Event.Emit(eventName, data)
-	}
-}
+// EmitEvent is a build-tag dependent function defined in bridge_wails.go or bridge_headless.go
 
 // SessionExecutor defines the interface for interacting with active SSH/Terminal sessions.
 type SessionExecutor interface {

@@ -34,7 +34,8 @@ type Transport struct {
 // NewTransport creates a new transport with optional mTLS.
 func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS13,
+		InsecureSkipVerify: cfg.InsecureTLS,
 	}
 
 	if cfg.TLSCert != "" && cfg.TLSKey != "" {
@@ -77,13 +78,14 @@ func NewTransport(cfg Config, log *logger.Logger) (*Transport, error) {
 
 // Register sends an agent registration heartbeat to the server.
 // The server uses this to populate the fleet registry.
-func (t *Transport) Register(ctx context.Context) error {
+func (t *Transport) Register(ctx context.Context, collectors []string) error {
 	payload := map[string]interface{}{
-		"id":       t.cfg.AgentID,
-		"hostname": t.hostname,
-		"version":  t.cfg.Version,
-		"os":       goOS(),
-		"arch":     goArch(),
+		"id":          t.cfg.AgentID,
+		"hostname":    t.hostname,
+		"version":     t.cfg.Version,
+		"os":          goOS(),
+		"arch":        goArch(),
+		"collectors":  collectors,
 	}
 
 	data, err := json.Marshal(payload)
@@ -246,6 +248,7 @@ func (t *Transport) setHeaders(req *http.Request, contentEncoding string) {
 	req.Header.Set("X-Agent-ID", t.cfg.AgentID)
 	req.Header.Set("X-Agent-Version", t.cfg.Version)
 	req.Header.Set("X-Agent-Hostname", t.hostname)
+	req.Header.Set("X-Tenant-ID", t.cfg.TenantID)
 	req.Header.Set("Content-Encoding", contentEncoding)
 }
 
@@ -253,10 +256,9 @@ func (t *Transport) normalizeURL(addr string) string {
 	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
 		return addr
 	}
-	// Use HTTPS only when TLS credentials are configured.
-	// Without certs the ingest server runs plain HTTP, so defaulting
-	// to https:// causes an immediate "gave HTTP response to HTTPS client" error.
-	if t.cfg.TLSCert != "" || t.cfg.TLSCA != "" {
+	// Use HTTPS when TLS credentials are configured OR InsecureTLS is requested.
+	// We also default to HTTPS if the port is 8443 as a convenience for OBLIVRA.
+	if t.cfg.TLSCert != "" || t.cfg.TLSCA != "" || t.cfg.InsecureTLS || strings.HasSuffix(addr, ":8443") {
 		return "https://" + addr
 	}
 	return "http://" + addr

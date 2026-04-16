@@ -3,10 +3,13 @@
   Central hub for security event monitoring and log aggregation.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { IS_BROWSER } from '@lib/context';
+  import { subscribe, emitLocal } from '@lib/bridge';
   import { KPI, Badge, DataTable, PageLayout, Button, Input, Tabs } from '@components/ui';
+
+  const MAX_LIVE_EVENTS = 500;
 
   const siemTabs = [
     { id: 'feed', label: 'Live Feed', icon: '📡' },
@@ -22,12 +25,23 @@
     { key: 'message', label: 'EVENT MESSAGE' },
   ];
 
-
-
   let activeTab = $state('feed');
   let searchQuery = $state('');
   let logs = $state<any[]>([]);
   let loading = $state(false);
+  let paused = $state(false);
+  let liveCount = $state(0);
+  let unsubStream: (() => void) | null = null;
+
+  function formatEvent(ev: any) {
+    return {
+      id: ev.ID || ev.id || crypto.randomUUID(),
+      time: new Date(ev.Timestamp || ev.timestamp || Date.now()).toLocaleString(),
+      type: ev.EventType || ev.event_type || ev.Severity || ev.severity || 'info',
+      host: ev.HostID || ev.host_id || ev.HostName || 'unknown',
+      message: ev.RawLog || ev.raw_log || ev.Message || 'No message',
+    };
+  }
 
   async function refreshLogs() {
     loading = true;
@@ -36,47 +50,69 @@
       let result;
 
       if (IS_BROWSER) {
-        // Fallback to REST API for browser context via Vite proxy
         const res = await fetch('/api/v1/siem/search?q=' + encodeURIComponent(query), {
           headers: { 'Authorization': 'Bearer oblivra-dev-key' }
         });
         if (!res.ok) throw new Error('API error: ' + res.status);
         result = await res.json();
-        // Adjust the REST result payload to match the desktop IPC format just in case
         if (result.events) {
           result.Events = result.events;
         }
       } else {
-        // Native Wails IPC context
         const { ExecuteOQL } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
         result = await ExecuteOQL(query);
       }
 
       if (result && result.Events) {
-        logs = result.Events.map((ev: any) => ({
-          id: ev.ID || ev.id,
-          time: new Date(ev.Timestamp || ev.timestamp).toLocaleString(),
-          type: ev.Severity || ev.severity || 'info',
-          host: ev.HostName || ev.host_id || 'unknown',
-          message: ev.Message || ev.raw_log || 'No message',
-        }));
+        logs = result.Events.map(formatEvent);
       } else {
         logs = [];
       }
     } catch (err) {
-      console.error(err);
+      console.error('[SIEM] Query failed:', err);
       appStore.notify('Failed to execute OQL query', 'error', (err as Error).message);
     } finally {
       loading = false;
     }
   }
 
-  onMount(() => { refreshLogs(); });
+  onMount(() => {
+    refreshLogs();
 
-  let eps = $state(1420);
+    // Subscribe to real-time SIEM event stream from the backend
+    console.log('[SIEM] Subscribing to siem-stream...');
+    unsubStream = subscribe('siem-stream', (evt: any) => {
+      console.log('[SIEM] Component received event:', evt);
+      if (paused) return;
+      liveCount++;
+      const entry = formatEvent(evt);
+      logs = [entry, ...logs].slice(0, MAX_LIVE_EVENTS);
+    });
+  });
+
+  function emitTestEvent() {
+    console.log('[SIEM] Emitting test event locally');
+    emitLocal('siem-stream', {
+      timestamp: new Date().toISOString(),
+      event_type: 'TEST_HEARTBEAT',
+      host: 'localhost',
+      source_ip: '127.0.0.1',
+      user: 'test-user',
+      metadata: { action: 'verification' }
+    });
+  }
+
+  onDestroy(() => {
+    unsubStream?.();
+  });
+
+  let eps = $state(0);
   $effect(() => {
+    // Measure real EPS from the live stream
+    const startCount = liveCount;
     const interval = setInterval(() => {
-      eps = 1400 + Math.floor(Math.random() * 50);
+      const delta = liveCount - startCount;
+      eps = Math.round(delta / 2);
     }, 2000);
     return () => clearInterval(interval);
   });
@@ -85,18 +121,24 @@
 <PageLayout title="SIEM Console" subtitle="Unified event orchestration and threat detection">
   {#snippet toolbar()}
     <div class="flex items-center gap-3">
+      <button 
+        onclick={emitTestEvent}
+        class="flex items-center gap-2 rounded border border-border-primary px-3 py-1.5 text-[10px] font-medium transition-all hover:bg-surface-3"
+      >
+        Emit Test Event
+      </button>
       <Input variant="search" placeholder="Search events..." bind:value={searchQuery}
         onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && refreshLogs()} />
       <Button variant="secondary" size="sm" onclick={refreshLogs}>Refresh</Button>
-      <Button variant="cta" size="sm" onclick={() => appStore.notify('Feed Paused', 'warning')}>Pause Feed</Button>
+      <Button variant="cta" size="sm" onclick={() => { paused = !paused; appStore.notify(paused ? 'Feed Paused' : 'Feed Resumed', paused ? 'warning' : 'info'); }}>{paused ? 'Resume Feed' : 'Pause Feed'}</Button>
     </div>
   {/snippet}
 
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Event Rate" value="{eps} EPS" trend="stable" trendValue="+12%" />
+      <KPI label="Event Rate" value="{eps} EPS" trend={eps > 0 ? 'up' : 'stable'} trendValue="live" />
       <KPI label="Storage Index" value="98.2%" trend="stable" trendValue="optimal" variant="success" />
-      <KPI label="Active Agents" value="41" trend="up" trendValue="+3" variant="critical" />
+      <KPI label="Live Events" value="{liveCount}" trend={liveCount > 0 ? 'up' : 'stable'} trendValue="ingested" variant="critical" />
       <KPI label="Data Hygiene" value="99.9%" trend="stable" trendValue="verified" variant="success" />
     </div>
 

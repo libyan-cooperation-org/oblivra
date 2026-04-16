@@ -14,6 +14,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/kingknull/oblivrashell/internal/services"
 	"github.com/kingknull/oblivrashell/internal/simulation"
+	"path/filepath"
 )
 
 
@@ -271,17 +272,48 @@ func (a *App) Startup(ctx context.Context) {
 				return
 			}
 
-			// Only attempt if a keychain credential actually exists
-			if !a.VaultService.HasKeychainEntry() {
-				a.container.Log.Info("[AUTO-UNLOCK] No keychain entry — skipping auto-unlock")
-				return
+			// 1. Try Keychain Auto-Unlock
+			if a.VaultService.HasKeychainEntry() {
+				a.container.Log.Info("[AUTO-UNLOCK] Keychain entry found, attempting auto-unlock...")
+				if err := a.VaultService.TryAutoUnlock(); err == nil {
+					a.container.Log.Info("[AUTO-UNLOCK] Vault unlocked from keychain")
+					return
+				}
+				a.container.Log.Warn("[AUTO-UNLOCK] Keychain unlock failed")
 			}
 
-			a.container.Log.Info("[AUTO-UNLOCK] Keychain entry found, attempting auto-unlock...")
-			if err := a.VaultService.TryAutoUnlock(); err != nil {
-				a.container.Log.Warn("[AUTO-UNLOCK] Auto-unlock failed: %v", err)
-			} else {
-				a.container.Log.Info("[AUTO-UNLOCK] Vault unlocked from keychain")
+			// 2. Try Dev-Mode Auto-Unlock (if configured)
+			devPassword := os.Getenv("OBLIVRA_DEV_PASSWORD")
+			if devPassword != "" && os.Getenv("OBLIVRA_ENV") == "development" {
+				a.container.Log.Info("[AUTO-UNLOCK] Development mode active, attempting dev password unlock...")
+
+				// Pre-emptive check: If not setup, initialize it
+				if !a.container.Infra.Vault.IsSetup() {
+					a.container.Log.Info("[AUTO-UNLOCK] Vault not setup, initializing with dev password...")
+					if err := a.container.Infra.Vault.Setup(devPassword, ""); err != nil {
+						a.container.Log.Warn("[AUTO-UNLOCK] Dev vault setup failed: %v", err)
+					}
+				}
+
+				if err := a.VaultService.UnlockWithPassword(devPassword, false); err != nil {
+					a.container.Log.Warn("[AUTO-UNLOCK] Dev password unlock failed: %v", err)
+
+					// If it failed and we are in dev, re-initialize (aggressive but helpful for dev)
+					a.container.Log.Warn("[AUTO-UNLOCK] RE-INITIALIZING vault with dev password (reason: dev-unlock failed)")
+					vaultPath := filepath.Join(platform.ConfigDir(), "vault.json")
+					os.Remove(vaultPath)
+					if err := a.container.Infra.Vault.Setup(devPassword, ""); err == nil {
+						if err := a.VaultService.UnlockWithPassword(devPassword, false); err == nil {
+							a.container.Log.Info("[AUTO-UNLOCK] Vault re-initialized and unlocked successfully")
+						} else {
+							a.container.Log.Error("[AUTO-UNLOCK] Second unlock attempt failed: %v", err)
+						}
+					} else {
+						a.container.Log.Error("[AUTO-UNLOCK] Re-initialization setup failed: %v", err)
+					}
+				} else {
+					a.container.Log.Info("[AUTO-UNLOCK] Vault unlocked using dev password")
+				}
 			}
 		}()
 	}

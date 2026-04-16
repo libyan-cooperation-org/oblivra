@@ -93,20 +93,28 @@ func (s *IngestService) Stop(ctx context.Context) error {
 
 // StartSyslogServer binds the UDP/TCP listener to begin receiving external logs
 func (s *IngestService) StartSyslogServer() error {
-	if s.server == nil {
-		return fmt.Errorf("syslog server not configured")
-	}
+	var errs []error
 
-	if err := s.server.Start(); err != nil {
-		s.log.Error("Failed to start syslog server: %v", err)
-		return err
+	if s.server != nil {
+		if err := s.server.Start(); err != nil {
+			s.log.Error("Failed to start syslog server: %v", err)
+			errs = append(errs, err)
+		} else {
+			s.log.Info("Syslog server started successfully on port 1514")
+		}
 	}
 
 	if s.agentSrv != nil {
 		if err := s.agentSrv.Start(); err != nil {
 			s.log.Error("Failed to start agent ingest server: %v", err)
-			return err
+			errs = append(errs, err)
+		} else {
+			s.log.Info("Agent ingest server started successfully on port 8443")
 		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("one or more ingestion servers failed to start: %v", errs)
 	}
 
 	return nil

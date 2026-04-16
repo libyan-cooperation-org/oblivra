@@ -514,7 +514,11 @@ func isSecurityAnomaly(evt *events.SovereignEvent) bool {
 		strings.HasPrefix(evt.EventType, "linux_") ||
 		strings.HasPrefix(evt.EventType, "aws_") ||
 		strings.HasPrefix(evt.EventType, "azure_") ||
-		strings.HasPrefix(evt.EventType, "network_") {
+		strings.HasPrefix(evt.EventType, "network_") ||
+		strings.HasPrefix(evt.EventType, "process") ||
+		strings.HasPrefix(evt.EventType, "network") ||
+		strings.HasPrefix(evt.EventType, "file") ||
+		strings.HasPrefix(evt.EventType, "ebpf") {
 		return true
 	}
 	switch evt.EventType {

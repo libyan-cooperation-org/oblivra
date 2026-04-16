@@ -3,30 +3,45 @@
   Deep investigation via Oblivra Query Language (OQL).
 -->
 <script lang="ts">
-  import { evaluateOQL } from '@lib/oql';
   import { PageLayout, Button, DataTable } from '@components/ui';
+  import { IS_BROWSER } from '@lib/context';
 
-  const mockData = [
-    { id: 'ev_1', timestamp: '2026-04-10 01:40:01', host: 'prod-web-01', message: 'Failed SSH login attempt from 14.2.1.4', severity: 'high', risk: 82 },
-    { id: 'ev_2', timestamp: '2026-04-10 01:38:22', host: 'prod-web-02', message: 'Unauthorized /etc/passwd read', severity: 'critical', risk: 95 },
-    { id: 'ev_3', timestamp: '2026-04-10 01:35:10', host: 'prod-web-03', message: 'Outbound connection to TOR entry node', severity: 'medium', risk: 74 },
-    { id: 'ev_4', timestamp: '2026-04-10 01:30:00', host: 'prod-web-01', message: 'Nginx process restarted by root', severity: 'low', risk: 40 },
-    { id: 'ev_5', timestamp: '2026-04-09 23:55:00', host: 'staging-api-01', message: 'Postgres leak detected', severity: 'high', risk: 88 },
-  ];
-
-  let query = $state('host="prod-web-*" AND severity="high"');
+  let query = $state('*');
   let results = $state<any[]>([]);
   let searching = $state(false);
 
-  function executeSearch() {
+  function formatEvent(ev: any) {
+    return {
+      id: ev.id || ev.ID || crypto.randomUUID(),
+      timestamp: new Date(ev.timestamp || ev.Timestamp || Date.now()).toLocaleString(),
+      host: ev.host_id || ev.HostID || 'unknown',
+      message: ev.raw_log || ev.RawLog || 'No log data',
+      risk: ev.risk_score || 0,
+      severity: ev.event_type || 'info'
+    };
+  }
+
+  async function executeSearch() {
     searching = true;
-    // Mock latency
-    setTimeout(() => {
-      // Normalize query to something the simple parser understands for the demo
-      const simplifiedQuery = query.replace('host="prod-web-*"', 'host~"prod-web"');
-      results = evaluateOQL(simplifiedQuery, mockData);
+    try {
+      let events = [];
+      if (IS_BROWSER) {
+        const res = await fetch('/api/v1/siem/search?q=' + encodeURIComponent(query), {
+          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
+        });
+        if (!res.ok) throw new Error('API error: ' + res.status);
+        const data = await res.json();
+        events = data.events || [];
+      } else {
+        const { SearchHostEvents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
+        events = await SearchHostEvents(query, 100);
+      }
+      results = (events || []).map(formatEvent);
+    } catch (err) {
+      console.error('[SIEMSearch] Search failed:', err);
+    } finally {
       searching = false;
-    }, 400);
+    }
   }
 
   const columns = [

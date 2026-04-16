@@ -86,6 +86,11 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 
 	// Update fleet last-seen keyed on AgentID (stable) and hostname (display)
 	hostname := events[0].Host
+	tenantID := r.Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		tenantID = "GLOBAL"
+	}
+
 	if agentID != "" {
 		s.agentsMu.Lock()
 		now := time.Now().Format(time.RFC3339)
@@ -93,12 +98,14 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		if a, ok := s.agents[agentID]; ok {
 			a.LastSeen = now
 			a.Status = "online"
+			a.TenantID = tenantID
 		}
 		// Also update by hostname for backward compat with handlers that key on hostname
 		if hostname != "" {
 			if a, ok := s.agents[hostname]; ok {
 				a.LastSeen = now
 				a.Status = "online"
+				a.TenantID = tenantID
 			}
 		}
 		s.agentsMu.Unlock()
@@ -196,10 +203,16 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	tenantID := r.Header.Get("X-Tenant-ID")
+	if tenantID == "" {
+		tenantID = "GLOBAL"
+	}
+
 	now := time.Now().Format(time.RFC3339)
 	info := &AgentInfo{
 		ID:         reg.ID,
 		Hostname:   reg.Hostname,
+		TenantID:   tenantID,
 		OS:         reg.OS,
 		Arch:       reg.Arch,
 		Version:    reg.Version,
@@ -241,33 +254,58 @@ func (s *RESTServer) handleAgentFleet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.agentsMu.RLock()
 	now := time.Now()
 
-	// Deduplicate: agents are indexed by both ID and hostname — collect unique entries
-	seen := make(map[string]struct{})
-	fleet := make([]*AgentInfo, 0, len(s.agents)/2+1)
-	for _, agent := range s.agents {
-		if _, dup := seen[agent.ID]; dup {
-			continue
+	// Primary source: AgentProvider (bridges to the AgentServer's real fleet registry on :8443)
+	var fleet []*AgentInfo
+	if s.agentProvider != nil {
+		s.log.Info("[REST] Querying AgentProvider for fleet data")
+		providerFleet := s.agentProvider.GetFleet()
+		s.log.Info("[REST] AgentProvider returned %d agents", len(providerFleet))
+		for i := range providerFleet {
+			agentCopy := providerFleet[i] // Create a copy of the struct
+			ts, _ := time.Parse(time.RFC3339, agentCopy.LastSeen)
+			since := now.Sub(ts)
+			switch {
+			case since < 45*time.Second:
+				agentCopy.Status = "online"
+			case since < 5*time.Minute:
+				agentCopy.Status = "degraded"
+			default:
+				agentCopy.Status = "offline"
+			}
+			fleet = append(fleet, &agentCopy) // Append pointer to the copy
 		}
-		seen[agent.ID] = struct{}{}
-
-		// Compute real-time online/degraded/offline status
-		ts, _ := time.Parse(time.RFC3339, agent.LastSeen)
-		since := now.Sub(ts)
-		switch {
-		case since < 45*time.Second:
-			agent.Status = "online"
-		case since < 5*time.Minute:
-			agent.Status = "degraded"
-		default:
-			agent.Status = "offline"
-		}
-		fleet = append(fleet, agent)
+	} else {
+		s.log.Warn("[REST] AgentProvider is nil")
 	}
-	s.agentsMu.RUnlock()
 
+	// Fallback: merge any agents tracked locally on the REST server (e.g. from direct ingest)
+	if len(fleet) == 0 {
+		s.log.Info("[REST] No agents from provider, falling back to local map (size=%d)", len(s.agents))
+		s.agentsMu.RLock()
+		seen := make(map[string]struct{})
+		for _, agent := range s.agents {
+			if _, dup := seen[agent.ID]; dup {
+				continue
+			}
+			seen[agent.ID] = struct{}{}
+			ts, _ := time.Parse(time.RFC3339, agent.LastSeen)
+			since := now.Sub(ts)
+			switch {
+			case since < 45*time.Second:
+				agent.Status = "online"
+			case since < 5*time.Minute:
+				agent.Status = "degraded"
+			default:
+				agent.Status = "offline"
+			}
+			fleet = append(fleet, agent)
+		}
+		s.agentsMu.RUnlock()
+	}
+
+	s.log.Info("[REST] Returning %d agents to client", len(fleet))
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"total":  len(fleet),
 		"agents": fleet,

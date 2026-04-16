@@ -52,6 +52,11 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 			}
 		}
 
+		// 3. Fallback: Query parameter for WebSockets
+		if key == "" {
+			key = r.URL.Query().Get("token")
+		}
+
 		if key == "" {
 			m.log.Warn("[AUTH] Missing API key for %s %s", r.Method, r.URL.Path)
 			http.Error(w, "Unauthorized: Missing API Key", http.StatusUnauthorized)

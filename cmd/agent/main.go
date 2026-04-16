@@ -34,10 +34,12 @@ func main() {
 	tlsCert        := flag.String("tls-cert",       "",               "Path to TLS client certificate (mTLS)")
 	tlsKey         := flag.String("tls-key",        "",               "Path to TLS client key (mTLS)")
 	tlsCA          := flag.String("tls-ca",         "",               "Path to CA certificate for server verification")
+	insecure       := flag.Bool("insecure",         false,            "Allow insecure TLS (skip verification)")
 	showVersion    := flag.Bool("version",          false,            "Print version and exit")
 	logJSON        := flag.Bool("log-json",         false,            "Enable JSON structured logging")
 	logPath        := flag.String("log-path",       "",               "Path to agent log file (default: <data-dir>/agent.log)")
 
+	tenantID       := flag.String("tenant-id",     os.Getenv("OBLIVRA_TENANT_ID"), "Tenant identifier for multi-tenant isolation")
 	flag.Parse()
 
 	if *showVersion {
@@ -63,6 +65,7 @@ func main() {
 	}
 
 	l.Info("OBLIVRA Agent %s starting on %s/%s (build: %s)", version, runtime.GOOS, runtime.GOARCH, buildTime)
+	l.Info("  Tenant ID:     %s", *tenantID)
 	l.Info("  Server:        %s", *serverAddr)
 	l.Info("  DataDir:       %s", *dataDir)
 	l.Info("  LogPath:       %s", finalLogPath)
@@ -74,6 +77,7 @@ func main() {
 
 	// ── Config ────────────────────────────────────────────────────────────────
 	cfg := agent.Config{
+		TenantID:       *tenantID,
 		ServerAddr:     *serverAddr,
 		DataDir:        *dataDir,
 		Interval:       time.Duration(*interval) * time.Second,
@@ -86,6 +90,7 @@ func main() {
 		TLSCert:        *tlsCert,
 		TLSKey:         *tlsKey,
 		TLSCA:          *tlsCA,
+		InsecureTLS:    *insecure,
 		Version:        version,
 	}
 

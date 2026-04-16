@@ -22,6 +22,7 @@ export class AgentStore {
   async refresh() {
     this.loading = true;
     try {
+      let list: any[] = [];
       if (IS_BROWSER) {
         // Fallback to REST API for browser context via Vite Proxy
         const res = await fetch('/api/v1/agent/fleet', {
@@ -29,14 +30,25 @@ export class AgentStore {
         });
         if (!res.ok) throw new Error('API error: ' + res.status);
         const data = await res.json();
-        // The API returns { total: X, agents: [...] }
-        this.agents = data.agents || [];
+        list = data.agents || [];
       } else {
         // Native Wails IPC context
         const { ListAgents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
-        const list = await ListAgents();
-        this.agents = list || [];
+        list = await ListAgents();
       }
+
+      this.agents = (list || []).map(a => ({
+        id: a.id || a.ID,
+        hostname: a.hostname || a.Hostname,
+        version: a.version || a.Version,
+        tenant_id: a.tenant_id || a.TenantID,
+        last_seen: a.last_seen || a.LastSeen,
+        remote_address: a.remote_address || a.RemoteAddress,
+        status: a.status || a.Status,
+        os: a.os || a.OS,
+        arch: a.arch || a.Arch,
+        collectors: a.collectors || a.Collectors || []
+      }));
       this.error = null;
     } catch (err: any) {
       console.error('[AgentStore] Refresh failed:', err);
