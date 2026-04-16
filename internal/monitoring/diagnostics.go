@@ -263,10 +263,16 @@ func (d *DiagnosticsService) gradeHealth(snap DiagnosticsSnapshot) string {
 		issues++
 	}
 
-	if snap.Ingest.PercentOfTarget < 50 {
-		issues += 2
-	} else if snap.Ingest.PercentOfTarget < 80 {
-		issues++
+	// Only penalize low throughput if the buffer is actually building up or dropping events.
+	// This prevents showing a "C" grade in idle development environments.
+	isStruggling := snap.Ingest.BufferFillPct > 10 || snap.Ingest.DroppedTotal > 0 || snap.EventBus.DroppedEvents > 0
+
+	if isStruggling {
+		if snap.Ingest.PercentOfTarget < 50 {
+			issues += 2
+		} else if snap.Ingest.PercentOfTarget < 80 {
+			issues++
+		}
 	}
 
 	if snap.EventBus.DroppedEvents > 10000 {

@@ -2,14 +2,24 @@ package ingest
 
 import (
 	"fmt"
+	"os"
 	"runtime"
+	"strconv"
 	"sync/atomic"
 	"time"
 )
 
 // EPSTarget is the events-per-second goal for the high-throughput pipeline tier.
-// At 50k EPS with NumCPU workers the per-worker rate is ~50k/NumCPU.
-const EPSTarget = 50_000
+// It can be overridden via OBLIVRA_EPS_TARGET for dev or lower-spec deployments.
+var EPSTarget = 50_000
+
+func init() {
+	if val := os.Getenv("OBLIVRA_EPS_TARGET"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil && i > 0 {
+			EPSTarget = i
+		}
+	}
+}
 
 // AdaptiveController dynamically adjusts the worker pool size and buffer
 // to sustain maximum EPS while preventing OOM under backpressure.
