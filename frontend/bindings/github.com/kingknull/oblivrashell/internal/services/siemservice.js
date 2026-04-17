@@ -137,6 +137,17 @@ export function GetHostEvents(hostID, limit) {
 }
 
 /**
+ * GetPlatformStats returns high-level SIEM platform metrics for the dashboard KPI strip.
+ * Returns EPS (events/second), total events stored, and a storage usage estimate.
+ * @returns {$CancellablePromise<{ [_ in string]?: any }>}
+ */
+export function GetPlatformStats() {
+    return $Call.ByID(3488619741).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * GetRiskScoreByHost calculates a 0-100 score of how compromised this host might be
  * @param {string} hostID
  * @returns {$CancellablePromise<number>}

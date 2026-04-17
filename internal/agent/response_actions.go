@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -152,4 +153,42 @@ func (r *ResponseActionExecutor) collectLinuxSnapshot(pid int, snap *ProcessSnap
 			break
 		}
 	}
+}
+
+// CollectProcessInventory captures a snapshot of all running processes on the system.
+func (r *ResponseActionExecutor) CollectProcessInventory() []ProcessSnapshot {
+	r.log.Info("[response] Capturing full process inventory...")
+	var inventory []ProcessSnapshot
+
+	if runtime.GOOS != "linux" {
+		r.log.Warn("[response] Full process inventory only implemented for Linux")
+		return inventory
+	}
+
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		r.log.Error("[response] Failed to read /proc: %v", err)
+		return inventory
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue
+		}
+
+		snap := ProcessSnapshot{
+			PID:        pid,
+			CapturedAt: time.Now().Format(time.RFC3339),
+			Metadata:   make(map[string]string),
+		}
+		r.collectLinuxSnapshot(pid, &snap)
+		inventory = append(inventory, snap)
+	}
+
+	r.log.Info("[response] Captured %d processes", len(inventory))
+	return inventory
 }

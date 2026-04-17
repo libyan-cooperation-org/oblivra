@@ -60,6 +60,7 @@ type ActionType string
 const (
 	ActionKillProcess     ActionType = "kill_process"
 	ActionProcessSnapshot ActionType = "process_snapshot"
+	ActionProcessInventory ActionType = "process_inventory"
 	ActionIsolateNetwork  ActionType = "isolate_network"
 	ActionRestoreNetwork  ActionType = "restore_network"
 )
@@ -349,6 +350,17 @@ func (a *Agent) handleAction(action PendingAction) {
 		var pid int
 		fmt.Sscanf(action.Payload["pid"], "%d", &pid)
 		_, err = a.response.CollectProcessSnapshot(pid)
+	case ActionProcessInventory:
+		snaps := a.response.CollectProcessInventory()
+		evt := Event{
+			Timestamp: time.Now().Format(time.RFC3339),
+			Source:    "forensics",
+			Type:      "process_inventory",
+			Host:      a.hostname,
+			AgentID:   a.cfg.AgentID,
+			Data:      map[string]interface{}{"processes": snaps},
+		}
+		a.eventCh <- evt
 	case ActionIsolateNetwork:
 		a.log.Warn("[containment] Network isolation requested by SOAR")
 		err = applyNetworkIsolation(true, a.log)

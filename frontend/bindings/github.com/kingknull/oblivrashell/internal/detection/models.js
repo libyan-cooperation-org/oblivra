@@ -697,15 +697,15 @@ export const RuleType = {
      */
     $zero: "",
 
-    /**
-     * GraphRuleType is the RuleType constant for graph-aware rules.
-     */
-    GraphRuleType: "graph",
-
     ThresholdRule: "threshold",
     FrequencyRule: "frequency",
     SequenceRule: "sequence",
     CorrelationRule: "correlation",
+
+    /**
+     * GraphRuleType is the RuleType constant for graph-aware rules.
+     */
+    GraphRuleType: "graph",
 };
 
 /**

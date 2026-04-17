@@ -4,9 +4,10 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Globe, Server, RefreshCw } from 'lucide-svelte';
+  import { Globe, RefreshCw } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
+  import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
 
   const stats = $derived({
     total: agentStore.agents.length,
@@ -14,13 +15,15 @@
     offline: agentStore.agents.filter(a => a.status === 'offline').length,
   });
 
+  const diag = $derived(diagnosticsStore.snapshot);
+
   const columns = [
     { key: 'hostname', label: 'Host Identifier' },
     { key: 'status', label: 'State', width: '100px' },
     { key: 'remote_address', label: 'Remote IP', width: '120px' },
     { key: 'version', label: 'Core', width: '80px' },
-    { key: 'actions', label: '', width: '60px' },
-  ];
+    { key: 'id', label: 'ID', width: '150px' },
+  ] as const;
 </script>
 
 <PageLayout title="Fleet Command" subtitle="Global agent mesh and endpoint health monitoring">
@@ -36,11 +39,12 @@
 
   <div class="flex flex-col h-full gap-6">
     <!-- Fleet KPI Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
       <KPI label="Managed Agents" value={stats.total} trend="stable" trendValue="Active Mesh" />
       <KPI label="Agent Availability" value={stats.total > 0 ? ((stats.online / stats.total) * 100).toFixed(1) + '%' : '—'} variant="success" trend="stable" trendValue="Optimal" />
-      <KPI label="Global Version" value="v2.4.1" trend="up" trendValue="85% coverage" variant="accent" />
-      <KPI label="Mesh Latency" value="14ms" trend="stable" trendValue="Nominal" variant="success" />
+      <KPI label="Platform Health" value={diagnosticsStore.healthGrade} trend="stable" trendValue={diag ? `${diag.ingest.current_eps} EPS` : 'Initializing...'} variant={diagnosticsStore.healthGrade === 'A' ? 'success' : diagnosticsStore.healthGrade === 'B' ? 'accent' : 'warning'} />
+      <KPI label="Engine Version" value={diag?.runtime.go_version.split(' ')[0] || 'v2.4.1'} trend="stable" trendValue="Sovereign Core" variant="default" />
+      <KPI label="Mesh Latency" value={diag ? `${diag.query.avg_query_ms.toFixed(1)}ms` : '—'} trend="stable" trendValue="Avg Query" variant={diag && diag.query.avg_query_ms < 100 ? 'success' : 'warning'} />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -59,18 +63,13 @@
                       <span class="text-[11px] font-bold text-text-heading">{row.hostname}</span>
                       <span class="text-[9px] text-text-muted font-mono">{row.id}</span>
                    </div>
-                {:else if col.key === 'load'}
-                   <div class="flex flex-col gap-1">
-                      <span class="text-[9px] font-mono text-text-muted">{row.load}</span>
-                      <div class="w-full bg-surface-3 h-1 rounded-full overflow-hidden">
-                         <div class="bg-accent h-full transition-all" style="width: {row.load}"></div>
-                      </div>
-                   </div>
-                {:else if col.key === 'actions'}
-                   <Button variant="ghost" size="xs" onclick={() => appStore.navigate('agent-console', {id: row.id})}>Inspect</Button>
-                {:else}
+                 {:else if col.key === 'id'}
+                    <div class="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onclick={() => appStore.navigate('agent-console', {id: row.id})}>Inspect</Button>
+                    </div>
+                 {:else}
                   <span class="text-[11px] text-text-secondary">{value}</span>
-                {/if}
+                 {/if}
               {/snippet}
             </DataTable>
          </div>

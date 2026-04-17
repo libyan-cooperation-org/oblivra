@@ -66,6 +66,15 @@ export function PushFleetConfig(intervalMs, enableFIM, enableSyslog, enableMetri
 }
 
 /**
+ * RequestProcessInventory queues a request for a full process list from an agent
+ * @param {string} agentID
+ * @returns {$CancellablePromise<void>}
+ */
+export function RequestProcessInventory(agentID) {
+    return $Call.ByID(6468842, agentID);
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function Start() {

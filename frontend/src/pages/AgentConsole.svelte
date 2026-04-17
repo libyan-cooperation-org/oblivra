@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { KPI, PageLayout, Badge, Button, DataTable, Toggle } from '@components/ui';
-  import { Lock, Globe, RefreshCw } from 'lucide-svelte';
+  import { Lock, Globe, RefreshCw, Activity } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
 
@@ -21,20 +21,24 @@
   let agentID = $state(readNavParam('id'));
   const agent = $derived(agentStore.agents.find(a => a.id === agentID || a.hostname === agentID));
 
-  // Process list — placeholder until live agent process reporting is wired
-  let processes = $state([
-    { pid: 1421, name: 'nginx',       cpu: '2.4%', mem: '142MB', user: 'www-data', risk: 'low'      },
-    { pid: 4991, name: 'kworker/u:2', cpu: '12%',  mem: '12KB',  user: 'root',     risk: 'medium'   },
-    { pid: 8821, name: './sh -i',     cpu: '0.1%', mem: '440KB', user: 'operator', risk: 'critical' },
-  ]);
+  // Process list — telemetry integration
+  const processes = $derived(agentStore.processes);
 
   onMount(() => {
     const id = readNavParam('id');
-    if (id) agentID = id;
+    if (id) {
+        agentID = id;
+        agentStore.fetchProcessInventory(id);
+    }
     agentStore.refresh();
   });
 
   let quarantine = $state(false);
+
+  async function refreshAll() {
+    agentStore.refresh();
+    if (agentID) agentStore.fetchProcessInventory(agentID);
+  }
 
   async function toggleQuarantine() {
     try {
@@ -55,7 +59,7 @@
     try {
       await agentStore.killProcess(agentID, pid);
       appStore.notify(`Kill directive sent for PID ${pid}`, 'info');
-      processes = processes.filter(p => p.pid !== pid);
+      // No need to manually filter processes, the next inventory update will handle it
     } catch (err: any) {
       appStore.notify(`Kill failed: ${err}`, 'error');
     }
@@ -78,7 +82,7 @@
             <div class="w-1.5 h-1.5 rounded-full {agent?.status === 'online' ? 'bg-accent animate-pulse' : 'bg-text-muted'}"></div>
             <span class="text-[9px] font-bold text-accent uppercase tracking-widest">{agent?.status === 'online' ? 'Live Stream Active' : 'Disconnected'}</span>
         </div>
-        <Button variant="secondary" size="sm" onclick={() => agentStore.refresh()}>
+        <Button variant="secondary" size="sm" onclick={refreshAll}>
             <RefreshCw size={14} class="mr-1 inline align-middle {agentStore.loading ? 'animate-spin' : ''}" />
             Refresh
         </Button>
@@ -99,23 +103,31 @@
          <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted font-mono">
             Process Inventory & Resource Attribution
          </div>
-         <div class="flex-1 overflow-auto">
-            <DataTable data={processes} columns={columns as any} compact>
-              {#snippet render({ col, row, value })}
-                {#if col.key === 'risk'}
-                   <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'medium' ? 'warning' : 'muted'}>
-                     {value}
-                   </Badge>
-                {:else if col.key === 'name'}
-                   <code class="text-[11px] font-bold text-text-heading">{value}</code>
-                {:else if (col.key as any) === 'actions'}
-                   <Button variant="danger" size="sm" onclick={() => killProc(row.pid)}>Kill</Button>
-                {:else}
-                  <span class="text-[11px] text-text-secondary">{value}</span>
-                {/if}
-              {/snippet}
-            </DataTable>
-         </div>
+          <div class="flex-1 overflow-auto">
+            {#if processes.length > 0}
+               <DataTable data={processes} columns={columns as any} compact>
+                 {#snippet render({ col, row, value })}
+                   {#if col.key === 'risk'}
+                      <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'medium' ? 'warning' : 'muted'}>
+                        {value}
+                      </Badge>
+                   {:else if col.key === 'name'}
+                      <code class="text-[11px] font-bold text-text-heading">{value}</code>
+                   {:else if (col.key as any) === 'actions'}
+                      <Button variant="danger" size="sm" onclick={() => killProc(row.pid)}>Kill</Button>
+                   {:else}
+                     <span class="text-[11px] text-text-secondary">{value}</span>
+                   {/if}
+                 {/snippet}
+               </DataTable>
+            {:else}
+               <div class="flex flex-col items-center justify-center h-full opacity-40 p-12 text-center">
+                  <Activity size={32} class="mb-2 text-text-muted" />
+                  <span class="text-[10px] uppercase font-bold tracking-widest">No Active Telemetry</span>
+                  <span class="text-[9px] mt-1">Waiting for agent to stream process inventory...</span>
+               </div>
+            {/if}
+          </div>
       </div>
 
       <!-- Control Sidebar -->

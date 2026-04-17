@@ -67,6 +67,13 @@ export class AgentDTO {
              */
             this["hostname"] = "";
         }
+        if (!("tenant_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tenant_id"] = "";
+        }
         if (!("version" in $$source)) {
             /**
              * @member
@@ -97,6 +104,27 @@ export class AgentDTO {
              */
             this["status"] = "";
         }
+        if (!("os" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["os"] = "";
+        }
+        if (!("arch" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["arch"] = "";
+        }
+        if (!("collectors" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["collectors"] = [];
+        }
 
         Object.assign(this, $$source);
     }
@@ -107,7 +135,11 @@ export class AgentDTO {
      * @returns {AgentDTO}
      */
     static createFrom($$source = {}) {
+        const $$createField9_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("collectors" in $$parsedSource) {
+            $$parsedSource["collectors"] = $$createField9_0($$parsedSource["collectors"]);
+        }
         return new AgentDTO(/** @type {Partial<AgentDTO>} */($$parsedSource));
     }
 }
@@ -290,7 +322,7 @@ export class BiasEntry {
      * @returns {BiasEntry}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType1;
+        const $$createField2_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("evidence" in $$parsedSource) {
             $$parsedSource["evidence"] = $$createField2_0($$parsedSource["evidence"]);
@@ -395,7 +427,7 @@ export class BookmarkCreateInput {
      * @returns {BookmarkCreateInput}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType2;
+        const $$createField6_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tags" in $$parsedSource) {
             $$parsedSource["tags"] = $$createField6_0($$parsedSource["tags"]);
@@ -535,7 +567,7 @@ export class BookmarkEntry {
      * @returns {BookmarkEntry}
      */
     static createFrom($$source = {}) {
-        const $$createField8_0 = $$createType2;
+        const $$createField8_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tags" in $$parsedSource) {
             $$parsedSource["tags"] = $$createField8_0($$parsedSource["tags"]);
@@ -779,7 +811,7 @@ export class CredentialHealth {
      * @returns {CredentialHealth}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType2;
+        const $$createField4_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("issues" in $$parsedSource) {
             $$parsedSource["issues"] = $$createField4_0($$parsedSource["issues"]);
@@ -829,7 +861,7 @@ export class DestructiveCheckResult {
      * @returns {DestructiveCheckResult}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType2;
+        const $$createField1_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("threats" in $$parsedSource) {
             $$parsedSource["threats"] = $$createField1_0($$parsedSource["threats"]);
@@ -1283,7 +1315,7 @@ export class LifecycleStats {
      */
     static createFrom($$source = {}) {
         const $$createField2_0 = $$createType5;
-        const $$createField5_0 = $$createType2;
+        const $$createField5_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("categories_purged" in $$parsedSource) {
             $$parsedSource["categories_purged"] = $$createField2_0($$parsedSource["categories_purged"]);
@@ -1472,7 +1504,7 @@ export class MultiExecJob {
      * @returns {MultiExecJob}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType2;
+        const $$createField3_0 = $$createType0;
         const $$createField4_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("host_ids" in $$parsedSource) {
@@ -1664,7 +1696,7 @@ export class OperatorContext {
      */
     static createFrom($$source = {}) {
         const $$createField5_0 = $$createType9;
-        const $$createField7_0 = $$createType2;
+        const $$createField7_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recent_alerts" in $$parsedSource) {
             $$parsedSource["recent_alerts"] = $$createField5_0($$parsedSource["recent_alerts"]);
@@ -2395,9 +2427,9 @@ export class TunnelInfo {
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Map($Create.Any, $Create.Any);
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $Create.Array($Create.Any);
+const $$createType0 = $Create.Array($Create.Any);
+const $$createType1 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = DiffItem.createFrom;
 const $$createType4 = $Create.Array($$createType3);
 const $$createType5 = $Create.Map($Create.Any, $Create.Any);

@@ -1,4 +1,5 @@
 import { IS_BROWSER } from '@lib/context';
+import { subscribe } from '@lib/bridge';
 
 export interface AgentDTO {
   id: string;
@@ -7,16 +8,34 @@ export interface AgentDTO {
   last_seen: string;
   remote_address: string;
   status: string;
+  collectors: string[];
+}
+
+export interface ProcessSnapshot {
+  pid: number;
+  name: string;
+  cmdline?: string;
+  user?: string;
+  memory_bytes: number;
+  open_files: number;
+  risk?: string;
 }
 
 export class AgentStore {
   agents = $state<AgentDTO[]>([]);
+  processes = $state<ProcessSnapshot[]>([]);
   loading = $state(false);
   error = $state<string | null>(null);
 
   constructor() {
     this.refresh();
     setInterval(() => this.refresh(), 10000); // 10s heartbeat check
+
+    // Listen for process inventory responses from agents
+    subscribe<{agent_id: string, processes: ProcessSnapshot[]}>('process_inventory', (data) => {
+      console.log(`[AgentStore] Received inventory for agent ${data.agent_id}`);
+      this.processes = data.processes || [];
+    });
   }
 
   async refresh() {
@@ -53,6 +72,22 @@ export class AgentStore {
     } catch (err: any) {
       console.error('[AgentStore] Refresh failed:', err);
       this.error = 'Failed to sync with agent fleet';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  async fetchProcessInventory(agentID: string) {
+    if (IS_BROWSER) return;
+    this.loading = true;
+    try {
+      const { RequestProcessInventory } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
+      await RequestProcessInventory(agentID);
+      // We don't clear this.processes here because we want to keep the old ones 
+      // until the new ones arrive via the event bridge.
+    } catch (err: any) {
+      console.error('[AgentStore] RequestProcessInventory failed:', err);
+      this.error = 'Failed to request process inventory';
     } finally {
       this.loading = false;
     }

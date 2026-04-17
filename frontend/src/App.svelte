@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount, getContext, setContext } from 'svelte';
+  import { onMount } from 'svelte';
   import RouterView from '@components/RouterView.svelte';
   import { initBridge, APP_CONTEXT } from '@lib/bridge';
   import { appStore } from '@lib/stores/app.svelte';
   import { toastStore } from '@lib/stores/toast.svelte';
   import { crisisStore } from '@lib/stores/crisis.svelte';
-  import Sidebar from '@components/layout/CommandRail.svelte';
+  import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
+import Sidebar from '@components/layout/CommandRail.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
@@ -15,7 +16,6 @@
   // ── Pages
   import Dashboard from '@pages/Dashboard.svelte';
   import TerminalPage from '@pages/TerminalPage.svelte';
-  import PasswordVault from '@pages/PasswordVault.svelte';
   import RecordingsPage from '@pages/RecordingsPage.svelte';
   import SIEMPanel from '@pages/SIEMPanel.svelte';
   import AlertDashboard from '@pages/AlertDashboard.svelte';
@@ -34,11 +34,9 @@
   import SSHBookmarks from '@pages/SSHBookmarks.svelte';
   import SIEMSearch from '@pages/SIEMSearch.svelte';
   import CompliancePage from '@pages/CompliancePage.svelte';
-  import ComplianceCenter from '@pages/ComplianceCenter.svelte';
   import IdentityAdmin from '@pages/IdentityAdmin.svelte';
   import EscalationCenter from '@pages/EscalationCenter.svelte';
   import PurpleTeam from '@pages/PurpleTeam.svelte';
-  import ExecutiveDashboard from '@pages/ExecutiveDashboard.svelte';
   import ExecutiveDash from '@pages/ExecutiveDash.svelte';
   import ResponseReplay from '@pages/ResponseReplay.svelte';
   import TemporalIntegrity from '@pages/TemporalIntegrity.svelte';
@@ -53,7 +51,6 @@
   import SnippetsPage from '@pages/SnippetsPage.svelte';
   import NotesPage from '@pages/NotesPage.svelte';
   import FleetDashboard from '@pages/FleetDashboard.svelte';
-  import UEBAPanel from '@pages/UEBAPanel.svelte';
   import UEBAOverview from '@pages/UEBAOverview.svelte';
   import NDROverview from '@pages/NDROverview.svelte';
   import EnrichmentViewer from '@pages/EnrichmentViewer.svelte';
@@ -214,6 +211,7 @@
 
       const rt = (window as any).runtime;
       if (rt && APP_CONTEXT !== 'browser') {
+        console.debug('[App] Diagnostics initialized:', diagnosticsStore.healthGrade);
         rt.EventsOn('system.error', (msg: string) => {
           toastStore.add({ type: 'error', title: 'System Error', message: msg });
         });

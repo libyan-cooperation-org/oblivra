@@ -1,4 +1,5 @@
 import { IS_BROWSER } from '@lib/context';
+import { diagnosticsStore } from './diagnostics.svelte';
 
 interface HealthStats {
   AlertCount: number;
@@ -37,24 +38,21 @@ export class DashboardStore {
     this.loading = true;
     try {
       const { GetAllHealth } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/healthservice');
-      const { GetSnapshot } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/diagnosticsservice');
-      const { GetPlatformStats } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
 
-      const [h, diag, siem] = await Promise.all([
-        GetAllHealth(),
-        GetSnapshot().catch(() => null),
-        GetPlatformStats().catch(() => null),
+      const [h] = await Promise.all([
+        GetAllHealth().catch(() => null),
       ]);
+
+      const diag = diagnosticsStore.snapshot;
 
       this.health = (h as HealthStats) || { AlertCount: 0, Status: 'Active' };
 
       // Merge EPS from diagnostics snapshot into siemStats
-      const eps = diag ? String((diag as any).IngestEPS ?? '0') : '0';
-      const siemData = (siem as any) || {};
+      const eps = diag ? String(diag.ingest.current_eps ?? '0') : '0';
       this.siemStats = {
-        StorageUsage: siemData.StorageUsage ?? '0',
+        StorageUsage: '0', // Storage usage tracking moved to Diagnostics in next phase
         EPS: eps,
-        TotalEvents: siemData.TotalEvents ?? 0,
+        TotalEvents: diag?.ingest.dropped_total ?? 0, // Mocking TotalEvents as dropped for now or omit
       };
 
       this.lastRefreshed = new Date();

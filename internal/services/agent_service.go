@@ -132,3 +132,17 @@ func (s *AgentService) ToggleQuarantine(agentID string, enabled bool) error {
 	})
 	return nil
 }
+
+// RequestProcessInventory queues a request for a full process list from an agent
+func (s *AgentService) RequestProcessInventory(agentID string) error {
+	s.log.Info("Requesting process inventory from agent=%s", agentID)
+	if s.server == nil {
+		return fmt.Errorf("agent server not initialized")
+	}
+
+	s.server.AddAction(agentID, ingest.PendingAction{
+		ID:   fmt.Sprintf("proc-inv-%d", time.Now().Unix()),
+		Type: ingest.ActionProcessInventory,
+	})
+	return nil
+}

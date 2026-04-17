@@ -61,6 +61,7 @@ type ActionType string
 const (
 	ActionKillProcess      ActionType = "kill_process"
 	ActionProcessSnapshot  ActionType = "process_snapshot"
+	ActionProcessInventory ActionType = "process_inventory"
 	ActionIsolateNetwork   ActionType = "isolate_network"
 	ActionRestoreNetwork   ActionType = "restore_network"
 )
