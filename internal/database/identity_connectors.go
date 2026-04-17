@@ -28,7 +28,7 @@ func (r *IdentityConnectorRepository) List(ctx context.Context) ([]IdentityConne
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, name, type, enabled, config_json, sync_interval_mins,
@@ -66,7 +66,7 @@ func (r *IdentityConnectorRepository) Create(ctx context.Context, c *IdentityCon
 	now := time.Now().Format(time.RFC3339)
 	c.CreatedAt = now
 	c.UpdatedAt = now
-	c.TenantID = TenantFromContext(ctx)
+	c.TenantID = MustTenantFromContext(ctx)
 
 	// Security: Encrypt configuration if vault is available
 	encryptedConfig := c.ConfigJSON
@@ -96,7 +96,7 @@ func (r *IdentityConnectorRepository) GetByID(ctx context.Context, id string) (*
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var c IdentityConnector
 	err = conn.QueryRow(`
@@ -133,7 +133,7 @@ func (r *IdentityConnectorRepository) GetByID(ctx context.Context, id string) (*
 // Update updates a connector's configuration.
 func (r *IdentityConnectorRepository) Update(ctx context.Context, c *IdentityConnector) error {
 	c.UpdatedAt = time.Now().Format(time.RFC3339)
-	c.TenantID = TenantFromContext(ctx)
+	c.TenantID = MustTenantFromContext(ctx)
 
 	// Security: Encrypt configuration if vault is available
 	encryptedConfig := c.ConfigJSON
@@ -166,14 +166,14 @@ func (r *IdentityConnectorRepository) Update(ctx context.Context, c *IdentityCon
 
 // Delete removes a connector.
 func (r *IdentityConnectorRepository) Delete(ctx context.Context, id string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, "DELETE FROM identity_connectors WHERE id = ? AND tenant_id = ?", id, tenantID)
 	return err
 }
 
 // UpdateStatus updates the status of a sync operation.
 func (r *IdentityConnectorRepository) UpdateStatus(ctx context.Context, id string, status string, errorMessage string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE identity_connectors SET
 			status = ?, error_message = ?, last_sync = ?, updated_at = ?
@@ -186,7 +186,7 @@ func (r *IdentityConnectorRepository) UpdateStatus(ctx context.Context, id strin
 
 // MarkSyncStart marks the start of a sync operation.
 func (r *IdentityConnectorRepository) MarkSyncStart(ctx context.Context, id string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE identity_connectors SET
 			status = 'syncing', updated_at = ?

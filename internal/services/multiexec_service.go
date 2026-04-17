@@ -134,7 +134,7 @@ func (s *MultiExecService) Execute(ctx context.Context, command string, hostIDs 
 		timeout = 30 * time.Second
 	}
 
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 
 	// Initialize job
 	results := make([]MultiExecResult, len(hostIDs))

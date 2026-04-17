@@ -23,7 +23,7 @@ func (r *DashboardRepository) Create(ctx context.Context, d *Dashboard) error {
 	if d.ID == "" {
 		d.ID = uuid.New().String()
 	}
-	d.TenantID = TenantFromContext(ctx)
+	d.TenantID = MustTenantFromContext(ctx)
 	now := time.Now().Format(time.RFC3339)
 	d.CreatedAt = now
 	d.UpdatedAt = now
@@ -44,7 +44,7 @@ func (r *DashboardRepository) GetByID(ctx context.Context, id string) (*Dashboar
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	var d Dashboard
 	err = conn.QueryRow(`
 		SELECT id, tenant_id, name, description, layout, owner_id, created_at, updated_at
@@ -72,7 +72,7 @@ func (r *DashboardRepository) List(ctx context.Context) ([]Dashboard, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, name, description, layout, owner_id, created_at, updated_at
 		FROM dashboards WHERE tenant_id = ? ORDER BY created_at DESC
@@ -98,7 +98,7 @@ func (r *DashboardRepository) Update(ctx context.Context, d *Dashboard) error {
 	defer r.db.Unlock()
 
 	d.UpdatedAt = time.Now().Format(time.RFC3339)
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE dashboards SET name = ?, description = ?, layout = ?, updated_at = ?
@@ -111,7 +111,7 @@ func (r *DashboardRepository) Delete(ctx context.Context, id string) error {
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, "DELETE FROM dashboards WHERE id = ? AND tenant_id = ?", id, tenantID)
 	return err
 }

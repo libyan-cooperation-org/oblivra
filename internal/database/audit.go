@@ -66,7 +66,7 @@ func (r *AuditRepository) Log(ctx context.Context, eventType string, hostID stri
 		return fmt.Errorf("merkle add: %w", err)
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err = r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO audit_logs (tenant_id, timestamp, event_type, host_id, session_id, details, merkle_hash, merkle_index)
@@ -90,7 +90,7 @@ func (r *AuditRepository) GetRecent(ctx context.Context, limit int) ([]AuditLog,
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, timestamp, event_type,
@@ -128,7 +128,7 @@ func (r *AuditRepository) GetByDateRange(ctx context.Context, from, to string, l
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, timestamp, event_type,
@@ -166,7 +166,7 @@ func (r *AuditRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	var count int64
 	err = conn.QueryRow("SELECT COUNT(*) FROM audit_logs WHERE tenant_id = ?", tenantID).Scan(&count)
 	return count, err

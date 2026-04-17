@@ -304,6 +304,8 @@ func (c *EBPFLinuxCollector) attach() error {
 		{"execve", 1, "syscalls/sys_enter_execve"},
 		{"openat", 3, "syscalls/sys_enter_openat"},
 		{"ptrace", 4, "syscalls/sys_enter_ptrace"},
+		{"mmap", 5, "syscalls/sys_enter_mmap"},
+		{"mprotect", 6, "syscalls/sys_enter_mprotect"},
 	}
 
 	ok := 0
@@ -453,6 +455,12 @@ func (c *EBPFLinuxCollector) parsePayload(p []byte) *Event {
 	case 4:
 		evType, source = "ptrace_call", "ebpf_ptrace"
 		data["request"], data["target_pid"], data["mitre_technique"] = extra, arg0, "T1055"
+	case 5:
+		evType, source = "memory_map", "ebpf_mmap"
+		data["addr"], data["len"], data["prot"], data["mitre_technique"] = arg0, extra, extra, "T1055"
+	case 6:
+		evType, source = "memory_protect", "ebpf_mprotect"
+		data["addr"], data["len"], data["prot"], data["mitre_technique"] = arg0, extra, extra, "T1055"
 	default:
 		evType, source = "kernel_telemetry", "ebpf"
 		data["probe_id"] = probeID

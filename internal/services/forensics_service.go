@@ -41,7 +41,7 @@ func (s *ForensicsService) Dependencies() []string {
 // NewForensicsService creates a new forensics service.
 // It initialises the evidence locker using a TPM-rooted signer (falls back to
 // vault-derived HMAC key when hardware TPM is unavailable).
-func NewForensicsService(store database.EvidenceStore, v *vault.Vault, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
+func NewForensicsService(store database.EvidenceStore, v vault.Provider, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
 	// Derive fallback HMAC key from vault; use sentinel if vault is locked
 	var fallbackKey []byte
 	if v != nil && v.IsUnlocked() {
@@ -162,7 +162,7 @@ func (s *ForensicsService) CollectEvidence(
 	// Decode base64 data from frontend
 	data := []byte(dataBase64) // In production, decode from base64
 
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 
 	item, err := s.locker.Collect(
 		incidentID,
@@ -286,7 +286,7 @@ func (s *ForensicsService) AcquireDiskImage(ctx context.Context, devicePath stri
 	s.log.Warn("[FORENSICS] 🔴 Starting disk acquisition: device=%s incident=%s", devicePath, incidentID)
 
 	// Use a longer timeout for disk IO, but preserve tenant context
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	acquireCtx, cancel := context.WithTimeout(ctx, 4*time.Hour)
 	defer cancel()
 
@@ -334,7 +334,7 @@ func (s *ForensicsService) AcquireDiskImage(ctx context.Context, devicePath stri
 func (s *ForensicsService) AcquireMemoryDump(ctx context.Context, incidentID string) (map[string]interface{}, error) {
 	s.log.Warn("[FORENSICS] 🔴 Starting memory dump for incident=%s", incidentID)
 
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	acquireCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 

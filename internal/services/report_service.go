@@ -156,7 +156,7 @@ func (s *ReportService) GenerateManualReport(ctx context.Context, templateID str
 func (s *ReportService) GetReportPath(ctx context.Context, id string) (string, error) {
 	// For MVP, we use the ID as the filename relative to the tenant's report dir
 	// In a full implementation, we'd lookup the instance in the DB.
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	reportsDir := filepath.Join(platform.DataDir(), "reports", tenantID)
 	
 	// Security: validate ID doesn't contain path traversal

@@ -125,8 +125,9 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
+	fleetSecret := []byte("oblivra-fleet-secret-v1") // PRR: Move to secure vault
 	agentBridge := &agentProviderBridge{service: agentService}
-	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, agentBridge, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
+	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, agentBridge, fleetSecret, attest, am, identity, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server: server,

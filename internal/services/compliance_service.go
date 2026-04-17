@@ -23,7 +23,7 @@ type ComplianceService struct {
 	evaluator       *compliance.Evaluator
 	bus             *eventbus.Bus
 	log             *logger.Logger
-	vault           *vault.Vault
+	vault           vault.Provider
 	identity        *IdentityService
 	api             *APIService
 }
@@ -37,7 +37,7 @@ func (s *ComplianceService) Dependencies() []string {
 }
 
 // NewComplianceService creates a new compliance service
-func NewComplianceService(generator *compliance.ReportGenerator, evaluator *compliance.Evaluator, bus *eventbus.Bus, log *logger.Logger, v *vault.Vault, identity *IdentityService, api *APIService) *ComplianceService {
+func NewComplianceService(generator *compliance.ReportGenerator, evaluator *compliance.Evaluator, bus *eventbus.Bus, log *logger.Logger, v vault.Provider, identity *IdentityService, api *APIService) *ComplianceService {
 	return &ComplianceService{
 		reportGenerator: generator,
 		evaluator:       evaluator,

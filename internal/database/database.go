@@ -107,3 +107,23 @@ func (d *Database) ReplicatedExecContext(ctx context.Context, query string, args
 	// Standalone fallback
 	return db.ExecContext(ctx, query, args...)
 }
+
+func (d *Database) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	d.mu.RLock()
+	db := d.db
+	d.mu.RUnlock()
+	if db == nil {
+		return nil
+	}
+	return db.QueryRowContext(ctx, query, args...)
+}
+
+func (d *Database) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	d.mu.RLock()
+	db := d.db
+	d.mu.RUnlock()
+	if db == nil {
+		return nil, ErrLocked
+	}
+	return db.QueryContext(ctx, query, args...)
+}

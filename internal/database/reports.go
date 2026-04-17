@@ -28,7 +28,7 @@ func (r *ReportRepository) CreateTemplate(ctx context.Context, t *ReportTemplate
 	if t.ID == "" {
 		t.ID = uuid.New().String()
 	}
-	t.TenantID = TenantFromContext(ctx)
+	t.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO report_templates (id, tenant_id, name, description, sections_json, created_at, updated_at)
@@ -46,7 +46,7 @@ func (r *ReportRepository) GetTemplate(ctx context.Context, id string) (*ReportT
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	var t ReportTemplate
 	err = conn.QueryRow(`
 		SELECT id, tenant_id, name, description, sections_json, created_at, updated_at
@@ -67,7 +67,7 @@ func (r *ReportRepository) ListTemplates(ctx context.Context) ([]ReportTemplate,
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, name, description, sections_json, created_at, updated_at
 		FROM report_templates WHERE tenant_id = ? ORDER BY name ASC
@@ -97,7 +97,7 @@ func (r *ReportRepository) CreateSchedule(ctx context.Context, s *ReportSchedule
 	if s.ID == "" {
 		s.ID = uuid.New().String()
 	}
-	s.TenantID = TenantFromContext(ctx)
+	s.TenantID = MustTenantFromContext(ctx)
 	s.CreatedAt = time.Now().Format(time.RFC3339)
 	if s.NextRunAt == "" {
 		s.NextRunAt = time.Now().Add(time.Duration(s.IntervalMins) * time.Minute).Format(time.RFC3339)
@@ -173,7 +173,7 @@ func (r *ReportRepository) CreateReportInstance(ctx context.Context, g *Generate
 	if g.ID == "" {
 		g.ID = uuid.New().String()
 	}
-	g.TenantID = TenantFromContext(ctx)
+	g.TenantID = MustTenantFromContext(ctx)
 	if g.CreatedAt == "" {
 		g.CreatedAt = time.Now().Format(time.RFC3339)
 	}
@@ -194,7 +194,7 @@ func (r *ReportRepository) ListReports(ctx context.Context, limit int) ([]Genera
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, schedule_id, template_id, title, period_start, period_end, file_path, status, created_at
 		FROM generated_reports WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?

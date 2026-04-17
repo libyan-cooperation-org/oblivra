@@ -52,7 +52,7 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 	// Enforce canonical tenant ID from context — never allow "GLOBAL" stray writes.
 	if event.TenantID == "" {
-		event.TenantID = database.TenantFromContext(ctx)
+		event.TenantID = database.MustTenantFromContext(ctx)
 	}
 
 	// We use UnixNano as a pseudo-ID since Badger is KV.
@@ -104,7 +104,7 @@ func (r *BadgerSIEMRepository) InsertHostEvent(ctx context.Context, event *datab
 
 // GetHostEvents returns the latest security events for a host, up to a limit
 func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit int) ([]database.HostEvent, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 
 	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 	var events []database.HostEvent
@@ -128,7 +128,7 @@ func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string,
 
 // SearchHostEvents performs a flexible search across security anomalies
 func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 
 	if r.search != nil && *r.search != nil {
 		// Bleve search is already partitioned by tenant in the getIndex() call.
@@ -199,7 +199,7 @@ func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query strin
 
 // GetFailedLoginsByHost aggregates invalid login counts per source IP
 func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID string) ([]map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	// ip -> user -> {attempts, last_attempt}
@@ -260,7 +260,7 @@ func (r *BadgerSIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID
 
 // CalculateRiskScore heuristically calculates risk of a host based on event frequency over 24h
 func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID string) (int, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	score := 0
@@ -312,7 +312,7 @@ func (r *BadgerSIEMRepository) CalculateRiskScore(ctx context.Context, hostID st
 
 // GetGlobalThreatStats aggregates security data across all hosts for the Dashboard KPIs
 func (r *BadgerSIEMRepository) GetGlobalThreatStats(ctx context.Context) (map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	stats := map[string]interface{}{
@@ -376,7 +376,7 @@ func (r *BadgerSIEMRepository) GetEventTrend(ctx context.Context, days int) ([]m
 		trendMap[d] = 0
 	}
 
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
 
 	r.store.ReverseIteratePrefix(prefix, 0, func(key, value []byte) error {

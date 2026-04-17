@@ -12,7 +12,26 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"crypto/ed25519"
 )
+
+func resolveIdentityKey(dataDir string) (ed25519.PrivateKey, error) {
+	path := filepath.Join(dataDir, "identity.key")
+	data, err := os.ReadFile(path)
+	if err == nil {
+		if len(data) == ed25519.PrivateKeySize {
+			return ed25519.PrivateKey(data), nil
+		}
+	}
+
+	// Generate new key
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	_ = os.WriteFile(path, priv, 0600)
+	return priv, nil
+}
 
 // Config defines the agent configuration.
 type Config struct {
@@ -87,6 +106,9 @@ type Agent struct {
 	response   *ResponseActionExecutor
 	wg         sync.WaitGroup
 	log        *logger.Logger
+	hostname   string // Host identifier resolved at startup
+	privKey    ed25519.PrivateKey // 1.4: Sovereign identity key
+	watchdog   *Watchdog // 5: Sovereign self-protection
 }
 
 // Collector defines the interface for data collection plugins.
@@ -127,6 +149,12 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 	}
 	cfg.AgentID = agentID
 
+	// Resolve or generate sovereign identity key
+	privKey, err := resolveIdentityKey(cfg.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve identity key: %w", err)
+	}
+
 	if cfg.TenantID == "" {
 		cfg.TenantID = "GLOBAL"
 	}
@@ -151,6 +179,7 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 		wal.Close()
 		return nil, fmt.Errorf("init transport: %w", err)
 	}
+	transport.SetIdentityKey(privKey) // 1.4: Enable batch signing
 
 	a := &Agent{
 		cfg:      cfg,
@@ -160,32 +189,34 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 		redactor:  NewPIIRedactor(),
 		response:  NewResponseActionExecutor(log),
 		log:       log.WithPrefix("agent"),
+		privKey:   privKey,
+		watchdog:  NewWatchdog(log),
 	}
 
-	hostname, _ := os.Hostname()
+	a.hostname, _ = os.Hostname()
 
 	if cfg.EnableMetrics {
 		a.collectors = append(a.collectors,
-			NewMetricsCollector(hostname, agentID, cfg.Interval, log.WithPrefix("metrics")))
+			NewMetricsCollector(a.hostname, agentID, cfg.Interval, log.WithPrefix("metrics")))
 	}
 	if cfg.EnableSyslog {
 		a.collectors = append(a.collectors,
-			NewFileTailCollector(hostname, agentID, defaultLogPaths(), log.WithPrefix("file_tail")))
+			NewFileTailCollector(a.hostname, agentID, defaultLogPaths(), log.WithPrefix("file_tail")))
 	}
 	if cfg.EnableFIM {
 		a.collectors = append(a.collectors,
-			NewFIMCollector(hostname, agentID, defaultFIMPaths(), log.WithPrefix("fim")))
+			NewFIMCollector(a.hostname, agentID, defaultFIMPaths(), log.WithPrefix("fim")))
 	}
 	if cfg.EnableEventLog && runtime.GOOS == "windows" {
 		a.collectors = append(a.collectors,
-			NewEventLogCollector(hostname, agentID, log.WithPrefix("eventlog")))
+			NewEventLogCollector(a.hostname, agentID, log.WithPrefix("eventlog")))
 	}
 	if runtime.GOOS == "linux" {
 		a.collectors = append(a.collectors,
-			NewEBPFCollector(hostname, log.WithPrefix("ebpf")))
+			NewEBPFCollector(a.hostname, log.WithPrefix("ebpf")))
 	}
 
-	log.Info("Agent ID: %s  hostname: %s  collectors: %d", agentID, hostname, len(a.collectors))
+	log.Info("Agent ID: %s  a.hostname: %s  collectors: %d", agentID, a.hostname, len(a.collectors))
 	return a, nil
 }
 
@@ -309,17 +340,16 @@ func (a *Agent) hotToggle(name string, enable bool) {
 		}
 	}
 
-	hostname, _ := os.Hostname()
 	var c Collector
 	switch name {
 	case "metrics":
-		c = NewMetricsCollector(hostname, a.cfg.AgentID, a.cfg.Interval, a.log.WithPrefix("metrics"))
+		c = NewMetricsCollector(a.hostname, a.cfg.AgentID, a.cfg.Interval, a.log.WithPrefix("metrics"))
 	case "file_tail":
-		c = NewFileTailCollector(hostname, a.cfg.AgentID, defaultLogPaths(), a.log.WithPrefix("file_tail"))
+		c = NewFileTailCollector(a.hostname, a.cfg.AgentID, defaultLogPaths(), a.log.WithPrefix("file_tail"))
 	case "fim":
-		c = NewFIMCollector(hostname, a.cfg.AgentID, defaultFIMPaths(), a.log.WithPrefix("fim"))
+		c = NewFIMCollector(a.hostname, a.cfg.AgentID, defaultFIMPaths(), a.log.WithPrefix("fim"))
 	case "eventlog":
-		c = NewEventLogCollector(hostname, a.cfg.AgentID, a.log.WithPrefix("eventlog"))
+		c = NewEventLogCollector(a.hostname, a.cfg.AgentID, a.log.WithPrefix("eventlog"))
 	}
 
 	if c == nil {
@@ -418,6 +448,16 @@ func (a *Agent) processEvents(ctx context.Context) {
 }
 
 func (a *Agent) writeEvent(event Event) {
+	// 5. Sovereign Self-Protection Watchdog
+	if a.watchdog != nil {
+		if alert := a.watchdog.Inspect(event); alert != nil {
+			// Enqueue alert asynchronously to avoid blocking the current event's write
+			go func(ea Event) {
+				a.eventCh <- ea
+			}(*alert)
+		}
+	}
+
 	// Stamp agent ID if not set by collector
 	if event.AgentID == "" {
 		event.AgentID = a.cfg.AgentID

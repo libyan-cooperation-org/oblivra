@@ -16,7 +16,7 @@ func NewSessionRepository(db DatabaseStore) *SessionRepository {
 }
 
 func (r *SessionRepository) Create(ctx context.Context, session *Session) error {
-	session.TenantID = TenantFromContext(ctx)
+	session.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO sessions (id, tenant_id, host_id, started_at, status)
@@ -27,7 +27,7 @@ func (r *SessionRepository) Create(ctx context.Context, session *Session) error 
 }
 
 func (r *SessionRepository) End(ctx context.Context, id string, status string, bytesSent, bytesReceived int64) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	now := time.Now().Format(time.RFC3339)
 	_, err := r.db.ReplicatedExecContext(ctx, `
@@ -52,7 +52,7 @@ func (r *SessionRepository) GetRecent(ctx context.Context, limit int) ([]Session
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, host_id, started_at, ended_at, duration_seconds,
@@ -97,7 +97,7 @@ func (r *SessionRepository) GetByHostID(ctx context.Context, hostID string, limi
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, host_id, started_at, ended_at, duration_seconds,

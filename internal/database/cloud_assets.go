@@ -20,7 +20,7 @@ func NewCloudAssetRepository(db DatabaseStore) *CloudAssetRepository {
 
 // Upsert inserts a new cloud asset or updates an existing one if ID matches for the tenant.
 func (r *CloudAssetRepository) Upsert(ctx context.Context, asset *CloudAsset) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	asset.TenantID = tenantID
 
 	now := time.Now().Format(time.RFC3339)
@@ -60,7 +60,7 @@ func (r *CloudAssetRepository) GetByID(ctx context.Context, id string) (*CloudAs
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	row := conn.QueryRow(`
 		SELECT id, tenant_id, provider, region, account_id, type, name, status, 
@@ -77,7 +77,7 @@ func (r *CloudAssetRepository) List(ctx context.Context, provider string, accoun
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	query := "SELECT id, tenant_id, provider, region, account_id, type, name, status, metadata, tags, first_seen, last_seen FROM cloud_assets WHERE tenant_id = ?"
 	args := []interface{}{tenantID}
 
@@ -110,7 +110,7 @@ func (r *CloudAssetRepository) List(ctx context.Context, provider string, accoun
 
 // Delete removes a cloud asset record.
 func (r *CloudAssetRepository) Delete(ctx context.Context, id string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, "DELETE FROM cloud_assets WHERE id = ? AND tenant_id = ?", id, tenantID)
 	if err != nil {
 		return fmt.Errorf("delete cloud asset: %w", err)
@@ -125,7 +125,7 @@ func (r *CloudAssetRepository) GetStats(ctx context.Context) (map[string]int, er
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	rows, err := conn.Query("SELECT provider, COUNT(*) FROM cloud_assets WHERE tenant_id = ? GROUP BY provider", tenantID)
 	if err != nil {
 		return nil, err

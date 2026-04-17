@@ -21,57 +21,91 @@ package api
 //      and database layer to propagate and read the tenant scope.
 
 import (
-	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/kingknull/oblivrashell/internal/auth"
+	"github.com/kingknull/oblivrashell/internal/database"
 )
-
-// tenantContextKey is a dedicated type to avoid collisions with other context keys.
-type tenantContextKey struct{}
-
-// ContextWithTenantID stores the caller's TenantID in the request context.
-// Used by tenantMiddleware and by DB helper functions that enforce row-level isolation.
-func ContextWithTenantID(ctx context.Context, tenantID string) context.Context {
-	return context.WithValue(ctx, tenantContextKey{}, tenantID)
-}
-
-// TenantFromContext extracts the TenantID from context.
-// Returns empty string if none was set (indicating global/admin access).
-func TenantFromContext(ctx context.Context) string {
-	v, _ := ctx.Value(tenantContextKey{}).(string)
-	return v
-}
 
 // tenantMiddleware is an HTTP middleware that reads the authenticated user's
 // TenantID from the auth context and injects it into the request context.
 //
-// This runs AFTER authMiddleware / APIKeyMiddleware so that auth.UserFromContext
-// is always populated before this middleware executes.
+// ⚠️ MANDATORY: This MUST run AFTER authMiddleware / APIKeyMiddleware.
 //
-// A "GLOBAL" tenant or an admin role bypasses strict tenant scoping — they can
+// A "GLOBAL" tenant or an admin role triggers WithGlobalSearch — they can
 // query any tenant's data (used for SOC admin views and cross-tenant SIEM).
 func (s *RESTServer) tenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := auth.UserFromContext(r.Context())
 		if user == nil {
-			// Unauthenticated — let downstream auth check handle it.
-			next.ServeHTTP(w, r)
-			return
+			// CRITICAL: Panic if middleware ordering is violated.
+			// Tenant isolation depends on a verified user context.
+			panic("SECURITY: tenantMiddleware executed without authenticated user. Check middleware chain ordering in rest.go.")
 		}
 
 		tenantID := user.TenantID
+		ctx := r.Context()
 
-		// Admins and GLOBAL accounts get an empty tenant scope,
-		// meaning no automatic WHERE tenant_id = ? filter is applied.
-		// Handlers can still explicitly scope if they choose.
-		if tenantID == "GLOBAL" || auth.GetRole(r.Context()) == auth.RoleAdmin {
-			tenantID = "" // empty = unrestricted
+		// Admins and GLOBAL accounts get unrestricted access via WithGlobalSearch.
+		// All other accounts are strictly locked to their TenantID.
+		if tenantID == "GLOBAL" || auth.GetRole(ctx) == auth.RoleAdmin {
+			ctx = database.WithGlobalSearch(ctx)
+		} else {
+			if tenantID == "" {
+				s.log.Error("[security] Denied request for user %s: missing TenantID in identity", user.Email)
+				http.Error(w, "Forbidden: Account has no tenant assignment", http.StatusForbidden)
+				return
+			}
+			ctx = database.WithTenant(ctx, tenantID)
 		}
 
-		ctx := ContextWithTenantID(r.Context(), tenantID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// VerifyHMAC validates the request signature and timestamp to prevent replay attacks.
+// It expects X-Timestamp (Unix epoch) and X-Signature (HMAC-SHA256).
+func VerifyHMAC(r *http.Request, body []byte, secret []byte) error {
+	tsStr := r.Header.Get("X-Timestamp")
+	sig := r.Header.Get("X-Signature")
+
+	if tsStr == "" || sig == "" {
+		return fmt.Errorf("missing authentication headers (X-Timestamp/X-Signature)")
+	}
+
+	// 1. Validate Timestamp (30s window)
+	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid timestamp format")
+	}
+
+	now := time.Now().Unix()
+	diff := now - ts
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > 60 { // 60s tolerance for clock drift
+		return fmt.Errorf("request expired (clock drift too high)")
+	}
+
+	// 2. Validate Signature
+	// HMAC(secret, body + timestamp)
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(body)
+	mac.Write([]byte(tsStr))
+	expected := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(sig), []byte(expected)) {
+		return fmt.Errorf("invalid request signature")
+	}
+
+	return nil
 }
 
 

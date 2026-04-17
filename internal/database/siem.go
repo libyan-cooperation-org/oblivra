@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 )
@@ -14,16 +16,34 @@ func NewSIEMRepository(db DatabaseStore) *SIEMRepository {
 	return &SIEMRepository{db: db}
 }
 
-// InsertHostEvent records a new security anomaly
+// InsertHostEvent records a new security anomaly with cryptographic integrity hashing
 func (r *SIEMRepository) InsertHostEvent(ctx context.Context, event *HostEvent) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	if event.TenantID != "" {
 		tenantID = event.TenantID
 	}
 
+	// 1.3: Retrieve the cryptographic hash of the most recent event to extend the chain
+	var lastHash string
+	lastHashRow := r.db.QueryRowContext(ctx, 
+		"SELECT event_hash FROM host_events WHERE host_id = ? AND tenant_id = ? ORDER BY id DESC LIMIT 1", 
+		event.HostID, tenantID)
+	_ = lastHashRow.Scan(&lastHash) // If no previous event, lastHash remains empty string
+
+	event.PrevHash = lastHash
+
+	// 1.3: Calculate the hash for the current event — SHA256(PrevHash + EventData)
+	hasher := sha256.New()
+	hasher.Write([]byte(event.PrevHash))
+	hasher.Write([]byte(event.HostID))
+	hasher.Write([]byte(event.EventType))
+	hasher.Write([]byte(event.RawLog))
+	hasher.Write([]byte(event.Timestamp))
+	event.EventHash = hex.EncodeToString(hasher.Sum(nil))
+
 	query := `
-		INSERT INTO host_events (tenant_id, host_id, event_type, source_ip, user, raw_log)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO host_events (tenant_id, host_id, event_type, source_ip, user, raw_log, event_hash, prev_hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	result, err := r.db.ReplicatedExecContext(ctx, query,
 		tenantID,
@@ -32,6 +52,8 @@ func (r *SIEMRepository) InsertHostEvent(ctx context.Context, event *HostEvent) 
 		event.SourceIP,
 		event.User,
 		event.RawLog,
+		event.EventHash,
+		event.PrevHash,
 	)
 	if err != nil {
 		return fmt.Errorf("insert host event: %w", err)
@@ -52,13 +74,13 @@ func (r *SIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit
 	}
 
 	query := `
-		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log 
+		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log, event_hash, prev_hash 
 		FROM host_events
 		WHERE host_id = ? AND tenant_id = ?
 		ORDER BY timestamp DESC
 		LIMIT ?
 	`
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	rows, err := conn.QueryContext(ctx, query, hostID, tenantID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query host events: %w", err)
@@ -68,9 +90,10 @@ func (r *SIEMRepository) GetHostEvents(ctx context.Context, hostID string, limit
 	var events []HostEvent
 	for rows.Next() {
 		var e HostEvent
-		if err := rows.Scan(&e.ID, &e.HostID, &e.Timestamp, &e.EventType, &e.SourceIP, &e.User, &e.RawLog); err != nil {
+		if err := rows.Scan(&e.ID, &e.HostID, &e.Timestamp, &e.EventType, &e.SourceIP, &e.User, &e.RawLog, &e.EventHash, &e.PrevHash); err != nil {
 			return nil, fmt.Errorf("scan host event: %w", err)
 		}
+		e.TenantID = tenantID
 		events = append(events, e)
 	}
 	return events, rows.Err()
@@ -83,10 +106,10 @@ func (r *SIEMRepository) SearchHostEvents(ctx context.Context, query string, lim
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	sqlQuery := `
-		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log 
+		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log, event_hash, prev_hash 
 		FROM host_events
 		WHERE (raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?) AND tenant_id = ?
 		ORDER BY timestamp DESC
@@ -102,9 +125,10 @@ func (r *SIEMRepository) SearchHostEvents(ctx context.Context, query string, lim
 	var events []HostEvent
 	for rows.Next() {
 		var e HostEvent
-		if err := rows.Scan(&e.ID, &e.HostID, &e.Timestamp, &e.EventType, &e.SourceIP, &e.User, &e.RawLog); err != nil {
+		if err := rows.Scan(&e.ID, &e.HostID, &e.Timestamp, &e.EventType, &e.SourceIP, &e.User, &e.RawLog, &e.EventHash, &e.PrevHash); err != nil {
 			return nil, fmt.Errorf("scan search event: %w", err)
 		}
+		e.TenantID = tenantID
 		events = append(events, e)
 	}
 	return events, rows.Err()
@@ -117,7 +141,7 @@ func (r *SIEMRepository) GetFailedLoginsByHost(ctx context.Context, hostID strin
 		return nil, fmt.Errorf("query failed logins: %w", err)
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	query := `
 		SELECT source_ip, user, COUNT(id) as attempts, MAX(timestamp) as last_attempt
@@ -156,7 +180,7 @@ func (r *SIEMRepository) CalculateRiskScore(ctx context.Context, hostID string) 
 		return 0, fmt.Errorf("query risk stats: %w", err)
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	// 1. Get failed login stats for the last 24h (or the available window)
 	query := `
@@ -225,7 +249,7 @@ func (r *SIEMRepository) GetGlobalThreatStats(ctx context.Context) (map[string]i
 	}
 
 	stats := make(map[string]interface{})
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	// 1. Total failed logins
 	var totalFailed int
@@ -269,7 +293,7 @@ func (r *SIEMRepository) GetEventTrend(ctx context.Context, days int) ([]map[str
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	query := `
 		SELECT date(timestamp) as day, COUNT(*) as count
@@ -318,7 +342,7 @@ func (r *SIEMRepository) AggregateHostEvents(ctx context.Context, query string, 
 		return nil, fmt.Errorf("invalid facet field: %s", facetField)
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	whereParts := []string{"tenant_id = ?"}
 	args := []interface{}{tenantID}
 
@@ -361,7 +385,7 @@ func (r *SIEMRepository) AggregateHostEvents(ctx context.Context, query string, 
 
 // CreateSavedSearch stores a reusable SIEM query
 func (r *SIEMRepository) CreateSavedSearch(ctx context.Context, search *SavedSearch) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	query := `INSERT INTO saved_searches (tenant_id, name, query) VALUES (?, ?, ?)`
 	result, err := r.db.ReplicatedExecContext(ctx, query, tenantID, search.Name, search.Query)
 	if err != nil {
@@ -382,7 +406,7 @@ func (r *SIEMRepository) GetSavedSearches(ctx context.Context) ([]SavedSearch, e
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	query := `SELECT id, name, query, created_at FROM saved_searches WHERE tenant_id = ? ORDER BY name ASC`
 	rows, err := conn.QueryContext(ctx, query, tenantID)
 	if err != nil {

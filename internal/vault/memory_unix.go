@@ -2,13 +2,22 @@
 
 package vault
 
-// secureLock is a no-op on non-Windows platforms in this specific implementation.
-// In a full cross-platform app, this would use unix.Mlock.
+import (
+	"golang.org/x/sys/unix"
+)
+
+// secureLock uses unix.Mlock to prevent memory from being swapped to disk.
 func secureLock(data []byte) error {
-	return nil
+	if len(data) == 0 {
+		return nil
+	}
+	return unix.Mlock(data)
 }
 
-// secureUnlock is a no-op on non-Windows platforms.
+// secureUnlock uses unix.Munlock to release the memory lock.
 func secureUnlock(data []byte) error {
-	return nil
+	if len(data) == 0 {
+		return nil
+	}
+	return unix.Munlock(data)
 }

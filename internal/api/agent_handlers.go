@@ -1,9 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -31,6 +35,7 @@ type AgentRegistration struct {
 	Arch       string   `json:"arch"`
 	Version    string   `json:"version"`
 	Collectors []string `json:"collectors"`
+	PublicKey  []byte   `json:"public_key"` // 1.4: Hardware-rooted trust key
 }
 
 // handleAgentIngest receives event batches from agents.
@@ -49,14 +54,47 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Body limit: 10 MB — accommodates up to 5,000 events at ~2 KB each.
-	// The previous 1 MB limit was too small for max-batch=5000 payloads.
-	r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
+	// 2.4: Payload integrity and size constraints
+	r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024) // 10MB limit
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	// 2.4: HMAC Verification (Fleet Security)
+	if err := VerifyHMAC(r, body, s.fleetSecret); err != nil {
+		s.log.Warn("[security] HMAC verification failed: %v", err)
+		http.Error(w, "Unauthorized: invalid signature or expired request", http.StatusUnauthorized)
+		return
+	}
+
+	agentID := r.Header.Get("X-Agent-ID")
+	s.agentsMu.RLock()
+	agent, ok := s.agents[agentID]
+	s.agentsMu.RUnlock()
+
+	// 1.4: Cryptographic Batch Verification (Sovereign Trust)
+	if ok && len(agent.PublicKey) > 0 {
+		sigBase64 := r.Header.Get("X-Agent-Signature")
+		if sigBase64 == "" {
+			s.log.Warn("[security] Batch from %s missing cryptographic signature", agentID)
+			http.Error(w, "Unauthorized: batch signature required", http.StatusUnauthorized)
+			return
+		}
+		sig, err := base64.StdEncoding.DecodeString(sigBase64)
+		if err != nil || !ed25519.Verify(agent.PublicKey, body, sig) {
+			s.log.Warn("[security] Cryptographic batch signature MISMATCH for agent %s", agentID)
+			http.Error(w, "Unauthorized: batch signature verification failed", http.StatusUnauthorized)
+			return
+		}
+	}
 
 	var events []AgentEvent
-	if err := json.NewDecoder(r.Body).Decode(&events); err != nil {
-		// Return a generic error — never expose internal struct names or decoder details
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields() // Security: prevent field injection/smuggling
+	if err := decoder.Decode(&events); err != nil {
+		http.Error(w, "invalid payload structure", http.StatusBadRequest)
 		return
 	}
 
@@ -72,7 +110,6 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Identity check: agent-role users can only ingest for their own AgentID
-	agentID := r.Header.Get("X-Agent-ID")
 	if agentID == "" {
 		agentID = events[0].AgentID
 	}
@@ -190,11 +227,26 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Registration also requires HMAC if a bootstrap secret is configured.
+	// This prevents random internet scanners from filling the fleet map.
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "payload too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	if err := VerifyHMAC(r, body, s.fleetSecret); err != nil {
+		s.log.Warn("[security] HMAC verification failed for agent registration: %v (addr=%s)", err, r.RemoteAddr)
+		http.Error(w, "Unauthorized: invalid signature or expired request", http.StatusUnauthorized)
+		return
+	}
 
 	var reg AgentRegistration
-	if err := json.NewDecoder(r.Body).Decode(&reg); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&reg); err != nil {
+		http.Error(w, "invalid payload structure", http.StatusBadRequest)
 		return
 	}
 
@@ -217,6 +269,7 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 		Arch:       reg.Arch,
 		Version:    reg.Version,
 		Collectors: reg.Collectors,
+		PublicKey:  reg.PublicKey, // 1.4: Store agent's identity key
 		LastSeen:   now,
 		Status:     "online",
 	}

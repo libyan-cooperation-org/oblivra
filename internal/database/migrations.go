@@ -570,6 +570,15 @@ var migrations = []migration{
 			CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(to_node_id);
 		`,
 	},
+	{
+		version: 23,
+		name:    "host_event_integrity_chain",
+		sql: `
+			ALTER TABLE host_events ADD COLUMN event_hash TEXT DEFAULT '';
+			ALTER TABLE host_events ADD COLUMN prev_hash TEXT DEFAULT '';
+			CREATE INDEX IF NOT EXISTS idx_host_events_hash ON host_events(event_hash);
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

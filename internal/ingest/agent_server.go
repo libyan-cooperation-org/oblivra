@@ -3,8 +3,10 @@ package ingest
 import (
 	"compress/zlib"
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -82,8 +84,11 @@ type AgentInfo struct {
 	LastSeen      string    `json:"last_seen"`
 	RemoteAddress string    `json:"remote_address"`
 	OS            string    `json:"os"`
-	Arch          string    `json:"arch"`
-	Collectors    []string  `json:"collectors"`
+	Arch          string          `json:"arch"`
+	Collectors    []string        `json:"collectors"`
+	PublicKey     []byte          `json:"public_key"`
+	TrustLevel    string          `json:"trust_level"`     // "unverified", "verified", "compromised"
+	WatchdogActive bool           `json:"watchdog_active"`
 }
 
 
@@ -270,6 +275,45 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	agentID := r.Header.Get("X-Agent-ID")
+	signature := r.Header.Get("X-Agent-Signature")
+
+	// 2. Cryptographic Origin Verification (Sovereign Trust)
+	if signature != "" && agentID != "" {
+		s.mu.RLock()
+		info, exists := s.activeAgents[agentID]
+		s.mu.RUnlock()
+
+		if exists && len(info.PublicKey) > 0 {
+			sigBytes, _ := base64.StdEncoding.DecodeString(signature)
+			if !ed25519.Verify(info.PublicKey, bodyBytes, sigBytes) {
+				s.log.Warn("[SECURITY] Invalid batch signature from agent %s! Potential spoofing or tampering detected.", agentID)
+				
+				s.mu.Lock()
+				info.TrustLevel = "compromised"
+				s.activeAgents[agentID] = info
+				s.mu.Unlock()
+
+				http.Error(w, "Cryptographic verification failed", http.StatusUnauthorized)
+				return
+			}
+			
+			s.mu.Lock()
+			info.TrustLevel = "verified"
+			// Check if EBPF collector is active for watchdog
+			for _, c := range info.Collectors {
+				if c == "ebpf" {
+					info.WatchdogActive = true
+					break
+				}
+			}
+			s.activeAgents[agentID] = info
+			s.mu.Unlock()
+
+			s.log.Debug("[INGEST] Verified signature for agent %s", agentID)
+		}
+	}
+
 	var incomingEvents []agent.Event
 	if err := json.Unmarshal(bodyBytes, &incomingEvents); err != nil {
 		s.log.Error("Failed to decode json: %v", err)
@@ -278,7 +322,6 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update agent tracking
-	agentID := r.Header.Get("X-Agent-ID")
 	hostname := r.Header.Get("X-Agent-Hostname")
 
 	// If headers are missing, try to infer from events
@@ -407,6 +450,7 @@ func (s *AgentServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		OS         string   `json:"os"`
 		Arch       string   `json:"arch"`
 		Collectors []string `json:"collectors"`
+		PublicKey  []byte   `json:"public_key"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&reg); err != nil {
@@ -434,6 +478,9 @@ func (s *AgentServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		OS:            reg.OS,
 		Arch:          reg.Arch,
 		Collectors:    reg.Collectors,
+		PublicKey:     reg.PublicKey,
+		TrustLevel:    "unverified",
+		WatchdogActive: false,
 		LastSeen:      time.Now().Format(time.RFC3339),
 		RemoteAddress: r.RemoteAddr,
 	}

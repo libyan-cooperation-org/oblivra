@@ -23,7 +23,7 @@ func (r *SnippetRepository) List(ctx context.Context) ([]Snippet, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, title, command, description, tags, variables, use_count, created_at, updated_at
@@ -66,7 +66,7 @@ func (r *SnippetRepository) Get(ctx context.Context, id string) (Snippet, error)
 		return s, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var tagsJSON, variablesJSON string
 	err = conn.QueryRow(`
@@ -96,7 +96,7 @@ func (r *SnippetRepository) Create(ctx context.Context, s *Snippet) error {
 	now := time.Now().Format(time.RFC3339)
 	s.CreatedAt = now
 	s.UpdatedAt = now
-	s.TenantID = TenantFromContext(ctx)
+	s.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO snippets (id, tenant_id, title, command, description, tags, variables, use_count, created_at, updated_at)
@@ -116,7 +116,7 @@ func (r *SnippetRepository) Update(ctx context.Context, s *Snippet) error {
 	variablesJSON, _ := json.Marshal(s.Variables)
 	now := time.Now().Format(time.RFC3339)
 	s.UpdatedAt = now
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	res, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE snippets SET title = ?, command = ?, description = ?, tags = ?, variables = ?, updated_at = ?
@@ -135,14 +135,14 @@ func (r *SnippetRepository) Update(ctx context.Context, s *Snippet) error {
 
 // Delete removes a snippet
 func (r *SnippetRepository) Delete(ctx context.Context, id string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, `DELETE FROM snippets WHERE id = ? AND tenant_id = ?`, id, tenantID)
 	return err
 }
 
 // IncrementUseCount adds 1 to the use count
 func (r *SnippetRepository) IncrementUseCount(ctx context.Context, id string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	_, err := r.db.ReplicatedExecContext(ctx, `UPDATE snippets SET use_count = use_count + 1 WHERE id = ? AND tenant_id = ?`, id, tenantID)
 	return err
 }

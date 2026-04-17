@@ -50,9 +50,9 @@ func argonMemory() uint32 {
 // DeriveKey derives an encryption key from a password using Argon2id.
 // Memory usage scales with available system RAM to balance OWASP compliance
 // against OOM risk on resource-constrained hosts.
-func DeriveKey(password string, salt []byte) []byte {
+func DeriveKey(password []byte, salt []byte) []byte {
 	return argon2.IDKey(
-		[]byte(password),
+		password,
 		salt,
 		argonTime,
 		argonMemory(),

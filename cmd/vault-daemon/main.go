@@ -34,8 +34,13 @@ type rpcResponse struct {
 func main() {
 	flag.Parse()
 
+	// 5. Sovereign-Grade: Memory Hardening
+	// Prevent the vault daemon's memory from being swapped to disk.
+	if err := syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: mlockall failed: %v — memory isolation weakened\n", err)
+	}
+
 	// In a real scenario, the password would securely arrive via a pipe.
-	// For this daemon, we expect it on stdin upon startup, then we close stdin.
 	var password string
 	fmt.Scanln(&password)
 	
@@ -143,9 +148,24 @@ func handleConnection(conn net.Conn, v *vault.Vault) {
 			} else {
 				resp.Error = "locked"
 			}
+		case "unlock":
+			if err := v.Unlock(string(req.Payload), nil, false); err != nil {
+				resp.Error = err.Error()
+			} else {
+				resp.Result = []byte("ok")
+			}
 		case "lock":
 			v.Lock()
 			resp.Result = []byte("ok")
+		case "master_key":
+			err := v.AccessMasterKey(func(key []byte) error {
+				resp.Result = make([]byte, len(key))
+				copy(resp.Result, key)
+				return nil
+			})
+			if err != nil {
+				resp.Error = err.Error()
+			}
 		case "encrypt":
 			res, err := v.Encrypt(req.Payload)
 			if err != nil {

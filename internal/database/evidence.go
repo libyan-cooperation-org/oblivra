@@ -26,7 +26,7 @@ func (r *EvidenceRepository) Create(ctx context.Context, item *EvidenceItem) err
 	tags, _ := json.Marshal(item.Tags)
 	metadata, _ := json.Marshal(item.Metadata)
 
-	item.TenantID = TenantFromContext(ctx)
+	item.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO evidence (
@@ -51,7 +51,7 @@ func (r *EvidenceRepository) Update(ctx context.Context, item *EvidenceItem) err
 	tags, _ := json.Marshal(item.Tags)
 	metadata, _ := json.Marshal(item.Metadata)
 
-	item.TenantID = TenantFromContext(ctx)
+	item.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE evidence SET
@@ -79,7 +79,7 @@ func (r *EvidenceRepository) GetByID(ctx context.Context, id string) (*EvidenceI
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	row := conn.QueryRow(`
 		SELECT id, tenant_id, incident_id, type, name, description, sha256, size,
@@ -99,7 +99,7 @@ func (r *EvidenceRepository) ListByIncident(ctx context.Context, incidentID stri
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, incident_id, type, name, description, sha256, size,
@@ -132,7 +132,7 @@ func (r *EvidenceRepository) ListAll(ctx context.Context) ([]EvidenceItem, error
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, incident_id, type, name, description, sha256, size,
@@ -160,7 +160,7 @@ func (r *EvidenceRepository) AddChainEntry(ctx context.Context, entry *ChainEntr
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	entry.TenantID = TenantFromContext(ctx)
+	entry.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO evidence_chain (
@@ -185,7 +185,7 @@ func (r *EvidenceRepository) GetChain(ctx context.Context, evidenceID string) ([
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, evidence_id, action, actor, timestamp, notes, previous_hash, entry_hash

@@ -32,7 +32,7 @@ import (
 // InfrastructureCluster holds core runtime and storage dependencies.
 type InfrastructureCluster struct {
 	DB               *database.Database
-	Vault            *vault.Vault
+	Vault            vault.Provider
 	Bus              *eventbus.Bus
 	Log              *logger.Logger
 	Registry         *platform.Registry

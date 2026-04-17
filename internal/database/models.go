@@ -139,6 +139,8 @@ type HostEvent struct {
 	Location  string    `json:"location"` // Enriched Geographic/DNS data
 	User      string    `json:"user"`
 	RawLog    string    `json:"raw_log"`
+	EventHash string    `json:"event_hash"` // 1.3: SHA256(RawLog + Timestamp + PrevHash)
+	PrevHash  string    `json:"prev_hash"`  // 1.3: Reference to previous event's hash
 }
 
 

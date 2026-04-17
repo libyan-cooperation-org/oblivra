@@ -35,7 +35,7 @@ func (r *HostRepository) Create(ctx context.Context, host *Host) error {
 	now := time.Now().Format(time.RFC3339)
 	host.CreatedAt = now
 	host.UpdatedAt = now
-	host.TenantID = TenantFromContext(ctx)
+	host.TenantID = MustTenantFromContext(ctx)
 
 	// Security: Encrypt password if vault is available and unlocked
 	encryptedPassword := host.Password
@@ -74,7 +74,7 @@ func (r *HostRepository) GetByID(ctx context.Context, id string) (*Host, error) 
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	row := conn.QueryRow(`
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
@@ -98,7 +98,7 @@ func (r *HostRepository) GetAll(ctx context.Context) ([]Host, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
@@ -133,7 +133,7 @@ func (r *HostRepository) GetFavorites(ctx context.Context) ([]Host, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
@@ -167,7 +167,7 @@ func (r *HostRepository) Search(ctx context.Context, query string) ([]Host, erro
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	searchTerm := "%" + strings.ToLower(query) + "%"
 
 	rows, err := conn.Query(`
@@ -205,7 +205,7 @@ func (r *HostRepository) GetByTag(ctx context.Context, tag string) ([]Host, erro
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	searchTag := fmt.Sprintf("%%%q%%", tag)
 
 	rows, err := conn.Query(`
@@ -241,7 +241,7 @@ func (r *HostRepository) Update(ctx context.Context, host *Host) error {
 	}
 
 	host.UpdatedAt = time.Now().Format(time.RFC3339)
-	host.TenantID = TenantFromContext(ctx)
+	host.TenantID = MustTenantFromContext(ctx)
 
 	// Security: Encrypt password if vault is available and unlocked
 	encryptedPassword := host.Password
@@ -281,7 +281,7 @@ func (r *HostRepository) Update(ctx context.Context, host *Host) error {
 // Delete removes a host
 func (r *HostRepository) Delete(ctx context.Context, id string) error {
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	result, err := r.db.ReplicatedExecContext(ctx, "DELETE FROM hosts WHERE id = ? AND tenant_id = ?", id, tenantID)
 	if err != nil {
@@ -304,7 +304,7 @@ func (r *HostRepository) ToggleFavorite(ctx context.Context, id string) (bool, e
 		return false, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var current bool
 	err = conn.QueryRow("SELECT is_favorite FROM hosts WHERE id = ? AND tenant_id = ?", id, tenantID).Scan(&current)
@@ -327,7 +327,7 @@ func (r *HostRepository) ToggleFavorite(ctx context.Context, id string) (bool, e
 // RecordConnection updates connection stats
 func (r *HostRepository) RecordConnection(ctx context.Context, id string) error {
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE hosts SET
@@ -348,7 +348,7 @@ func (r *HostRepository) GetAllTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query("SELECT tags FROM hosts WHERE tags != '[]' AND tenant_id = ?", tenantID)
 	if err != nil {
@@ -387,7 +387,7 @@ func (r *HostRepository) GetEncryptedPassword(ctx context.Context, id string) (s
 		return "", err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 	var pw string
 	err = conn.QueryRow(
 		"SELECT COALESCE(password, '') FROM hosts WHERE id = ? AND tenant_id = ?",
@@ -407,7 +407,7 @@ func (r *HostRepository) Count(ctx context.Context) (int, error) {
 		return 0, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var count int
 	err = conn.QueryRow("SELECT COUNT(*) FROM hosts WHERE tenant_id = ?", tenantID).Scan(&count)

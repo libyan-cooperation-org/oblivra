@@ -140,6 +140,7 @@ type RESTServer struct {
 	replayer      *ingest.EventReplayer   // #3: allows on-demand logic verification
 	graphEngine   *graph.GraphEngine
 	ueba          UEBAProvider
+	fleetSecret   []byte // Shared secret for agent HMAC verification
 }
 
 // AgentInfo tracks a registered agent.
@@ -153,6 +154,7 @@ type AgentInfo struct {
 	Collectors []string  `json:"collectors"`
 	LastSeen   string    `json:"last_seen"`
 	Status     string    `json:"status"`
+	PublicKey  []byte    `json:"public_key"` // 1.4: Hardware-rooted trust key (TPM)
 }
 
 // SearchRequest defines the JSON body for SIEM search endpoints
@@ -162,7 +164,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, agentProvider AgentProvider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, agentProvider AgentProvider, fleetSecret []byte, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -194,6 +196,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		graphEngine:   graphEngine,
 		ueba:          ueba,
 		agentProvider: agentProvider,
+		fleetSecret:   fleetSecret,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.

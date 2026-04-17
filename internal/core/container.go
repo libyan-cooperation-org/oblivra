@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
@@ -130,12 +132,31 @@ func (c *Container) initInfra() error {
 	c.Infra.Bus = eventbus.NewBus(c.Log)
 	c.Infra.DB = &database.Database{}
 
-	v, err := vault.New(vault.Config{
-		StorePath: platform.ConfigDir(),
-		Platform:  c.Infra.Platform,
-	}, c.Log)
-	if err != nil {
-		return err
+	var v vault.Provider
+	var err error
+
+	// 2.1: Vault Process Isolation (Sovereign-Grade Hardening)
+	if os.Getenv("OBLIVRA_ISOLATED_VAULT") == "true" {
+		socketPath := "/tmp/oblivra-vault.sock"
+		if runtime.GOOS == "windows" {
+			socketPath = `\\.\pipe\oblivra-vault`
+		}
+		
+		// 5: Automated Lifecycle Management
+		if err := vault.EnsureDaemonRunning(socketPath, c.Log); err != nil {
+			c.Log.Warn("[VAULT] Failed to ensure daemon is running: %v. Attempting to connect anyway.", err)
+		}
+
+		c.Log.Info("[VAULT] Using isolated vault mode (Socket: %s)", socketPath)
+		v = vault.NewRemoteProvider(socketPath)
+	} else {
+		v, err = vault.New(vault.Config{
+			StorePath: platform.ConfigDir(),
+			Platform:  c.Infra.Platform,
+		}, c.Log)
+		if err != nil {
+			return err
+		}
 	}
 	c.Infra.Vault = v
 

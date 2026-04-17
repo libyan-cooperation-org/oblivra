@@ -69,7 +69,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *User) error {
 	now := time.Now().Format(time.RFC3339)
 	u.CreatedAt = now
 	u.UpdatedAt = now
-	u.TenantID = TenantFromContext(ctx)
+	u.TenantID = MustTenantFromContext(ctx)
 
 	if u.ID == "" {
 		u.ID = uuid.New().String()
@@ -129,7 +129,7 @@ func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 		`
 		args = []interface{}{email}
 	} else {
-		tenantID := TenantFromContext(ctx)
+		tenantID := MustTenantFromContext(ctx)
 		query = `
 			SELECT id, tenant_id, email, name, password_hash, auth_provider,
 			       is_mfa_enabled, mfa_secret, role_id, created_at, updated_at, last_login_at,
@@ -173,7 +173,7 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*User, err
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var u User
 	var lastLogin sql.NullString
@@ -218,7 +218,7 @@ func (r *UserRepository) GetUserByExternalID(ctx context.Context, externalID str
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var u User
 	var lastLogin sql.NullString
@@ -259,7 +259,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, u *User) error {
 	defer r.db.Unlock()
 
 	u.UpdatedAt = time.Now().Format(time.RFC3339)
-	u.TenantID = TenantFromContext(ctx)
+	u.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE users SET
@@ -289,7 +289,7 @@ func (r *UserRepository) RecordLogin(ctx context.Context, id string) error {
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		UPDATE users SET last_login_at = ? WHERE id = ? AND tenant_id = ?
@@ -303,7 +303,7 @@ func (r *UserRepository) DeleteUser(ctx context.Context, id string) error {
 	r.db.Lock()
 	defer r.db.Unlock()
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		DELETE FROM users WHERE id = ? AND tenant_id = ?
@@ -322,7 +322,7 @@ func (r *UserRepository) ListUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, email, name, password_hash, auth_provider,
@@ -378,7 +378,7 @@ func (r *RoleRepository) CreateRole(ctx context.Context, role *Role) error {
 	now := time.Now().Format(time.RFC3339)
 	role.CreatedAt = now
 	role.UpdatedAt = now
-	role.TenantID = TenantFromContext(ctx)
+	role.TenantID = MustTenantFromContext(ctx)
 
 	if role.ID == "" {
 		role.ID = uuid.New().String()
@@ -412,7 +412,7 @@ func (r *RoleRepository) GetRoleByID(ctx context.Context, id string) (*Role, err
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var role Role
 	var permsJSON string
@@ -449,7 +449,7 @@ func (r *RoleRepository) ListRoles(ctx context.Context) ([]Role, error) {
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	rows, err := conn.Query(`
 		SELECT id, tenant_id, name, description, permissions, is_system, created_at, updated_at
@@ -489,7 +489,7 @@ func (r *RoleRepository) UpdateRole(ctx context.Context, role *Role) error {
 	// (Enforced at service layer. At repo layer, just update.)
 
 	role.UpdatedAt = time.Now().Format(time.RFC3339)
-	role.TenantID = TenantFromContext(ctx)
+	role.TenantID = MustTenantFromContext(ctx)
 
 	permsBytes, err := json.Marshal(role.Permissions)
 	if err != nil {

@@ -62,6 +62,11 @@ func (v *RuleVerifier) Verify(r *Rule) ValidationResult {
 		if r.Threshold > 10000 {
 			res.addError("threshold mathematically exceeds bounded correlation buffer limits (> 10,000)")
 		}
+
+		// 22.1: Enforce GroupBy Cardinality Limits
+		if len(r.GroupBy) > 5 {
+			res.addError("GroupBy exceeds 5 fields; mathematically likely to cause state explosion")
+		}
 	}
 	if r.Type == SequenceRule {
 		if len(r.Sequence) < 2 {
@@ -99,6 +104,13 @@ func (v *RuleVerifier) Verify(r *Rule) ValidationResult {
 		res.IsSecured = false
 	}
 
+	// 1.2: Rule Cost Circuit Breaker (DoS Protection)
+	if r.ExecutionCost() > 5000 {
+		res.addError(fmt.Sprintf("Rule execution cost (%d) exceeds sovereign-grade stability threshold (5000)", r.ExecutionCost()))
+		res.IsValid = false
+		res.IsSecured = false
+	}
+
 	return res
 }
 
@@ -126,6 +138,10 @@ func (v *RuleVerifier) checkSingleCondition(field string, val interface{}, errs 
 	matchPattern := fmt.Sprintf("%v", val)
 	if strings.HasPrefix(strings.ToLower(matchPattern), "regex:") {
 		pattern := matchPattern[6:]
+		if len(pattern) > 512 {
+			*errs = append(*errs, fmt.Sprintf("Regex too long (%d > 512) on field '%s'", len(pattern), field))
+			return
+		}
 		if err := v.verifyRegexSafety(pattern); err != nil {
 			*errs = append(*errs, fmt.Sprintf("Unsafe ReDoS regex detected on field '%s': %v", field, err))
 		}

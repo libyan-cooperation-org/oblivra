@@ -16,7 +16,7 @@ func NewCredentialRepository(db DatabaseStore) *CredentialRepository {
 }
 
 func (r *CredentialRepository) Create(ctx context.Context, c *Credential) error {
-	c.TenantID = TenantFromContext(ctx)
+	c.TenantID = MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO credentials (id, tenant_id, label, type, encrypted_data, fingerprint, created_at, updated_at)
@@ -41,7 +41,7 @@ func (r *CredentialRepository) List(ctx context.Context, typeFilter string) ([]C
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	if typeFilter != "" {
 		rows, err = conn.Query(`
@@ -76,7 +76,7 @@ func (r *CredentialRepository) GetByID(ctx context.Context, id string) (*Credent
 		return nil, err
 	}
 
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	var c Credential
 	err = conn.QueryRow(`
@@ -94,14 +94,14 @@ func (r *CredentialRepository) GetByID(ctx context.Context, id string) (*Credent
 }
 
 func (r *CredentialRepository) Delete(ctx context.Context, id string) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx, "DELETE FROM credentials WHERE id = ? AND tenant_id = ?", id, tenantID)
 	return err
 }
 
 func (r *CredentialRepository) Update(ctx context.Context, c *Credential) error {
-	tenantID := TenantFromContext(ctx)
+	tenantID := MustTenantFromContext(ctx)
 
 	_, err := r.db.ReplicatedExecContext(ctx,
 		`UPDATE credentials SET label = ?, type = ?, encrypted_data = ?, updated_at = CURRENT_TIMESTAMP

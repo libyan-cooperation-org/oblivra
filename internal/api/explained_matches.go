@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/kingknull/oblivrashell/internal/auth"
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 )
@@ -77,7 +78,7 @@ func (s *RESTServer) handleExplainedMatches(w http.ResponseWriter, r *http.Reque
 	filterRuleID   := r.URL.Query().Get("rule_id")
 
 	// Tenant scope: non-admin users only see their own tenant's matches
-	callerTenant := TenantFromContext(r.Context())
+	callerTenant := database.MustTenantFromContext(r.Context())
 
 	// Snapshot under read lock
 	explainedRingMu.RLock()

@@ -142,7 +142,7 @@ func (s *BookmarkService) Create(ctx context.Context, input BookmarkCreateInput)
 
 	host := &database.Host{
 		ID:         uuid.New().String(),
-		TenantID:   database.TenantFromContext(ctx),
+		TenantID:   database.MustTenantFromContext(ctx),
 		Label:      input.Label,
 		Hostname:   input.Hostname,
 		Port:       input.Port,

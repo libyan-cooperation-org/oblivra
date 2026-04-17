@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,6 +31,7 @@ type Transport struct {
 	client   *http.Client
 	hostname string
 	log      *logger.Logger
+	privKey  ed25519.PrivateKey // 1.4: Sovereign identity key
 }
 
 // NewTransport creates a new transport with optional mTLS.
@@ -86,6 +89,7 @@ func (t *Transport) Register(ctx context.Context, collectors []string) error {
 		"os":          goOS(),
 		"arch":        goArch(),
 		"collectors":  collectors,
+		"public_key":  t.privKey.Public().(ed25519.PublicKey),
 	}
 
 	data, err := json.Marshal(payload)
@@ -99,7 +103,7 @@ func (t *Transport) Register(ctx context.Context, collectors []string) error {
 	if err != nil {
 		return err
 	}
-	t.setHeaders(req, "identity")
+	t.setHeaders(req, "identity", data)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := t.client.Do(req)
@@ -144,7 +148,7 @@ func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) 
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
 	}
-	t.setHeaders(req, contentEncoding)
+	t.setHeaders(req, contentEncoding, body)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := t.client.Do(req)
@@ -242,14 +246,24 @@ func (t *Transport) flushOnce(wal *WAL, maxBatch int, onConfig func(FleetConfig,
 func (t *Transport) Close() {
 	t.client.CloseIdleConnections()
 }
+// SetIdentityKey sets the key used for batch signing.
+func (t *Transport) SetIdentityKey(key ed25519.PrivateKey) {
+	t.privKey = key
+}
 
-// setHeaders applies standard agent identification headers.
-func (t *Transport) setHeaders(req *http.Request, contentEncoding string) {
+// setHeaders applies standard agent identification headers and cryptographic signatures.
+func (t *Transport) setHeaders(req *http.Request, contentEncoding string, body []byte) {
 	req.Header.Set("X-Agent-ID", t.cfg.AgentID)
 	req.Header.Set("X-Agent-Version", t.cfg.Version)
 	req.Header.Set("X-Agent-Hostname", t.hostname)
 	req.Header.Set("X-Tenant-ID", t.cfg.TenantID)
 	req.Header.Set("Content-Encoding", contentEncoding)
+
+	// 1.4: Cryptographic Batch Signature
+	if t.privKey != nil && len(body) > 0 {
+		sig := ed25519.Sign(t.privKey, body)
+		req.Header.Set("X-Agent-Signature", base64.StdEncoding.EncodeToString(sig))
+	}
 }
 
 func (t *Transport) normalizeURL(addr string) string {

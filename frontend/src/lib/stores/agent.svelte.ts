@@ -9,6 +9,8 @@ export interface AgentDTO {
   remote_address: string;
   status: string;
   collectors: string[];
+  trust_level: string;
+  watchdog_active: boolean;
 }
 
 export interface ProcessSnapshot {
@@ -66,7 +68,9 @@ export class AgentStore {
         status: a.status || a.Status,
         os: a.os || a.OS,
         arch: a.arch || a.Arch,
-        collectors: a.collectors || a.Collectors || []
+        collectors: a.collectors || a.Collectors || [],
+        trust_level: a.trust_level || a.TrustLevel || 'unverified',
+        watchdog_active: a.watchdog_active || a.WatchdogActive || false
       }));
       this.error = null;
     } catch (err: any) {

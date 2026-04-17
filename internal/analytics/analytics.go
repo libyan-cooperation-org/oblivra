@@ -195,7 +195,7 @@ func (e *AnalyticsEngine) backgroundFrameWriter(ctx context.Context) {
 
 // Ingest queues a log entry for async batch writing
 func (e *AnalyticsEngine) Ingest(ctx context.Context, sessionID, host, output string) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	if !e.opened {
 		e.mu.RUnlock()
@@ -220,7 +220,7 @@ func (e *AnalyticsEngine) Ingest(ctx context.Context, sessionID, host, output st
 // Search executes a query against the analytics store.
 // Uses Bleve for 'lucene' mode if available, otherwise falls back to SQL mapping.
 func (e *AnalyticsEngine) Search(ctx context.Context, rawQuery string, mode string, limit, offset int) ([]map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
 	}
@@ -373,7 +373,7 @@ func (e *AnalyticsEngine) runInitialRetention() {
 
 // SaveConfig stores a JSON blob under a key in app_config
 func (e *AnalyticsEngine) SaveConfig(ctx context.Context, key string, value string) error {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return fmt.Errorf("analytics engine not opened")
 	}
@@ -385,7 +385,7 @@ func (e *AnalyticsEngine) SaveConfig(ctx context.Context, key string, value stri
 
 // LoadConfig retrieves a JSON blob by key from app_config
 func (e *AnalyticsEngine) LoadConfig(ctx context.Context, key string) (string, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return "", fmt.Errorf("analytics engine not opened")
 	}
@@ -396,7 +396,7 @@ func (e *AnalyticsEngine) LoadConfig(ctx context.Context, key string) (string, e
 
 // SaveAlertEvent writes an alert event to the alert_history table
 func (e *AnalyticsEngine) SaveAlertEvent(ctx context.Context, triggerID, name, severity, host, sessionID, logLine string, sent bool) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return
 	}
@@ -411,7 +411,7 @@ func (e *AnalyticsEngine) SaveAlertEvent(ctx context.Context, triggerID, name, s
 
 // GetAlertHistory returns the last N alert events from the database
 func (e *AnalyticsEngine) GetAlertHistory(ctx context.Context, limit int) ([]map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	if e.db == nil || !e.opened {
 		return nil, fmt.Errorf("analytics engine not opened")
 	}
@@ -468,7 +468,7 @@ func (e *AnalyticsEngine) IngestFrame(ctx context.Context, recordingID string, t
 
 // SaveRecording stores recording metadata
 func (e *AnalyticsEngine) SaveRecording(ctx context.Context, id, sessionID, hostLabel string, cols, rows int, duration float64, eventCount int, status string) error {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -488,7 +488,7 @@ func (e *AnalyticsEngine) SaveRecording(ctx context.Context, id, sessionID, host
 
 // GetRecordingMeta retrieves metadata for a specific recording
 func (e *AnalyticsEngine) GetRecordingMeta(ctx context.Context, id string) (map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -518,7 +518,7 @@ func (e *AnalyticsEngine) GetRecordingMeta(ctx context.Context, id string) (map[
 
 // ListRecordings returns all recorded sessions
 func (e *AnalyticsEngine) ListRecordings(ctx context.Context) ([]map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -553,7 +553,7 @@ func (e *AnalyticsEngine) ListRecordings(ctx context.Context) ([]map[string]inte
 
 // DeleteRecording removes a recording and all its frames
 func (e *AnalyticsEngine) DeleteRecording(ctx context.Context, id string) error {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -566,7 +566,7 @@ func (e *AnalyticsEngine) DeleteRecording(ctx context.Context, id string) error 
 
 // GetRecordingFrames returns all frames for a recording ordered by timestamp
 func (e *AnalyticsEngine) GetRecordingFrames(ctx context.Context, recordingID string) ([]map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {
@@ -608,7 +608,7 @@ func (e *AnalyticsEngine) GetRecordingFrames(ctx context.Context, recordingID st
 
 // SearchRecordings executes a forensic search across all sessions using FTS5
 func (e *AnalyticsEngine) SearchRecordings(ctx context.Context, query string) ([]map[string]interface{}, error) {
-	tenantID := database.TenantFromContext(ctx)
+	tenantID := database.MustTenantFromContext(ctx)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if !e.opened {

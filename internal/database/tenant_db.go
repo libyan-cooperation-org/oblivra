@@ -13,7 +13,7 @@ import (
 //
 // Usage:
 //
-//	tdb := NewTenantDB(db, TenantFromContext(ctx))
+//	tdb := NewTenantDB(db, MustTenantFromContext(ctx))
 //	rows, err := tdb.Query(ctx, "SELECT * FROM hosts", nil)
 //	// Executes: SELECT * FROM hosts WHERE tenant_id = '<tenantID>'
 type TenantDB struct {
@@ -30,7 +30,7 @@ func NewTenantDB(db *sql.DB, tenantID string) *TenantDB {
 // FromContext creates a TenantDB from an existing *sql.DB and a context
 // that carries a tenant ID.
 func TenantDBFromContext(ctx context.Context, db *sql.DB) *TenantDB {
-	return NewTenantDB(db, TenantFromContext(ctx))
+	return NewTenantDB(db, MustTenantFromContext(ctx))
 }
 
 // QueryContext executes a SELECT and automatically appends or extends the

@@ -54,12 +54,19 @@ func New(cfg Config, log *logger.Logger) (*Vault, error) {
 	}, nil
 }
 
-func (v *Vault) Name() string            { return "vault" }
+func (v *Vault) Name() string { return "vault" }
+
 func (v *Vault) Dependencies() []string { return nil }
 
-func (v *Vault) Start(ctx context.Context) error { return nil }
+func (v *Vault) Start(ctx context.Context) error {
+	v.log.Info("Vault service started (In-Process Mode)")
+	return nil
+}
 
-func (v *Vault) Stop(ctx context.Context) error { return nil }
+func (v *Vault) Stop(ctx context.Context) error {
+	v.Lock() // Ensure memory is wiped on stop
+	return nil
+}
 
 func (v *Vault) IsSetup() bool {
 	v.mu.RLock()
@@ -77,6 +84,10 @@ func (v *Vault) SetupWithTPM(password string, yubiKeySerial string, pcr int) err
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	// Convert password to byte slice for zeroing
+	pwBytes := []byte(password)
+	defer ZeroSlice(pwBytes)
+
 	v.log.Info("Vault.SetupWithTPM: acquired lock, creating directory: %s", v.config.StorePath)
 	if err := os.MkdirAll(v.config.StorePath, 0700); err != nil {
 		return err
@@ -89,7 +100,8 @@ func (v *Vault) SetupWithTPM(password string, yubiKeySerial string, pcr int) err
 	}
 
 	v.log.Info("Vault.SetupWithTPM: deriving key")
-	key := DeriveKey(password, salt)
+	key := DeriveKey(pwBytes, salt)
+	defer ZeroSlice(key)
 
 	v.log.Info("Vault.SetupWithTPM: generating random canary")
 	canaryPlain := make([]byte, 32)
@@ -142,6 +154,9 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
+	pwBytes := []byte(password)
+	defer ZeroSlice(pwBytes)
+
 	data, err := os.ReadFile(filepath.Join(v.config.StorePath, "vault.json"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -155,7 +170,8 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 		return err
 	}
 
-	key := DeriveKey(password, meta.Salt)
+	key := DeriveKey(pwBytes, meta.Salt)
+	defer ZeroSlice(key)
 
 	// 3. Hardware-Rooted Integrity Verification (TPM)
 	if meta.TpmPcr >= 0 && len(meta.TpmFingerprint) > 0 {
@@ -302,6 +318,11 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 		return ErrLocked
 	}
 
+	oldPwBytes := []byte(oldPassword)
+	defer ZeroSlice(oldPwBytes)
+	newPwBytes := []byte(newPassword)
+	defer ZeroSlice(newPwBytes)
+
 	// 1. Verify old password by re-deriving the key
 	data, err := os.ReadFile(filepath.Join(v.config.StorePath, "vault.json"))
 	if err != nil {
@@ -312,7 +333,8 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 		return err
 	}
 
-	oldKey := DeriveKey(oldPassword, meta.Salt)
+	oldKey := DeriveKey(oldPwBytes, meta.Salt)
+	defer ZeroSlice(oldKey)
 	decrypted, err := Decrypt(oldKey, meta.Canary)
 	if err != nil {
 		return ErrWrongPassword
@@ -336,7 +358,8 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 	if err != nil {
 		return err
 	}
-	newKey := DeriveKey(newPassword, newSalt)
+	newKey := DeriveKey(newPwBytes, newSalt)
+	defer ZeroSlice(newKey)
 
 	// 3. Re-derive new random canary
 	v.log.Info("Vault.RotateMasterKey: generating new random canary")

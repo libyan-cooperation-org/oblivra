@@ -372,8 +372,19 @@ func (p *Pipeline) worker() {
 			ctx, span := tracer.Start(ctx, "pipeline.processEvent", trace.WithAttributes(
 				attribute.String("event.type", evt.EventType),
 				attribute.String("event.host", evt.Host),
+				attribute.String("event.tenant", evt.TenantID),
 			))
-			p.processEvent(ctx, evt)
+
+			// 1.1: Tenant-Isolated Panic Boundary — prevent a crash in one tenant's logic from killing the worker pool.
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						p.log.Error("[SECURITY] Tenant %s caused a pipeline panic: %v. Event dropped to protect platform stability.", evt.TenantID, r)
+						p.metrics.DroppedEvents.Add(1)
+					}
+				}()
+				p.processEvent(ctx, evt)
+			}()
 			span.End()
 
 			total := p.metrics.TotalProcessed.Add(1)

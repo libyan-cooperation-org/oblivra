@@ -24,6 +24,8 @@ type DatabaseStore interface {
 	SetClusterManager(cm cluster.Manager)
 	ClusterManager() cluster.Manager
 	ReplicatedExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 // CredentialStore defines the interface for managing encrypted credentials.

@@ -56,6 +56,18 @@ type Rule struct {
 	IsGlobal bool `yaml:"is_global"`
 }
 
+// ExecutionCost estimates the computational and memory pressure of a rule.
+// Used for circuit-breaking expensive rules in high-load environments.
+func (r *Rule) ExecutionCost() int {
+	cost := len(r.Conditions) * 10
+	if r.WindowSec > 0 {
+		cost += r.WindowSec / 60 // 1 point per minute of state
+	}
+	cost += len(r.GroupBy) * 50     // Grouping is expensive (cardinality risk)
+	cost += len(r.Sequence) * 100   // Sequences require complex state machines
+	return cost
+}
+
 // RuleSequenceStep represents a required stage in a SequenceRule.
 type RuleSequenceStep struct {
 	StepID     string                 `yaml:"step_id"`

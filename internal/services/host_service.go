@@ -159,7 +159,7 @@ func (s *HostService) Create(ctx context.Context, host database.Host) (*database
 
 func (s *HostService) Update(ctx context.Context, host database.Host) (*database.Host, error) {
 	s.log.Info("Updating host: %s (hostname: %s, tenant from ctx: %s)",
-		host.ID, host.Hostname, database.TenantFromContext(ctx))
+		host.ID, host.Hostname, database.MustTenantFromContext(ctx))
 
 	if err := s.hosts.Update(ctx, &host); err != nil {
 		s.log.Error("Failed to update host %s: %v", host.ID, err)
@@ -172,7 +172,7 @@ func (s *HostService) Update(ctx context.Context, host database.Host) (*database
 
 func (s *HostService) Delete(ctx context.Context, id string) error {
 	s.log.Info("Deleting host: %s (tenant from ctx: %s)",
-		id, database.TenantFromContext(ctx))
+		id, database.MustTenantFromContext(ctx))
 
 	if err := s.hosts.Delete(ctx, id); err != nil {
 		s.log.Error("Failed to delete host %s: %v", id, err)

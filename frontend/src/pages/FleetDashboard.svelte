@@ -20,10 +20,10 @@
   const columns = [
     { key: 'hostname', label: 'Host Identifier' },
     { key: 'status', label: 'State', width: '100px' },
-    { key: 'remote_address', label: 'Remote IP', width: '120px' },
-    { key: 'version', label: 'Core', width: '80px' },
-    { key: 'id', label: 'ID', width: '150px' },
-  ] as const;
+    { key: 'trust_level', label: 'Identity', width: '90px' },
+    { key: 'watchdog_active', label: 'Watchdog', width: '80px' },
+    { key: 'id', label: 'ID', width: '120px' },
+  ];
 </script>
 
 <PageLayout title="Fleet Command" subtitle="Global agent mesh and endpoint health monitoring">
@@ -43,6 +43,13 @@
       <KPI label="Managed Agents" value={stats.total} trend="stable" trendValue="Active Mesh" />
       <KPI label="Agent Availability" value={stats.total > 0 ? ((stats.online / stats.total) * 100).toFixed(1) + '%' : '—'} variant="success" trend="stable" trendValue="Optimal" />
       <KPI label="Platform Health" value={diagnosticsStore.healthGrade} trend="stable" trendValue={diag ? `${diag.ingest.current_eps} EPS` : 'Initializing...'} variant={diagnosticsStore.healthGrade === 'A' ? 'success' : diagnosticsStore.healthGrade === 'B' ? 'accent' : 'warning'} />
+      <KPI 
+        label="Ingest Stability" 
+        value={diag?.ingest?.dropped_total?.toLocaleString() ?? '—'} 
+        trend={(diag?.ingest?.dropped_total ?? 0) > 0 ? 'down' : 'stable'} 
+        trendValue={(diag?.ingest?.dropped_total ?? 0) > 0 ? `${diag?.ingest?.dropped_total} Dropped` : 'Secure'} 
+        variant={(diag?.ingest?.dropped_total ?? 0) > 0 ? 'critical' : 'success'} 
+      />
       <KPI label="Engine Version" value={diag?.runtime.go_version.split(' ')[0] || 'v2.4.1'} trend="stable" trendValue="Sovereign Core" variant="default" />
       <KPI label="Mesh Latency" value={diag ? `${diag.query.avg_query_ms.toFixed(1)}ms` : '—'} trend="stable" trendValue="Avg Query" variant={diag && diag.query.avg_query_ms < 100 ? 'success' : 'warning'} />
     </div>
@@ -55,13 +62,24 @@
          </div>
          <div class="flex-1 overflow-auto">
             <DataTable data={agentStore.agents} {columns} compact>
-              {#snippet render({ col, row, value })}
+               {#snippet render({ col, row, value })}
                 {#if col.key === 'status'}
                    <Badge variant={row.status === 'online' ? 'success' : 'critical'}>{row.status}</Badge>
                 {:else if col.key === 'hostname'}
                    <div class="flex flex-col">
                       <span class="text-[11px] font-bold text-text-heading">{row.hostname}</span>
-                      <span class="text-[9px] text-text-muted font-mono">{row.id}</span>
+                      <span class="text-[9px] text-text-muted font-mono">{row.remote_address}</span>
+                   </div>
+                {:else if (col.key as string) === 'trust_level'}
+                   <Badge variant={row.trust_level === 'verified' ? 'success' : row.trust_level === 'compromised' ? 'critical' : 'warning'}>
+                     {row.trust_level}
+                   </Badge>
+                {:else if (col.key as string) === 'watchdog_active'}
+                   <div class="flex items-center gap-1.5">
+                     <div class="w-1.5 h-1.5 rounded-full {row.watchdog_active ? 'bg-success animate-pulse' : 'bg-text-muted'} shadow-sm"></div>
+                     <span class="text-[9px] uppercase font-bold tracking-tight {row.watchdog_active ? 'text-success' : 'text-text-muted'}">
+                        {row.watchdog_active ? 'Active' : 'Passive'}
+                     </span>
                    </div>
                  {:else if col.key === 'id'}
                     <div class="flex items-center gap-2">
