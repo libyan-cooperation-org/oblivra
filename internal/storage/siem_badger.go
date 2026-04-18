@@ -35,7 +35,7 @@ func NewBadgerSIEMRepository(store *HotStore, searchEngine **search.SearchEngine
 // Primary: event:{host_id}:{timestamp_ns}:{event_id} -> JSON(HostEvent)
 // IP Index: idx:ip:{source_ip}:{timestamp_ns}:{event_id} -> JSON(HostEvent)
 
-func formatEventKey(tenantID, hostID string, ts time.Time, id int64) []byte {
+func formatEventKey(tenantID, _ string, ts time.Time, id int64) []byte {
 	return []byte(fmt.Sprintf("tenant:%s:events:%020d:%d", tenantID, ts.UnixNano(), id))
 }
 
@@ -136,7 +136,7 @@ func (r *BadgerSIEMRepository) GetTimelineEvents(ctx context.Context, principalI
 
 	// We scan the primary event range for this tenant. 
 	// For large tenants, we might need a dedicated time-based index if this becomes a bottleneck.
-	err := r.store.IteratePrefix(prefix, 0, func(key, value []byte) error {
+	err := r.store.IteratePrefix(prefix, func(key, value []byte) error {
 		var e database.HostEvent
 		if err := json.Unmarshal(value, &e); err != nil {
 			return nil

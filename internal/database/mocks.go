@@ -76,3 +76,7 @@ func (m *MockSIEMStore) GetSavedSearches(ctx context.Context) ([]SavedSearch, er
 	defer m.mu.RUnlock()
 	return m.SavedSearches, nil
 }
+
+func (m *MockSIEMStore) GetTimelineEvents(ctx context.Context, principalID string, principalType string, startTime string, endTime string) ([]HostEvent, error) {
+	return nil, nil
+}

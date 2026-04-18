@@ -108,7 +108,6 @@ func (m *QuorumManager) Approve(id string, userID string, credentialID []byte, s
 	// 1. Verify FIDO2 Signature
 	// Note: We use the existing CompleteAuthentication logic to verify the hardware-backed signature.
 	// In a real ceremony, the challenge should be bound to the Request ID.
-	challengeID := "" // We'd need to track which challenge belongs to which quorum attempt
 	// For this phase, we assume the caller has already verified the FIDO2 auth via the FIDO2Manager 
 	// and is passing the result.
 

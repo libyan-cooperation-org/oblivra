@@ -21,4 +21,5 @@ export { default as ErrorScreen } from './ErrorScreen.svelte';
 export { default as CommandPalette } from './CommandPalette.svelte';
 export { default as Toggle } from './Toggle.svelte';
 export { default as DecisionCard } from './DecisionCard.svelte';
+export { default as InvestigationCanvas } from './InvestigationCanvas.svelte';
 export * from './decision.types';

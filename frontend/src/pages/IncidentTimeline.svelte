@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { 
     PageLayout, 
     Button, 
@@ -17,10 +18,7 @@
     Shield, 
     Activity, 
     AlertCircle, 
-    Clock,
-    Terminal,
-    ArrowRight,
-    Search
+    Terminal
   } from 'lucide-svelte';
   
   import { ReconstructTimeline } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice.js';
@@ -76,7 +74,7 @@
         Regenerate Story
       </Button>
     </div>
-  {#/snippet}
+  {/snippet}
 
   <div class="max-w-4xl mx-auto py-8">
     {#if loading}
@@ -88,7 +86,7 @@
       <EmptyState 
         title="Reconstruction Failed" 
         description={error}
-        icon={AlertCircle}
+        icon="alert"
       />
     {:else if timeline && timeline.steps.length > 0}
       <div class="flex flex-col gap-12 relative">
@@ -96,11 +94,11 @@
         <div class="absolute left-[23px] top-4 bottom-4 w-px bg-border-primary"></div>
 
         {#each timeline.steps as step, i}
+          {@const Icon = getStepIcon(step.type)}
           <div class="flex gap-8 relative group" in:fade={{ delay: i * 100 }}>
             <!-- Step Marker -->
             <div class="relative z-10 w-12 h-12 rounded-full bg-surface-1 border border-border-primary flex items-center justify-center shadow-lg group-hover:border-accent transition-colors">
-               <svelte:component 
-                 this={getStepIcon(step.type)} 
+               <Icon 
                  size={20} 
                  class={getSeverityColor(step.severity)}
                />
@@ -112,7 +110,7 @@
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
                     <span class="text-[10px] font-mono text-text-muted">{new Date(step.timestamp).toLocaleTimeString()}</span>
-                    <Badge variant={step.severity === 'CRITICAL' ? 'critical' : 'secondary'}>{step.type}</Badge>
+                    <Badge variant={step.severity === 'CRITICAL' ? 'critical' : 'info'}>{step.type}</Badge>
                   </div>
                   <span class="text-[9px] font-bold text-text-muted">INCIDENT PHASE {i + 1}</span>
                 </div>

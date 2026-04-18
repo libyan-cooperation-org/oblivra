@@ -8,9 +8,7 @@
     PageLayout, 
     Button, 
     Badge, 
-    InvestigationCanvas,
-    Input,
-    SearchBar
+    InvestigationCanvas
   } from '@components/ui';
   import { 
     GitBranch, 
@@ -18,12 +16,12 @@
     Filter, 
     Download, 
     Zap,
-    Maximize2,
     Database,
-    Network
+    Network,
+    AlertTriangle
   } from 'lucide-svelte';
   
-  import { GetFullGraph, GetSubGraph, FindAttackPath } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/graphservice.js';
+  import { GetFullGraph, GetSubGraph } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/graphservice.js';
 
   let nodes = $state<any[]>([]);
   let edges = $state<any[]>([]);
@@ -52,7 +50,7 @@
     selectedNode = node;
     // Auto-focus sub-graph on click (Blast Radius)
     try {
-      const data = await GetSubGraph(node.id, 2);
+      await GetSubGraph(node.id, 2);
       // We don't replace the whole graph, maybe just highlight?
       // For now, let's keep it simple.
     } catch (err) {
@@ -97,7 +95,7 @@
         Export Audit
       </Button>
     </div>
-  {#/snippet}
+  {/snippet}
 
   <div class="flex h-full gap-6">
     <!-- Left: Canvas -->
@@ -114,7 +112,7 @@
         </div>
         <div class="ml-auto flex items-center gap-2">
           <Badge variant="success">Engine: Active</Badge>
-          <Badge variant="secondary">Integrity: Verified</Badge>
+          <Badge variant="muted">Integrity: Verified</Badge>
         </div>
       </div>
 
@@ -175,7 +173,7 @@
                     <Filter size={14} class="mr-2 text-primary" />
                     Filter logs for entity
                   </Button>
-                  <Button variant="critical" size="sm" class="w-full justify-start">
+                  <Button variant="danger" size="sm" class="w-full justify-start">
                     <AlertTriangle size={14} class="mr-2" />
                     Isolation Ceremony
                   </Button>

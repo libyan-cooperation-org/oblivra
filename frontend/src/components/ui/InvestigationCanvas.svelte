@@ -1,19 +1,4 @@
-<script lang="ts">
-  import { onMount } from 'svelte';
-  import { fade, draw } from 'svelte/transition';
-  import { quintOut } from 'svelte/easing';
-  import { 
-    User, 
-    Server, 
-    Cpu, 
-    FileText, 
-    Globe, 
-    Maximize2, 
-    Minimize2, 
-    Search,
-    AlertTriangle
-  } from 'lucide-svelte';
-
+<script module>
   export interface Node {
     id: string;
     type: 'user' | 'host' | 'process' | 'file' | 'ip';
@@ -31,8 +16,21 @@
     type: string;
     timestamp?: string;
   }
+</script>
 
-  let { nodes = [], edges = [], onNodeClick = (n: Node) => {} } = $props();
+<script lang="ts">
+  import { 
+    User, 
+    Server, 
+    Cpu, 
+    FileText, 
+    Globe, 
+    Maximize2, 
+    Search,
+    AlertTriangle
+  } from 'lucide-svelte';
+
+  let { nodes = [], edges = [], onNodeClick = (_n: Node) => {} } = $props();
 
   let canvasWidth = $state(0);
   let canvasHeight = $state(0);
@@ -52,7 +50,12 @@
 
   async function updateSimulation() {
     if (!d3) {
-      d3 = await import('d3');
+      try {
+        d3 = await import('d3');
+      } catch (err) {
+        console.warn("D3 not found, falling back to static layout", err);
+        return;
+      }
     }
 
     // Preserve positions of existing nodes
@@ -100,7 +103,7 @@
     }
   }
 
-  function handleDragStart(event: any, node: Node) {
+  function handleDragStart(_event: any, node: Node) {
     if (!simulation) return;
     node.vx = 0;
     node.vy = 0;
@@ -161,11 +164,15 @@
     <!-- Nodes -->
     <g class="nodes">
       {#each internalNodes as node (node.id)}
+        {@const Icon = getNodeIcon(node.type)}
         <g 
           class="node-group cursor-pointer"
           transform="translate({node.x},{node.y})"
           onclick={() => onNodeClick(node)}
           onmousedown={(e) => handleDragStart(e, node)}
+          role="button"
+          tabindex="0"
+          onkeydown={(e) => e.key === 'Enter' && onNodeClick(node)}
         >
           <!-- Glow effect for nodes -->
           <circle 
@@ -185,8 +192,7 @@
           
           <!-- Icon -->
           <g transform="translate(-7, -7)">
-            <svelte:component 
-              this={getNodeIcon(node.type)} 
+            <Icon 
               size={14} 
               color={getNodeColor(node.type)}
             />
