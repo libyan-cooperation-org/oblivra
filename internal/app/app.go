@@ -140,95 +140,106 @@ func New() *App {
 	a.container = core.NewContainer(l, a.version)
 
 	// Initialize the container immediately. This populates all service pointers.
-	// We use the background context here; Startup will later pass the Wails context.
 	if err := a.container.Init(context.Background()); err != nil {
 		l.Error("Container initialization failed: %v", err)
 	}
 
 	// Map container-managed services to App fields.
-	// These pointers are now STABLE and LIVE. Wails will bind to these addresses.
-	// Map container-managed services to App fields.
-	// Cluster: Product
-	a.HostService = a.container.Product.HostService
-	a.SSHService = a.container.Product.SSHService
-	a.VaultService = a.container.Product.VaultService
-	a.SessionService = a.container.Product.SessionService
-	a.SettingsService = a.container.Product.SettingsService
-	a.SnippetService = a.container.Product.SnippetService
-	a.MultiExecService = a.container.Product.MultiExecService
-	a.FileService = a.container.Product.FileService
-	a.WorkspaceService = a.container.Product.WorkspaceService
-	a.NotesService = a.container.Product.NotesService
-	a.ShareService = a.container.Product.ShareService
-	a.RecordingService = a.container.Product.RecordingService
-	a.BookmarkService = a.container.Product.BookmarkService
-	a.CommandHistory = a.container.Product.CommandHistory
-	a.OperatorService = a.container.Product.OperatorService
-	a.SessionPersistence = a.container.Product.SessionPersistence
-
-	// Cluster: Security
-	a.SecurityService = a.container.Security.SecurityService
-	a.IdentityService = a.container.Security.IdentityService
-	a.PolicyService = a.container.Security.PolicyService
-	a.TrustService = a.container.Security.TrustService
-	a.MemorySecurity = a.container.Security.MemorySecurity
-
-	// Cluster: SIEM
-	a.SIEMService = a.container.SIEM.SIEMService
-	a.IngestService = a.container.SIEM.IngestService
-	a.NDRService = a.container.SIEM.NDRService
-	a.UEBAService = a.container.SIEM.UEBAService
-	a.ForensicsService = a.container.SIEM.ForensicsService
-	a.AlertingService = a.container.SIEM.AlertingService
-	a.LogSourceService = a.container.SIEM.LogSourceService
-
-	// Cluster: Intel
-	a.AnalyticsService = a.container.Intel.AnalyticsService
-	a.RiskService = a.container.Intel.RiskService
-	a.GraphService = a.container.Intel.GraphService
-	a.DecisionService = a.container.Intel.DecisionService
-	a.CounterfactualService = a.container.Intel.CounterfactualService
-	a.LineageService = a.container.Intel.LineageService
-	a.TemporalService = a.container.Intel.TemporalService
-
-	// Cluster: Response
-	a.IncidentService = a.container.Response.IncidentService
-	a.PlaybookService = a.container.Response.PlaybookService
-	a.NetworkIsolatorService = a.container.Response.NetworkIsolatorService
-	a.SimulationService = a.container.Response.SimulationService
-	a.DeterministicResponse = a.container.Response.DeterministicResponse
-
-	// Cluster: Platform
-	a.DiscoveryService = a.container.Platform.DiscoveryService
-	a.UpdaterService = a.container.Platform.UpdaterService
-	a.SyncService = a.container.Platform.SyncService
-	a.TunnelService = a.container.Platform.TunnelService
-	a.HealthService = a.container.Platform.HealthService
-	a.MetricsService = a.container.Platform.MetricsService
-	a.PluginService = a.container.Platform.PluginService
-	a.AIService = a.container.Platform.AIService
-	a.LocalService = a.container.Platform.LocalService
-	a.SyntheticService = a.container.Platform.SyntheticService
-
-	// Combined Infrastructure & Utility
-	a.BroadcastService = a.container.Platform.BroadcastService
-	a.TransferManager = a.container.Product.TransferManager
-	a.ComplianceService = a.container.Product.ComplianceService
-	a.TailingService = a.container.Product.TailingService
-	a.LedgerService = a.container.Response.LedgerService
-	a.AgentService = a.container.SIEM.AgentService
-	a.CredentialIntel = a.container.Security.CredentialIntel
-	a.GovernanceService = a.container.Security.GovernanceService
-	a.ObservabilityService = a.container.Platform.ObservabilityService
-	a.DisasterService = a.container.Platform.DisasterService
-	a.TelemetryService = a.container.Platform.TelemetryService
-	a.TeamService = a.container.Product.TeamService
-	a.DataLifecycleService = a.container.Platform.DataLifecycleService
-	a.DiagnosticsService = a.container.Platform.DiagnosticsService
-	a.FusionService = a.container.SIEM.FusionService
-	a.LicensingService = a.container.Platform.LicensingService
+	// We delegate this to a dedicated method to keep New() clean.
+	a.wireServices()
 
 	return a
+}
+
+// wireServices maps the deeply nested container services to the flat App struct.
+// This flat mapping is required for Wails to correctly generate frontend bindings
+// for all platform capabilities.
+func (a *App) wireServices() {
+	// Cluster: Product
+	p := a.container.Product
+	a.HostService = p.HostService
+	a.SSHService = p.SSHService
+	a.VaultService = p.VaultService
+	a.SessionService = p.SessionService
+	a.SettingsService = p.SettingsService
+	a.SnippetService = p.SnippetService
+	a.MultiExecService = p.MultiExecService
+	a.FileService = p.FileService
+	a.WorkspaceService = p.WorkspaceService
+	a.NotesService = p.NotesService
+	a.ShareService = p.ShareService
+	a.RecordingService = p.RecordingService
+	a.BookmarkService = p.BookmarkService
+	a.CommandHistory = p.CommandHistory
+	a.OperatorService = p.OperatorService
+	a.SessionPersistence = p.SessionPersistence
+	a.TransferManager = p.TransferManager
+	a.ComplianceService = p.ComplianceService
+	a.TailingService = p.TailingService
+	a.TeamService = p.TeamService
+
+	// Cluster: Security
+	s := a.container.Security
+	a.SecurityService = s.SecurityService
+	a.IdentityService = s.IdentityService
+	a.PolicyService = s.PolicyService
+	a.TrustService = s.TrustService
+	a.MemorySecurity = s.MemorySecurity
+	a.CredentialIntel = s.CredentialIntel
+	a.GovernanceService = s.GovernanceService
+	a.ReportService = s.ReportService
+
+	// Cluster: SIEM
+	siem := a.container.SIEM
+	a.SIEMService = siem.SIEMService
+	a.IngestService = siem.IngestService
+	a.NDRService = siem.NDRService
+	a.UEBAService = siem.UEBAService
+	a.ForensicsService = siem.ForensicsService
+	a.AlertingService = siem.AlertingService
+	a.LogSourceService = siem.LogSourceService
+	a.AgentService = siem.AgentService
+	a.FusionService = siem.FusionService
+
+	// Cluster: Intel
+	i := a.container.Intel
+	a.AnalyticsService = i.AnalyticsService
+	a.RiskService = i.RiskService
+	a.GraphService = i.GraphService
+	a.DecisionService = i.DecisionService
+	a.CounterfactualService = i.CounterfactualService
+	a.LineageService = i.LineageService
+	a.TemporalService = i.TemporalService
+	a.WorkspaceService = p.WorkspaceService // Already in Product
+
+	// Cluster: Response
+	r := a.container.Response
+	a.IncidentService = r.IncidentService
+	a.PlaybookService = r.PlaybookService
+	a.NetworkIsolatorService = r.NetworkIsolatorService
+	a.SimulationService = r.SimulationService
+	a.DeterministicResponse = r.DeterministicResponse
+	a.LedgerService = r.LedgerService
+
+	// Cluster: Platform
+	plt := a.container.Platform
+	a.DiscoveryService = plt.DiscoveryService
+	a.UpdaterService = plt.UpdaterService
+	a.SyncService = plt.SyncService
+	a.TunnelService = plt.TunnelService
+	a.HealthService = plt.HealthService
+	a.MetricsService = plt.MetricsService
+	a.PluginService = plt.PluginService
+	a.AIService = plt.AIService
+	a.LocalService = plt.LocalService
+	a.SyntheticService = plt.SyntheticService
+	a.BroadcastService = plt.BroadcastService
+	a.ObservabilityService = plt.ObservabilityService
+	a.DisasterService = plt.DisasterService
+	a.TelemetryService = plt.TelemetryService
+	a.DataLifecycleService = plt.DataLifecycleService
+	a.DiagnosticsService = plt.DiagnosticsService
+	a.LicensingService = plt.LicensingService
 }
 
 // Startup is called when the app starts.

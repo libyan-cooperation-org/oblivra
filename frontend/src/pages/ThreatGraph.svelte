@@ -4,6 +4,7 @@
     import { nodesList, edgesList, type GraphNode, type GraphEdge } from '@lib/stores/graph.svelte';
     import { Shield, Activity, User, Monitor, Network, Info, Trash2, Crosshair } from 'lucide-svelte';
     import { initGraphSync, refreshFullGraph } from '@lib/graph-sync';
+    import { campaignStore } from '@lib/stores/campaigns.svelte';
     import { KillProcess } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice';
     import { IsolateHost } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/networkisolatorservice';
 
@@ -24,21 +25,31 @@
     function updateChart() {
         if (!myChart) return;
 
-        const data = $nodesList.map((n: GraphNode) => ({
-            id: n.id,
-            name: (n.id || "").split(':').pop(), // Show short name
-            value: n.type,
-            category: n.type,
-            itemStyle: {
-                color: typeConfigs[n.type]?.color || '#94a3b8'
-            },
-            label: {
-                show: true,
-                position: 'right',
-                formatter: '{b}'
-            },
-            meta: n.meta
-        }));
+        const data = $nodesList.map((n: GraphNode) => {
+            const inCluster = $campaignStore.some(c => c.entities.includes(n.id));
+            const baseColor = typeConfigs[n.type]?.color || '#94a3b8';
+
+            return {
+                id: n.id,
+                name: (n.id || "").split(':').pop(), // Show short name
+                value: n.type,
+                category: n.type,
+                itemStyle: {
+                    color: baseColor,
+                    shadowBlur: inCluster ? 20 : 0,
+                    shadowColor: inCluster ? '#ef4444' : 'transparent',
+                    borderColor: inCluster ? '#ffffff' : 'transparent',
+                    borderWidth: inCluster ? 2 : 0
+                },
+                label: {
+                    show: true,
+                    position: 'right',
+                    formatter: '{b}'
+                },
+                meta: n.meta,
+                symbolSize: inCluster ? 20 : 15
+            };
+        });
 
         const links = $edgesList.map((e: GraphEdge) => ({
             source: e.from,
@@ -119,7 +130,7 @@
 
     // Reactive update when store changes
     $effect(() => {
-        if ($nodesList && $edgesList) {
+        if ($nodesList && $edgesList && $campaignStore) {
             updateChart();
         }
     });

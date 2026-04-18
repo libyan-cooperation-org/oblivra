@@ -13,6 +13,12 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
+const (
+	// MaxRuleCost is the upper bound for a rule's computational/memory pressure.
+	// Rules exceeding this are throttled to ensure platform stability.
+	MaxRuleCost = 10000
+)
+
 // Event represents a normalized log event for the detection engine to process
 type Event struct {
 	TenantID  string
@@ -131,6 +137,16 @@ func (e *Evaluator) ProcessEvent(evt Event) []Match {
 		}
 		if !e.IsLocal && !rule.IsGlobal {
 			continue // Handled by shard evaluators
+		}
+
+		// ── Circuit Breaker ──────────────────────────────────────────────────
+		// Prevent resource exhaustion from expensive rules (e.g. complex regex,
+		// extreme window sizes, or massive groupings).
+		cost := rule.ExecutionCost()
+		if cost > MaxRuleCost {
+			e.log.Warn("[DETECTION:THROTTLED] Rule %s [%s] exceeds MaxRuleCost (%d > %d). Skipping.",
+				rule.Name, rule.ID, cost, MaxRuleCost)
+			continue
 		}
 
 		if rule.Type == SequenceRule {

@@ -54,6 +54,8 @@ type AgentDTO struct {
 	OS            string   `json:"os"`
 	Arch          string   `json:"arch"`
 	Collectors    []string `json:"collectors"`
+	TrustLevel    string   `json:"trust_level"`
+	WatchdogActive bool    `json:"watchdog_active"`
 }
 
 // ListAgents retrieves the list of currently active agents
@@ -79,9 +81,11 @@ func (s *AgentService) ListAgents() []AgentDTO {
 			LastSeen:      a.LastSeen,
 			RemoteAddress: a.RemoteAddress,
 			Status:        status,
-			OS:            a.OS,
-			Arch:          a.Arch,
-			Collectors:    a.Collectors,
+			OS:             a.OS,
+			Arch:           a.Arch,
+			Collectors:     a.Collectors,
+			TrustLevel:     a.TrustLevel,
+			WatchdogActive: a.WatchdogActive,
 		})
 	}
 	return dtos

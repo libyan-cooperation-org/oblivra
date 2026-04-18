@@ -17,6 +17,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/kingknull/oblivrashell/internal/vault"
 	"golang.org/x/crypto/argon2"
 )
@@ -198,8 +199,12 @@ func (s *DisasterService) ExportResilienceBundle(passphrase string) (string, err
 // ImportResilienceBundle restores data from a dead-drop archive.
 func (s *DisasterService) ImportResilienceBundle(path string, passphrase string) error {
 	s.log.Info("Importing Resilience Bundle from: %s", path)
+	safePath, err := platform.ValidateSafePath(path)
+	if err != nil {
+		return fmt.Errorf("security violation: %w", err)
+	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(safePath)
 	if err != nil {
 		return err
 	}

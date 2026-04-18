@@ -60,13 +60,21 @@ func (m *CertificateManager) ParseCertificateData(data []byte) (*CertificateInfo
 	// G115: Prevent integer overflow when converting uint64 to int64.
 	// SSH certificates use 0xffffffffffffffff for 'forever'.
 	var validAfter, validBefore time.Time
+	
+	// Safe conversion for ValidAfter
 	if cert.ValidAfter == 0xffffffffffffffff {
 		validAfter = time.Unix(0, 0)
+	} else if cert.ValidAfter > uint64(9223372036854775807) { // math.MaxInt64
+		validAfter = time.Unix(9223372036854775807, 0)
 	} else {
 		validAfter = time.Unix(int64(cert.ValidAfter), 0)
 	}
+
+	// Safe conversion for ValidBefore
 	if cert.ValidBefore == 0xffffffffffffffff {
 		validBefore = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
+	} else if cert.ValidBefore > uint64(9223372036854775807) { // math.MaxInt64
+		validBefore = time.Unix(9223372036854775807, 0)
 	} else {
 		validBefore = time.Unix(int64(cert.ValidBefore), 0)
 	}

@@ -117,12 +117,25 @@ func (s *DataDestructionService) CryptoWipe(tableName, whereClause string, args 
 }
 
 // validateWhereClause rejects SQL injection patterns in the WHERE clause.
-var unsafePatterns = regexp.MustCompile(`(?i)(;|--|\bunion\b|\bdrop\b|\binsert\b|\bupdate\b|\bdelete\b|\bexec\b|\balter\b)`)
-
+// This is a defense-in-depth measure. OBLIVRA callers are expected to use
+// positional parameters (?) for all user-provided values.
 func validateWhereClause(clause string) error {
-	if unsafePatterns.MatchString(clause) {
-		return fmt.Errorf("where clause contains disallowed SQL pattern")
+	if clause == "" {
+		return fmt.Errorf("empty where clause not allowed for destruction")
 	}
+
+	// Block multiple statements (;) and SQL comments (--), which are common injection markers.
+	if strings.Contains(clause, ";") || strings.Contains(clause, "--") || strings.Contains(clause, "/*") {
+		return fmt.Errorf("unsupported SQL characters in where clause")
+	}
+
+	// Block common destructive keywords if they appear as standalone words.
+	// We use a stricter regex that looks for word boundaries.
+	unsafeKeywords := regexp.MustCompile(`(?i)\b(union|drop|insert|update|delete|exec|alter|truncate|create|attach|detach)\b`)
+	if unsafeKeywords.MatchString(clause) {
+		return fmt.Errorf("disallowed SQL keywords detected in where clause")
+	}
+
 	return nil
 }
 

@@ -36,9 +36,9 @@ const (
 	EventHostUpdated EventType = "host:list_updated"
 	EventHostDeleted EventType = "host:list_updated"
 
-	EventCredentialCreated  EventType = "credential:created"
-	EventCredentialDeleted  EventType = "credential:deleted"
-	EventCredentialAccessed EventType = "credential:accessed"
+	EventCredentialCreated  EventType = "credential:created" //nolint:gosec // False positive: event type, not credential
+	EventCredentialDeleted  EventType = "credential:deleted" //nolint:gosec // False positive: event type, not credential
+	EventCredentialAccessed EventType = "credential:accessed" //nolint:gosec // False positive: event type, not credential
 
 	EventAppReady        EventType = "app:ready"
 	EventAppError        EventType = "app:error"

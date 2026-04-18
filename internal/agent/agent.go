@@ -408,6 +408,15 @@ func (a *Agent) handleAction(action PendingAction) {
 	}
 }
 
+func (a *Agent) TriggerWatchdogSelfTest() {
+	if a.watchdog != nil {
+		evt := a.watchdog.TriggerSelfTest()
+		if evt != nil {
+			a.eventCh <- *evt
+		}
+	}
+}
+
 // Stop gracefully shuts down the agent.
 func (a *Agent) Stop() {
 	if a.cancel != nil {

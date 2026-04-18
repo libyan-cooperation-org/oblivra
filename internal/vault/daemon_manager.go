@@ -4,18 +4,39 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
+var (
+	lastRestart time.Time
+	restartCount int
+)
+
 // EnsureDaemonRunning checks if the vault socket exists; if not, it attempts to spawn
 // the oblivra-vault daemon process.
 func EnsureDaemonRunning(socketPath string, log *logger.Logger) error {
 	if _, err := os.Stat(socketPath); err == nil {
+		restartCount = 0 // Reset on success
 		return nil // Already running
 	}
+
+	// Crash-loop backoff
+	if restartCount > 0 {
+		backoff := time.Duration(restartCount) * 2 * time.Second
+		if backoff > 1 * time.Minute {
+			backoff = 1 * time.Minute
+		}
+		if time.Since(lastRestart) < backoff {
+			return fmt.Errorf("daemon restart backoff active (%v remaining)", backoff - time.Since(lastRestart))
+		}
+	}
+
+	lastRestart = time.Now()
+	restartCount++
 
 	// Determine binary name
 	binName := "oblivra-vault"
@@ -27,7 +48,7 @@ func EnsureDaemonRunning(socketPath string, log *logger.Logger) error {
 	self, _ := os.Executable()
 	binPath := binName
 	if self != "" {
-		binPath = fmt.Sprintf("%s/%s", (self), binName)
+		binPath = filepath.Join(filepath.Dir(self), binName)
 	}
 
 	log.Info("[VAULT] Spawning isolated vault daemon: %s", binPath)

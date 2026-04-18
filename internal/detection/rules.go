@@ -60,11 +60,27 @@ type Rule struct {
 // Used for circuit-breaking expensive rules in high-load environments.
 func (r *Rule) ExecutionCost() int {
 	cost := len(r.Conditions) * 10
-	if r.WindowSec > 0 {
-		cost += r.WindowSec / 60 // 1 point per minute of state
+	for _, cond := range r.Conditions {
+		if s, ok := cond.(string); ok && strings.HasPrefix(s, "regex:") {
+			cost += 100 // Regex is computationally expensive
+			if len(s) > 100 {
+				cost += 50 // Longer regex patterns take more time to compile/match
+			}
+		}
 	}
-	cost += len(r.GroupBy) * 50     // Grouping is expensive (cardinality risk)
-	cost += len(r.Sequence) * 100   // Sequences require complex state machines
+	
+	if r.WindowSec > 0 {
+		// Memory pressure: state window size / 60s * threshold
+		cost += (r.WindowSec / 60) * (r.Threshold + 1)
+	}
+	
+	cost += len(r.GroupBy) * 150     // Grouping is high risk for cardinality explosion
+	cost += len(r.Sequence) * 200   // Sequences require persistent state machines
+	
+	if r.IsGlobal {
+		cost *= 2 // Global rules require cross-node synchronization overhead
+	}
+	
 	return cost
 }
 

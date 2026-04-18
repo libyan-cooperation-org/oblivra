@@ -45,6 +45,11 @@ func (p *RemoteProvider) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (p *RemoteProvider) Ping(ctx context.Context) error {
+	_, err := p.call("ping", nil)
+	return err
+}
+
 func (p *RemoteProvider) IsSetup() bool {
 	// For remote provider, we assume it's setup if the daemon is reachable and says so,
 	// but usually setup is a local filesystem check.

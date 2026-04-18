@@ -105,8 +105,11 @@ func (v *RuleVerifier) Verify(r *Rule) ValidationResult {
 	}
 
 	// 1.2: Rule Cost Circuit Breaker (DoS Protection)
-	if r.ExecutionCost() > 5000 {
-		res.addError(fmt.Sprintf("Rule execution cost (%d) exceeds sovereign-grade stability threshold (5000)", r.ExecutionCost()))
+	// ── 22.3: Circuit Breaker Validation ───────────────────────────────────
+	// Rules with extreme execution cost are rejected to prevent DoS.
+	cost := r.ExecutionCost()
+	if cost > MaxRuleCost {
+		res.addError(fmt.Sprintf("Rule execution cost (%d) exceeds sovereign-grade stability threshold (%d). Reduce grouping cardinality or regex complexity.", cost, MaxRuleCost))
 		res.IsValid = false
 		res.IsSecured = false
 	}

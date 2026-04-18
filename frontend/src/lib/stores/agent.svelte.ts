@@ -54,7 +54,7 @@ export class AgentStore {
         list = data.agents || [];
       } else {
         // Native Wails IPC context
-        const { ListAgents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
+        const { ListAgents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice.js');
         list = await ListAgents();
       }
 
@@ -85,7 +85,7 @@ export class AgentStore {
     if (IS_BROWSER) return;
     this.loading = true;
     try {
-      const { RequestProcessInventory } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
+      const { RequestProcessInventory } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice.js');
       await RequestProcessInventory(agentID);
       // We don't clear this.processes here because we want to keep the old ones 
       // until the new ones arrive via the event bridge.
@@ -100,7 +100,7 @@ export class AgentStore {
   async killProcess(agentID: string, pid: number) {
     if (IS_BROWSER) return;
     try {
-      const { KillProcess } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
+      const { KillProcess } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice.js');
       await KillProcess(agentID, pid);
       // We don't wait for success here since it's an async C2 operation
       return true;
@@ -113,7 +113,7 @@ export class AgentStore {
   async toggleQuarantine(agentID: string, enabled: boolean) {
     if (IS_BROWSER) return;
     try {
-      const { ToggleQuarantine } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice');
+      const { ToggleQuarantine } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice.js');
       await ToggleQuarantine(agentID, enabled);
       return true;
     } catch (err: any) {

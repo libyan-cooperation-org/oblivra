@@ -77,8 +77,13 @@ func (w *WAL) Append(payload []byte) error {
 	checksum := crc32.ChecksumIEEE(payload)
 
 	// 2. Write Length Header (4 bytes)
+	pLen := len(payload)
+	// G115: Prevent overflow. Reject payloads > 10MB.
+	if pLen > 10*1024*1024 {
+		return fmt.Errorf("payload too large: %d bytes (max 10MB)", pLen)
+	}
 	lenBuf := make([]byte, 4)
-	binary.LittleEndian.PutUint32(lenBuf, uint32(len(payload)))
+	binary.LittleEndian.PutUint32(lenBuf, uint32(pLen))
 
 	if _, err := w.writer.Write(lenBuf); err != nil {
 		return err

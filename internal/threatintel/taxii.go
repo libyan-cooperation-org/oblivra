@@ -41,12 +41,11 @@ type TAXIIClient struct {
 	client   *http.Client
 }
 
-func NewTAXIIClient(endpoint, username, password string, skipVerify bool) *TAXIIClient {
-	if skipVerify {
-		log.Printf("⚠️  SECURITY: TLS certificate verification disabled for TAXII endpoint %s", endpoint)
-	}
+func NewTAXIIClient(endpoint, username, password string) *TAXIIClient {
+	// Sovereign Grade: InsecureSkipVerify is strictly disabled for remote intelligence feeds.
+	// All TAXII servers must provide valid, trusted certificates.
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipVerify},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
 	}
 	return &TAXIIClient{
 		endpoint: endpoint,

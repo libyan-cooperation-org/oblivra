@@ -51,7 +51,10 @@ func NewIsolationForest(numTrees int, subsample int) *IsolationForest {
 	return &IsolationForest{
 		Trees:     make([]*IsolationTree, numTrees),
 		Subsample: subsample,
-		rng:       mathrand.New(&cryptoRandSource{}),
+		// G404: math/rand is used for ML subsampling and split-point selection.
+		// It is seeded by our cryptoRandSource above to ensure non-determinism.
+		//nolint:gosec
+		rng: mathrand.New(&cryptoRandSource{}),
 	}
 }
 

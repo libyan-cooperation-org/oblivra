@@ -460,6 +460,14 @@
 - [x] Legal hold mode
 - [x] Data destruction workflow (cryptographic wipe + audit trail)
 - [x] Audit log of audit log access (meta-audit)
+- [x] Sovereign-grade vault resilience (30s heartbeat + auto-recovery)
+- [x] Vault daemon crash-loop backoff (exponential retry)
+- [x] Synthetic anti-tamper self-test (`-trigger-tamper` flag)
+- [x] **Phase 26: Sovereign Intelligence & Stability**
+    - [x] Detection circuit breaker (`MAX_COST` throttling)
+    - [x] Dynamize `FusionDashboard.svelte` with live clusters
+    - [x] Cluster-aware node highlighting in `ThreatGraph.svelte`
+    - [x] Sigma rule cost-based rejection in `Verifier`
 - [x] `ComplianceCenter.svelte` — Governance tab with real-time scoring
 
 ### 🔵 Tier 3: Strategic

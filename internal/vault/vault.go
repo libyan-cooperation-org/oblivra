@@ -68,6 +68,10 @@ func (v *Vault) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (v *Vault) Ping(ctx context.Context) error {
+	return nil // In-process vault is always alive if the object exists
+}
+
 func (v *Vault) IsSetup() bool {
 	v.mu.RLock()
 	defer v.mu.RUnlock()

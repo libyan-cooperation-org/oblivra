@@ -40,6 +40,7 @@ func main() {
 	logPath        := flag.String("log-path",       "",               "Path to agent log file (default: <data-dir>/agent.log)")
 
 	tenantID       := flag.String("tenant-id",     os.Getenv("OBLIVRA_TENANT_ID"), "Tenant identifier for multi-tenant isolation")
+	triggerTamper  := flag.Bool("trigger-tamper",   false,            "Simulate a self-tampering attempt on startup for watchdog verification")
 	flag.Parse()
 
 	if *showVersion {
@@ -107,6 +108,10 @@ func main() {
 	if err := a.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start agent: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *triggerTamper {
+		a.TriggerWatchdogSelfTest()
 	}
 
 	// Emit the "Connected" log line that the troubleshooting guide expects

@@ -52,3 +52,36 @@ func EnsureDirectories() error {
 	}
 	return nil
 }
+
+// ValidateSafePath ensures a path is within the allowed application directories or the user's home.
+// This is the primary defense against G304/G703 Path Traversal vulnerabilities.
+func ValidateSafePath(path string) (string, error) {
+	if path == "" {
+		return "", os.ErrNotExist
+	}
+	
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	abs = filepath.Clean(abs)
+
+	home, _ := os.UserHomeDir()
+	p := Detect()
+	
+	allowedPrefixes := []string{
+		p.ConfigDir(),
+		p.DataDir(),
+		p.LogDir(),
+		home,
+	}
+
+	for _, prefix := range allowedPrefixes {
+		cleanPrefix := filepath.Clean(prefix)
+		if abs == cleanPrefix || (len(abs) > len(cleanPrefix) && abs[len(cleanPrefix)] == filepath.Separator && abs[:len(cleanPrefix)] == cleanPrefix) {
+			return abs, nil
+		}
+	}
+
+	return "", os.ErrPermission
+}

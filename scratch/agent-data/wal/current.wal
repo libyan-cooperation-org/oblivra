@@ -1,1 +1,0 @@
-{"timestamp":"2026-04-17T19:46:37+02:00","source":"ebpf","type":"kernel_telemetry","host":"localhost.localdomain","agent_id":"67451d9df33b725702d78ddb0087e829","version":"","data":{"new_pids":0,"status":"proc_fallback","total_pids":9822}}

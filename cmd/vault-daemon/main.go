@@ -40,26 +40,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "WARNING: mlockall failed: %v — memory isolation weakened\n", err)
 	}
 
-	// In a real scenario, the password would securely arrive via a pipe.
-	var password string
-	fmt.Scanln(&password)
-	
-	if password == "" {
-		log.Fatalf("no password provided")
-	}
-
 	appLog := logger.NewStdoutLogger()
 	v, err := vault.New(vault.Config{StorePath: "./.vault"}, appLog)
 	if err != nil {
 		log.Fatalf("failed to init vault: %v", err)
 	}
 
-	// Attempt to unlock
-	if err := v.Unlock(password, nil, false); err != nil {
-		log.Fatalf("failed to unlock vault: %v", err)
-	}
-	
-	appLog.Info("Vault daemon unlocked and starting up...")
+	appLog.Info("Vault daemon initialized (Locked) and starting up...")
 
 	if *parentPID > 0 {
 		go monitorParent(*parentPID)

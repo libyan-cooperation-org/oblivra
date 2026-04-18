@@ -8,6 +8,7 @@ type Provider interface {
 	Dependencies() []string
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	Ping(ctx context.Context) error
 	
 	IsSetup() bool
 	Setup(password string, yubiKeySerial string) error

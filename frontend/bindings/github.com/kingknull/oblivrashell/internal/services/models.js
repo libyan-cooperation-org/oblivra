@@ -125,6 +125,20 @@ export class AgentDTO {
              */
             this["collectors"] = [];
         }
+        if (!("trust_level" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["trust_level"] = "";
+        }
+        if (!("watchdog_active" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["watchdog_active"] = false;
+        }
 
         Object.assign(this, $$source);
     }

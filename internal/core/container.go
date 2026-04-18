@@ -159,6 +159,32 @@ func (c *Container) initInfra() error {
 		}
 	}
 	c.Infra.Vault = v
+	
+	// 5. Sovereign-Grade: Persistent Vault Monitoring
+	if os.Getenv("OBLIVRA_ISOLATED_VAULT") == "true" {
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					// Use a 5s timeout for health checks
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					err := v.Ping(ctx)
+					cancel()
+					
+					if err != nil {
+						c.Log.Warn("[VAULT] Isolated daemon heartbeat failed: %v. Attempting auto-recovery...", err)
+						socketPath := "/tmp/oblivra-vault.sock"
+						if runtime.GOOS == "windows" {
+							socketPath = `\\.\pipe\oblivra-vault`
+						}
+						_ = vault.EnsureDaemonRunning(socketPath, c.Log)
+					}
+				}
+			}
+		}()
+	}
 
 	c.Infra.TelemetryManager = monitoring.NewTelemetryManager()
 	c.Infra.HealthChecker = monitoring.NewHealthChecker(60 * time.Second)

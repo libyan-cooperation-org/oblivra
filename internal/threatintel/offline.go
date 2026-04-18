@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/kingknull/oblivrashell/internal/platform"
 )
 
 // Indicator represents a normalized IOC generated from TAXII, CSV, or Custom lists
@@ -32,7 +34,11 @@ type Campaign struct {
 
 // ParseOfflineCSV imports a simple flat-file CSV: type,value,severity,description
 func ParseOfflineCSV(path string, source string) ([]Indicator, error) {
-	file, err := os.Open(path)
+	safePath, err := platform.ValidateSafePath(path)
+	if err != nil {
+		return nil, err
+	}
+	file, err := os.Open(safePath)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +152,11 @@ func ConvertSTIX(bundle *Bundle, source string) ([]Indicator, error) {
 }
 
 func ParseOfflineSTIXFile(path string) ([]Indicator, error) {
-	data, err := os.ReadFile(path)
+	safePath, err := platform.ValidateSafePath(path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(safePath)
 	if err != nil {
 		return nil, err
 	}
