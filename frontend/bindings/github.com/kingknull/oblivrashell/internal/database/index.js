@@ -11,9 +11,11 @@ export {
     IdentityConnector,
     Incident,
     Role,
+    RotationPolicy,
     SavedSearch,
     Session,
     Snippet,
+    SuppressionRule,
     User
 } from "./models.js";
 

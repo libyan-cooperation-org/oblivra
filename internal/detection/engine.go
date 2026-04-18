@@ -56,9 +56,9 @@ type Evaluator struct {
 	// routeIndex maps EventType → []Rule for O(1) rule lookup.
 	routeIndex RouteIndex
 
-	// State tracking: RuleID -> Bounded LRU Cache (GroupKey -> []Event)
-	state   map[string]*expirable.LRU[string, []Event]
-	stateMu sync.RWMutex
+	// Stream-oriented state tracking
+	windowManager *WindowStateManager
+	stateMu       sync.RWMutex
 
 	// Deduplication tracker: RuleID -> LRU (GroupKey -> LastTriggerTime)
 	alerts map[string]*expirable.LRU[string, time.Time]
@@ -77,11 +77,11 @@ func NewEvaluator(rulesDir string, log *logger.Logger) (*Evaluator, error) {
 		return nil, err
 	}
 	ev := &Evaluator{
-		RuleEngine: re,
-		log:        log,
-		state:      make(map[string]*expirable.LRU[string, []Event]),
-		alerts:     make(map[string]*expirable.LRU[string, time.Time]),
-		IsLocal:    true, // Default to local shard-level execution
+		RuleEngine:    re,
+		log:           log,
+		windowManager: NewWindowStateManager(),
+		alerts:        make(map[string]*expirable.LRU[string, time.Time]),
+		IsLocal:       true, // Default to local shard-level execution
 	}
 	ev.routeIndex = BuildRouteIndex(re.rules)
 	log.Info("[DETECTION] Route index built: %d EventType buckets, %d wildcard rules",
@@ -111,11 +111,11 @@ func (e *Evaluator) Clone() *Evaluator {
 	defer e.stateMu.RUnlock()
 
 	return &Evaluator{
-		RuleEngine: e.RuleEngine,
-		log:        e.log,
-		routeIndex: e.routeIndex,
-		state:      make(map[string]*expirable.LRU[string, []Event]),
-		alerts:     make(map[string]*expirable.LRU[string, time.Time]),
+		RuleEngine:    e.RuleEngine,
+		log:           e.log,
+		routeIndex:    e.routeIndex,
+		windowManager: NewWindowStateManager(),
+		alerts:        make(map[string]*expirable.LRU[string, time.Time]),
 	}
 }
 
@@ -296,7 +296,10 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 	defer e.stateMu.Unlock()
 
 	parseEvtTime := func(ts string) time.Time {
-		t, _ := time.Parse(time.RFC3339, ts)
+		t, err := time.Parse(time.RFC3339, ts)
+		if err != nil {
+			return time.Now()
+		}
 		return t
 	}
 
@@ -325,50 +328,39 @@ func (e *Evaluator) evaluateRuleState(rule Rule, evt Event) *Match {
 		}
 	}
 
-	if e.state[rule.ID] == nil {
-		window := time.Duration(rule.WindowSec) * time.Second
-		if window == 0 {
-			window = 1 * time.Hour
-		}
-		e.state[rule.ID] = expirable.NewLRU[string, []Event](10000, nil, window)
-	}
-
-	windowCutoff := time.Now().Add(-time.Duration(rule.WindowSec) * time.Second)
-
-	var activeEvents []Event
-	if val, ok := e.state[rule.ID].Get(groupKey); ok {
-		for _, tracked := range val {
-			if parseEvtTime(tracked.Timestamp).After(windowCutoff) {
-				activeEvents = append(activeEvents, tracked)
-			}
-		}
+	evtTime := parseEvtTime(evt.Timestamp)
+	activeEvents, ok := e.windowManager.AddEvent(rule, groupKey, evt, evtTime)
+	if !ok {
+		// Event dropped (late or invalid)
+		return nil
 	}
 
 	if rule.Type == SequenceRule {
-		currentStepIdx := len(activeEvents)
-		if currentStepIdx < len(rule.Sequence) {
-			expectedStep := rule.Sequence[currentStepIdx]
-
-			if e.matchesConditions(expectedStep.Conditions, evt) {
-				activeEvents = append(activeEvents, evt)
-				e.state[rule.ID].Add(groupKey, activeEvents)
-
-				if len(activeEvents) == len(rule.Sequence) {
-					return e.triggerAlert(rule, groupKey, activeEvents)
+		// Sequences still use the filtered window of events, but we evaluate
+		// if the current event fulfills the NEXT step in the chain.
+		// Note: For simplicity, we assume events are sorted by AddEvent.
+		
+		// Find how many steps of the sequence are currently satisfied by the window
+		satisfiedSteps := 0
+		var sequenceMatches []Event
+		
+		for _, seqEvent := range activeEvents {
+			if satisfiedSteps < len(rule.Sequence) {
+				step := rule.Sequence[satisfiedSteps]
+				if e.matchesConditions(step.Conditions, seqEvent) {
+					satisfiedSteps++
+					sequenceMatches = append(sequenceMatches, seqEvent)
 				}
-			} else if len(activeEvents) > 0 && e.matchesConditions(rule.Sequence[0].Conditions, evt) {
-				activeEvents = []Event{evt}
-				e.state[rule.ID].Add(groupKey, activeEvents)
-			} else {
-				e.state[rule.ID].Add(groupKey, activeEvents)
 			}
+		}
+
+		if satisfiedSteps == len(rule.Sequence) {
+			return e.triggerAlert(rule, groupKey, sequenceMatches)
 		}
 		return nil
 	}
 
-	activeEvents = append(activeEvents, evt)
-	e.state[rule.ID].Add(groupKey, activeEvents)
-
+	// Threshold/Frequency evaluation
 	threshold := rule.Threshold
 	if threshold == 0 {
 		threshold = 1
@@ -397,7 +389,7 @@ func (e *Evaluator) triggerAlert(rule Rule, groupKey string, activeEvents []Even
 
 	if !hasAlerted || lastAlert.Before(dedupCutoff) {
 		e.alerts[rule.ID].Add(groupKey, time.Now())
-		e.state[rule.ID].Remove(groupKey)
+		e.windowManager.Clear(rule.ID, groupKey)
 
 		m := &Match{
 			TenantID:        activeEvents[0].TenantID,

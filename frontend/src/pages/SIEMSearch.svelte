@@ -3,12 +3,25 @@
   Deep investigation via Oblivra Query Language (OQL).
 -->
 <script lang="ts">
-  import { PageLayout, Button, DataTable } from '@components/ui';
+  import { onMount } from 'svelte';
+  import { PageLayout, Button, DataTable, Badge } from '@components/ui';
   import { IS_BROWSER } from '@lib/context';
 
   let query = $state('*');
   let results = $state<any[]>([]);
   let searching = $state(false);
+  let federationStatus = $state<any>({ active: false, peer_count: 0 });
+
+  onMount(async () => {
+    if (!IS_BROWSER) {
+      try {
+        const { GetFederationStatus } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice.js');
+        federationStatus = await GetFederationStatus();
+      } catch (err) {
+        console.warn("Failed to fetch federation status:", err);
+      }
+    }
+  });
 
   function formatEvent(ev: any) {
     return {
@@ -81,7 +94,13 @@
     <div class="flex-1 min-h-0 flex flex-col bg-surface-1 border border-border-primary rounded-md overflow-hidden">
       {#if results.length > 0}
         <div class="flex items-center justify-between px-4 py-2 border-b border-border-primary bg-surface-2/30">
-          <span class="text-[10px] font-bold text-text-muted">{results.length} events found in 0.4s</span>
+          <div class="flex items-center gap-3">
+             <span class="text-[10px] font-bold text-text-muted">{results.length} events found in 0.4s</span>
+             {#if federationStatus.active}
+               <div class="h-3 w-px bg-border-primary opacity-30"></div>
+               <Badge variant="success" size="xs" dot>Distributed: {federationStatus.peer_count + 1} shards active</Badge>
+             {/if}
+          </div>
           <div class="flex gap-2">
             <Button variant="ghost" size="sm">Export JSON</Button>
             <Button variant="ghost" size="sm">Save as Alert</Button>

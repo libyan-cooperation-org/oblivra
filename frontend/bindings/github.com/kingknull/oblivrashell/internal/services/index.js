@@ -43,6 +43,7 @@ import * as PluginService from "./pluginservice.js";
 import * as PolicyService from "./policyservice.js";
 import * as RecordingService from "./recordingservice.js";
 import * as RiskService from "./riskservice.js";
+import * as RotationService from "./rotationservice.js";
 import * as RuntimeTrustService from "./runtimetrustservice.js";
 import * as SIEMService from "./siemservice.js";
 import * as SSHService from "./sshservice.js";
@@ -52,6 +53,7 @@ import * as SessionService from "./sessionservice.js";
 import * as SettingsService from "./settingsservice.js";
 import * as ShareService from "./shareservice.js";
 import * as SnippetService from "./snippetservice.js";
+import * as SuppressionService from "./suppressionservice.js";
 import * as SyncService from "./syncservice.js";
 import * as SyntheticService from "./syntheticservice.js";
 import * as TailingService from "./tailingservice.js";
@@ -106,6 +108,7 @@ export {
     PolicyService,
     RecordingService,
     RiskService,
+    RotationService,
     RuntimeTrustService,
     SIEMService,
     SSHService,
@@ -115,6 +118,7 @@ export {
     SettingsService,
     ShareService,
     SnippetService,
+    SuppressionService,
     SyncService,
     SyntheticService,
     TailingService,
@@ -162,6 +166,9 @@ export {
     SessionPersistence,
     SnippetService,
     SourceHealth,
+    SuppressionService,
+    Timeline,
+    TimelineStep,
     TransferJob,
     TransferStatus,
     TransferType,

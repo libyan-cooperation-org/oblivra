@@ -6,6 +6,26 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as time$0 from "../../../../../time/models.js";
+
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const ApprovalStatus = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    StatusPending: "pending",
+    StatusApproved: "approved",
+    StatusRejected: "rejected",
+    StatusExpired: "expired",
+};
+
 /**
  * FIDO2Challenge represents an authentication challenge
  */
@@ -169,6 +189,119 @@ export class FIDO2Credential {
 }
 
 /**
+ * @readonly
+ * @enum {string}
+ */
+export const QuorumAction = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    ActionKillSwitch: "INGEST_KILL_SWITCH",
+    ActionSOARPlaybook: "SOAR_DESTRUCTIVE_EXEC",
+    ActionVaultRotation: "VAULT_ROOT_ROTATION",
+    ActionCryptoWipe: "GDPR_CRYPTO_WIPE",
+};
+
+export class QuorumRequest {
+    /**
+     * Creates a new QuorumRequest instance.
+     * @param {Partial<QuorumRequest>} [$$source = {}] - The source object to create the QuorumRequest.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("action" in $$source)) {
+            /**
+             * @member
+             * @type {QuorumAction}
+             */
+            this["action"] = QuorumAction.$zero;
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (!("proposer" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["proposer"] = "";
+        }
+        if (!("created_at" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["created_at"] = null;
+        }
+        if (!("expires_at" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["expires_at"] = null;
+        }
+        if (!("approvals" in $$source)) {
+            /**
+             * User IDs who approved
+             * @member
+             * @type {string[]}
+             */
+            this["approvals"] = [];
+        }
+        if (!("required" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["required"] = 0;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {ApprovalStatus}
+             */
+            this["status"] = ApprovalStatus.$zero;
+        }
+        if (!("payload" in $$source)) {
+            /**
+             * Action-specific data
+             * @member
+             * @type {string}
+             */
+            this["payload"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new QuorumRequest instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {QuorumRequest}
+     */
+    static createFrom($$source = {}) {
+        const $$createField6_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("approvals" in $$parsedSource) {
+            $$parsedSource["approvals"] = $$createField6_0($$parsedSource["approvals"]);
+        }
+        return new QuorumRequest(/** @type {Partial<QuorumRequest>} */($$parsedSource));
+    }
+}
+
+/**
  * YubiKeyInfo holds information about a connected YubiKey
  */
 export class YubiKeyInfo {
@@ -226,3 +359,6 @@ export class YubiKeyInfo {
         return new YubiKeyInfo(/** @type {Partial<YubiKeyInfo>} */($$parsedSource));
     }
 }
+
+// Private type creation functions
+const $$createType0 = $Create.Array($Create.Any);

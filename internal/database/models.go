@@ -316,3 +316,35 @@ type IdentityConnector struct {
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
 }
+
+// Phase 26.8 — Secrets Lifecycle Automation
+
+type RotationPolicy struct {
+	ID            string `json:"id"`
+	TenantID      string `json:"tenant_id"`
+	CredentialID  string `json:"credential_id"`
+	FrequencyDays int    `json:"frequency_days"`
+	LastRotation  string `json:"last_rotation"`
+	NextRotation  string `json:"next_rotation"`
+	NotifyOnly    bool   `json:"notify_only"`
+	IsActive      bool   `json:"is_active"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
+}
+
+// SuppressionRule defines criteria for silencing alerts to reduce false positives.
+type SuppressionRule struct {
+	ID            string `json:"id"`
+	TenantID      string `json:"tenant_id"`
+	Label         string `json:"label"`
+	Description   string `json:"description"`
+	RuleID        string `json:"rule_id"`       // The ID of the detection rule to suppress (empty for global)
+	Field         string `json:"field"`         // e.g. "host_id", "user_name", "src_ip"
+	Value         string `json:"value"`         // The value to match
+	IsRegex       bool   `json:"is_regex"`      // Whether Value is a regex pattern
+	ExpiresAt     string `json:"expires_at"`    // RFC3339 timestamp (empty for permanent)
+	IsActive      bool   `json:"is_active"`
+	LastMatchedAt string `json:"last_matched_at"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
+}

@@ -27,6 +27,10 @@ import * as notifications$0 from "../notifications/models.js";
 // @ts-ignore: Unused imports
 import * as osquery$0 from "../osquery/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
 /**
  * @param {string} id
  * @param {string} name
@@ -175,6 +179,14 @@ export function RemoveMetricTrigger(id) {
  */
 export function RemoveTrigger(id) {
     return $Call.ByID(265263009, id);
+}
+
+/**
+ * @param {$models.SuppressionService | null} svc
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetSuppressionService(svc) {
+    return $Call.ByID(482794031, svc);
 }
 
 /**

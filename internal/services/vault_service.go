@@ -30,6 +30,7 @@ type VaultService struct {
 	db           database.DatabaseStore
 	analytics    *analytics.AnalyticsEngine
 	searchEngine **search.SearchEngine // pointer to pointer so we can initialize it later
+	federator    **search.Federator    // pointer to pointer for federated search
 	creds        database.CredentialStore
 	audit        database.AuditStore
 	fido2Manager FIDO2Provider
@@ -51,12 +52,13 @@ func (s *VaultService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewVaultService(v vault.Provider, db database.DatabaseStore, analytics *analytics.AnalyticsEngine, searchPtr **search.SearchEngine, credRepo database.CredentialStore, auditRepo database.AuditStore, fido FIDO2Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *VaultService {
+func NewVaultService(v vault.Provider, db database.DatabaseStore, analytics *analytics.AnalyticsEngine, searchPtr **search.SearchEngine, federatorPtr **search.Federator, credRepo database.CredentialStore, auditRepo database.AuditStore, fido FIDO2Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *VaultService {
 	return &VaultService{
 		vault:        v,
 		db:           db,
 		analytics:    analytics,
 		searchEngine: searchPtr,
+		federator:    federatorPtr,
 		creds:        credRepo,
 		audit:        auditRepo,
 		fido2Manager: fido,
@@ -267,6 +269,11 @@ func (s *VaultService) postUnlock() (retErr error) {
 				*s.searchEngine = se
 				if s.analytics != nil {
 					s.analytics.SetSearchEngine(se)
+				}
+				// Initialize Federator
+				if s.federator != nil {
+					*s.federator = search.NewFederator(se, s.log)
+					s.log.Info("[VAULT] Search federation initialized")
 				}
 			}
 		}
@@ -646,4 +653,13 @@ func (s *VaultService) PasswordHealthAudit(ctx context.Context) ([]CredentialHea
 
 	s.log.Info("Password health audit completed: %d credentials scanned", len(results))
 	return results, nil
+}
+
+// GetSystemKey derives a 32-byte key for a specific system purpose (e.g. "forensic_hmac").
+// Implements api.SystemKeyProvider.
+func (s *VaultService) GetSystemKey(purpose string) ([]byte, error) {
+	if s.vault == nil {
+		return nil, fmt.Errorf("vault provider not initialized")
+	}
+	return s.vault.GetSystemKey(purpose)
 }

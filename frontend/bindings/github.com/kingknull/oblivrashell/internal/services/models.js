@@ -6,6 +6,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as time$0 from "../../../../../time/models.js";
+
 /**
  * AIResponse holds the result from an AI model
  */
@@ -2094,6 +2098,154 @@ export class SourceHealth {
     }
 }
 
+export class SuppressionService {
+    /**
+     * Creates a new SuppressionService instance.
+     * @param {Partial<SuppressionService>} [$$source = {}] - The source object to create the SuppressionService.
+     */
+    constructor($$source = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SuppressionService instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {SuppressionService}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SuppressionService(/** @type {Partial<SuppressionService>} */($$parsedSource));
+    }
+}
+
+export class Timeline {
+    /**
+     * Creates a new Timeline instance.
+     * @param {Partial<Timeline>} [$$source = {}] - The source object to create the Timeline.
+     */
+    constructor($$source = {}) {
+        if (!("incident_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["incident_id"] = "";
+        }
+        if (!("principal_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["principal_id"] = "";
+        }
+        if (!("steps" in $$source)) {
+            /**
+             * @member
+             * @type {TimelineStep[]}
+             */
+            this["steps"] = [];
+        }
+        if (!("generated_at" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["generated_at"] = null;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Timeline instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Timeline}
+     */
+    static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType13;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("steps" in $$parsedSource) {
+            $$parsedSource["steps"] = $$createField2_0($$parsedSource["steps"]);
+        }
+        return new Timeline(/** @type {Partial<Timeline>} */($$parsedSource));
+    }
+}
+
+export class TimelineStep {
+    /**
+     * Creates a new TimelineStep instance.
+     * @param {Partial<TimelineStep>} [$$source = {}] - The source object to create the TimelineStep.
+     */
+    constructor($$source = {}) {
+        if (!("timestamp" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["timestamp"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (!("severity" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["severity"] = "";
+        }
+        if (!("meta" in $$source)) {
+            /**
+             * @member
+             * @type {{ [_ in string]?: string }}
+             */
+            this["meta"] = {};
+        }
+        if (!("raw_event" in $$source)) {
+            /**
+             * @member
+             * @type {any}
+             */
+            this["raw_event"] = null;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TimelineStep instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TimelineStep}
+     */
+    static createFrom($$source = {}) {
+        const $$createField5_0 = $$createType14;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("meta" in $$parsedSource) {
+            $$parsedSource["meta"] = $$createField5_0($$parsedSource["meta"]);
+        }
+        return new TimelineStep(/** @type {Partial<TimelineStep>} */($$parsedSource));
+    }
+}
+
 export class TransferJob {
     /**
      * Creates a new TransferJob instance.
@@ -2293,7 +2445,7 @@ export class TrustDriftMetrics {
      * @returns {TrustDriftMetrics}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType13;
+        const $$createField4_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("pillar_trends" in $$parsedSource) {
             $$parsedSource["pillar_trends"] = $$createField4_0($$parsedSource["pillar_trends"]);
@@ -2453,5 +2605,8 @@ const $$createType8 = HostAlert.createFrom;
 const $$createType9 = $Create.Array($$createType8);
 const $$createType10 = PersistedSession.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = PillarDrift.createFrom;
+const $$createType12 = TimelineStep.createFrom;
 const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = $Create.Map($Create.Any, $Create.Any);
+const $$createType15 = PillarDrift.createFrom;
+const $$createType16 = $Create.Array($$createType15);

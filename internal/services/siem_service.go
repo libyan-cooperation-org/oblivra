@@ -15,6 +15,8 @@ import (
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/ingest"
+	"github.com/kingknull/oblivrashell/internal/search"
+	"github.com/kingknull/oblivrashell/internal/storage"
 )
 
 // SIEMService exposes SIEM configurations to the frontend
@@ -34,6 +36,8 @@ type SIEMService struct {
 	rbac          *auth.RBACEngine
 	pipeline      ingest.IngestionPipeline
 	timeline      *TimelineService
+	federator     *search.Federator
+	hotStore      *storage.HotStore
 }
 
 func (s *SIEMService) Name() string { return "siem-service" }
@@ -44,7 +48,7 @@ func (s *SIEMService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger, p ingest.IngestionPipeline, timeline *TimelineService) *SIEMService {
+func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger, p ingest.IngestionPipeline, timeline *TimelineService, federator *search.Federator, hotStore *storage.HotStore) *SIEMService {
 	correlationEngine := detection.NewCorrelationEngine(bus, log.WithPrefix("correlation"))
 	return &SIEMService{
 		repo:          r,
@@ -60,6 +64,8 @@ func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai 
 		oqlExecutor:   oql.NewExecutor(),
 		pipeline:      p,
 		timeline:      timeline,
+		federator:     federator,
+		hotStore:      hotStore,
 	}
 }
 
@@ -224,10 +230,32 @@ func (s *SIEMService) GetRiskScoreByHost(ctx context.Context, hostID string) (in
 	return s.repo.CalculateRiskScore(searchCtx, hostID)
 }
 
-// SearchHostEvents performs a global search across all host anomaly events
 func (s *SIEMService) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
-	searchCtx, cancel := context.WithTimeout(ctx, 20*time.Second) // Search gets a bit more time
+	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second) // Search gets a bit more time
 	defer cancel()
+
+	if s.federator != nil {
+		tenantID := database.MustTenantFromContext(ctx)
+		results, err := s.federator.Search(searchCtx, tenantID, query, limit, 0)
+		if err == nil {
+			var events []database.HostEvent
+			for _, res := range results {
+				var e database.HostEvent
+				if h, ok := res.Data["host"].(string); ok { e.HostID = h }
+				if ip, ok := res.Data["source_ip"].(string); ok { e.SourceIP = ip }
+				if u, ok := res.Data["user"].(string); ok { e.User = u }
+				if out, ok := res.Data["output"].(string); ok { e.RawLog = out }
+				if typ, ok := res.Data["event_type"].(string); ok { e.EventType = typ }
+				if ts, ok := res.Data["timestamp"].(float64); ok {
+					e.Timestamp = time.Unix(0, int64(ts)).Format(time.RFC3339)
+				}
+				events = append(events, e)
+			}
+			return events, nil
+		}
+		s.log.Warn("[SIEM] Federated search failed, falling back to local: %v", err)
+	}
+
 	return s.repo.SearchHostEvents(searchCtx, query, limit)
 }
 
@@ -259,31 +287,27 @@ func (s *SIEMService) ExecuteOQL(ctx context.Context, query string) (*oql.QueryR
 	}
 	s.log.Info("Executing OQL: %s", query)
 	
-	// Enforce call-site context for tenant isolation
+	tenantID := database.MustTenantFromContext(ctx)
 	searchCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	events, err := s.repo.SearchHostEvents(searchCtx, "", 1000) // Get last 1000 events for this tenant
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch events for OQL: %w", err)
-	}
-
-	// Convert database.HostEvent to oql.Row
-	rows := make([]oql.Row, len(events))
-	for i, e := range events {
-		rows[i] = oql.Row{
-			"id":         e.ID,
-			"host_id":    e.HostID,
-			"timestamp":  e.Timestamp,
-			"event_type": e.EventType,
-			"source_ip":  e.SourceIP,
-			"user":       e.User,
-			"raw_log":    e.RawLog,
-			"tenant_id":  e.TenantID,
+	// Configure Data Source
+	var source oql.DataSource
+	if s.hotStore != nil {
+		localSource := oql.NewBadgerSource(s.hotStore, tenantID)
+		if s.federator != nil {
+			peers := s.federator.ActivePeerAddresses()
+			source = oql.NewFederatedOQLSource(localSource, peers, s.log)
+		} else {
+			source = localSource
 		}
 	}
 
-	return s.oqlExecutor.Execute(searchCtx, query, rows, nil)
+	if source != nil {
+		s.oqlExecutor.SetSource(source)
+	}
+
+	return s.oqlExecutor.Execute(searchCtx, query, nil, nil)
 }
 
 func (s *SIEMService) suggestRemediation(hostID, sessionID, threatType string) {
@@ -394,6 +418,19 @@ func (s *SIEMService) GetPlatformStats() map[string]interface{} {
 	}
 
 	return result
+}
+
+// GetFederationStatus returns the current state of the search federation
+func (s *SIEMService) GetFederationStatus() map[string]interface{} {
+	if s.federator == nil {
+		return map[string]interface{}{"active": false}
+	}
+	peers := s.federator.ActivePeerAddresses()
+	return map[string]interface{}{
+		"active":     true,
+		"peer_count": len(peers),
+		"peers":      peers,
+	}
 }
 
 // ReconstructTimeline automates incident narrative reconstruction

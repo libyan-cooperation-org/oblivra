@@ -37,6 +37,8 @@
     ssh: '/ssh',
     investigation: '/investigation',
     timeline: '/timeline',
+    secrets: '/secrets',
+    suppression: '/suppression',
   };
 
   type NavContext = 'both' | 'desktop' | 'browser';
@@ -158,6 +160,8 @@
     { id: 'ransomware', icon: 'war', label: 'Ransom' },
     { id: 'ransomware-ui', icon: 'war', label: 'RansomW', context: 'browser' },
     { id: 'war-mode', icon: 'war', label: 'WarMode' },
+    { id: 'secrets', icon: 'security', label: 'Secrets' },
+    { id: 'suppression', icon: 'shield-off', label: 'Silence' },
   ];
 
   const system: NavItem[] = [

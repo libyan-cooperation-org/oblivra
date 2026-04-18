@@ -4,7 +4,6 @@
 -->
 <script lang="ts">
   import { login } from '@lib/services/auth'; // I will create this service next
-  import { appStore } from '@lib/stores/app.svelte';
   import { toastStore } from '@lib/stores/toast.svelte';
 
   let email = $state('');
@@ -27,7 +26,7 @@
       toastStore.add({
         type: 'error',
         title: 'Authentication Failed',
-        message: error
+        message: error || undefined
       });
     } finally {
       loading = false;

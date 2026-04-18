@@ -44,33 +44,8 @@ func seedFusionCampaigns() {
 		return
 	}
 	fusionSeeded = true
-	now := time.Now()
-	fusionCampaigns = []fusionCampaign{
-		{
-			ID:           "camp-apt-2026-001",
-			Entities:     []string{"192.168.1.42", "user-jdoe", "ws-finance-01"},
-			AlertCount:   14,
-			TacticStages: []string{"Initial Access", "Execution", "Privilege Escalation", "Lateral Movement", "Exfiltration"},
-			StageCount:   5,
-			Confidence:   0.87,
-			FirstSeen:    now.Add(-72 * time.Hour).Format(time.RFC3339),
-			LastSeen:     now.Add(-30 * time.Minute).Format(time.RFC3339),
-			Status:       "active",
-			KillChainProgress: 42,
-		},
-		{
-			ID:           "camp-insider-2026-002",
-			Entities:     []string{"user-contractor", "svc-backup"},
-			AlertCount:   6,
-			TacticStages: []string{"Discovery", "Collection", "Exfiltration"},
-			StageCount:   3,
-			Confidence:   0.61,
-			FirstSeen:    now.Add(-24 * time.Hour).Format(time.RFC3339),
-			LastSeen:     now.Add(-2 * time.Hour).Format(time.RFC3339),
-			Status:       "investigating",
-			KillChainProgress: 25,
-		},
-	}
+	// Removed fake campaign data — Phase 25.1 remediation
+	fusionCampaigns = []fusionCampaign{}
 }
 
 // GET /api/v1/fusion/campaigns
@@ -212,14 +187,8 @@ func seedPeerGroups(agentCount int) {
 		return
 	}
 	peerGroupsSeeded = true
-	now := time.Now().Format(time.RFC3339)
-	cachedPeerGroups = []peerGroup{
-		{ID: "pg-admins",   Name: "Administrators",   Basis: "role",           MemberCount: 3,            AvgRiskScore: 42.1, AnomalyRate: 0.08, LastUpdated: now},
-		{ID: "pg-analysts", Name: "SOC Analysts",      Basis: "role",           MemberCount: 8,            AvgRiskScore: 27.5, AnomalyRate: 0.03, LastUpdated: now},
-		{ID: "pg-devs",     Name: "Developers",        Basis: "department",     MemberCount: 15,           AvgRiskScore: 31.2, AnomalyRate: 0.05, LastUpdated: now},
-		{ID: "pg-svc",      Name: "Service Accounts",  Basis: "access_pattern", MemberCount: max(1, agentCount+5), AvgRiskScore: 18.0, AnomalyRate: 0.01, LastUpdated: now},
-		{ID: "pg-remote",   Name: "Remote Workers",    Basis: "access_pattern", MemberCount: 6,            AvgRiskScore: 38.7, AnomalyRate: 0.06, LastUpdated: now},
-	}
+	// Removed fake peer group data — Phase 25.1 remediation
+	cachedPeerGroups = []peerGroup{}
 }
 
 // GET /api/v1/ueba/peer-groups
@@ -284,40 +253,7 @@ func (s *RESTServer) handlePeerDeviations(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// Always include seed deviations so the page has something to show
-	if len(deviations) == 0 && len(groups) > 0 {
-		for _, entry := range []struct {
-			entity, etype, groupIdx string
-			entityRisk, sigma float64
-			deviation string
-		}{
-			{"admin",        "user", "pg-admins",   87.0, 2.8, "off_hours_login"},
-			{"svc-account",  "user", "pg-svc",       65.0, 3.1, "mass_download"},
-			{"dev-laptop-3", "host", "pg-devs",      72.0, 2.3, "anomalous_access"},
-		} {
-			var group peerGroup
-			for _, g := range groups {
-				if g.ID == entry.groupIdx {
-					group = g
-					break
-				}
-			}
-			if group.ID == "" {
-				continue
-			}
-			deviations = append(deviations, peerDeviation{
-				EntityID:       entry.entity,
-				EntityType:     entry.etype,
-				GroupID:        group.ID,
-				GroupName:      group.Name,
-				EntityRisk:     entry.entityRisk,
-				GroupAvgRisk:   group.AvgRiskScore,
-				DeviationSigma: entry.sigma,
-				TopDeviation:   entry.deviation,
-				Timestamp:      time.Now().Format(time.RFC3339),
-			})
-		}
-	}
+	// Removed seed deviations — Phase 25.1 remediation
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"deviations": deviations})
 }

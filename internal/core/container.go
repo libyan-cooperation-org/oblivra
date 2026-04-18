@@ -260,6 +260,9 @@ func (c *Container) initSecurity(_ context.Context) error {
 	c.Security.CanaryService.SetBus(c.Infra.Bus)
 	c.Security.CanaryDeployment = services.NewCanaryDeploymentService(c.Security.CanaryService, nil, c.Infra.Bus, c.Log)
 	c.Security.Sentinel = services.NewSentinel(c.Infra.Vault, c.Log)
+	
+	suppressionRepo := database.NewSuppressionRepository(c.Infra.DB)
+	c.Security.SuppressionService = services.NewSuppressionService(suppressionRepo, c.Log)
 
 	return nil
 }
@@ -295,7 +298,8 @@ func (c *Container) initSIEM(_ context.Context) error {
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.TimelineService = services.NewTimelineService(siemRepo, c.Log)
-	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline, c.SIEM.TimelineService)
+	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline, c.SIEM.TimelineService, c.Infra.Federator, c.Infra.HotStore)
+	c.SIEM.AlertingService.SetSuppressionService(c.Security.SuppressionService)
 	
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)
@@ -384,7 +388,7 @@ func (c *Container) initProduct() error {
 	credRepo := database.NewCredentialRepository(c.Infra.DB)
 	
 	c.Product.HostService = services.NewHostService(c.Infra.DB, c.Infra.Vault, hostRepo, c.Infra.Bus, c.Log)
-	c.Product.VaultService = services.NewVaultService(c.Infra.Vault, c.Infra.DB, c.Infra.AnalyticsEngine, &c.Infra.SearchEngine, credRepo, nil, c.Security.FIDO2Manager, c.Infra.RBAC, c.Infra.Bus, c.Log)
+	c.Product.VaultService = services.NewVaultService(c.Infra.Vault, c.Infra.DB, c.Infra.AnalyticsEngine, &c.Infra.SearchEngine, &c.Infra.Federator, credRepo, nil, c.Security.FIDO2Manager, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	c.Product.SessionService = services.NewSessionService(sessRepo, nil, c.Infra.Bus, c.Log)
 	
 	c.Product.SSHService = services.NewSSHService(c.Infra.DB, c.Infra.Vault, hostRepo, sessRepo, credRepo, nil, c.Infra.Bus, c.Log, nil, nil, c.Infra.TelemetryManager, nil, security.NewShellSanitizer(), nil)
@@ -420,6 +424,9 @@ func (c *Container) initProduct() error {
 	c.Product.SSHService.SetCommandHistory(c.Product.CommandHistory)
 	c.Product.SSHService.SetSessionPersistence(c.Product.SessionPersistence)
 
+	rotationRepo := database.NewRotationRepository(c.Infra.DB)
+	c.Security.RotationService = services.NewRotationService(c.Infra.DB, rotationRepo, c.Product.VaultService, c.Product.SSHService, c.Infra.Bus, c.Log)
+
 	return nil
 }
 
@@ -441,10 +448,11 @@ func (c *Container) initPlatform() error {
 	c.Platform.DisasterService = services.NewDisasterService(platform.DataDir(), c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
+	c.Platform.ClusterService = services.NewClusterService(c.Infra.DB, c.Infra.Bus, c.Log, c.Infra.Federator)
 	// Audit Repository (Persistence)
 	auditRepo := database.NewAuditRepository(c.Infra.DB)
 	
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {
@@ -518,6 +526,8 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Security.GovernanceService)
 	c.mustRegister(c.Security.CredentialIntel)
 	c.mustRegister(c.Security.Sentinel)
+	c.mustRegister(c.Security.RotationService)
+	c.mustRegister(c.Security.SuppressionService)
 
 	// SIEM
 	c.mustRegister(c.SIEM.SIEMService)

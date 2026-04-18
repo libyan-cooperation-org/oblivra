@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/platform"
+	"github.com/kingknull/oblivrashell/internal/search"
 )
 
 type ClusterService struct {
@@ -21,13 +23,16 @@ type ClusterService struct {
 	bus    *eventbus.Bus
 	log    *logger.Logger
 	server *http.Server
+	federator *search.Federator
+	ctx    context.Context
 }
 
-func NewClusterService(db database.DatabaseStore, bus *eventbus.Bus, log *logger.Logger) *ClusterService {
+func NewClusterService(db database.DatabaseStore, bus *eventbus.Bus, log *logger.Logger, federator *search.Federator) *ClusterService {
 	return &ClusterService{
-		db:  db,
-		bus: bus,
-		log: log.WithPrefix("cluster"),
+		db:        db,
+		bus:       bus,
+		log:       log.WithPrefix("cluster"),
+		federator: federator,
 	}
 }
 
@@ -39,6 +44,7 @@ func (s *ClusterService) Dependencies() []string {
 }
 
 func (s *ClusterService) Start(ctx context.Context) error {
+	s.ctx = ctx
 	s.bus.Subscribe(eventbus.EventVaultUnlocked, s.onVaultUnlocked)
 	return nil
 }
@@ -119,6 +125,50 @@ func (s *ClusterService) onVaultUnlocked(event eventbus.Event) {
 				s.log.Info("Successfully joined cluster")
 			}
 		}()
+	}
+
+	// Start node synchronization loop for search federation
+	go s.syncNodesLoop(s.ctx)
+}
+
+func (s *ClusterService) syncNodesLoop(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.syncNodesWithFederator()
+		}
+	}
+}
+
+func (s *ClusterService) syncNodesWithFederator() {
+	if s.federator == nil {
+		return
+	}
+
+	cm := s.db.ClusterManager()
+	if cm == nil {
+		return
+	}
+
+	nodes := cm.Nodes()
+	for _, nodeAddr := range nodes {
+		// Convert Raft address (e.g. :15300) to API address (e.g. :8080)
+		// For MVP, we assume they are on the same host and main API is 8080.
+		// A more robust way would be to broadcast the API port via Raft FSM.
+		host, _, err := net.SplitHostPort(nodeAddr)
+		if err != nil {
+			host = nodeAddr // Fallback
+		}
+		
+		apiAddr := fmt.Sprintf("http://%s:8080", host)
+		// s.federator.AddPeer(nodeAddr, apiAddr)
+		// TODO: Implement a method to set/refresh peers instead of just AddPeer (to avoid duplicates)
+		s.federator.AddPeer(nodeAddr, apiAddr)
 	}
 }
 

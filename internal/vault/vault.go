@@ -517,6 +517,19 @@ func (v *Vault) GetTenantKey(tenantID string) ([]byte, error) {
 	return DeriveSubKey(master, "tenant:"+tenantID, 32)
 }
 
+// GetSystemKey derives a 32-byte key for a specific system purpose (e.g. "forensic_hmac").
+func (v *Vault) GetSystemKey(purpose string) ([]byte, error) {
+	v.mu.RLock()
+	if !v.unlocked || v.masterKey == nil {
+		v.mu.RUnlock()
+		return nil, ErrLocked
+	}
+	master := v.masterKey.Bytes()
+	v.mu.RUnlock()
+
+	return DeriveSubKey(master, "system:"+purpose, 32)
+}
+
 func (v *Vault) GetPassword(id string) ([]byte, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()

@@ -110,6 +110,18 @@ func (n *Node) LeaderAddr() string {
 	return string(leaderAddr)
 }
 
+func (n *Node) Nodes() []string {
+	cfg := n.raft.GetConfiguration()
+	if err := cfg.Error(); err != nil {
+		return nil
+	}
+	var addrs []string
+	for _, s := range cfg.Configuration().Servers {
+		addrs = append(addrs, string(s.Address))
+	}
+	return addrs
+}
+
 func (n *Node) ApplyWrite(ctx context.Context, requestID string, query string, args ...interface{}) (int64, int64, error) {
 	if !n.IsLeader() {
 		return 0, 0, ErrNotLeader

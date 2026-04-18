@@ -12,7 +12,7 @@
     { id: 'E-15', name: 'operator_k', type: 'user', score: 94, deviation: 'Extreme', status: 'isolated' },
   ];
 
-  const columns = [
+  const columns: any[] = [
     { key: 'name', label: 'Entity Identity' },
     { key: 'score', label: 'Risk Score', width: '120px' },
     { key: 'deviation', label: 'Anomaly', width: '120px' },
@@ -63,7 +63,7 @@
                       </div>
                    </div>
                 {:else if col.key === 'action'}
-                   <Button variant="ghost" size="xs">Profile</Button>
+                   <Button variant="ghost" size="sm">Profile</Button>
                 {:else}
                   <span class="text-[11px] text-text-secondary">{value}</span>
                 {/if}

@@ -46,6 +46,8 @@ type App struct {
 	IdentityService        *services.IdentityService
 	TransferManager        *services.TransferManager
 	NetworkIsolatorService *services.NetworkIsolatorService
+	RotationService        *services.RotationService
+	SuppressionService     *services.SuppressionService
 
 	// Newly wired
 	AlertingService       *services.AlertingService
@@ -189,6 +191,8 @@ func (a *App) wireServices() {
 	a.CredentialIntel = s.CredentialIntel
 	a.GovernanceService = s.GovernanceService
 	a.ReportService = s.ReportService
+	a.RotationService = s.RotationService
+	a.SuppressionService = s.SuppressionService
 
 	// Cluster: SIEM
 	siem := a.container.SIEM

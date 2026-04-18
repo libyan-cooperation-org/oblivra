@@ -86,6 +86,56 @@ export function Name() {
 }
 
 /**
+ * QuorumApprove records an approval
+ * @param {string} id
+ * @param {string} userID
+ * @param {string} credentialID
+ * @param {string} signature
+ * @param {string} authData
+ * @param {string} clientData
+ * @returns {$CancellablePromise<void>}
+ */
+export function QuorumApprove(id, userID, credentialID, signature, authData, clientData) {
+    return $Call.ByID(2158832195, id, userID, credentialID, signature, authData, clientData);
+}
+
+/**
+ * QuorumGetRequest retrieves a specific request
+ * @param {string} id
+ * @returns {$CancellablePromise<security$0.QuorumRequest | null>}
+ */
+export function QuorumGetRequest(id) {
+    return $Call.ByID(2794850491, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
+}
+
+/**
+ * QuorumListPending returns all pending requests
+ * @returns {$CancellablePromise<(security$0.QuorumRequest | null)[]>}
+ */
+export function QuorumListPending() {
+    return $Call.ByID(3523835449).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType9($result);
+    }));
+}
+
+/**
+ * QuorumPropose starts a new M-of-N approval ceremony
+ * @param {string} action
+ * @param {string} description
+ * @param {string} proposer
+ * @param {number} required
+ * @param {string} payload
+ * @returns {$CancellablePromise<security$0.QuorumRequest | null>}
+ */
+export function QuorumPropose(action, description, proposer, required, payload) {
+    return $Call.ByID(3681657504, action, description, proposer, required, payload).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<ssh$0.CertificateInfo[]>}
  */
 export function SSHListCertificates() {
@@ -126,7 +176,7 @@ export function YubiKeyDeriveVaultKey(serial, password) {
  */
 export function YubiKeyDetect() {
     return $Call.ByID(3861275372).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType11($result);
     }));
 }
 
@@ -159,5 +209,8 @@ const $$createType3 = security$0.FIDO2Challenge.createFrom;
 const $$createType4 = $Create.Nullable($$createType3);
 const $$createType5 = security$0.FIDO2Credential.createFrom;
 const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = security$0.YubiKeyInfo.createFrom;
-const $$createType8 = $Create.Array($$createType7);
+const $$createType7 = security$0.QuorumRequest.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = security$0.YubiKeyInfo.createFrom;
+const $$createType11 = $Create.Array($$createType10);

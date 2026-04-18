@@ -49,6 +49,7 @@ type AlertingService struct {
 	sigmaWatcher  *fsnotify.Watcher // hot-reload watcher; nil if sigma dir absent
 	sigmaDir      string            // absolute path being watched
 	corrHub       *detection.CorrelationHub
+	suppress      *SuppressionService
 }
 
 func (s *AlertingService) Name() string { return "alerting-service" }
@@ -71,6 +72,10 @@ func NewAlertingService(alerts analytics.AlertProvider, notifier notifications.N
 		bus:       bus,
 		log:       log,
 	}
+}
+
+func (s *AlertingService) SetSuppressionService(svc *SuppressionService) {
+	s.suppress = svc
 }
 
 func (s *AlertingService) Start(ctx context.Context) error {
@@ -124,6 +129,19 @@ func (s *AlertingService) Start(ctx context.Context) error {
 		ruleID := "heuristic_risk"
 		groupKey := hostID
 
+		// Check suppression
+		if s.suppress != nil {
+			meta := map[string]string{
+				"host_id": hostID,
+				"message": msg,
+				"score":   fmt.Sprintf("%d", score),
+			}
+			if suppressed, label := s.suppress.ShouldSuppress(ctx, ruleID, meta); suppressed {
+				s.log.Info("Heuristic alert suppressed by rule: %s", label)
+				return
+			}
+		}
+
 		incident, err := s.incidents.GetByRuleAndGroup(ctx, ruleID, groupKey)
 		if err != nil {
 			s.log.Error("Failed to lookup incident: %v", err)
@@ -169,6 +187,14 @@ func (s *AlertingService) Start(ctx context.Context) error {
 
 		ctx := database.WithTenant(s.ctx, match.TenantID)
 		groupKey := match.Context["group_key"]
+
+		// Check suppression
+		if s.suppress != nil {
+			if suppressed, label := s.suppress.ShouldSuppress(ctx, match.RuleID, match.Context); suppressed {
+				s.log.Info("Detection alert (%s) suppressed by rule: %s", match.RuleID, label)
+				return
+			}
+		}
 
 		incident, err := s.incidents.GetByRuleAndGroup(ctx, match.RuleID, groupKey)
 		if err != nil {

@@ -93,6 +93,62 @@ export class Campaign {
 }
 
 /**
+ * CampaignTimeline is the reconstructed story of an attack campaign.
+ */
+export class CampaignTimeline {
+    /**
+     * Creates a new CampaignTimeline instance.
+     * @param {Partial<CampaignTimeline>} [$$source = {}] - The source object to create the CampaignTimeline.
+     */
+    constructor($$source = {}) {
+        if (!("campaign_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["campaign_id"] = "";
+        }
+        if (!("events" in $$source)) {
+            /**
+             * @member
+             * @type {TimelineEvent[]}
+             */
+            this["events"] = [];
+        }
+        if (!("start" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["start"] = null;
+        }
+        if (!("end" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["end"] = null;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new CampaignTimeline instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {CampaignTimeline}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType4;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("events" in $$parsedSource) {
+            $$parsedSource["events"] = $$createField1_0($$parsedSource["events"]);
+        }
+        return new CampaignTimeline(/** @type {Partial<CampaignTimeline>} */($$parsedSource));
+    }
+}
+
+/**
  * CounterfactualResult captures the delta between original and simulated detection outcomes.
  */
 export class CounterfactualResult {
@@ -174,11 +230,11 @@ export class CounterfactualResult {
      * @returns {CounterfactualResult}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType3;
-        const $$createField4_0 = $$createType5;
-        const $$createField5_0 = $$createType5;
-        const $$createField6_0 = $$createType5;
-        const $$createField7_0 = $$createType5;
+        const $$createField3_0 = $$createType5;
+        const $$createField4_0 = $$createType7;
+        const $$createField5_0 = $$createType7;
+        const $$createField6_0 = $$createType7;
+        const $$createField7_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("disabled_rules" in $$parsedSource) {
             $$parsedSource["disabled_rules"] = $$createField3_0($$parsedSource["disabled_rules"]);
@@ -458,10 +514,10 @@ export class Match {
      * @returns {Match}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType3;
-        const $$createField6_0 = $$createType3;
-        const $$createField8_0 = $$createType7;
-        const $$createField9_0 = $$createType8;
+        const $$createField5_0 = $$createType5;
+        const $$createField6_0 = $$createType5;
+        const $$createField8_0 = $$createType9;
+        const $$createField9_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("MitreTactics" in $$parsedSource) {
             $$parsedSource["MitreTactics"] = $$createField5_0($$parsedSource["MitreTactics"]);
@@ -619,11 +675,11 @@ export class Rule {
      * @returns {Rule}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType9;
-        const $$createField7_0 = $$createType3;
-        const $$createField8_0 = $$createType3;
-        const $$createField11_0 = $$createType11;
-        const $$createField12_0 = $$createType3;
+        const $$createField6_0 = $$createType11;
+        const $$createField7_0 = $$createType5;
+        const $$createField8_0 = $$createType5;
+        const $$createField11_0 = $$createType13;
+        const $$createField12_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("Conditions" in $$parsedSource) {
             $$parsedSource["Conditions"] = $$createField6_0($$parsedSource["Conditions"]);
@@ -677,7 +733,7 @@ export class RuleSequenceStep {
      * @returns {RuleSequenceStep}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType9;
+        const $$createField1_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("Conditions" in $$parsedSource) {
             $$parsedSource["Conditions"] = $$createField1_0($$parsedSource["Conditions"]);
@@ -697,16 +753,123 @@ export const RuleType = {
      */
     $zero: "",
 
-    ThresholdRule: "threshold",
-    FrequencyRule: "frequency",
-    SequenceRule: "sequence",
-    CorrelationRule: "correlation",
-
     /**
      * GraphRuleType is the RuleType constant for graph-aware rules.
      */
     GraphRuleType: "graph",
+
+    ThresholdRule: "threshold",
+    FrequencyRule: "frequency",
+    SequenceRule: "sequence",
+    CorrelationRule: "correlation",
 };
+
+/**
+ * TimelineEvent represents a single point in an incident's progression.
+ */
+export class TimelineEvent {
+    /**
+     * Creates a new TimelineEvent instance.
+     * @param {Partial<TimelineEvent>} [$$source = {}] - The source object to create the TimelineEvent.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("timestamp" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["timestamp"] = null;
+        }
+        if (!("type" in $$source)) {
+            /**
+             * "ALERT", "EVENT", "SYSTEM"
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("source" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["source"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["tactic"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["technique"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["severity"] = undefined;
+        }
+        if (!("entity_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["entity_id"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * ID of the parent/triggering event
+             * @member
+             * @type {string | undefined}
+             */
+            this["causality_id"] = undefined;
+        }
+        if (!("metadata" in $$source)) {
+            /**
+             * @member
+             * @type {{ [_ in string]?: any }}
+             */
+            this["metadata"] = {};
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new TimelineEvent instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {TimelineEvent}
+     */
+    static createFrom($$source = {}) {
+        const $$createField10_0 = $$createType11;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("metadata" in $$parsedSource) {
+            $$parsedSource["metadata"] = $$createField10_0($$parsedSource["metadata"]);
+        }
+        return new TimelineEvent(/** @type {Partial<TimelineEvent>} */($$parsedSource));
+    }
+}
 
 /**
  * ValidationResult holds the status of a rule's static analysis
@@ -763,7 +926,7 @@ export class ValidationResult {
      * @returns {ValidationResult}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType3;
+        const $$createField3_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("errors" in $$parsedSource) {
             $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
@@ -776,12 +939,14 @@ export class ValidationResult {
 const $$createType0 = $Create.Map($Create.Any, $Create.Any);
 const $$createType1 = FusionAlertInfo.createFrom;
 const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = $Create.Array($Create.Any);
-const $$createType4 = Match.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = Event.createFrom;
+const $$createType3 = TimelineEvent.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = $Create.Array($Create.Any);
+const $$createType6 = Match.createFrom;
 const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = $Create.Map($Create.Any, $Create.Any);
-const $$createType9 = $Create.Map($Create.Any, $Create.Any);
-const $$createType10 = RuleSequenceStep.createFrom;
-const $$createType11 = $Create.Array($$createType10);
+const $$createType8 = Event.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = $Create.Map($Create.Any, $Create.Any);
+const $$createType11 = $Create.Map($Create.Any, $Create.Any);
+const $$createType12 = RuleSequenceStep.createFrom;
+const $$createType13 = $Create.Array($$createType12);

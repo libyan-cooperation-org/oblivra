@@ -4,6 +4,7 @@
 
 export {
     Campaign,
+    CampaignTimeline,
     CounterfactualResult,
     Evaluator,
     Event,
@@ -12,5 +13,6 @@ export {
     Rule,
     RuleSequenceStep,
     RuleType,
+    TimelineEvent,
     ValidationResult
 } from "./models.js";

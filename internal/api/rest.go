@@ -97,6 +97,27 @@ type AgentProvider interface {
 	GetFleet() []AgentInfo
 }
 
+// SystemKeyProvider allows retrieving system-level secrets (e.g. for signing) from the vault.
+type SystemKeyProvider interface {
+	GetSystemKey(purpose string) ([]byte, error)
+}
+
+// DynamicHMACSigner satisfies forensics.ForensicSigner using a key from a SystemKeyProvider.
+type DynamicHMACSigner struct {
+	provider SystemKeyProvider
+	purpose  string
+}
+
+func (s *DynamicHMACSigner) SignEntry(payload string) (string, error) {
+	key, err := s.provider.GetSystemKey(s.purpose)
+	if err != nil {
+		return "", fmt.Errorf("retrieve system key '%s': %w", s.purpose, err)
+	}
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(payload))
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
 // RESTServer exposes backend capabilities to external clients (headless mode)
 type RESTServer struct {
 	port     int
@@ -141,6 +162,7 @@ type RESTServer struct {
 	graphEngine   *graph.GraphEngine
 	ueba          UEBAProvider
 	fleetSecret   []byte // Shared secret for agent HMAC verification
+	keyProvider   SystemKeyProvider
 }
 
 // AgentInfo tracks a registered agent.
@@ -164,7 +186,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, agentProvider AgentProvider, fleetSecret []byte, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, agentProvider AgentProvider, fleetSecret []byte, keyProvider SystemKeyProvider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -185,7 +207,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		agents:   make(map[string]*AgentInfo),
 		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
 		maxWS:    100,                               // Max 100 concurrent websocket listeners
-		evidence: forensics.NewEvidenceLocker(forensics.NewHMACSigner([]byte("oblivra-evidence-hmac-key-v1")), log),
+		evidence: forensics.NewEvidenceLocker(&DynamicHMACSigner{provider: keyProvider, purpose: "forensic_hmac"}, log),
 		mcpRegistry: mcpRegistry,
 		mcpHandler:  mcpHandler,
 		tenantRepo:  tenantRepo,
@@ -197,6 +219,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		ueba:          ueba,
 		agentProvider: agentProvider,
 		fleetSecret:   fleetSecret,
+		keyProvider:   keyProvider,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.

@@ -21,6 +21,14 @@ const (
 	CorrelationRule RuleType = "correlation"
 )
 
+// WindowType defines the behavior of the time-based evaluation window.
+type WindowType string
+
+const (
+	WindowSliding  WindowType = "sliding"
+	WindowTumbling WindowType = "tumbling"
+)
+
 // Rule represents a parsed detection rule from YAML.
 type Rule struct {
 	ID          string   `yaml:"id"`
@@ -40,8 +48,10 @@ type Rule struct {
 	MitreTechniques []string `yaml:"mitre_techniques"` // e.g. ["T1078", "T1110"]
 
 	// Threshold/Frequency Specifics
-	Threshold int `yaml:"threshold"`  // Number of occurrences
-	WindowSec int `yaml:"window_sec"` // Evaluation window in seconds
+	Threshold int        `yaml:"threshold"`  // Number of occurrences
+	WindowSec int        `yaml:"window_sec"` // Evaluation window in seconds
+	Window    WindowType `yaml:"window_type"` // sliding (default) or tumbling
+	Watermark int        `yaml:"watermark_sec"` // Late event tolerance
 
 	// Sequence Specifics
 	Sequence []RuleSequenceStep `yaml:"sequence"` // Define explicit causal chains

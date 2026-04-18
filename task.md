@@ -106,7 +106,7 @@
 ### Security & Vault
 - [x] AES-256 encrypted Vault (`internal/vault/vault.go`, `crypto.go`) 🖥️
 - [x] OS keychain integration (`internal/vault/keychain.go`) 🖥️
-- [x] FIDO2 / YubiKey support (`internal/security/fido2.go`, `yubikey.go`) 🖥️
+- [s] FIDO2 / YubiKey support (`internal/security/fido2.go`, `yubikey.go`) 🖥️
 - [x] TLS certificate generation (`internal/ssh/certificate.go`, `cmd/certgen/`) 🏗️
 - [x] Security key modal UI (`frontend/src/components/security/`) 🖥️
 - [x] Snippet vault / command library (`snippet_service.go`) 🏗️
@@ -399,10 +399,10 @@
 
 ## Phase 6: Forensics & Compliance ✅
 
-- [x] Merkle tree immutable logging (`internal/integrity/merkle.go`)
-- [x] Evidence locker with chain of custody (`internal/forensics/evidence.go`)
+- [s] Merkle tree immutable logging (`internal/integrity/merkle.go`)
+- [s] Evidence locker with chain of custody (`internal/forensics/evidence.go`)
 - [x] Enhanced FIM with baseline diffing
-- [x] PCI-DSS, NIST, ISO 27001, GDPR, HIPAA, SOC2 Type II compliance packs
+- [s] PCI-DSS, NIST, ISO 27001, GDPR, HIPAA, SOC2 Type II compliance packs
 - [x] PDF/HTML reporting engine (`internal/compliance/report.go`)
 - [x] Forensics service Wails integration (`internal/app/forensics_service.go`)
 - [x] Compliance evaluator engine (`internal/compliance/evaluator.go`)
@@ -437,7 +437,7 @@
 #### Supply Chain Security
 - [x] SBOM auto-generation (`syft`/`cyclonedx-gomod` in GHA)
 - [x] Signed releases (Cosign / Sigstore)
-- [x] Artifact provenance attestation (SLSA Level 3)
+- [s] Artifact provenance attestation (SLSA Level 3)
 - [x] Reproducible build verification
 
 #### Self-Observability
@@ -647,7 +647,7 @@
 ## Phase 12: Enterprise ✅
 
 - [x] Multi-tenancy with data partitioning
-- [x] HA clustering (Raft consensus) — `internal/cluster/`, `cluster_service.go`
+- [s] HA clustering (Raft consensus) — `internal/cluster/`, `cluster_service.go`
 - [x] User & Role DB models + migration v12 (`internal/database/users.go`)
 - [x] OIDC/OAuth2 + SAML 2.0 + TOTP MFA + Granular RBAC engine
 - [x] `IdentityService` — user CRUD, local login, MFA, RBAC checking
@@ -1240,7 +1240,7 @@
 
 ### 25.17 — 🚨 Root Symlink Privilege Escalation (CRITICAL)
 
-- [x] **`internal/security/canary.go:121`** — The Canary Service auto-deploys ransomware honeypot files to hardcoded locations like `/tmp/.oblivra_canary` and `/var/tmp/.oblivra_canary` via SFTP. Because agents often run as root and `/tmp` is globally writeable, a compromised user on the remote system can pre-create a symlink at `/tmp/.oblivra_canary` pointing to `/etc/shadow` or `/root/.ssh/authorized_keys`. When the SIEM automatically deploys the canary, it will follow the symlink and overwrite critical host files as root. Use secure temp file creation or randomized paths. 🏗️
+- [x] **`internal/security/canary.go:121`** — The Canary Service auto-deploys ransomware honeypot files to hardcoded locations like `/tmp/.oblivra_canary` and `/var/tmp/.oblivra_canary` via SFTP. Because agents often run as root and `/tmp` is globally writeable, a compromised user on the remote system can pre-create a symlink at `/tmp/.oblivra_canary` pointing to `/etc/shadow` or `/root/.ssh/authorized_keys`. When the SIEM automatically deploys the canary, it will follow the symlink and overwrite critical host files. Use secure temp file creation or randomized paths. 🏗️
 
 ### 25.18 — 🔴 Denial of Service
 
@@ -1261,10 +1261,10 @@
 - [x] **26.5 Cryptographic M-of-N Approval:** Elevate the MCP and SOAR kill-switches to require multi-party FIDO2/Hardware-backed quorum protocols, writing unalterable audit trails.
 
 ### 🟡 Tier 2: Investigations & Secrets Automation
-- [ ] **26.6 Graph-Based Investigations:** Build out the missing relational UI, allowing rapid traversal from User → Host → Process → IP → Threat intel in a single canvas.
-- [ ] **26.7 Automated Incident Timeline Reconstruction:** Provide automatic, causality-linked timeline rebuilds around alerts for instant analyst context.
-- [ ] **26.8 Secrets Lifecycle Automation:** Create automated rotation policies for Vault credentials (SSH keys, Jump proxies, API tokens).
-- [ ] **26.9 Alert False-Positive Suppression:** Construct a time/user/asset-based suppression manager to curb alert fatigue with automated feedback loops.
+- [x] **26.6 Graph-Based Investigations:** Build out the missing relational UI, allowing rapid traversal from User → Host → Process → IP → Threat intel in a single canvas.
+- [x] **26.7 Automated Incident Timeline Reconstruction:** Provide automatic, causality-linked timeline rebuilds around alerts for instant analyst context.
+- [x] **26.8 Secrets Lifecycle Automation:** Create automated rotation policies for Vault credentials (SSH keys, Jump proxies, API tokens).
+- [x] **26.9 Alert False-Positive Suppression:** Construct a time/user/asset-based suppression manager to curb alert fatigue with automated feedback loops.
 
 ### 🔵 Tier 3: Economic Strategy & Defense
 - [x] **26.10 Hot/Warm/Cold Tiering Strategy:** Segment stored data based on explicit storage and access cost models for extreme retention workloads.

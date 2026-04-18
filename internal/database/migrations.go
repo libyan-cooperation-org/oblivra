@@ -579,6 +579,50 @@ var migrations = []migration{
 			CREATE INDEX IF NOT EXISTS idx_host_events_hash ON host_events(event_hash);
 		`,
 	},
+	{
+		version: 24,
+		name:    "create_rotation_policies",
+		sql: `
+			CREATE TABLE IF NOT EXISTS rotation_policies (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				credential_id TEXT NOT NULL,
+				frequency_days INTEGER NOT NULL,
+				last_rotation DATETIME,
+				next_rotation DATETIME,
+				notify_only BOOLEAN DEFAULT 0,
+				is_active BOOLEAN DEFAULT 1,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (credential_id) REFERENCES credentials(id) ON DELETE CASCADE
+			);
+			CREATE INDEX IF NOT EXISTS idx_rotation_tenant ON rotation_policies(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_rotation_next ON rotation_policies(next_rotation) WHERE is_active = 1;
+		`,
+	},
+	{
+		version: 25,
+		name:    "create_suppression_rules",
+		sql: `
+			CREATE TABLE IF NOT EXISTS suppression_rules (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				label TEXT NOT NULL,
+				description TEXT,
+				rule_id TEXT,
+				field TEXT NOT NULL,
+				value TEXT NOT NULL,
+				is_regex BOOLEAN DEFAULT 0,
+				expires_at DATETIME,
+				is_active BOOLEAN DEFAULT 1,
+				last_matched_at DATETIME,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE INDEX IF NOT EXISTS idx_suppression_lookup ON suppression_rules(tenant_id, rule_id, field) WHERE is_active = 1;
+			CREATE INDEX IF NOT EXISTS idx_suppression_global ON suppression_rules(tenant_id, field) WHERE is_active = 1 AND (rule_id IS NULL OR rule_id = '');
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

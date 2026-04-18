@@ -82,6 +82,8 @@ func runGUI() {
 			application.NewService(oblivraApp.CommandHistory),
 			application.NewService(oblivraApp.OperatorService),
 			application.NewService(oblivraApp.SessionPersistence),
+			application.NewService(oblivraApp.RotationService),
+			application.NewService(oblivraApp.SuppressionService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

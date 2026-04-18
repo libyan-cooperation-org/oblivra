@@ -30,6 +30,22 @@ class ToastStore {
     remove(id: string) {
         this.items = this.items.filter((t) => t.id !== id);
     }
+
+    success(title: string, message?: string) {
+        this.add({ type: 'success', title, message });
+    }
+
+    error(title: string, message?: string) {
+        this.add({ type: 'error', title, message, duration: 8000 });
+    }
+
+    warn(title: string, message?: string) {
+        this.add({ type: 'warning', title, message });
+    }
+
+    info(title: string, message?: string) {
+        this.add({ type: 'info', title, message });
+    }
 }
 
 export const toastStore = new ToastStore();

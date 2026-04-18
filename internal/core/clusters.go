@@ -51,6 +51,7 @@ type InfrastructureCluster struct {
 	TenantRepo       *database.TenantRepository
 	RBAC             *auth.RBACEngine
 	Messaging        *messaging.NATSService
+	Federator        *search.Federator
 }
 
 // SecurityCluster holds identity, hardening, and trust services.
@@ -70,6 +71,8 @@ type SecurityCluster struct {
 	IdentitySyncService *services.IdentitySyncService
 	ReportService      *services.ReportService
 	QuorumManager       *security.QuorumManager
+	RotationService     *services.RotationService
+	SuppressionService  *services.SuppressionService
 }
 
 // SIEMCluster holds ingestion, detection, and alerting services.
@@ -169,4 +172,5 @@ type PlatformCluster struct {
 	APIService           *services.APIService
 	LicensingService     *services.LicensingService
 	CloudDiscovery       *cloud.CloudDiscoveryManager
+	ClusterService       *services.ClusterService
 }

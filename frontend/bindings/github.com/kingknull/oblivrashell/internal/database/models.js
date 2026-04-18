@@ -537,6 +537,22 @@ export class HostEvent {
              */
             this["raw_log"] = "";
         }
+        if (!("event_hash" in $$source)) {
+            /**
+             * 1.3: SHA256(RawLog + Timestamp + PrevHash)
+             * @member
+             * @type {string}
+             */
+            this["event_hash"] = "";
+        }
+        if (!("prev_hash" in $$source)) {
+            /**
+             * 1.3: Reference to previous event's hash
+             * @member
+             * @type {string}
+             */
+            this["prev_hash"] = "";
+        }
 
         Object.assign(this, $$source);
     }
@@ -897,6 +913,97 @@ export class Role {
     }
 }
 
+export class RotationPolicy {
+    /**
+     * Creates a new RotationPolicy instance.
+     * @param {Partial<RotationPolicy>} [$$source = {}] - The source object to create the RotationPolicy.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("tenant_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tenant_id"] = "";
+        }
+        if (!("credential_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["credential_id"] = "";
+        }
+        if (!("frequency_days" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["frequency_days"] = 0;
+        }
+        if (!("last_rotation" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["last_rotation"] = "";
+        }
+        if (!("next_rotation" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["next_rotation"] = "";
+        }
+        if (!("notify_only" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["notify_only"] = false;
+        }
+        if (!("is_active" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["is_active"] = false;
+        }
+        if (!("created_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["created_at"] = "";
+        }
+        if (!("updated_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["updated_at"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RotationPolicy instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RotationPolicy}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RotationPolicy(/** @type {Partial<RotationPolicy>} */($$parsedSource));
+    }
+}
+
 /**
  * SIEMStore defines the interface for security event monitoring and analytics.
  * @typedef {any} SIEMStore
@@ -1145,6 +1252,126 @@ export class Snippet {
             $$parsedSource["variables"] = $$createField6_0($$parsedSource["variables"]);
         }
         return new Snippet(/** @type {Partial<Snippet>} */($$parsedSource));
+    }
+}
+
+/**
+ * SuppressionRule defines criteria for silencing alerts to reduce false positives.
+ */
+export class SuppressionRule {
+    /**
+     * Creates a new SuppressionRule instance.
+     * @param {Partial<SuppressionRule>} [$$source = {}] - The source object to create the SuppressionRule.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("tenant_id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tenant_id"] = "";
+        }
+        if (!("label" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["label"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+        if (!("rule_id" in $$source)) {
+            /**
+             * The ID of the detection rule to suppress (empty for global)
+             * @member
+             * @type {string}
+             */
+            this["rule_id"] = "";
+        }
+        if (!("field" in $$source)) {
+            /**
+             * e.g. "host_id", "user_name", "src_ip"
+             * @member
+             * @type {string}
+             */
+            this["field"] = "";
+        }
+        if (!("value" in $$source)) {
+            /**
+             * The value to match
+             * @member
+             * @type {string}
+             */
+            this["value"] = "";
+        }
+        if (!("is_regex" in $$source)) {
+            /**
+             * Whether Value is a regex pattern
+             * @member
+             * @type {boolean}
+             */
+            this["is_regex"] = false;
+        }
+        if (!("expires_at" in $$source)) {
+            /**
+             * RFC3339 timestamp (empty for permanent)
+             * @member
+             * @type {string}
+             */
+            this["expires_at"] = "";
+        }
+        if (!("is_active" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["is_active"] = false;
+        }
+        if (!("last_matched_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["last_matched_at"] = "";
+        }
+        if (!("created_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["created_at"] = "";
+        }
+        if (!("updated_at" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["updated_at"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SuppressionRule instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {SuppressionRule}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SuppressionRule(/** @type {Partial<SuppressionRule>} */($$parsedSource));
     }
 }
 

@@ -186,10 +186,33 @@ export function LoadOfflineIOCs(indicators) {
 }
 
 /**
+ * GetFederationStatus returns the current state of the search federation
+ * @returns {$CancellablePromise<{ [_ in string]?: any }>}
+ */
+export function GetFederationStatus() {
+    return $Call.ByID(2457493262).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<string>}
  */
 export function Name() {
     return $Call.ByID(3755365236);
+}
+
+/**
+ * ReconstructTimeline automates incident narrative reconstruction
+ * @param {string} principalID
+ * @param {string} principalType
+ * @param {string} targetTime
+ * @returns {$CancellablePromise<$models.Timeline | null>}
+ */
+export function ReconstructTimeline(principalID, principalType, targetTime) {
+    return $Call.ByID(3792134636, principalID, principalType, targetTime).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType13($result);
+    }));
 }
 
 /**
@@ -246,3 +269,5 @@ const $$createType8 = database$0.HostEvent.createFrom;
 const $$createType9 = $Create.Array($$createType8);
 const $$createType10 = database$0.SavedSearch.createFrom;
 const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = $models.Timeline.createFrom;
+const $$createType13 = $Create.Nullable($$createType12);

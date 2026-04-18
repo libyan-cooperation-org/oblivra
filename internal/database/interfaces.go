@@ -199,3 +199,22 @@ type GraphStore interface {
 	FindPath(ctx context.Context, startID, endID string) ([]string, error)
 	DeleteNode(ctx context.Context, id string) error
 }
+
+// RotationStore defines the interface for managing secret rotation policies.
+type RotationStore interface {
+	List(ctx context.Context) ([]RotationPolicy, error)
+	GetByCredentialID(ctx context.Context, credID string) (*RotationPolicy, error)
+	Upsert(ctx context.Context, p *RotationPolicy) error
+	Delete(ctx context.Context, id string) error
+	GetDue(ctx context.Context) ([]RotationPolicy, error)
+}
+
+type SuppressionStore interface {
+	List(ctx context.Context) ([]SuppressionRule, error)
+	GetByID(ctx context.Context, id string) (*SuppressionRule, error)
+	GetByRuleID(ctx context.Context, ruleID string) ([]SuppressionRule, error)
+	GetMatch(ctx context.Context, ruleID, field, value string) (*SuppressionRule, error)
+	Upsert(ctx context.Context, r *SuppressionRule) error
+	Delete(ctx context.Context, id string) error
+	MarkMatched(ctx context.Context, id string) error
+}

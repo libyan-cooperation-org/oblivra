@@ -22,4 +22,7 @@ type Manager interface {
 
 	// LeaderAddr returns the address of the current leader
 	LeaderAddr() string
+
+	// Nodes returns a list of all node addresses in the cluster
+	Nodes() []string
 }

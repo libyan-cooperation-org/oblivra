@@ -22,6 +22,7 @@
   } from 'lucide-svelte';
   
   import { GetFullGraph, GetSubGraph } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/graphservice.js';
+  import { push } from '@lib/router.svelte';
 
   let nodes = $state<any[]>([]);
   let edges = $state<any[]>([]);
@@ -48,11 +49,33 @@
 
   async function handleNodeClick(node: any) {
     selectedNode = node;
-    // Auto-focus sub-graph on click (Blast Radius)
+    // Auto-focus sub-graph on click (Blast Radius) - we EXPAND the graph
     try {
-      await GetSubGraph(node.id, 2);
-      // We don't replace the whole graph, maybe just highlight?
-      // For now, let's keep it simple.
+      const data = await GetSubGraph(node.id, 2);
+      if (data && data.nodes) {
+        // Merge nodes and edges (deduplicate)
+        const newNodeIds = new Set(nodes.map((n: any) => n.id));
+        const newNodes = [...nodes];
+        data.nodes.forEach((n: any) => {
+          if (!newNodeIds.has(n.id)) {
+            newNodes.push(n);
+            newNodeIds.add(n.id);
+          }
+        });
+        
+        const existingEdgeKeys = new Set(edges.map((e: any) => `${e.from}-${e.to}-${e.type}`));
+        const newEdges = [...edges];
+        data.edges.forEach((e: any) => {
+          const key = `${e.from}-${e.to}-${e.type}`;
+          if (!existingEdgeKeys.has(key)) {
+            newEdges.push(e);
+            existingEdgeKeys.add(key);
+          }
+        });
+
+        nodes = newNodes;
+        edges = newEdges;
+      }
     } catch (err) {
       console.error("Failed to fetch subgraph:", err);
     }
@@ -164,20 +187,24 @@
 
               <div class="flex flex-col gap-3">
                 <span class="text-[9px] uppercase font-bold text-text-muted">Incident Actions</span>
-                <div class="flex flex-col gap-2">
-                  <Button variant="secondary" size="sm" class="w-full justify-start">
-                    <Zap size={14} class="mr-2 text-warning" />
-                    Pivot to Timeline
-                  </Button>
-                  <Button variant="secondary" size="sm" class="w-full justify-start">
-                    <Filter size={14} class="mr-2 text-primary" />
-                    Filter logs for entity
-                  </Button>
-                  <Button variant="danger" size="sm" class="w-full justify-start">
-                    <AlertTriangle size={14} class="mr-2" />
-                    Isolation Ceremony
-                  </Button>
-                </div>
+                  <div class="flex flex-col gap-2">
+                    <Button variant="secondary" size="sm" class="w-full justify-start" onclick={() => handleNodeClick(selectedNode)}>
+                      <Network size={14} class="mr-2 text-accent" />
+                      Traverse & Expand
+                    </Button>
+                    <Button variant="secondary" size="sm" class="w-full justify-start" onclick={() => push(`/timeline/${selectedNode.id}/${selectedNode.type}/${new Date().toISOString()}`)}>
+                      <Zap size={14} class="mr-2 text-warning" />
+                      Pivot to Timeline
+                    </Button>
+                    <Button variant="secondary" size="sm" class="w-full justify-start">
+                      <Filter size={14} class="mr-2 text-primary" />
+                      Filter logs for entity
+                    </Button>
+                    <Button variant="danger" size="sm" class="w-full justify-start">
+                      <AlertTriangle size={14} class="mr-2" />
+                      Isolation Ceremony
+                    </Button>
+                  </div>
               </div>
             </div>
           {:else}

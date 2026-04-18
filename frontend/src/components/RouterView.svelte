@@ -16,19 +16,18 @@
   let currentMatchedRoute = $derived.by(() => {
     const path = getCurrentPath();
     
-    // Find first matching route
     for (const route of routes) {
-      if (matchRoute(route.path, path)) {
-        return route;
+      const match = matchRoute(route.path, path);
+      if (match) {
+        return { component: route.component, params: match.params };
       }
     }
     
-    // Fallback if no match (already handled by routes list usually)
-    return routes.find(r => r.path === '*') || null;
+    const fallback = routes.find(r => r.path === '*');
+    return fallback ? { component: fallback.component, params: {} } : null;
   });
 </script>
 
 {#if currentMatchedRoute}
-  {@const Component = currentMatchedRoute.component}
-  <Component />
+  <currentMatchedRoute.component {...currentMatchedRoute.params} />
 {/if}

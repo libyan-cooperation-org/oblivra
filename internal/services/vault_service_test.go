@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -15,7 +16,7 @@ import (
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func newTestVaultService(t *testing.T) (*services.VaultService, func()) {
+func setup(t *testing.T) (*services.VaultService, context.Context, func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	os.Setenv("APPDATA", tmpDir)
@@ -37,21 +38,22 @@ func newTestVaultService(t *testing.T) (*services.VaultService, func()) {
 		t.Fatalf("vault.New: %v", err)
 	}
 
-	svc := services.NewVaultService(v, db, nil, nil, credRepo, auditRepo, nil, nil, bus, log)
-	ctx := context.WithValue(context.Background(), "test", "true")
-	svc.Start(ctx) //nolint:errcheck
+	rbac := auth.NewRBACEngine(log)
+	svc := services.NewVaultService(v, db, nil, nil, nil, credRepo, auditRepo, nil, rbac, bus, log)
+	user := &auth.IdentityUser{Email: "test@oblivra.org", Permissions: []string{"*"}}
+	ctx := auth.ContextWithUser(context.Background(), user)
 
 	cleanup := func() {
 		bus.Close()
 		svc.Stop(context.Background())
 	}
-	return svc, cleanup
+	return svc, ctx, cleanup
 }
 
 // ── setup / unlock ────────────────────────────────────────────────────────────
 
 func TestVaultService_SetupAndUnlock(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "test-passphrase-2026!"
@@ -68,7 +70,7 @@ func TestVaultService_SetupAndUnlock(t *testing.T) {
 }
 
 func TestVaultService_WrongPassword(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "correct-password"
@@ -86,7 +88,7 @@ func TestVaultService_WrongPassword(t *testing.T) {
 func TestVaultService_EmptySliceNormalized(t *testing.T) {
 	// Regression: Unlock(pw, []byte{}, false) must behave identically to
 	// Unlock(pw, nil, false) — i.e. not trigger the hardware key path.
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "correct-password"
@@ -105,14 +107,14 @@ func TestVaultService_EmptySliceNormalized(t *testing.T) {
 // ── credential CRUD ───────────────────────────────────────────────────────────
 
 func TestVaultService_AddAndGetCredential(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, ctx, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "test-pass"
 	svc.Setup(pw, "")
 	svc.UnlockWithPassword(pw, false)
 
-	id, err := svc.AddCredential(context.TODO(), "My API Key", "api_key", "super-secret-value-123")
+	id, err := svc.AddCredential(ctx, "My API Key", "api_key", "super-secret-value-123")
 	if err != nil {
 		t.Fatalf("AddCredential: %v", err)
 	}
@@ -120,7 +122,7 @@ func TestVaultService_AddAndGetCredential(t *testing.T) {
 		t.Fatal("expected non-empty credential ID")
 	}
 
-	decrypted, err := svc.GetDecryptedCredential(context.TODO(), id)
+	decrypted, err := svc.GetDecryptedCredential(ctx, id)
 	if err != nil {
 		t.Fatalf("GetDecryptedCredential: %v", err)
 	}
@@ -130,36 +132,36 @@ func TestVaultService_AddAndGetCredential(t *testing.T) {
 }
 
 func TestVaultService_CredentialInaccessibleWhenLocked(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, ctx, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "test-pass"
 	svc.Setup(pw, "")
 	svc.UnlockWithPassword(pw, false)
 
-	id, _ := svc.AddCredential(context.TODO(), "secret", "password", "value")
+	id, _ := svc.AddCredential(ctx, "secret", "password", "value")
 	svc.Lock()
 
-	_, err := svc.GetDecryptedCredential(context.TODO(), id)
+	_, err := svc.GetDecryptedCredential(ctx, id)
 	if err == nil {
 		t.Fatal("expected error when vault is locked, got nil")
 	}
 }
 
 func TestVaultService_DeleteCredential(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, ctx, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "del-test-pass"
 	svc.Setup(pw, "")
 	svc.UnlockWithPassword(pw, false)
 
-	id, _ := svc.AddCredential(context.TODO(), "to-delete", "token", "token-value")
-	if err := svc.DeleteCredential(context.TODO(), id); err != nil {
+	id, _ := svc.AddCredential(ctx, "to-delete", "token", "token-value")
+	if err := svc.DeleteCredential(ctx, id); err != nil {
 		t.Fatalf("DeleteCredential: %v", err)
 	}
 
-	_, err := svc.GetDecryptedCredential(context.TODO(), id)
+	_, err := svc.GetDecryptedCredential(ctx, id)
 	if err == nil {
 		t.Error("expected error getting deleted credential, got nil")
 	}
@@ -168,7 +170,7 @@ func TestVaultService_DeleteCredential(t *testing.T) {
 // ── password health audit ─────────────────────────────────────────────────────
 
 func TestVaultService_PasswordHealthAudit(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "audit-test"
@@ -205,7 +207,7 @@ func TestVaultService_PasswordHealthAudit(t *testing.T) {
 // ── password generator ────────────────────────────────────────────────────────
 
 func TestVaultService_GeneratePassword_Length(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 
 	for _, length := range []int{12, 20, 32, 64} {
@@ -217,7 +219,7 @@ func TestVaultService_GeneratePassword_Length(t *testing.T) {
 }
 
 func TestVaultService_GeneratePassword_MinLength(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 	// Lengths below 8 should be clamped to 16
 	pass := svc.GeneratePassword(4, false)
@@ -227,7 +229,7 @@ func TestVaultService_GeneratePassword_MinLength(t *testing.T) {
 }
 
 func TestVaultService_GeneratePassword_Uniqueness(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 	seen := make(map[string]bool)
 	for i := 0; i < 100; i++ {
@@ -242,7 +244,7 @@ func TestVaultService_GeneratePassword_Uniqueness(t *testing.T) {
 // ── HasKeychainEntry ──────────────────────────────────────────────────────────
 
 func TestVaultService_HasKeychainEntry_FalseWhenEmpty(t *testing.T) {
-	svc, cleanup := newTestVaultService(t)
+	svc, _, cleanup := setup(t)
 	defer cleanup()
 	// No remember=true unlock was done, so keychain should be empty
 	if svc.HasKeychainEntry() {

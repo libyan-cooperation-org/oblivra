@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { KPI, PageLayout, Badge, Button, Chart } from '@components/ui';
+  import { KPI, PageLayout, Badge, Button } from '@components/ui';
   import { Shield, Activity, ChevronRight } from 'lucide-svelte';
   import { campaignStore } from '@lib/stores/campaigns.svelte';
   import { GetActiveClusters } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/graphservice';
@@ -121,7 +121,7 @@
           <Button variant="ghost" size="sm" onclick={closeRecon}>Close</Button>
         </div>
         
-        <CampaignTimeline clusterID={selectedCampaignID} onPivot={() => {}} />
+        <CampaignTimeline clusterID={selectedCampaignID} onClose={closeRecon} />
       </div>
     {/if}
   </div>

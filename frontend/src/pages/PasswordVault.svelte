@@ -4,8 +4,7 @@
 -->
 <script lang="ts">
   import { KPI, Badge, DataTable, PageLayout, Button, Input } from '@components/ui';
-  import { Shield, Key, Lock, Unlock, Eye, EyeOff, Search, Plus, Activity, Database } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Lock, Eye, EyeOff, Database } from 'lucide-svelte';
 
   const credentials = [
     { id: 'C-01', label: 'prod-db-master', username: 'admin', type: 'SSH Key', safety: 'hardened', rot: '4d' },
@@ -52,7 +51,7 @@
               { key: 'rot', label: 'Rotation', width: '80px' },
               { key: 'action', label: '', width: '80px' }
             ]} density="compact">
-              {#snippet cell({ column, row })}
+               {#snippet cell({ column, row }: { column: any, row: any })}
                 {#if column.key === 'safety'}
                    <Badge variant={row.safety === 'hardened' ? 'success' : 'warning'}>{row.safety}</Badge>
                 {:else if column.key === 'label'}
@@ -64,10 +63,10 @@
                       </div>
                    </div>
                 {:else if column.key === 'action'}
-                   <div class="flex gap-2">
-                      <Button variant="ghost" size="xs">Copy</Button>
-                      <Button variant="ghost" size="xs">Use</Button>
-                   </div>
+                    <div class="flex gap-2">
+                       <Button variant="ghost" size="sm">Copy</Button>
+                       <Button variant="ghost" size="sm">Use</Button>
+                    </div>
                 {:else if column.key === 'rot'}
                    <span class="text-[10px] font-mono text-text-muted opacity-80">{row.rot}</span>
                 {:else}

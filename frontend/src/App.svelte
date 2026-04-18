@@ -80,6 +80,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import FleetMap from '@pages/FleetMap.svelte';
   import InvestigationDashboard from '@pages/InvestigationDashboard.svelte';
   import IncidentTimeline from '@pages/IncidentTimeline.svelte';
+  import SecretManager from '@pages/SecretManager.svelte';
+  import SuppressionManager from '@pages/SuppressionManager.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
 
   // ── Types
@@ -154,6 +156,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     // Security & Incident Response
     { path: '/response',         component: IncidentResponse },
     { path: '/timeline',         component: IncidentTimeline },
+    { path: '/timeline/:principalID/:principalType/:targetTime', component: IncidentTimeline },
     { path: '/cases',            component: CaseManagement },  // was missing
     { path: '/escalation',       component: EscalationCenter },
     { path: '/playbook-builder', component: PlaybookBuilder },
@@ -190,8 +193,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/vault',          component: VaultManager },
     { path: '/trust',          component: RuntimeTrust },
     { path: '/runtime-trust',  component: RuntimeTrust },
-    { path: '/identity',       component: IdentityAdmin },
     { path: '/identity-admin', component: IdentityAdmin },
+    { path: '/secrets',        component: SecretManager },
+    { path: '/suppression',    component: SuppressionManager },
+    { path: '/secret-manager', component: SecretManager },
 
     // Management
     { path: '/settings',       component: Settings },

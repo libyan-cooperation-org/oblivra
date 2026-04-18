@@ -47,6 +47,17 @@ export function GetCampaign(entityID) {
 }
 
 /**
+ * GetCampaignTimeline reconstructs the causality-linked story of an attack.
+ * @param {string} entityID
+ * @returns {$CancellablePromise<detection$0.CampaignTimeline | null>}
+ */
+export function GetCampaignTimeline(entityID) {
+    return $Call.ByID(1333408386, entityID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
  * Name returns the service identifier.
  * @returns {$CancellablePromise<string>}
  */
@@ -75,3 +86,5 @@ const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = detection$0.Campaign.createFrom;
 const $$createType2 = $Create.Array($$createType1);
 const $$createType3 = $Create.Nullable($$createType1);
+const $$createType4 = detection$0.CampaignTimeline.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
