@@ -1254,11 +1254,11 @@
 > A DARPA-grade architectural overhaul addressing strict SOC requirements, horizontal scale, and adversarial resilience per the brutal roadmap audit.
 
 ### 🔴 Tier 1: Systemic Scaling & Stream Semantics
-- [ ] **26.1 Distributed Log Fabric:** Separate ingestion from indexing by implementing a messaging pipeline (Kafka/NATS JetStream).
+- [x] **26.1 Distributed Log Fabric:** Separate ingestion from indexing by implementing a messaging pipeline (Kafka/NATS JetStream).
 - [ ] **26.2 Federated Query Federation:** Transition from local BadgerDB/Bleve to a distributed query execution layer (Presto/Trino style) capable of routing by tenant, source, and time-shard.
 - [ ] **26.3 Stream-Oriented Detection Engines:** Refactor rule engines to fully embrace stream-oriented semantics (sliding/tumbling windows, watermarks, late-event handling, and deterministic replay).
-- [ ] **26.4 System-Wide Backpressure:** Enforce strict microservice circuit breakers, intelligent queue prioritization (alerts > normal logs), and load-shedding strategies to protect against cluster collapse.
-- [ ] **26.5 Cryptographic M-of-N Approval:** Elevate the MCP and SOAR kill-switches to require multi-party FIDO2/Hardware-backed quorum protocols, writing unalterable audit trails.
+- [x] **26.4 System-Wide Backpressure:** Enforce strict microservice circuit breakers, intelligent queue prioritization (alerts > normal logs), and load-shedding strategies to protect against cluster collapse.
+- [x] **26.5 Cryptographic M-of-N Approval:** Elevate the MCP and SOAR kill-switches to require multi-party FIDO2/Hardware-backed quorum protocols, writing unalterable audit trails.
 
 ### 🟡 Tier 2: Investigations & Secrets Automation
 - [ ] **26.6 Graph-Based Investigations:** Build out the missing relational UI, allowing rapid traversal from User → Host → Process → IP → Threat intel in a single canvas.
@@ -1267,7 +1267,7 @@
 - [ ] **26.9 Alert False-Positive Suppression:** Construct a time/user/asset-based suppression manager to curb alert fatigue with automated feedback loops.
 
 ### 🔵 Tier 3: Economic Strategy & Defense
-- [ ] **26.10 Hot/Warm/Cold Tiering Strategy:** Segment stored data based on explicit storage and access cost models for extreme retention workloads.
+- [x] **26.10 Hot/Warm/Cold Tiering Strategy:** Segment stored data based on explicit storage and access cost models for extreme retention workloads.
 - [ ] **26.11 Air-Gap vs SaaS Deploy Target Framework:** Create rigid artifact pipelines specific for strictly on-prem, pure SaaS, or hybrid-relay modes.
 - [ ] **26.12 Chaos Engineering Suite:** Establish automated failure injection sequences (network latency, corrupted payloads, database disruption) on the CI to consistently prove SLA/SLO metrics.
 

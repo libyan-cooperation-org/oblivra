@@ -87,6 +87,7 @@ type SIEMStore interface {
 	AggregateHostEvents(ctx context.Context, query string, facetField string) (map[string]int, error)
 	CreateSavedSearch(ctx context.Context, search *SavedSearch) error
 	GetSavedSearches(ctx context.Context) ([]SavedSearch, error)
+	GetTimelineEvents(ctx context.Context, principalID string, principalType string, startTime string, endTime string) ([]HostEvent, error)
 }
 
 // SnippetStore defines the interface for managing command snippets.

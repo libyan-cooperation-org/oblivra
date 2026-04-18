@@ -8,6 +8,8 @@ import (
 	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"golang.org/x/time/rate"
+	"sync"
 	"time"
 )
 
@@ -19,6 +21,8 @@ type IngestService struct {
 	agentSrv *ingest.AgentServer
 	bus      *eventbus.Bus
 	log      *logger.Logger
+	limiters map[string]*rate.Limiter
+	mu       sync.RWMutex
 }
 
 func (s *IngestService) Name() string { return "ingest-service" }
@@ -36,6 +40,7 @@ func NewIngestService(p ingest.IngestionPipeline, srv *ingest.SyslogServer, agen
 		agentSrv: agentSrv,
 		bus:      bus,
 		log:      log.WithPrefix("ingest_service"),
+		limiters: make(map[string]*rate.Limiter),
 	}
 }
 
@@ -160,7 +165,38 @@ func (s *IngestService) QueueEvent(evt *events.SovereignEvent) error {
 	if s.pipeline == nil {
 		return fmt.Errorf("pipeline not initialized")
 	}
+
+	// ── Circuit Breaker: Rate Limiting ───────────────────────────────────────
+	limiter := s.getLimiter(evt.TenantID)
+	if !limiter.Allow() {
+		s.log.Warn("[CIRCUIT_BREAKER] Rate limit exceeded for tenant %s. Dropping event.", evt.TenantID)
+		return fmt.Errorf("tenant rate limit exceeded")
+	}
+
 	return s.pipeline.QueueEvent(evt)
+}
+
+func (s *IngestService) getLimiter(tenantID string) *rate.Limiter {
+	s.mu.RLock()
+	l, ok := s.limiters[tenantID]
+	s.mu.RUnlock()
+
+	if ok {
+		return l
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Double check
+	if l, ok = s.limiters[tenantID]; ok {
+		return l
+	}
+
+	// Sovereign Default: 5000 EPS per tenant burstable to 10000
+	l = rate.NewLimiter(rate.Limit(5000), 10000)
+	s.limiters[tenantID] = l
+	return l
 }
 
 // Health reports the current operational state of the ingestion pipeline to the platform.

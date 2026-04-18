@@ -32,6 +32,15 @@ type ParquetFrame struct {
 	Data        string  `parquet:"data"`
 }
 
+// ParquetLogEntry represents the schema for archived terminal logs
+type ParquetLogEntry struct {
+	Timestamp string `parquet:"timestamp,dict"`
+	TenantID  string `parquet:"tenant_id,dict"`
+	SessionID string `parquet:"session_id,dict"`
+	Host      string `parquet:"host,dict"`
+	Output    string `parquet:"output"`
+}
+
 // NewArchiver ensures the required paths and configurations are set
 func NewArchiver(db *sql.DB, baseDir string, retention time.Duration, log *logger.Logger) *Archiver {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,6 +51,7 @@ func NewArchiver(db *sql.DB, baseDir string, retention time.Duration, log *logge
 		log:         log,
 		ctx:         ctx,
 		cancel:      cancel,
+		wg:          sync.WaitGroup{},
 	}
 }
 
@@ -64,6 +74,11 @@ func (a *Archiver) Start() {
 		a.log.Info("[ARCHIVER] Started background archiver. Retention: %v", a.retention)
 	}
 
+	// Run once on startup
+	if err := a.performArchive(); err != nil && a.log != nil {
+		a.log.Error("[ARCHIVER] Initial maintenance cycle failed: %v", err)
+	}
+
 	for {
 		select {
 		case <-a.ctx.Done():
@@ -82,102 +97,123 @@ func (a *Archiver) Stop() {
 	a.wg.Wait()
 }
 
-// performArchive extracts old records, writes them natively to a ZSTD compressed Parquet file, and then prunes SQLite
+// performArchive orchestrates the archiving of multiple telemetry tables
 func (a *Archiver) performArchive() error {
+	// 1. Archive Recording Frames
+	if err := a.archiveRecordingFrames(); err != nil {
+		return err
+	}
+
+	// 2. Archive Terminal Logs
+	if err := a.archiveTerminalLogs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Archiver) archiveRecordingFrames() error {
 	cutoff := time.Now().Add(-a.retention).Unix()
-
-	// 1. Check if there are any records to archive
-	var count int
-	err := a.db.QueryRow(`SELECT count(*) FROM recording_frames WHERE timestamp < ?`, cutoff).Scan(&count)
-	if err != nil {
-		return fmt.Errorf("count query failed: %w", err)
-	}
-
-	if count == 0 {
-		return nil // Nothing to archive
-	}
-
-	if a.log != nil {
-		a.log.Info("[ARCHIVER] Found %d recording frames older than cutoff. Starting extraction...", count)
-	}
-
-	// 2. Query the rows
+	
 	rows, err := a.db.Query(`SELECT recording_id, timestamp, type, data FROM recording_frames WHERE timestamp < ?`, cutoff)
 	if err != nil {
-		return fmt.Errorf("extraction query failed: %w", err)
+		return err
 	}
 	defer rows.Close()
 
-	// 3. Setup Parquet Writer
-	parquetFilename := fmt.Sprintf("archive_%s.parquet", time.Now().Format("2006-01-02_15-04-05"))
+	count := 0
+	parquetFilename := fmt.Sprintf("recordings_%s.parquet", time.Now().Format("2006-01-02_15-04-05"))
 	parquetFilePath := filepath.Join(a.archivePath, parquetFilename)
 
 	f, err := os.Create(parquetFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to create parquet file: %w", err)
+		return err
 	}
 	defer f.Close()
 
 	writer := parquet.NewGenericWriter[ParquetFrame](f, parquet.Compression(&parquet.Zstd))
-
-	// 4. Extract and Write
-	var recID, typ, data string
-	var ts float64
 	var batch []ParquetFrame
 
 	for rows.Next() {
+		var recID, typ, data string
+		var ts float64
 		if err := rows.Scan(&recID, &ts, &typ, &data); err != nil {
-			if a.log != nil {
-				a.log.Warn("[ARCHIVER] Skipping row during extract: %v", err)
-			}
 			continue
 		}
-
-		batch = append(batch, ParquetFrame{
-			RecordingID: recID,
-			Timestamp:   ts,
-			Type:        typ,
-			Data:        data,
-		})
-
-		// Flush in chunks of 5000 to avoid high memory spikes
+		batch = append(batch, ParquetFrame{recID, ts, typ, data})
+		count++
 		if len(batch) >= 5000 {
-			if _, err := writer.Write(batch); err != nil {
-				return fmt.Errorf("write parquet chunk: %w", err)
-			}
+			writer.Write(batch)
 			batch = batch[:0]
 		}
 	}
-
-	// Flush remaining
 	if len(batch) > 0 {
-		if _, err := writer.Write(batch); err != nil {
-			return fmt.Errorf("write final parquet chunk: %w", err)
+		writer.Write(batch)
+	}
+	writer.Close()
+
+	if count > 0 {
+		a.db.Exec(`DELETE FROM recording_frames WHERE timestamp < ?`, cutoff)
+		if a.log != nil {
+			a.log.Info("[ARCHIVER] Archived %d recording frames to %s", count, parquetFilename)
+			// Sovereign Grade: Reclaim disk space
+			a.db.Exec(`VACUUM`)
+		}
+	} else {
+		os.Remove(parquetFilePath) // Clean up empty file
+	}
+	return nil
+}
+
+func (a *Archiver) archiveTerminalLogs() error {
+	// terminal_logs uses DATETIME strings, not unix timestamps
+	cutoff := time.Now().Add(-a.retention).Format("2006-01-02 15:04:05")
+
+	rows, err := a.db.Query(`SELECT timestamp, tenant_id, session_id, host, output FROM terminal_logs WHERE timestamp < ?`, cutoff)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	count := 0
+	parquetFilename := fmt.Sprintf("logs_%s.parquet", time.Now().Format("2006-01-02_15-04-05"))
+	parquetFilePath := filepath.Join(a.archivePath, parquetFilename)
+
+	f, err := os.Create(parquetFilePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	writer := parquet.NewGenericWriter[ParquetLogEntry](f, parquet.Compression(&parquet.Zstd))
+	var batch []ParquetLogEntry
+
+	for rows.Next() {
+		var ts, tenant, sess, host, output string
+		if err := rows.Scan(&ts, &tenant, &sess, &host, &output); err != nil {
+			continue
+		}
+		batch = append(batch, ParquetLogEntry{ts, tenant, sess, host, output})
+		count++
+		if len(batch) >= 5000 {
+			writer.Write(batch)
+			batch = batch[:0]
 		}
 	}
-
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("row iteration error: %w", err)
+	if len(batch) > 0 {
+		writer.Write(batch)
 	}
+	writer.Close()
 
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("close parquet writer: %w", err)
+	if count > 0 {
+		a.db.Exec(`DELETE FROM terminal_logs WHERE timestamp < ?`, cutoff)
+		if a.log != nil {
+			a.log.Info("[ARCHIVER] Archived %d terminal logs to %s", count, parquetFilename)
+			// Sovereign Grade: Reclaim disk space
+			a.db.Exec(`VACUUM`)
+		}
+	} else {
+		os.Remove(parquetFilePath) // Clean up empty file
 	}
-
-	if a.log != nil {
-		a.log.Info("[ARCHIVER] Successfully created native Parquet archive: %s", parquetFilePath)
-	}
-
-	// 5. Prune SQLite
-	res, err := a.db.Exec(`DELETE FROM recording_frames WHERE timestamp < ?`, cutoff)
-	if err != nil {
-		return fmt.Errorf("failed to prune SQLite after archiving: %w", err)
-	}
-
-	deletedCount, _ := res.RowsAffected()
-	if a.log != nil {
-		a.log.Info("[ARCHIVER] SQLite Pruned. Removed %d rows.", deletedCount)
-	}
-
 	return nil
 }

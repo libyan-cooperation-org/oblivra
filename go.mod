@@ -29,12 +29,12 @@ require (
 	github.com/yuin/gopher-lua v1.1.1
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/trace v1.24.0
-	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.50.0
+	golang.org/x/crypto v0.49.0
+	golang.org/x/net v0.51.0
 	golang.org/x/oauth2 v0.35.0
-	golang.org/x/sys v0.41.0
+	golang.org/x/sys v0.42.0
 	golang.org/x/time v0.15.0
-	golang.org/x/tools v0.41.0
+	golang.org/x/tools v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.46.1
 )
@@ -47,6 +47,7 @@ require (
 	github.com/RoaringBitmap/roaring/v2 v2.4.5 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/andybalholm/brotli v1.1.1 // indirect
+	github.com/antithesishq/antithesis-sdk-go v0.6.0-default-no-op // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beevik/etree v1.5.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
@@ -109,7 +110,7 @@ require (
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.4.0 // indirect
-	github.com/klauspost/compress v1.18.3 // indirect
+	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/leaanthony/go-ansi-parser v1.6.1 // indirect
@@ -119,9 +120,15 @@ require (
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/minio/highwayhash v1.0.4-0.20251030100505-070ab1a87a76 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
+	github.com/nats-io/jwt/v2 v2.8.1 // indirect
+	github.com/nats-io/nats-server/v2 v2.12.7 // indirect
+	github.com/nats-io/nats.go v1.51.0 // indirect
+	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/parquet-go/bitpack v1.0.0 // indirect
 	github.com/parquet-go/jsonlite v1.0.0 // indirect
@@ -142,9 +149,9 @@ require (
 	go.opencensus.io v0.22.5 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
-	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
+	golang.org/x/mod v0.33.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	modernc.org/libc v1.67.6 // indirect

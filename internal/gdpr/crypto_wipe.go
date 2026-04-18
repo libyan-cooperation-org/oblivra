@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 )
 
 type DataDestructionService struct {

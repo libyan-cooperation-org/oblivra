@@ -17,6 +17,7 @@ type SecurityService struct {
 	fido2Manager FIDO2Provider
 	ykManager    YubiKeyProvider
 	certManager  CertificateProvider
+	quorum       *security.QuorumManager
 	bus          *eventbus.Bus
 	log          *logger.Logger
 }
@@ -29,11 +30,12 @@ func (s *SecurityService) Dependencies() []string {
 }
 
 // NewSecurityService creates the Wails binding for FIDO2 and YubiKey functionality
-func NewSecurityService(fido2 FIDO2Provider, yk YubiKeyProvider, certMgr CertificateProvider, bus *eventbus.Bus, log *logger.Logger) *SecurityService {
+func NewSecurityService(fido2 FIDO2Provider, yk YubiKeyProvider, certMgr CertificateProvider, quorum *security.QuorumManager, bus *eventbus.Bus, log *logger.Logger) *SecurityService {
 	return &SecurityService{
 		fido2Manager: fido2,
 		ykManager:    yk,
 		certManager:  certMgr,
+		quorum:       quorum,
 		bus:          bus,
 		log:          log.WithPrefix("security_service"),
 	}
@@ -102,4 +104,26 @@ func (s *SecurityService) SSHListCertificates() ([]ssh.CertificateInfo, error) {
 func (s *SecurityService) CheckSSHCertExpiry(hours int) ([]ssh.CertificateInfo, error) {
 	importTime := time.Duration(hours) * time.Hour
 	return s.certManager.CheckExpiry(importTime)
+}
+
+// Quorum methods
+
+// QuorumPropose starts a new M-of-N approval ceremony
+func (s *SecurityService) QuorumPropose(action string, description string, proposer string, required int, payload string) (*security.QuorumRequest, error) {
+	return s.quorum.Propose(security.QuorumAction(action), description, proposer, required, payload)
+}
+
+// QuorumApprove records an approval
+func (s *SecurityService) QuorumApprove(id string, userID string, credentialID []byte, signature []byte, authData []byte, clientData []byte) error {
+	return s.quorum.Approve(id, userID, credentialID, signature, authData, clientData)
+}
+
+// QuorumListPending returns all pending requests
+func (s *SecurityService) QuorumListPending() []*security.QuorumRequest {
+	return s.quorum.ListPending()
+}
+
+// QuorumGetRequest retrieves a specific request
+func (s *SecurityService) QuorumGetRequest(id string) (*security.QuorumRequest, error) {
+	return s.quorum.GetRequest(id)
 }

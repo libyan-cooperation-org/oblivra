@@ -21,9 +21,10 @@ import (
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/monitoring"
 	"github.com/kingknull/oblivrashell/internal/detection"
-	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
+	"github.com/kingknull/oblivrashell/internal/engine/wasm"
 	"github.com/kingknull/oblivrashell/internal/integrity"
+	"github.com/kingknull/oblivrashell/internal/messaging"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -84,7 +85,8 @@ type Pipeline struct {
 	once        sync.Once
 	wasm        *wasm.PluginManager
 	dag         *dag.Engine
-	diagnostics   DiagnosticsUpdater // optional; set after container init
+	nats        *messaging.NATSService
+	diagnostics DiagnosticsUpdater // optional; set after container init
 	loadStatus    atomic.Int32
 	quota            *TenantQuotaManager
 	metricsCollector *monitoring.MetricsCollector
@@ -177,6 +179,10 @@ p.identityResolver = r
 p.dag = p.buildProductionDAG()
 }
 
+func (p *Pipeline) SetNATSService(s *messaging.NATSService) {
+	p.nats = s
+}
+
 func (p *Pipeline) buildProductionDAG() *dag.Engine {
 wasmNode := &dag.Node{Processor: dag.NewWASMFilterNode(p.wasm, p.log)}
 
@@ -242,6 +248,21 @@ func (p *Pipeline) Start() {
 		go p.worker()
 	}
 
+	// Distributed Log Fabric: Subscribe to NATS if available
+	if p.nats != nil {
+		p.log.Info("[INGEST] Enabling NATS JetStream Distributed Fabric (Multi-Priority)...")
+		
+		handler := func(data []byte) {
+			evt := &events.SovereignEvent{RawLine: string(data)}
+			p.processEvent(context.Background(), evt)
+		}
+
+		// Subscribe to all priorities
+		p.nats.Subscribe("oblivra.ingest.logs", messaging.PriorityCritical, handler)
+		p.nats.Subscribe("oblivra.ingest.logs", messaging.PriorityHigh, handler)
+		p.nats.Subscribe("oblivra.ingest.logs", messaging.PriorityDefault, handler)
+	}
+
 	ac := NewAdaptiveController(p)
 	ac.Start()
 	go func() {
@@ -305,6 +326,21 @@ return err
 			evt.Metadata = SanitizeMetadata(evt.Metadata)
 		}
 
+	}
+
+	// ── Backpressure & Load-Shedding ───────────────────────────────────────────
+	priority := resolvePriority(evt)
+	
+	// Intelligent Load-Shedding: If buffer is > 85%, drop Default priority logs
+	occupancy := float64(len(p.buffer)) / float64(p.metrics.BufferCapacity)
+	if occupancy > 0.85 && priority == messaging.PriorityDefault {
+		p.metrics.DroppedEvents.Add(1)
+		p.log.Warn("[BACKPRESSURE] Load-Shedding: Dropping low-priority event from %s (Buffer: %.1f%%)", evt.Host, occupancy*100)
+		return nil // Success but dropped
+	}
+
+	if p.nats != nil {
+		return p.nats.Publish("oblivra.ingest.logs", priority, []byte(evt.RawLine))
 	}
 
 	select {
@@ -538,4 +574,14 @@ func isSecurityAnomaly(evt *events.SovereignEvent) bool {
 	default:
 		return false
 	}
+}
+
+func resolvePriority(evt *events.SovereignEvent) messaging.Priority {
+	if isSecurityAnomaly(evt) {
+		if strings.Contains(strings.ToLower(evt.RawLine), "alert") || strings.Contains(strings.ToLower(evt.RawLine), "critical") {
+			return messaging.PriorityCritical
+		}
+		return messaging.PriorityHigh
+	}
+	return messaging.PriorityDefault
 }

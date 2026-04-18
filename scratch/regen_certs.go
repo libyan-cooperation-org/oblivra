@@ -10,7 +10,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/security"
 )
 
-func main() {
+func MainRegenCerts() {
 	appDir := filepath.Join(os.Getenv("APPDATA"), "sovereign-terminal")
 	os.MkdirAll(appDir, 0700)
 

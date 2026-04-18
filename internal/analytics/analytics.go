@@ -344,16 +344,8 @@ func (e *AnalyticsEngine) retentionLoop(ctx context.Context) {
 		case <-e.done:
 			return
 		case <-ticker.C:
-			e.mu.Lock()
-			// Delete logs older than 7 days
-			res, err := e.db.Exec(`DELETE FROM terminal_logs WHERE timestamp < datetime('now', '-7 days')`)
-			if err == nil {
-				rows, _ := res.RowsAffected()
-				if rows > 0 {
-					e.db.Exec(`VACUUM`)
-				}
-			}
-			e.mu.Unlock()
+			// Archiver already handles the logic hourly. 
+			// This loop is kept for future expansion of non-archived retention tasks.
 		}
 	}
 }
@@ -364,8 +356,10 @@ func (e *AnalyticsEngine) runInitialRetention() {
 	defer e.mu.Unlock()
 	res, err := e.db.Exec(`DELETE FROM terminal_logs WHERE timestamp < datetime('now', '-7 days')`)
 	if err == nil {
-		rows, _ := res.RowsAffected()
-		if rows > 0 {
+		deletedCount, _ := res.RowsAffected()
+		if e.log != nil && deletedCount > 0 {
+			e.log.Info("[RETENTION] SQLite Pruned. Removed %d rows.", deletedCount)
+			// Sovereign Grade: Reclaim disk space
 			e.db.Exec(`VACUUM`)
 		}
 	}

@@ -6,7 +6,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-func main() {
+func MainTestStability() {
 	log := logger.NewStdoutLogger()
 	
 	// Create an EXTREMELY expensive rule

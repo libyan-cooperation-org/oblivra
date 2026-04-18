@@ -10,7 +10,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-func main() {
+func MainTestContainer() {
 	os.Setenv("OBLIVRA_ISOLATED_VAULT", "true")
 	log := logger.NewStdoutLogger()
 	

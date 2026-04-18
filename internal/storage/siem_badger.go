@@ -124,6 +124,51 @@ func (r *BadgerSIEMRepository) GetHostEvents(ctx context.Context, hostID string,
 	})
 
 	return events, err
+}// GetTimelineEvents retrieves events for a principal within a specific time window for reconstruction.
+func (r *BadgerSIEMRepository) GetTimelineEvents(ctx context.Context, principalID string, principalType string, startTime string, endTime string) ([]database.HostEvent, error) {
+	tenantID := database.MustTenantFromContext(ctx)
+	
+	start, _ := time.Parse("2006-01-02 15:04:05", startTime)
+	end, _ := time.Parse("2006-01-02 15:04:05", endTime)
+
+	prefix := []byte(fmt.Sprintf("tenant:%s:events:", tenantID))
+	var events []database.HostEvent
+
+	// We scan the primary event range for this tenant. 
+	// For large tenants, we might need a dedicated time-based index if this becomes a bottleneck.
+	err := r.store.IteratePrefix(prefix, 0, func(key, value []byte) error {
+		var e database.HostEvent
+		if err := json.Unmarshal(value, &e); err != nil {
+			return nil
+		}
+
+		evTime, _ := time.Parse(time.RFC3339, e.Timestamp)
+		if evTime.Before(start) {
+			return nil
+		}
+		if evTime.After(end) {
+			// Since events are mostly ordered by timestamp in the primary key, we could optimize here,
+			// but Badger keys include the ID at the end, so we check carefully.
+		}
+
+		match := false
+		switch principalType {
+		case "host":
+			match = (e.HostID == principalID)
+		case "user":
+			match = (e.User == principalID)
+		case "ip":
+			match = (e.SourceIP == principalID)
+		}
+
+		if match && evTime.After(start) && evTime.Before(end) {
+			events = append(events, e)
+		}
+		
+		return nil
+	})
+
+	return events, err
 }
 
 // SearchHostEvents performs a flexible search across security anomalies

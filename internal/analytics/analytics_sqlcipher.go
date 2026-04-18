@@ -84,7 +84,7 @@ func (e *AnalyticsEngine) Open(dbPath string, encryptionKey []byte) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancelWorkers = cancel
 
-	e.archiver = NewArchiver(e.db, filepath.Dir(dbPath), 30*24*time.Hour, e.log)
+	e.archiver = NewArchiver(e.db, filepath.Dir(dbPath), 7*24*time.Hour, e.log)
 	go e.archiver.Start()
 
 	e.workerWg.Add(3)

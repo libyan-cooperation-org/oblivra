@@ -78,6 +78,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import WarMode from '@pages/WarMode.svelte';
   import CaseManagement from '@pages/CaseManagement.svelte';
   import FleetMap from '@pages/FleetMap.svelte';
+  import InvestigationDashboard from '@pages/InvestigationDashboard.svelte';
+  import IncidentTimeline from '@pages/IncidentTimeline.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
 
   // ── Types
@@ -139,6 +141,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/agent-console',    component: AgentConsole },
 
     // Fleet & Workspace
+    { path: '/investigation',   component: InvestigationDashboard },
     { path: '/fleet',            component: FleetDashboard },
     { path: '/fleet-management', component: FleetDashboard },
     { path: '/hosts',            component: FleetDashboard },
@@ -150,6 +153,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // Security & Incident Response
     { path: '/response',         component: IncidentResponse },
+    { path: '/timeline',         component: IncidentTimeline },
     { path: '/cases',            component: CaseManagement },  // was missing
     { path: '/escalation',       component: EscalationCenter },
     { path: '/playbook-builder', component: PlaybookBuilder },

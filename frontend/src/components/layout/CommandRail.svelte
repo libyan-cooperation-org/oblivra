@@ -35,6 +35,8 @@
     agents: '/agents', 'fleet-management': '/fleet-management',
     identity: '/identity', 'identity-admin': '/identity-admin', soc: '/soc',
     ssh: '/ssh',
+    investigation: '/investigation',
+    timeline: '/timeline',
   };
 
   type NavContext = 'both' | 'desktop' | 'browser';
@@ -128,6 +130,7 @@
     { id: 'ai-assistant', icon: 'ai', label: 'AI Shell' },
     { id: 'cases', icon: 'forensics', label: 'Cases' },
     { id: 'ledger', icon: 'security', label: 'Ledger' },
+    { id: 'timeline', icon: 'dashboard', label: 'Timeline' },
     { id: 'response', icon: 'response', label: 'SOAR' },
   ];
 
@@ -141,6 +144,7 @@
     { id: 'ndr-overview', icon: 'ndr', label: 'NDR+', context: 'browser' },
     { id: 'purple-team', icon: 'purple', label: 'Purple' },
     { id: 'graph', icon: 'graph', label: 'Graph' },
+    { id: 'investigation', icon: 'hunter', label: 'Investigate' },
   ];
 
   const govern: NavItem[] = [

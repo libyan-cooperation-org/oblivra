@@ -16,6 +16,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/monitoring"
 	"github.com/kingknull/oblivrashell/internal/storage"
 	"github.com/kingknull/oblivrashell/internal/temporal"
+	"github.com/kingknull/oblivrashell/internal/messaging"
 	"github.com/kingknull/oblivrashell/internal/integrity"
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
@@ -160,6 +161,16 @@ func (pp *PartitionedPipeline) SetIdentityResolver(r dag.UserResolver) {
 	}
 	for _, shard := range pp.shards {
 		shard.SetIdentityResolver(r)
+	}
+}
+
+// SetNATSService distributes the messaging service to all shards.
+func (pp *PartitionedPipeline) SetNATSService(s *messaging.NATSService) {
+	if s == nil {
+		return
+	}
+	for _, shard := range pp.shards {
+		shard.SetNATSService(s)
 	}
 }
 

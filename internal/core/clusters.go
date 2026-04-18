@@ -10,6 +10,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/enrich"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
+	"github.com/kingknull/oblivrashell/internal/messaging"
 	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/logsources"
@@ -49,6 +50,7 @@ type InfrastructureCluster struct {
 	CloudAssets      database.CloudAssetStore
 	TenantRepo       *database.TenantRepository
 	RBAC             *auth.RBACEngine
+	Messaging        *messaging.NATSService
 }
 
 // SecurityCluster holds identity, hardening, and trust services.
@@ -67,6 +69,7 @@ type SecurityCluster struct {
 	Sentinel           *services.Sentinel
 	IdentitySyncService *services.IdentitySyncService
 	ReportService      *services.ReportService
+	QuorumManager       *security.QuorumManager
 }
 
 // SIEMCluster holds ingestion, detection, and alerting services.
@@ -84,7 +87,8 @@ type SIEMCluster struct {
 	SourceManager    *logsources.SourceManager
 	FusionEngine     *detection.AttackFusionEngine
 	FusionService    *services.FusionService
-	TemporalEngine   *temporal.IntegrityService
+	TimelineService   *services.TimelineService
+	TemporalEngine    *temporal.IntegrityService
 }
 
 // IntelCluster holds analytics, risk, and graph correlation services.

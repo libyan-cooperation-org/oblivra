@@ -132,6 +132,50 @@ func (r *SIEMRepository) SearchHostEvents(ctx context.Context, query string, lim
 		events = append(events, e)
 	}
 	return events, rows.Err()
+}// GetTimelineEvents retrieves events for a principal within a specific time window for reconstruction.
+func (r *SIEMRepository) GetTimelineEvents(ctx context.Context, principalID string, principalType string, startTime string, endTime string) ([]HostEvent, error) {
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID := MustTenantFromContext(ctx)
+	
+	var filter string
+	switch principalType {
+	case "host":
+		filter = "host_id = ?"
+	case "user":
+		filter = "user = ?"
+	case "ip":
+		filter = "source_ip = ?"
+	default:
+		return nil, fmt.Errorf("invalid principal type for timeline: %s", principalType)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log, event_hash, prev_hash 
+		FROM host_events
+		WHERE %s AND tenant_id = ? AND timestamp BETWEEN ? AND ?
+		ORDER BY timestamp ASC
+	`, filter)
+
+	rows, err := conn.QueryContext(ctx, query, principalID, tenantID, startTime, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("query timeline events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []HostEvent
+	for rows.Next() {
+		var e HostEvent
+		if err := rows.Scan(&e.ID, &e.HostID, &e.Timestamp, &e.EventType, &e.SourceIP, &e.User, &e.RawLog, &e.EventHash, &e.PrevHash); err != nil {
+			return nil, fmt.Errorf("scan timeline event: %w", err)
+		}
+		e.TenantID = tenantID
+		events = append(events, e)
+	}
+	return events, rows.Err()
 }
 
 // GetFailedLoginsByHost aggregates invalid login counts per source IP

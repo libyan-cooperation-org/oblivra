@@ -91,6 +91,7 @@ type App struct {
 	DiagnosticsService    *services.DiagnosticsService
 	FusionService         *services.FusionService
 	LicensingService      *services.LicensingService
+	ReportService         *services.ReportService
 
 	// Terminal UX (Phase 23)
 	BookmarkService    *services.BookmarkService

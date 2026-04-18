@@ -33,6 +33,7 @@ type SIEMService struct {
 	oqlExecutor   *oql.Executor
 	rbac          *auth.RBACEngine
 	pipeline      ingest.IngestionPipeline
+	timeline      *TimelineService
 }
 
 func (s *SIEMService) Name() string { return "siem-service" }
@@ -43,7 +44,7 @@ func (s *SIEMService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger, p ingest.IngestionPipeline) *SIEMService {
+func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai AIPrompter, snippets *SnippetService, matcher *threatintel.MatchEngine, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger, p ingest.IngestionPipeline, timeline *TimelineService) *SIEMService {
 	correlationEngine := detection.NewCorrelationEngine(bus, log.WithPrefix("correlation"))
 	return &SIEMService{
 		repo:          r,
@@ -58,6 +59,7 @@ func NewSIEMService(r database.SIEMStore, forwarder *security.SIEMForwarder, ai 
 		lastRiskCheck: &sync.Map{},
 		oqlExecutor:   oql.NewExecutor(),
 		pipeline:      p,
+		timeline:      timeline,
 	}
 }
 
@@ -392,5 +394,13 @@ func (s *SIEMService) GetPlatformStats() map[string]interface{} {
 	}
 
 	return result
+}
+
+// ReconstructTimeline automates incident narrative reconstruction
+func (s *SIEMService) ReconstructTimeline(ctx context.Context, principalID string, principalType string, targetTime string) (*Timeline, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermSIEMRead); err != nil {
+		return nil, err
+	}
+	return s.timeline.ReconstructTimeline(ctx, principalID, principalType, targetTime)
 }
 

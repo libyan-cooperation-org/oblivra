@@ -9,6 +9,8 @@
   import { agentStore } from '@lib/stores/agent.svelte';
   import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
 
+  import type { AgentDTO } from '@lib/stores/agent.svelte.ts';
+
   const stats = $derived({
     total: agentStore.agents.length,
     online: agentStore.agents.filter(a => a.status === 'online').length,
@@ -17,7 +19,7 @@
 
   const diag = $derived(diagnosticsStore.snapshot);
 
-  const columns = [
+  const columns: { key: keyof AgentDTO; label: string; width?: string }[] = [
     { key: 'hostname', label: 'Host Identifier' },
     { key: 'status', label: 'State', width: '100px' },
     { key: 'trust_level', label: 'Identity', width: '90px' },

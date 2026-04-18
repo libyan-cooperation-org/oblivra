@@ -40,6 +40,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	uebapkg "github.com/kingknull/oblivrashell/internal/ueba"
 	"github.com/kingknull/oblivrashell/internal/updater"
+	"github.com/kingknull/oblivrashell/internal/messaging"
 	"github.com/kingknull/oblivrashell/internal/vault"
 	"github.com/kingknull/oblivrashell/internal/workspace"
 )
@@ -200,6 +201,20 @@ func (c *Container) initInfra() error {
 	}
 	c.Infra.HotStore = hotStore
 
+	// 26.1: Distributed Log Fabric (NATS)
+	natsCfg := &messaging.NATSConfig{
+		Port:       4222,
+		DataDir:    filepath.Join(platform.DataDir(), "nats"),
+		StreamName: "OBLIVRA_INGEST",
+		Subjects:   []string{"oblivra.ingest.logs"},
+	}
+	c.Infra.Messaging = messaging.NewNATSService(natsCfg, c.Log)
+	// Start messaging before other services
+	if err := c.Infra.Messaging.Start(context.Background()); err != nil {
+		c.Log.Warn("[MESSAGING] Failed to start distributed fabric: %v. Falling back to in-memory mode.", err)
+		c.Infra.Messaging = nil
+	}
+
 	c.Infra.CloudAssets = database.NewCloudAssetRepository(c.Infra.DB)
 	c.Infra.TenantRepo = database.NewTenantRepository(c.Infra.DB)
 	c.Infra.RBAC = auth.NewRBACEngine(c.Log)
@@ -209,6 +224,7 @@ func (c *Container) initInfra() error {
 
 func (c *Container) initSecurity(_ context.Context) error {
 	c.Security.FIDO2Manager = security.NewFIDO2Manager()
+	c.Security.QuorumManager = security.NewQuorumManager(c.Security.FIDO2Manager, c.Log)
 	c.Security.AttestationService = attestation.NewAttestationService()
 	c.Security.MemorySecurity = services.NewMemorySecurityService(c.Log)
 
@@ -229,7 +245,7 @@ func (c *Container) initSecurity(_ context.Context) error {
 	// So we proxy the repo here and finish wiring in initIntel
 	c.Security.ReportService = services.NewReportService(reportRepo, nil, c.Infra.TenantRepo, c.Log)
 	
-	c.Security.SecurityService = services.NewSecurityService(c.Security.FIDO2Manager, nil, nil, c.Infra.Bus, c.Log)
+	c.Security.SecurityService = services.NewSecurityService(c.Security.FIDO2Manager, nil, nil, c.Security.QuorumManager, c.Infra.Bus, c.Log)
 
 	policyEngine := policy.NewEngine(policy.Config{ActiveTier: policy.TierEnterprise}, c.Log)
 	macEngine := policy.NewMACEngine(c.Log)
@@ -278,7 +294,8 @@ func (c *Container) initSIEM(_ context.Context) error {
 	}
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Log), c.Infra.Bus, c.Log)
-	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline)
+	c.SIEM.TimelineService = services.NewTimelineService(siemRepo, c.Log)
+	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline, c.SIEM.TimelineService)
 	
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)
@@ -287,6 +304,9 @@ func (c *Container) initSIEM(_ context.Context) error {
 	// Inject the rule engine and identity resolver into the pipeline shards for parallel detection/enrichment
 	pipeline.SetEvaluator(evaluator)
 	pipeline.SetIdentityResolver(c.Security.IdentityService)
+	if c.Infra.Messaging != nil {
+		pipeline.SetNATSService(c.Infra.Messaging)
+	}
 	
 	c.SIEM.NDRService = services.NewNDRService(ndr.NewFlowCollector(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.UEBAService = services.NewUEBAService(uebapkg.NewUEBAService(database.NewHostRepository(c.Infra.DB, c.Infra.Vault), c.Infra.Bus, c.Infra.HotStore, c.Log), c.Infra.Bus, c.Log)
