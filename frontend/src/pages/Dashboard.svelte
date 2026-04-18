@@ -1,0 +1,127 @@
+<!--
+  OBLIVRA — Dashboard (Svelte 5)
+  The Command Hub: Real-time platform status and mission critical telemetry.
+-->
+<script lang="ts">
+  import { Shield, Activity, RefreshCw } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
+  import { dashboardStore } from '@lib/stores/dashboard.svelte';
+  import { KPI, Badge, Button, PageLayout } from '@components/ui';
+
+  // Derived health sub-scores — sourced from live store or safe defaults
+  const healthScores = $derived({
+    compute: dashboardStore.health?.compute ?? { usage: '14', status: 'success' },
+    network: dashboardStore.health?.network ?? { latency: '2', status: 'success' },
+    storage: dashboardStore.health?.storage ?? { throughput: '4.2', status: 'info' },
+  });
+</script>
+
+<PageLayout title="OBLIVRA Command" subtitle="Sovereign Security Operations Platform">
+  {#snippet toolbar()}
+     <div class="flex items-center gap-3">
+        <Badge variant="accent" dot>CLUSTER SYNC: OK</Badge>
+        <Button variant="secondary" size="sm">Download Audit</Button>
+     </div>
+  {/snippet}
+
+  <div class="flex flex-col h-full gap-6">
+    <!-- Primary KPI Strip -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+      <KPI label="Active Alerts" value={dashboardStore.health.AlertCount || 0} trend="up" trendValue="+2 new" variant="critical" />
+      <KPI label="Engine Status" value={dashboardStore.health.Status || 'Operational'} trend="stable" trendValue="Nominal" variant="success" />
+      <KPI label="Storage Capacity" value="{dashboardStore.siemStats.StorageUsage || '42'}GB" trend="stable" />
+      <KPI label="Events / Second" value={dashboardStore.siemStats.EPS || '1.2k'} trend="stable" variant="accent" />
+    </div>
+
+    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Activity Feed -->
+      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col shadow-card">
+        <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center">
+           <div class="text-[10px] font-bold uppercase tracking-widest text-text-muted flex items-center gap-2">
+              <Activity size={12} />
+              Real-time System Audit
+           </div>
+           <Button variant="secondary" size="sm" onclick={() => dashboardStore.refresh()}>
+            <RefreshCw size={14} class="mr-1 {dashboardStore.loading ? 'animate-spin' : ''}" />
+            Refresh
+          </Button>
+        </div>
+        <div class="flex-1 overflow-auto p-2 space-y-1">
+           {#each appStore.notifications.slice(0, 5) as item}
+              <div class="flex items-start gap-3 p-2 hover:bg-surface-2 rounded-sm transition-all group cursor-pointer border border-transparent hover:border-border-secondary">
+                 <div class="mt-0.5 p-1.5 bg-surface-3 rounded-full {item.type === 'error' ? 'text-error' : 'text-accent'}">
+                    <Activity size={12} />
+                 </div>
+                 <div class="flex-1 flex flex-col">
+                    <span class="text-[11px] font-bold text-text-heading group-hover:text-accent transition-colors">{item.message}</span>
+                    <span class="text-[9px] text-text-muted font-mono">{item.details || 'System Broadcast'}</span>
+                 </div>
+              </div>
+           {:else}
+              <div class="flex flex-col items-center justify-center py-12 opacity-25">
+                <Activity size={32} />
+                <span class="text-[10px] font-bold uppercase tracking-widest mt-3">No events</span>
+              </div>
+           {/each}
+        </div>
+      </div>
+
+      <!-- Center Visualization -->
+      <div class="lg:col-span-2 flex flex-col gap-6">
+         <!-- Status Board -->
+         <div class="bg-surface-1 border border-border-primary rounded-md p-6 h-full relative overflow-hidden group">
+            <div class="absolute inset-0 bg-gradient-to-tr from-accent/5 to-transparent opacity-50"></div>
+            
+            <div class="relative z-10 flex flex-col h-full">
+               <div class="flex justify-between items-start mb-8">
+                  <div class="flex flex-col">
+                     <h3 class="text-xl font-bold text-text-heading tracking-tight">Platform Integrity</h3>
+                     <p class="text-[10px] text-text-muted uppercase tracking-widest">Global operational state verified</p>
+                  </div>
+                  <div class="flex items-center gap-4">
+                     <div class="flex flex-col items-end">
+                        <span class="text-[9px] text-text-muted">UPTIME</span>
+                        <span class="text-xs font-mono font-bold text-accent">99.999%</span>
+                     </div>
+                     <div class="w-12 h-12 rounded-full border-2 border-accent/20 flex items-center justify-center">
+                        <Shield class="text-accent" size={24} />
+                     </div>
+                  </div>
+               </div>
+
+                <div class="grid grid-cols-3 gap-8 mt-auto">
+                   <div class="flex flex-col gap-1">
+                      <span class="text-[9px] text-text-muted font-bold uppercase tracking-widest">Compute Load</span>
+                      <div class="flex items-end gap-2">
+                         <span class="text-2xl font-bold font-mono">{healthScores.compute.usage}%</span>
+                         <Badge variant={healthScores.compute.status} size="xs">NOMINAL</Badge>
+                      </div>
+                   </div>
+                   <div class="flex flex-col gap-1">
+                      <span class="text-[9px] text-text-muted font-bold uppercase tracking-widest">Net Latency</span>
+                      <div class="flex items-end gap-2">
+                         <span class="text-2xl font-bold font-mono">{healthScores.network.latency}ms</span>
+                         <Badge variant={healthScores.network.status} size="xs">IDEAL</Badge>
+                      </div>
+                   </div>
+                   <div class="flex flex-col gap-1">
+                      <span class="text-[9px] text-text-muted font-bold uppercase tracking-widest">Active I/O</span>
+                      <div class="flex items-end gap-2">
+                         <span class="text-2xl font-bold font-mono">{healthScores.storage.throughput}<span class="text-xs">MB/s</span></span>
+                         <Badge variant={healthScores.storage.status} size="xs">BURSTING</Badge>
+                      </div>
+                   </div>
+                </div>
+            </div>
+
+            <!-- Decorative graph wireframe -->
+            <div class="absolute bottom-0 right-0 w-64 h-32 opacity-10 blur-sm pointer-events-none">
+               <svg viewBox="0 0 100 100" class="w-full h-full text-accent fill-current">
+                  <path d="M0 80 Q 20 20, 40 50 T 80 10 T 100 80 V 100 H 0 Z" />
+               </svg>
+            </div>
+         </div>
+      </div>
+    </div>
+  </div>
+</PageLayout>

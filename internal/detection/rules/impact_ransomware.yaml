@@ -1,0 +1,15 @@
+id: "impact_ransomware_encryption"
+name: "Ransomware File Encryption"
+description: "Detects mass file encryption activity consistent with ransomware, including rapid file extension changes and high entropy writes."
+severity: "critical"
+type: "frequency"
+threshold: 50
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0040"
+mitre_techniques:
+  - "T1486"
+group_by: ["source_ip"]
+conditions:
+  EventType: "file_entropy_high"

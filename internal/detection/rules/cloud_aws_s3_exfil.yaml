@@ -1,0 +1,21 @@
+id: "cloud_aws_s3_mass_download"
+name: "AWS S3 Mass Data Exfiltration"
+description: >
+  Detects bulk downloading of S3 objects from a single IP or principal within a
+  short window. More than 100 GetObject calls in 5 minutes from the same source
+  is strongly indicative of data exfiltration.
+severity: "high"
+type: "threshold"
+threshold: 100
+window_sec: 300
+dedup_window_sec: 900
+mitre_tactics:
+  - "TA0010"
+mitre_techniques:
+  - "T1530"
+conditions:
+  EventType: "aws_cloudtrail"
+  EventName: "GetObject"
+logsource:
+  product: aws
+  service: cloudtrail

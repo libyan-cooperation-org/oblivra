@@ -1,0 +1,16 @@
+/**
+ * OBLIVRA — Svelte 5 Entry Point
+ *
+ * Mounts the root App.svelte component.
+ * Replaces the SolidJS render() + HashRouter from index.tsx.
+ */
+import './app.css';
+import { mount } from 'svelte';
+import App from './App.svelte';
+
+const target = document.getElementById('app');
+if (!target) throw new Error('Mount target #app not found');
+
+const app = mount(App, { target });
+
+export default app;

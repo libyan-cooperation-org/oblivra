@@ -1,0 +1,11 @@
+id: "builtin-alert-dns-c2"
+name: "DNS C2 Detection"
+description: "Detects DNS queries to known malicious command and control domains."
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 60
+conditions:
+  output_contains: "regex:malicious-c2-domain\\.com"
+mitre_tactics: ["TA0011"]
+mitre_techniques: ["T1071.004"]

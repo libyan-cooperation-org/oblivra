@@ -1,0 +1,15 @@
+id: "impact_service_stop"
+name: "Critical Service Stopped"
+description: "Detects stopping of critical services such as databases, security agents, backup services, or domain controllers."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0040"
+mitre_techniques:
+  - "T1489"
+conditions:
+  EventType: "service_stopped"
+  output_contains: "regex:(sql|mysql|postgres|backup|defender|sentinel|crowdstrike|falcon)"

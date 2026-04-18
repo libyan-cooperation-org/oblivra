@@ -1,0 +1,15 @@
+id: "execution_scheduled_task_creation"
+name: "Scheduled Task Creation"
+description: "Detects creation of new scheduled tasks or cron jobs, often used for persistence or delayed execution of malicious payloads."
+severity: "medium"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0002"
+  - "TA0003"
+mitre_techniques:
+  - "T1053"
+conditions:
+  EventType: "scheduled_task_created"

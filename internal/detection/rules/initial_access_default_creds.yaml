@@ -1,0 +1,15 @@
+id: "initial_access_default_creds"
+name: "Default Credential Login Success"
+description: "Detects successful authentication using known default or service account credentials on infrastructure devices."
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0001"
+mitre_techniques:
+  - "T1078"
+conditions:
+  EventType: "successful_login"
+  User: "regex:^(admin|root|guest|default|sa|postgres|oracle)$"

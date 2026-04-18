@@ -1,0 +1,79 @@
+id: hipaa-security
+name: HIPAA Security Rule
+version: "2013"
+description: Health Insurance Portability and Accountability Act — Security Standards
+category: healthcare
+
+controls:
+  - id: "164.312.a.1"
+    title: "Access Control"
+    description: "Implement technical policies and procedures for access to ePHI"
+    checks:
+      - type: rbac_enabled
+        description: "Role-based access controls restrict ePHI access"
+      - type: mfa_enabled
+        description: "Multi-factor authentication for ePHI access"
+
+  - id: "164.312.a.2.i"
+    title: "Unique User Identification"
+    checks:
+      - type: audit_log_exists
+        description: "User identification events are tracked"
+        params:
+          event_types: ["login_success", "login_failed"]
+
+  - id: "164.312.a.2.iii"
+    title: "Automatic Logoff"
+    checks:
+      - type: audit_log_exists
+        description: "Session timeout events are logged"
+        params:
+          event_types: ["session_timeout", "session_end"]
+
+  - id: "164.312.b"
+    title: "Audit Controls"
+    description: "Record and examine activity in information systems that contain ePHI"
+    checks:
+      - type: audit_log_exists
+        description: "Comprehensive audit logging is active"
+        params:
+          event_types: ["*"]
+      - type: min_log_retention_days
+        description: "Audit logs retained for minimum 6 years"
+        params:
+          days: 2190
+      - type: merkle_integrity_valid
+        description: "Audit log integrity is tamper-evident"
+
+  - id: "164.312.c.1"
+    title: "Integrity"
+    description: "Protect ePHI from improper alteration or destruction"
+    checks:
+      - type: fim_enabled
+        description: "File integrity monitoring protects critical data"
+      - type: encryption_enabled
+        description: "ePHI is encrypted at rest"
+
+  - id: "164.312.d"
+    title: "Person or Entity Authentication"
+    checks:
+      - type: failed_login_threshold
+        description: "Authentication failure alerting is configured"
+        params:
+          max_failures: 3
+          window_minutes: 10
+
+  - id: "164.312.e.1"
+    title: "Transmission Security"
+    description: "Guard against unauthorized access to ePHI during transmission"
+    checks:
+      - type: tls_enabled
+        description: "All transmissions use TLS encryption"
+
+  - id: "164.308.a.6"
+    title: "Security Incident Procedures"
+    checks:
+      - type: alerting_enabled
+        description: "Security incident detection and response are active"
+      - type: evidence_locker_available
+        description: "Forensic evidence preservation capability exists"

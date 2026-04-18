@@ -1,0 +1,35 @@
+# Build artifacts
+build/
+dist/
+
+# Frontend (built inside Docker or not needed for headless)
+frontend/node_modules/
+frontend/dist/
+frontend/.bun/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.github/
+
+# Environment
+.env
+.env.*
+
+# Docs & meta
+docs/
+*.md
+LICENSE
+.gitignore
+.dockerignore
+
+# Test artifacts
+*.test
+*.out
+coverage.out
+coverage.html

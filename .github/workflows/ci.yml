@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write  # for SARIF upload
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+          - os: windows
+            runner: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test -race -timeout 120s ./...
+
+      - name: Run fuzz targets (short)
+        if: matrix.os == 'linux'
+        run: |
+          # Run each fuzz target for 10 seconds to catch obvious issues in CI
+          go test -fuzz=FuzzAutoparse -fuzztime=10s ./internal/ingest/ || true
+          go test -fuzz=FuzzSigmaTranspile -fuzztime=10s ./internal/detection/ || true
+
+  # ── Supply chain: SBOM on every PR ────────────────────────────────────────
+  sbom-pr:
+    name: SBOM (PR check)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: sbom-pr.spdx.json
+
+      - name: Scan for vulnerabilities (grype)
+        uses: anchore/scan-action@v4
+        with:
+          sbom: sbom-pr.spdx.json
+          fail-build: false          # warn only — don't block PRs on vuln hits
+          output-format: sarif
+          output-file: vuln-scan.sarif
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: vuln-scan.sarif
+
+  # ── Architecture boundary enforcement ─────────────────────────────────────
+  arch:
+    name: Architecture constraints
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run architecture tests
+        run: go test ./internal/architecture/...

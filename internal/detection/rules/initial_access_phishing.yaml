@@ -1,0 +1,14 @@
+id: "initial_access_phishing_attachment"
+name: "Phishing Attachment Execution"
+description: "Detects execution of a file delivered via email attachment, commonly used in spearphishing campaigns."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 120
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0001"
+mitre_techniques:
+  - "T1566"
+conditions:
+  EventType: "email_attachment_executed"

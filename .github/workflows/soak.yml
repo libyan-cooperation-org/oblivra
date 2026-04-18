@@ -1,0 +1,267 @@
+name: Soak Regression
+
+# ── Trigger ───────────────────────────────────────────────────────────────────
+# Runs automatically on every release tag (e.g. v1.2.0).
+# Can also be triggered manually via workflow_dispatch for pre-release testing.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"   # v1.0.0, v1.2.3-rc1, etc.
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: "Soak duration in seconds (default 1800 = 30 min)"
+        required: false
+        default: "1800"
+      target_eps:
+        description: "Target events-per-second (default 5000)"
+        required: false
+        default: "5000"
+      eps_drop_threshold:
+        description: "Fail if EPS drops by more than this % (default 10)"
+        required: false
+        default: "10"
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+# Never run two soak jobs for the same ref simultaneously — the ports would collide.
+concurrency:
+  group: soak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  soak:
+    name: 30-min 5,000 EPS Soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 60   # hard ceiling — prevents runaway billing
+
+    env:
+      SOAK_DURATION:      ${{ github.event.inputs.duration      || '1800' }}
+      TARGET_EPS:         ${{ github.event.inputs.target_eps    || '5000' }}
+      EPS_DROP_THRESHOLD: ${{ github.event.inputs.eps_drop_threshold || '10' }}
+      DATA_DIR:           /tmp/oblivra-soak-data
+
+    steps:
+      # ── Checkout & toolchain ────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      # ── Build the server binary ─────────────────────────────────────────────
+      - name: Build server
+        run: |
+          mkdir -p bin
+          go build -o bin/sovereign-server ./cmd/server
+          echo "Server binary: $(ls -lh bin/sovereign-server)"
+
+      # ── Build the soak generator ────────────────────────────────────────────
+      - name: Build soak_test generator
+        run: |
+          go build -o bin/soak_test ./cmd/soak_test
+          echo "Soak generator: $(ls -lh bin/soak_test)"
+
+      # ── Start the server in background ─────────────────────────────────────
+      - name: Start OBLIVRA server
+        run: |
+          mkdir -p "$DATA_DIR"
+          nohup ./bin/sovereign-server \
+            --data-dir "$DATA_DIR" \
+            --http-addr 127.0.0.1:8090 \
+            --no-tls \
+            --log-level warn \
+            > /tmp/server.log 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for server readiness
+        run: |
+          echo "Waiting for /readyz …"
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8090/readyz > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to become ready"
+          cat /tmp/server.log
+          exit 1
+
+      # ── Baseline EPS measurement (5-second warm-up) ─────────────────────────
+      - name: Baseline EPS
+        id: baseline
+        run: |
+          echo "Running 5-second baseline at ${TARGET_EPS} EPS …"
+          BASELINE_OUTPUT=$(./bin/soak_test \
+            --target http://127.0.0.1:8090/api/v1/ingest \
+            --eps "$TARGET_EPS" \
+            --duration 5 \
+            --report-json /tmp/baseline.json)
+          echo "$BASELINE_OUTPUT"
+
+          BASELINE_EPS=$(python3 -c "import json,sys; d=json.load(open('/tmp/baseline.json')); print(d['actual_eps'])")
+          echo "BASELINE_EPS=${BASELINE_EPS}" >> "$GITHUB_ENV"
+          echo "baseline_eps=${BASELINE_EPS}" >> "$GITHUB_OUTPUT"
+          echo "Baseline EPS: ${BASELINE_EPS}"
+
+      # ── Full soak run ────────────────────────────────────────────────────────
+      - name: Run ${{ env.SOAK_DURATION }}s soak at ${{ env.TARGET_EPS }} EPS
+        run: |
+          echo "Starting soak: duration=${SOAK_DURATION}s target=${TARGET_EPS} EPS …"
+          ./bin/soak_test \
+            --target http://127.0.0.1:8090/api/v1/ingest \
+            --eps "$TARGET_EPS" \
+            --duration "$SOAK_DURATION" \
+            --report-json /tmp/soak_report.json \
+            --sample-interval 30
+          echo "Soak generator exited."
+
+      # ── Evaluate results ────────────────────────────────────────────────────
+      - name: Evaluate soak results
+        id: evaluate
+        run: |
+          python3 - <<'EOF'
+          import json, sys, os
+
+          with open('/tmp/soak_report.json') as f:
+              report = json.load(f)
+
+          baseline_eps = float(os.environ.get('BASELINE_EPS', '0'))
+          drop_threshold = float(os.environ.get('EPS_DROP_THRESHOLD', '10')) / 100.0
+
+          print(f"\n{'='*60}")
+          print(f"  SOAK REGRESSION REPORT")
+          print(f"{'='*60}")
+          print(f"  Duration        : {report.get('duration_s', '?')}s")
+          print(f"  Target EPS      : {report.get('target_eps', '?')}")
+          print(f"  Sustained EPS   : {report.get('actual_eps', '?'):.1f}")
+          print(f"  Baseline EPS    : {baseline_eps:.1f}")
+          print(f"  Total events    : {report.get('total_events', '?')}")
+          print(f"  Dropped events  : {report.get('dropped_events', '?')}")
+          print(f"  Min EPS (window): {report.get('min_eps_window', '?'):.1f}")
+          print(f"  Max EPS (window): {report.get('max_eps_window', '?'):.1f}")
+          print(f"  Drop threshold  : {drop_threshold*100:.0f}%")
+          print(f"{'='*60}")
+
+          failures = []
+
+          # Check 1: sustained EPS must not drop >threshold% below baseline
+          if baseline_eps > 0:
+              actual = float(report.get('actual_eps', 0))
+              drop_pct = (baseline_eps - actual) / baseline_eps
+              if drop_pct > drop_threshold:
+                  failures.append(
+                      f"EPS dropped {drop_pct*100:.1f}% below baseline "
+                      f"({actual:.1f} vs {baseline_eps:.1f} baseline, threshold {drop_threshold*100:.0f}%)"
+                  )
+              else:
+                  print(f"  ✓ EPS stable: {drop_pct*100:.1f}% drop (≤{drop_threshold*100:.0f}% allowed)")
+
+          # Check 2: no more than 0.1% event loss
+          total = int(report.get('total_events', 0))
+          dropped = int(report.get('dropped_events', 0))
+          if total > 0:
+              loss_pct = dropped / total
+              if loss_pct > 0.001:
+                  failures.append(
+                      f"Event loss too high: {loss_pct*100:.3f}% ({dropped}/{total}) — threshold 0.1%"
+                  )
+              else:
+                  print(f"  ✓ Event loss: {loss_pct*100:.4f}% (≤0.1% allowed)")
+
+          # Check 3: min window EPS must be >50% of target
+          min_eps = float(report.get('min_eps_window', 0))
+          target = float(report.get('target_eps', 5000))
+          if min_eps < target * 0.5:
+              failures.append(
+                  f"Minimum window EPS too low: {min_eps:.1f} < 50% of target {target:.0f}"
+              )
+          else:
+              print(f"  ✓ Min window EPS {min_eps:.1f} ≥ 50% of target")
+
+          print(f"{'='*60}")
+
+          if failures:
+              print(f"\n  ✗ SOAK FAILED ({len(failures)} failure(s)):")
+              for f_msg in failures:
+                  print(f"      • {f_msg}")
+              sys.exit(1)
+          else:
+              print(f"\n  ✓ SOAK PASSED — all checks green\n")
+          EOF
+
+      # ── Upload artefacts ────────────────────────────────────────────────────
+      - name: Upload soak report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-report-${{ github.ref_name }}-${{ github.run_id }}
+          path: |
+            /tmp/soak_report.json
+            /tmp/baseline.json
+            /tmp/server.log
+          retention-days: 30
+
+      # ── Memory leak check via pprof ─────────────────────────────────────────
+      - name: Heap profile (post-soak)
+        if: always()
+        run: |
+          echo "Capturing heap profile …"
+          curl -sf "http://127.0.0.1:8090/debug/pprof/heap" -o /tmp/heap_post_soak.prof 2>/dev/null \
+            && echo "Heap profile captured ($(wc -c < /tmp/heap_post_soak.prof) bytes)" \
+            || echo "pprof endpoint not exposed (non-fatal)"
+
+      - name: Upload heap profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heap-profile-${{ github.ref_name }}-${{ github.run_id }}
+          path: /tmp/heap_post_soak.prof
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # ── Shutdown server ─────────────────────────────────────────────────────
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -n "$SERVER_PID" ]; then
+            kill "$SERVER_PID" 2>/dev/null || true
+          fi
+
+      # ── Post result to PR / tag summary ────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import json, os
+
+          try:
+              with open('/tmp/soak_report.json') as f:
+                  r = json.load(f)
+          except Exception:
+              r = {}
+
+          lines = [
+              "## Soak Regression Results",
+              "",
+              f"| Metric | Value |",
+              f"|--------|-------|",
+              f"| Tag | `{os.environ.get('GITHUB_REF_NAME', 'unknown')}` |",
+              f"| Duration | {r.get('duration_s', '?')}s |",
+              f"| Target EPS | {r.get('target_eps', '?')} |",
+              f"| Sustained EPS | {r.get('actual_eps', 0):.1f} |",
+              f"| Total events | {r.get('total_events', '?')} |",
+              f"| Dropped | {r.get('dropped_events', '?')} |",
+              f"| Min window EPS | {r.get('min_eps_window', 0):.1f} |",
+          ]
+
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY', '/tmp/step_summary.md')
+          with open(summary_path, 'w') as f:
+              f.write('\n'.join(lines) + '\n')
+
+          print("Step summary written.")
+          EOF

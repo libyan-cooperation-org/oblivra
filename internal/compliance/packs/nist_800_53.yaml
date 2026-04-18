@@ -1,0 +1,107 @@
+id: nist-800-53
+name: NIST SP 800-53 Rev. 5
+version: "5.0"
+description: Security and Privacy Controls for Information Systems
+category: government
+
+controls:
+  - id: "AC-2"
+    title: "Account Management"
+    description: "Manage system accounts, including establishing, activating, and reviewing"
+    checks:
+      - type: audit_log_exists
+        description: "Account creation/deletion events are logged"
+        params:
+          event_types: ["user_create", "user_delete", "role_change"]
+      - type: access_review_exists
+        description: "Periodic access review process is documented"
+
+  - id: "AC-7"
+    title: "Unsuccessful Logon Attempts"
+    description: "Enforce a limit of consecutive invalid logon attempts"
+    checks:
+      - type: failed_login_threshold
+        description: "Failed login threshold alerting is configured"
+        params:
+          max_failures: 3
+          window_minutes: 15
+
+  - id: "AU-2"
+    title: "Event Logging"
+    description: "Identify events that need to be logged"
+    checks:
+      - type: audit_log_exists
+        description: "Core security events are captured"
+        params:
+          event_types:
+            [
+              "login_success",
+              "login_failed",
+              "privilege_escalation",
+              "ssh_connect",
+              "file_access",
+            ]
+
+  - id: "AU-3"
+    title: "Content of Audit Records"
+    description: "Audit records contain sufficient information"
+    checks:
+      - type: audit_log_exists
+        description: "Audit records include timestamp, source, type, and outcome"
+        params:
+          event_types: ["*"]
+
+  - id: "AU-9"
+    title: "Protection of Audit Information"
+    description: "Protect audit information and tools from unauthorized access"
+    checks:
+      - type: merkle_integrity_valid
+        description: "Audit log integrity is cryptographically verifiable"
+      - type: encryption_enabled
+        description: "Audit data is stored in encrypted database"
+
+  - id: "AU-11"
+    title: "Audit Record Retention"
+    description: "Retain audit records for the organization-defined time period"
+    checks:
+      - type: min_log_retention_days
+        description: "Audit records retained for minimum 365 days"
+        params:
+          days: 365
+
+  - id: "IA-2"
+    title: "Identification and Authentication"
+    description: "Uniquely identify and authenticate organizational users"
+    checks:
+      - type: mfa_enabled
+        description: "Multi-factor authentication is available for privileged accounts"
+
+  - id: "IA-5"
+    title: "Authenticator Management"
+    description: "Manage information system authenticators"
+    checks:
+      - type: encryption_enabled
+        description: "Credentials are stored in encrypted vault"
+
+  - id: "SC-8"
+    title: "Transmission Confidentiality"
+    description: "Protect the confidentiality of transmitted information"
+    checks:
+      - type: tls_enabled
+        description: "TLS is enforced for all network communications"
+
+  - id: "SC-28"
+    title: "Protection of Information at Rest"
+    description: "Protect the confidentiality of information at rest"
+    checks:
+      - type: encryption_enabled
+        description: "Data at rest is encrypted (SQLCipher + AES vault)"
+
+  - id: "SI-4"
+    title: "System Monitoring"
+    description: "Monitor the system to detect attacks and indicators of potential attacks"
+    checks:
+      - type: alerting_enabled
+        description: "Real-time security alerting is operational"
+      - type: fim_enabled
+        description: "File integrity monitoring is active"

@@ -1,0 +1,28 @@
+id: "windows_powershell_encoded"
+name: "PowerShell Encoded Command Execution"
+description: >
+  Detects PowerShell launched with -EncodedCommand or -enc flags, a common
+  technique for obfuscating malicious payloads from command-line logging.
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 900
+mitre_tactics:
+  - "TA0002"
+  - "TA0005"
+mitre_techniques:
+  - "T1059.001"
+  - "T1027"
+conditions:
+  EventType: "windows_process_create"
+  CommandLine|contains|any:
+    - " -EncodedCommand "
+    - " -enc "
+    - " -e "
+    - " -ec "
+  CommandLine|contains: "powershell"
+logsource:
+  product: windows
+  service: sysmon
+  category: process_creation

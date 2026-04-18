@@ -1,0 +1,24 @@
+id: "linux_ssh_key_added"
+name: "SSH Authorized Key Added"
+description: >
+  Detects modification of ~/.ssh/authorized_keys or /root/.ssh/authorized_keys,
+  which grants persistent access without a password. A common persistence technique
+  after initial compromise.
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0003"
+mitre_techniques:
+  - "T1098.004"
+conditions:
+  EventType: "file_write"
+  FilePath|contains|any:
+    - ".ssh/authorized_keys"
+    - ".ssh/authorized_keys2"
+    - "/root/.ssh/authorized_keys"
+logsource:
+  product: linux
+  service: auditd

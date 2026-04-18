@@ -1,0 +1,26 @@
+id: "windows_pass_the_hash"
+name: "Pass-the-Hash / Pass-the-Ticket Indicator"
+description: >
+  Detects indicators of pass-the-hash or pass-the-ticket attacks: unusual NTLM
+  logon type 3 events from workstations, Mimikatz-style sekurlsa, or anomalous
+  Kerberos TGT requests from non-standard processes.
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0008"
+  - "TA0006"
+mitre_techniques:
+  - "T1550.002"
+  - "T1558.003"
+conditions:
+  EventType: "windows_logon"
+  LogonType: "3"
+  AuthenticationPackage: "NTLM"
+  SubjectUserSid|not: "S-1-5-18"
+logsource:
+  product: windows
+  service: security
+  category: logon

@@ -1,0 +1,24 @@
+id: "cloud_azure_impossible_travel"
+name: "Azure/Entra Impossible Travel Login"
+description: >
+  Detects sign-ins from two geographically distant locations within a timeframe
+  that makes physical travel impossible. Indicates credential sharing or compromise.
+  Correlate with Azure AD Sign-in logs.
+severity: "high"
+type: "threshold"
+threshold: 2
+window_sec: 3600
+dedup_window_sec: 7200
+mitre_tactics:
+  - "TA0001"
+mitre_techniques:
+  - "T1078.004"
+conditions:
+  EventType: "azure_signin"
+  ResultType: "0"
+  RiskLevelDuringSignIn|contains|any:
+    - "high"
+    - "medium"
+logsource:
+  product: azure
+  service: signin

@@ -1,0 +1,103 @@
+# Changelog
+
+All notable changes to Oblivra Sovereign Terminal are documented here.
+
+## [1.1.0] - 2026-03-16
+
+### 🔒 Security Hardening (31 findings resolved)
+- Removed hardcoded `S@nad2026!` credential from `ImportGPayStaging()`
+- `Password` field tagged `json:"-"` across all host models — never serialised to frontend
+- `crypto/rand` used exclusively for vault password generation with rejection-sampling via `math/big` (eliminates modulo bias)
+- `NuclearDestruction` uses `crypto/rand` first pass before overwrite
+- `defer ZeroSlice` added to every credential decrypt IIFE — secrets cleared on function return
+- `SubscribeWithID` / `Unsubscribe` added to event bus — all subscriptions now cleanly removable
+- WebSocket `CheckOrigin` allowlist enforced, TLS 1.3 minimum on REST API
+- Plugin sandbox `cancelCtx` stored and called on `Stop()` — no goroutine leak
+- Multi-exec job pruner caps at 100 jobs; fails hard instead of plaintext fallback
+- Wails CSP tightened in `wails.json`
+- Vault unlock clears passphrase field in UI immediately after call
+
+### 🔍 Sigma Detection Engine
+- Full Sigma transpiler: 35+ field modifiers, keyword lists, MITRE tag extraction
+- 15+ logsource → EventType mappings (Sysmon, AWS CloudTrail, Linux audit, Windows Security, etc.)
+- Sigma community rules load from `sigma/` directory at startup
+- `FuzzSigmaTranspile` fuzz test added to CI
+
+### 📡 OpenTelemetry + Observability
+- `InitTracing()` wired into `ObservabilityService` — non-fatal, recovers from any OTel panic
+- `RegisterDetectionMetrics()` pre-registers all Prometheus counters at startup
+- `docker-compose.yml` extended with Prometheus (9090), Grafana Tempo (3200), Grafana (3000)
+- `ops/prometheus.yml`, `ops/tempo.yml` — full scrape and OTLP configs
+- `ops/grafana/provisioning/` — auto-provisions datasources and a pre-built Oblivra dashboard
+
+### 🖥 Terminal
+- LOCAL and SSH sessions now fully isolated — rendered simultaneously, switching is instant
+- LOCAL tabs shown with green badge, SSH tabs with orange badge
+- Active tab has coloured top border matching session type
+- xterm.js re-initialisation on tab switch eliminated (`visibility` instead of `display:none`)
+- `fitAddon.fit()` fires on `active` prop change and after layout settles
+- Auto-opens a local shell on first navigation to `/terminal`
+- Empty state shows "New Local Shell" button + SSH sidebar hint
+
+### 🎨 UI/UX — Splunk Enterprise Design System
+- Complete colour palette overhaul: `#1a1c20` / `#212327` / `#2b2d31` surfaces, `#0099e0` blue, `#f58b00` orange CTA, `#5cc05c` green, `#e04040` red
+- All glassmorphism (`backdrop-filter: blur`) removed from toasts, modals, command palette
+- All `transform: translateY(-2px)` hover lifts removed from cards
+- Left navigation expanded from 64px icon-only to 200px text-based Splunk-style rail
+- Top bar: `#0d0e10` with orange brand block
+- Vault gate: flat enterprise login — orange CTA button, no animations
+- Every CSS file audited — undefined `--tactical-*`, `--bg-*`, `--splunk-*` variables resolved
+- `variables.css` exports every alias including `--glass-bg-subtle`, `--primary-color`, `--error-color`, `--success-color`, `--warning-color`, `--bg-danger-subtle`, `--bg-success-subtle`
+- Files fully rewritten: `siem.css`, `compliance.css`, `vault.css`, `incident.css`, `settings.css`, `purple-team.css`, `ops_center.css`, `executive.css`, `sidebar.css`, `dashboard.css`, `heatmap.css`, `modal.css`, `toast.css`, `command-palette.css`
+- ECharts theme updated to Splunk palette throughout Dashboard
+
+### 🔧 Bug Fixes
+- `synthetic-service` nil pointer panic on startup fixed — `NewSyntheticManager` now correctly passed
+- `vault.Unlock` normalises empty `[]byte{}` hardware key to `nil` — eliminates spurious "incorrect password" on first attempt
+- `VaultService.SetContext()` propagates Wails runtime context after `Startup()` — fixes `EventsEmit: invalid context` warning
+- Import order in `vault_service.go` corrected (`crypto/rand` before `math/big`)
+- OTel `go.mod` entries cleaned — removed non-existent modules (`otel/codes`, `otel/sdk/trace`, `otel/semconv/v1.26.0` as separate modules)
+- `otel.go` rewritten to use only API packages — no SDK required in default build
+
+### 📦 Supply Chain
+- CI: multi-OS test matrix, fuzz runs, architecture boundary tests, SBOM + Grype on every PR
+- Release: cross-platform builds, syft SBOM (SPDX + CycloneDX), cosign keyless signing, SLSA attestation
+- `SHA256SUMS.txt` covers all binaries and SBOMs
+- Changelog extraction wired into release body
+
+### 🗂 Models
+- `monitoring.DiagnosticsSnapshot` exported from `models.ts`
+- `services.AIResponse` and `services.Message` exported from `models.ts`
+- AI Assistant page wired end-to-end (route `/ai-assistant`, live Ollama status badge, Chat / Explain Error / Generate Command modes)
+- MITRE Heatmap page wired end-to-end (route `/mitre-heatmap`, tactic coverage vs. gap visualisation)
+
+---
+
+## [1.0.0] - 2026-03-10
+
+### 🚀 Major Strategic Release
+*First production-grade sovereign release containing all Phase 1-10 architectural requirements.*
+
+### Core Defensive Capabilities
+- **Cryptographic Vault**: AES-256-GCM hardware-bound vault with Argon2id KDF and OS memory zeroization
+- **Embedded SIEM**: Go-native pipeline using BadgerDB and Bleve, capable of 5,000+ EPS with local Lucene search
+- **eBPF Agent Framework**: Cross-platform telemetry agents with Linux eBPF hooks for Zero-Trust process monitoring
+
+### Frontend
+- **SOC Workspace**: Multi-monitor, draggable pop-out window engine for forensic dashboards
+- **SSH Client**: Go-native connection manager — multi-exec broadcasting, SOCKS5 tunnels, SFTP explorer
+- **Sovereign UI**: High-contrast tactical aesthetic for low-light SOC environments
+
+### Enterprise Scale
+- **Raft Clustering**: Multi-node HA consensus engine for database replication
+- **RBAC**: Granular authorization controls with FIDO2 YubiKey identity verification
+- **SIEM Threat Engine**: Offline IOC loading via STIX/TAXII, multi-hop Security Graph Query engine
+
+### Forensics & Hardening
+- **Runtime Attestation**: Binary hashing at `/debug/attestation`, Merkle Tree evidence ledgers, temporal drift monitors
+- **Disaster Response**: Emergency kill-switch and nuclear-wipe functionality
+- **Performance**: `OutputBatcher` IPC bridge flood protection, Zstandard payload compression, DB contention fixes
+
+---
+
+*Full architectural mapping: `docs/FEATURE_MATRIX.md`*

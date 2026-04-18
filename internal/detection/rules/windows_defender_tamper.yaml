@@ -1,0 +1,29 @@
+id: "windows_defender_tamper"
+name: "Windows Defender Tamper or Disable"
+description: >
+  Detects attempts to disable or tamper with Windows Defender via PowerShell,
+  registry modification, or command line. A defense-evasion precursor common in
+  ransomware and APT intrusions.
+severity: "critical"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0005"
+mitre_techniques:
+  - "T1562.001"
+conditions:
+  EventType: "windows_process_create"
+  CommandLine|contains|any:
+    - "Set-MpPreference -DisableRealtimeMonitoring $true"
+    - "Set-MpPreference -DisableRealtimeMonitoring 1"
+    - "Add-MpPreference -ExclusionPath"
+    - "sc stop WinDefend"
+    - "sc delete WinDefend"
+    - "Uninstall-WindowsFeature Windows-Defender"
+    - "net stop \"Windows Defender"
+logsource:
+  product: windows
+  service: sysmon
+  category: process_creation

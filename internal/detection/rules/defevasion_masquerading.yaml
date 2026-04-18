@@ -1,0 +1,14 @@
+id: "defense_evasion_masquerading"
+name: "Process Masquerading"
+description: "Detects processes masquerading as legitimate system binaries by running from unexpected directories."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 1800
+mitre_tactics:
+  - "TA0005"
+mitre_techniques:
+  - "T1036"
+conditions:
+  EventType: "process_masquerade"

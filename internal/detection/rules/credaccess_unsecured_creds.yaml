@@ -1,0 +1,15 @@
+id: "credaccess_unsecured_creds"
+name: "Unsecured Credentials in Files"
+description: "Detects access to files commonly containing credentials such as .env, .pgpass, .my.cnf, or private key files."
+severity: "medium"
+type: "threshold"
+threshold: 1
+window_sec: 60
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0006"
+mitre_techniques:
+  - "T1552"
+conditions:
+  EventType: "file_access"
+  output_contains: "regex:(\\.env|\\.pgpass|\\.my\\.cnf|id_rsa|credentials\\.xml|web\\.config)"

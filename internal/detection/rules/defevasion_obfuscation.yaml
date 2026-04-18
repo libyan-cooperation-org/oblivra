@@ -1,0 +1,15 @@
+id: "defense_evasion_obfuscation"
+name: "Obfuscated Command Execution"
+description: "Detects heavily obfuscated commands using encoding, string concatenation, or compression to evade detection."
+severity: "high"
+type: "threshold"
+threshold: 1
+window_sec: 30
+dedup_window_sec: 600
+mitre_tactics:
+  - "TA0005"
+mitre_techniques:
+  - "T1027"
+conditions:
+  EventType: "process_execution"
+  output_contains: "regex:(base64.*decode|gzip.*-d|frombase64|char\\[|\\$\\{IFS\\})"

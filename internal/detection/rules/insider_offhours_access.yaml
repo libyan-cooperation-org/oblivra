@@ -1,0 +1,27 @@
+id: "insider_offhours_privileged_access"
+name: "Insider Threat: Off-Hours Privileged Access"
+description: >
+  Detects privileged account logins during anomalous hours (outside 06:00–20:00
+  local time on weekdays). Off-hours access by privileged accounts is a common
+  indicator of insider threat or credential theft.
+severity: "medium"
+type: "threshold"
+threshold: 1
+window_sec: 300
+dedup_window_sec: 3600
+mitre_tactics:
+  - "TA0001"
+mitre_techniques:
+  - "T1078"
+  - "T1078.002"
+conditions:
+  EventType: "successful_login"
+  User|contains|any:
+    - "admin"
+    - "root"
+    - "svc-"
+    - "sa-"
+  HourOfDay|gte: "20"
+logsource:
+  product: linux
+  service: auth
