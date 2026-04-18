@@ -447,17 +447,17 @@ func (s *RESTServer) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.identity == nil {
-		// Return empty list rather than error — graceful degradation
 		s.jsonResponse(w, http.StatusOK, []interface{}{})
 		return
 	}
-	// Use identity service via its interface — ListUsers not in IdentityProvider interface
-	// Respond with stub data; full implementation wires IdentityService.ListUsers()
-	s.jsonResponse(w, http.StatusOK, []map[string]interface{}{
-		{"id": "usr-1", "email": "admin@oblivra.io",   "name": "Admin",   "role_id": "admin",   "role_name": "Administrator", "tenant_id": "GLOBAL", "mfa_enabled": true, "created_at": time.Now().AddDate(-1, 0, 0).Format(time.RFC3339)},
-		{"id": "usr-2", "email": "analyst@oblivra.io", "name": "Analyst", "role_id": "analyst", "role_name": "Security Analyst", "tenant_id": "GLOBAL", "mfa_enabled": true, "created_at": time.Now().AddDate(0, -3, 0).Format(time.RFC3339)},
-		{"id": "usr-3", "email": "auditor@oblivra.io", "name": "Auditor", "role_id": "auditor", "role_name": "Compliance Auditor", "tenant_id": "GLOBAL", "mfa_enabled": false, "created_at": time.Now().AddDate(0, -1, 0).Format(time.RFC3339)},
-	})
+
+	users, err := s.identity.ListUsers(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list users: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.jsonResponse(w, http.StatusOK, users)
 }
 
 // GET /api/v1/roles
@@ -466,12 +466,8 @@ func (s *RESTServer) handleRoles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.jsonResponse(w, http.StatusOK, []map[string]interface{}{
-		{"id": "admin",   "name": "Administrator",     "permissions": []string{"*"}},
-		{"id": "analyst", "name": "Security Analyst",  "permissions": []string{"siem:read", "alerts:write", "forensics:read", "playbooks:execute"}},
-		{"id": "auditor", "name": "Compliance Auditor","permissions": []string{"audit:read", "compliance:read", "evidence:read"}},
-		{"id": "viewer",  "name": "Read-Only Viewer",  "permissions": []string{"siem:read", "alerts:read"}},
-	})
+	// Removed stub roles — Phase 25 remediation
+	s.jsonResponse(w, http.StatusOK, []interface{}{})
 }
 
 // ── Agent fleet list (Phase 7) ────────────────────────────────────────────────
