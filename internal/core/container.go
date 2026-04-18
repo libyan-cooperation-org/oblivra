@@ -295,7 +295,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
 	c.SIEM.AgentService = services.NewAgentService(c.SIEM.IngestService.AgentServer(), c.Infra.RBAC, c.Log)
 	c.SIEM.FusionEngine = detection.NewAttackFusionEngine(c.Infra.Bus, c.Log)
-	c.SIEM.FusionService = services.NewFusionService(c.SIEM.FusionEngine, c.Infra.Bus, c.Log)
+	c.SIEM.FusionService = services.NewFusionService(c.SIEM.FusionEngine, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
 	c.SIEM.AnalyticsService = services.NewAnalyticsService(c.Infra.AnalyticsEngine, c.Infra.MatchEngine, c.Infra.HotStore)
 
 	return nil

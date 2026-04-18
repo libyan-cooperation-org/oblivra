@@ -21,6 +21,7 @@
   import { Shield, Target, Activity, Layers, Cpu, Radio, ChevronRight, User, Monitor } from 'lucide-svelte';
   import { campaignStore } from '@lib/stores/campaigns.svelte';
   import { GetActiveClusters } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/graphservice';
+  import CampaignTimeline from '@lib/components/forensics/CampaignTimeline.svelte';
 
   async function refreshCampaigns() {
     try {
@@ -43,6 +44,16 @@
     ? ($campaignStore.reduce((acc, c) => acc + (c.edge_count > 5 ? 90 : 60), 0) / $campaignStore.length).toFixed(1)
     : "0.0"
   );
+
+  let selectedCampaignID = $state(null);
+
+  function openRecon(id: string) {
+    selectedCampaignID = id;
+  }
+
+  function closeRecon() {
+    selectedCampaignID = null;
+  }
 </script>
 
 <PageLayout title="Fusion Intelligence" subtitle="Unified platform correlation: Mapping tactical telemetry to strategic mission objectives">
@@ -119,7 +130,10 @@
                               <span class="text-[9px] font-mono text-text-heading">{new Date(campaign.last_seen).toLocaleTimeString()}</span>
                            </div>
                         </div>
-                        <button class="p-1.5 bg-surface-3 hover:bg-accent hover:text-white rounded transition-all">
+                        <button 
+                           class="p-1.5 bg-surface-3 hover:bg-accent hover:text-white rounded transition-all"
+                           onclick={() => openRecon(campaign.cluster_id)}
+                        >
                            <ChevronRight size={14} />
                         </button>
                      </div>
@@ -157,4 +171,8 @@
       </div>
     </div>
   </div>
+
+  {#if selectedCampaignID}
+     <CampaignTimeline clusterID={selectedCampaignID} onClose={closeRecon} />
+  {/if}
 </PageLayout>
