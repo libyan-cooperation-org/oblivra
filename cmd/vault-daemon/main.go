@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -36,9 +35,7 @@ func main() {
 
 	// 5. Sovereign-Grade: Memory Hardening
 	// Prevent the vault daemon's memory from being swapped to disk.
-	if err := syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: mlockall failed: %v — memory isolation weakened\n", err)
-	}
+	runMemoryHardening()
 
 	appLog := logger.NewStdoutLogger()
 	v, err := vault.New(vault.Config{StorePath: "./.vault"}, appLog)

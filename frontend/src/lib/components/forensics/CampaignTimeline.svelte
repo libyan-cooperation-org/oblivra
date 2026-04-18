@@ -83,13 +83,13 @@
         <div class="absolute left-[2.25rem] top-12 bottom-12 w-px bg-border-primary opacity-50"></div>
 
         <div class="space-y-12 relative z-10">
-          {#each timeline.events as event, i}
+          {#each timeline.events as event}
+            {@const Icon = getEventIcon(event.type)}
             <div class="flex gap-6 group">
               <!-- Left side: Time & Icon -->
               <div class="flex flex-col items-center pt-1">
                 <div class="text-[10px] font-mono text-text-muted font-bold mb-2 w-16 text-right">{formatTime(event.timestamp)}</div>
                 <div class="w-8 h-8 rounded-full flex items-center justify-center border transition-all duration-300 {getEventColor(event.type, event.severity)} group-hover:scale-110">
-                  {@const Icon = getEventIcon(event.type)}
                   <Icon size={14} />
                 </div>
               </div>

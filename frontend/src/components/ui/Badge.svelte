@@ -9,10 +9,11 @@
     variant?: 'info' | 'success' | 'warning' | 'critical' | 'muted' | 'accent';
     size?: 'xs' | 'sm';
     dot?: boolean;
+    class?: string;
     children: Snippet;
   }
 
-  let { variant = 'muted', size = 'xs', dot = false, children }: Props = $props();
+  let { variant = 'muted', size = 'xs', dot = false, class: className = '', children }: Props = $props();
 
   const variantClasses: Record<string, string> = {
     info:     'bg-accent/10 text-accent border-accent/20',
@@ -34,7 +35,7 @@
   };
 </script>
 
-<span role="status" class="inline-flex items-center gap-1 font-[var(--font-mono)] font-bold uppercase tracking-wider border rounded-xs whitespace-nowrap {variantClasses[variant]} {sizeClasses[size]}">
+<span role="status" class="inline-flex items-center gap-1 font-[var(--font-mono)] font-bold uppercase tracking-wider border rounded-xs whitespace-nowrap {variantClasses[variant]} {sizeClasses[size]} {className}">
   {#if dot}
     <span class="w-1.5 h-1.5 rounded-full shrink-0 {dotColors[variant]}"></span>
   {/if}

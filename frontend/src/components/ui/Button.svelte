@@ -7,9 +7,9 @@
 
   interface Props extends HTMLButtonAttributes {
     variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'cta';
-    size?: 'sm' | 'md' | 'lg';
+    size?: 'xs' | 'sm' | 'md' | 'lg';
     loading?: boolean;
-    icon?: string;
+    icon?: any;
   }
 
   let {
@@ -32,6 +32,7 @@
   };
 
   const sizeClasses: Record<string, string> = {
+    xs: 'h-5 px-1.5 text-[9px] gap-1 rounded-xs',
     sm: 'h-6 px-2 text-[10px] gap-1 rounded-xs',
     md: 'h-7 px-3 text-[11px] gap-1.5 rounded-sm',
     lg: 'h-8 px-4 text-xs gap-2 rounded-sm',
@@ -48,7 +49,14 @@
   {#if loading}
     <span class="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin shrink-0"></span>
   {:else if icon}
-    <span class="text-[1.1em] shrink-0">{icon}</span>
+    <span class="text-[1.1em] shrink-0 flex items-center justify-center">
+      {#if typeof icon === 'string'}
+        {icon}
+      {:else}
+        {@const Icon = icon}
+        <Icon size={size === 'xs' ? 10 : 12} />
+      {/if}
+    </span>
   {/if}
   {@render children?.()}
 </button>
