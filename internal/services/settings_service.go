@@ -36,10 +36,17 @@ func (s *SettingsService) Stop(ctx context.Context) error {
 	return nil
 }
 
+<<<<<<< HEAD
 func NewSettingsService(db database.DatabaseStore, v vault.Provider, bus *eventbus.Bus, log *logger.Logger, destroyer *gdpr.DataDestructionService) *SettingsService {
 	return &SettingsService{
 		db:        db,
 		vault:     v,
+=======
+func NewSettingsService(db database.DatabaseStore, vault vault.Provider, bus *eventbus.Bus, log *logger.Logger, destroyer *gdpr.DataDestructionService) *SettingsService {
+	return &SettingsService{
+		db:        db,
+		vault:     vault,
+>>>>>>> 36a1717a368f81fd5552af7af7879431d10d444b
 		bus:       bus,
 		log:       log.WithPrefix("settings"),
 		destroyer: destroyer,
@@ -69,8 +76,21 @@ func (s *SettingsService) Get(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+<<<<<<< HEAD
 	// SEC-24: Decrypt sensitive values that were encrypted via vault
 	if isSensitiveKey(key) && s.vault != nil && s.vault.IsUnlocked() {
+=======
+	sensitiveKeys := map[string]bool{
+		"smtp_password":   true,
+		"api_key":         true,
+		"secret_key":      true,
+		"vault_key":       true,
+		"token":           true,
+		"slack_webhook":   true,
+		"discord_webhook": true,
+	}
+	if sensitiveKeys[key] && s.vault != nil && s.vault.IsUnlocked() {
+>>>>>>> 36a1717a368f81fd5552af7af7879431d10d444b
 		if strings.HasPrefix(val, "v1:") {
 			if decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(val, "v1:")); err == nil {
 				if plaintext, err := s.vault.Decrypt(decoded); err == nil {
@@ -90,7 +110,10 @@ func (s *SettingsService) Set(key string, value string) error {
 	displayValue := value
 	if isSensitiveKey(key) {
 		displayValue = "[REDACTED]"
+<<<<<<< HEAD
 		// SEC-24: Encrypt sensitive values before persisting to SQLite
+=======
+>>>>>>> 36a1717a368f81fd5552af7af7879431d10d444b
 		if s.vault != nil && s.vault.IsUnlocked() {
 			if ciphertext, err := s.vault.Encrypt([]byte(value)); err == nil {
 				value = "v1:" + base64.StdEncoding.EncodeToString(ciphertext)
@@ -130,10 +153,26 @@ func (s *SettingsService) ClearDatabase() error {
 		"recordings", "notes", "sessions", "audit_logs", "siem_events",
 	}
 
+	allowedTables := map[string]bool{
+		"hosts":       true,
+		"snippets":    true,
+		"settings":    true,
+		"metrics":     true,
+		"recordings":  true,
+		"notes":       true,
+		"sessions":    true,
+		"audit_logs":  true,
+		"siem_events": true,
+	}
+
 	for _, table := range tables {
 		if !allowedTables[table] {
 			continue
 		}
+<<<<<<< HEAD
+=======
+		
+>>>>>>> 36a1717a368f81fd5552af7af7879431d10d444b
 		s.log.Debug("Wiping table: %s", table)
 		// Use CryptoWipe for secure erasure
 		if err := s.destroyer.CryptoWipe(table, "1=1"); err != nil {
