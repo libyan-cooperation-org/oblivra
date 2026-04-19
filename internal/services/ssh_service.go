@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -309,18 +310,26 @@ func (s *SSHService) prepareSSHConfig(ctx context.Context, host *database.Host) 
 
 	// Resolve Jump Hosts
 	if host.JumpHostID != "" {
-		s.resolveJumpHosts(ctx, &cfg, host.JumpHostID, 0)
+		visited := map[string]bool{host.ID: true}
+		s.resolveJumpHosts(ctx, &cfg, host.JumpHostID, 0, visited)
 	}
 
 	return &cfg
 }
 
 // resolveJumpHosts recursively populates the JumpHosts slice in the config.
-func (s *SSHService) resolveJumpHosts(ctx context.Context, cfg *ssh.ConnectionConfig, jumpHostID string, depth int) {
+func (s *SSHService) resolveJumpHosts(ctx context.Context, cfg *ssh.ConnectionConfig, jumpHostID string, depth int, visited map[string]bool) {
 	if depth >= 3 {
 		s.log.Warn("Maximum jump host depth reached for host: %s", cfg.Host)
 		return
 	}
+
+	// SEC-32: Cycle detection
+	if visited[jumpHostID] {
+		s.log.Warn("Jump host cycle detected at host ID: %s — aborting chain", jumpHostID)
+		return
+	}
+	visited[jumpHostID] = true
 
 	jumpHost, err := s.hosts.GetByID(ctx, jumpHostID)
 	if err != nil {
@@ -367,7 +376,7 @@ func (s *SSHService) resolveJumpHosts(ctx context.Context, cfg *ssh.ConnectionCo
 	cfg.JumpHosts = append([]ssh.JumpHostConfig{jumpCfg}, cfg.JumpHosts...)
 
 	if jumpHost.JumpHostID != "" {
-		s.resolveJumpHosts(ctx, cfg, jumpHost.JumpHostID, depth+1)
+		s.resolveJumpHosts(ctx, cfg, jumpHost.JumpHostID, depth+1, visited)
 	}
 }
 
@@ -588,10 +597,11 @@ func (s *SSHService) DeployKey(hostID string, password string) error {
 
 	sftpClient, err := client.SftpClient()
 	if err != nil {
-		// Fallback: use a hardened command without any user-controlled data in shell context
-		pubKeyB64 := base64.StdEncoding.EncodeToString(pubKey)
-		cmd := fmt.Sprintf("echo '%s' | base64 -d >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys", pubKeyB64)
-		_, err = client.ExecuteCommand(cmd)
+		// SEC-22: Fallback uses stdin pipe to avoid shell interpolation and process listing exposure
+		// Write the raw public key bytes directly via a heredoc-style stdin approach
+		pubKeyStr := strings.TrimSpace(string(pubKey))
+		cmd := "cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+		_, err = client.ExecuteCommandWithStdin(cmd, pubKeyStr+"\n")
 		if err != nil {
 			return fmt.Errorf("deploy key command: %w", err)
 		}

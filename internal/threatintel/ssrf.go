@@ -1,10 +1,13 @@
 package threatintel
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // ssrfAllowedSchemes are the only URL schemes permitted for outbound threat intel requests.
@@ -120,4 +123,42 @@ func checkIP(ip net.IP) error {
 		}
 	}
 	return nil
+}
+
+// NewSSRFSafeTransport returns an *http.Transport that re-validates resolved IPs
+// at dial time, closing the DNS rebinding TOCTOU window identified in SEC-23.
+// Callers fetching threat intel feeds should use this transport.
+func NewSSRFSafeTransport() *http.Transport {
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("ssrf: invalid address %q: %w", addr, err)
+			}
+
+			// Resolve and validate at connection time
+			ips, err := net.DefaultResolver.LookupHost(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("ssrf: cannot resolve %q at dial time: %w", host, err)
+			}
+
+			for _, rawIP := range ips {
+				ip := net.ParseIP(rawIP)
+				if ip == nil {
+					continue
+				}
+				if err := checkIP(ip); err != nil {
+					return nil, fmt.Errorf("ssrf: dial-time rebind check failed: %w", err)
+				}
+			}
+
+			// All IPs validated, dial the first one
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0], port))
+		},
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
 }

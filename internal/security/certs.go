@@ -108,7 +108,7 @@ func GenerateCert(caPair *CertificatePair, commonName string, usages []x509.ExtK
 
 // SavePair writes certs to disk
 func SavePair(pair *CertificatePair, certPath, keyPath string) error {
-	if err := os.WriteFile(certPath, pair.CertPEM, 0644); err != nil {
+	if err := os.WriteFile(certPath, pair.CertPEM, 0640); err != nil {
 		return err
 	}
 	return os.WriteFile(keyPath, pair.KeyPEM, 0600)
@@ -139,12 +139,12 @@ func EnsureLocalCerts(certPath, keyPath string) error {
 		return fmt.Errorf("failed to sign local certificate: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(certPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(certPath), 0700); err != nil {
 		return err
 	}
 
 	// Save CA root for clients to trust
-	if err := os.WriteFile(caPath, ca.CertPEM, 0644); err != nil {
+	if err := os.WriteFile(caPath, ca.CertPEM, 0640); err != nil {
 		return fmt.Errorf("failed to save Root CA: %w", err)
 	}
 

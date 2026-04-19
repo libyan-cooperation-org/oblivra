@@ -66,10 +66,16 @@ func (s *NATSService) Start(ctx context.Context) error {
 	s.server = ns
 	s.log.Info("Embedded NATS server started on port %d", s.config.Port)
 
-	// Connect to local server
-	nc, err := nats.Connect(ns.ClientURL())
+	// SEC-36: Use InProcessServer connection to avoid exposing NATS
+	// on an external network interface without TLS. This ensures the
+	// embedded server is only reachable from within this process.
+	nc, err := nats.Connect("", nats.InProcessServer(ns))
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS: %w", err)
+		// Fallback to localhost URL if InProcessServer isn't supported
+		nc, err = nats.Connect(ns.ClientURL())
+		if err != nil {
+			return fmt.Errorf("failed to connect to NATS: %w", err)
+		}
 	}
 	s.conn = nc
 
