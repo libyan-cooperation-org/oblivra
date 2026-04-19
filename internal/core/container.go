@@ -298,12 +298,12 @@ func (c *Container) initSIEM(_ context.Context) error {
 
 	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.TimelineService = services.NewTimelineService(siemRepo, c.Log)
-	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline, c.SIEM.TimelineService, c.Infra.Federator, c.Infra.HotStore)
-	c.SIEM.AlertingService.SetSuppressionService(c.Security.SuppressionService)
-	
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)
 	c.SIEM.AlertingService = services.NewAlertingService(nil, c.Infra.Notifier, c.Infra.AnalyticsEngine, siemRepo, nil, evaluator, c.Infra.Bus, c.Log)
+	c.SIEM.AlertingService.SetSuppressionService(c.Security.SuppressionService)
+
+	c.SIEM.SIEMService = services.NewSIEMService(siemRepo, security.NewSIEMForwarder(security.SIEMConfig{}, c.Log), nil, nil, nil, c.Infra.RBAC, c.Infra.Bus, c.Log, pipeline, c.SIEM.TimelineService, c.Infra.Federator, c.Infra.HotStore)
 
 	// Inject the rule engine and identity resolver into the pipeline shards for parallel detection/enrichment
 	pipeline.SetEvaluator(evaluator)
