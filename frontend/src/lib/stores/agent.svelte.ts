@@ -8,9 +8,13 @@ export interface AgentDTO {
   last_seen: string;
   remote_address: string;
   status: string;
+  os?: string;
+  arch?: string;
+  tenant_id?: string;
   collectors: string[];
   trust_level: string;
   watchdog_active: boolean;
+  severity?: string;
 }
 
 export interface ProcessSnapshot {

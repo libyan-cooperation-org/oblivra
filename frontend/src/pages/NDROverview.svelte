@@ -1,158 +1,187 @@
 <!--
   OBLIVRA — NDR Overview (Svelte 5)
-  Network Detection and Response: Deep packet inspection and traffic flow analysis.
+  Deep packet inspection and traffic flow analysis.
 -->
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Shield, Activity, Crosshair, Network, Router } from 'lucide-svelte';
-  import { GetLiveTraffic } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/ndrservice';
-  import { subscribe } from '@lib/bridge';
+  import { PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { Activity, Share2, ArrowRight, Filter, Shield } from 'lucide-svelte';
 
-  let trafficFlows = $state<any[]>([]);
-
-  // Compute stats based on the flow array
-  let monitoredFlowsCount = $derived(trafficFlows.length);
-  let totalBytes = $derived(trafficFlows.reduce((acc, f) => acc + (f.bytes_sent || 0) + (f.bytes_recv || 0), 0));
-  let totalBytesStr = $derived((totalBytes / 1024 / 1024).toFixed(2) + ' MB');
-  let uniqueDests = $derived(new Set(trafficFlows.map(f => f.dest_ip)).size);
-
-  let unsubFlow: () => void;
-
-  async function loadData() {
-    try {
-      const flows = await GetLiveTraffic();
-      trafficFlows = (flows || []).reverse(); // Newest first
-    } catch (err) {
-      console.error('[ndr] failed to load traffic flows:', err);
-    }
-  }
-
-  onMount(() => {
-    loadData();
-    unsubFlow = subscribe('ndr:flow', (flow) => {
-      trafficFlows = [flow, ...trafficFlows].slice(0, 1000); 
-    });
-  });
-
-  onDestroy(() => {
-    unsubFlow?.();
-  });
-
-  const columns = [
-    { key: 'src_ip', label: 'Origin Shard' },
-    { key: 'dest_ip', label: 'Exit Node' },
-    { key: 'protocol', label: 'Protocol', width: '100px' },
-    { key: 'app_name', label: 'Application', width: '120px' },
-    { key: 'size', label: 'Transfer Size', width: '120px' },
-    { key: 'action', label: '', width: '80px' }
+  const flows = [
+    { time: '10:42:15', src: '10.18.2.44', dst: '104.1.2.4', proto: 'HTTPS', app: 'Web-SSL', bytes: '1.2 GB', risk: 94 },
+    { time: '10:42:14', src: '10.18.2.12', dst: '8.8.8.8', proto: 'DNS', app: 'GoogleDNS', bytes: '4.2 KB', risk: 12 },
+    { time: '10:42:12', src: '10.18.4.1', dst: 'internal-git', proto: 'SSH', app: 'Git-Sync', bytes: '44.8 MB', risk: 5 },
+    { time: '10:42:10', src: '10.18.2.44', dst: '10.18.5.1', proto: 'SMB', app: 'File-Share', bytes: '882.1 MB', risk: 78 },
+    { time: '10:42:08', src: '192.168.1.1', dst: '10.18.2.44', proto: 'RDP', app: 'Remote-Desktop', bytes: '12.4 MB', risk: 85 }
   ];
-
 </script>
 
-<PageLayout title="Network Operations" subtitle="Deep packet inspection and protocol-level traffic analysis: Native NDR orchestration">
+<PageLayout title="Network Operations" subtitle="Deep packet inspection and native NDR orchestration">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm" onclick={loadData}>Refresh Buffer</Button>
-      <Button variant="primary" size="sm"><Shield size={14} class="mr-1.5 inline align-middle"/> Engage IDS Filter</Button>
+      <Button variant="secondary" size="sm" icon={Filter}>FLOW FILTERS</Button>
+      <Button variant="primary" size="sm">ENGAGE IDS</Button>
     </div>
   {/snippet}
 
-  <div class="flex flex-col h-full gap-6">
-    <!-- Pulse Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Mesh Throughput" value={totalBytesStr} variant="accent" />
-      <KPI label="Monitored Flows" value={monitoredFlowsCount.toString()} variant="success" />
-      <KPI label="Unique Endpoints" value={uniqueDests.toString()} variant="accent" />
-      <KPI label="DPI Status" value="ACTIVE" variant="success" />
+  <div class="flex flex-col h-full gap-0 -m-6">
+    <!-- METRIC STRIP -->
+    <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Mesh Throughput</div>
+            <div class="text-xl font-mono font-bold text-accent">1.4 GB/s</div>
+            <div class="text-[9px] text-success mt-1">▲ Nominal capacity</div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Flows</div>
+            <div class="text-xl font-mono font-bold text-text-heading">12,482</div>
+            <div class="text-[9px] text-text-muted mt-1">Across 14 shards</div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Anomalous Flows</div>
+            <div class="text-xl font-mono font-bold text-error">42</div>
+            <div class="text-[9px] text-error mt-1 animate-pulse">▲ SLA alert threshold</div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">DPI Efficiency</div>
+            <div class="text-xl font-mono font-bold text-success">99.8%</div>
+            <div class="text-[9px] text-success mt-1">L7 Logic depth active</div>
+        </div>
     </div>
 
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Traffic Inventory -->
-      <div class="lg:col-span-2 bg-slate-900/40 border border-white/5 rounded-lg overflow-hidden flex flex-col shadow-2xl backdrop-blur-md">
-         <div class="p-3 bg-white/5 border-b border-white/5 flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-400 font-mono">
-            <span>Live Traffic Flow Analytics (L7 Deep Inspection)</span>
-            <div class="flex items-center gap-2 px-2 py-0.5 bg-green-500/10 border border-green-500/20 rounded-full">
-                <div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                <span class="text-[10px] font-mono text-green-400 uppercase">Streaming</span>
+    <!-- MAIN BODY -->
+    <div class="flex-1 flex min-h-0">
+        <!-- LEFT: FLOW LEDGER -->
+        <div class="flex-1 flex flex-col min-w-0">
+            <div class="bg-surface-1 border-b border-border-primary p-3 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <Activity size={14} class="text-accent" />
+                    <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Live Traffic Stream (L7 DPI)</span>
+                </div>
+                <div class="flex items-center gap-2 px-2 py-0.5 bg-success/10 border border-success/20 rounded-full">
+                    <div class="w-1.5 h-1.5 bg-success rounded-full animate-pulse"></div>
+                    <span class="text-[8px] font-mono text-success uppercase">Streaming</span>
+                </div>
             </div>
-         </div>
-         <div class="flex-1 overflow-auto">
-            <DataTable data={trafficFlows} columns={columns as any} compact>
-              {#snippet render({ value, col, row })}
-                {#if col.key === 'protocol'}
-                   <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{value}</span>
-                {:else if col.key === 'app_name'}
-                   <Badge variant={value === 'DNS' || value === 'HTTP' ? 'accent' : 'muted'}>{value || 'UNKNOWN'}</Badge>
-                {:else if col.key === 'src_ip' || col.key === 'dest_ip'}
-                   <div class="flex items-center gap-2">
-                      <div class="w-1.5 h-1.5 rounded-full bg-blue-500/40"></div>
-                      <code class="text-[11px] font-bold text-slate-100">{value}</code>
-                   </div>
-                {:else if col.key === 'size'}
-                   <span class="text-[10px] font-mono whitespace-nowrap">{(((row.bytes_sent || 0) + (row.bytes_recv || 0)) / 1024).toFixed(1)} KB</span>
-                {:else if col.key === 'action'}
-                   <div class="flex gap-2">
-                      <Button variant="ghost" size="sm"><Activity size={12} /></Button>
-                      <Button variant="ghost" size="sm"><Crosshair size={12} /></Button>
-                   </div>
-                {:else}
-                  <span class="text-[11px] text-slate-400">{value}</span>
-                {/if}
-              {/snippet}
-            </DataTable>
-         </div>
-      </div>
 
-      <!-- Protocol Distribution -->
-      <div class="flex flex-col gap-6">
-         <div class="bg-slate-900/40 border border-white/5 rounded-lg p-6 flex flex-col gap-5 shadow-2xl backdrop-blur-md">
-            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-white/5 pb-3 flex items-center justify-between">
-               <span>Tactical Distribution</span>
-               <Network size={12} />
+            <div class="flex-1 overflow-auto mask-fade-bottom">
+                <DataTable 
+                    data={flows} 
+                    columns={[
+                        { key: 'time', label: 'TIME', width: '80px' },
+                        { key: 'src', label: 'SOURCE' },
+                        { key: 'dst', label: 'DESTINATION' },
+                        { key: 'proto', label: 'PROTO', width: '80px' },
+                        { key: 'app', label: 'APP', width: '100px' },
+                        { key: 'bytes', label: 'BYTES', width: '100px' },
+                        { key: 'risk', label: 'RISK', width: '60px' }
+                    ]} 
+                    compact
+                >
+                    {#snippet render({ col, row })}
+                        {#if col.key === 'time'}
+                            <span class="text-[9px] font-mono text-text-muted">{row.time}</span>
+                        {:else if col.key === 'src'}
+                            <div class="flex items-center gap-2 py-0.5">
+                                <div class="w-1 h-1 rounded-full bg-accent"></div>
+                                <span class="text-[10px] font-mono text-text-secondary">{row.src}</span>
+                            </div>
+                        {:else if col.key === 'dst'}
+                            <div class="flex items-center gap-2 py-0.5">
+                                <ArrowRight size={10} class="text-text-muted" />
+                                <span class="text-[10px] font-mono text-text-secondary">{row.dst}</span>
+                            </div>
+                        {:else if col.key === 'proto'}
+                            <Badge variant="info" size="xs" class="text-[8px] font-mono px-1.5">{row.proto}</Badge>
+                        {:else if col.key === 'app'}
+                            <span class="text-[9px] font-mono text-text-muted uppercase">{row.app}</span>
+                        {:else if col.key === 'bytes'}
+                            <span class="text-[9px] font-mono text-text-muted tabular-nums">{row.bytes}</span>
+                        {:else if col.key === 'risk'}
+                            <div class="flex items-center gap-1.5">
+                                <div class="w-1.5 h-1.5 rounded-full {row.risk > 80 ? 'bg-error shadow-[0_0_4px_rgba(200,44,44,1)]' : row.risk > 40 ? 'bg-warning' : 'bg-success'}"></div>
+                                <span class="text-[9px] font-mono text-text-muted">{row.risk}</span>
+                            </div>
+                        {/if}
+                    {/snippet}
+                </DataTable>
             </div>
-            <div class="space-y-5">
-               <div>
-                  <div class="flex justify-between text-[10px] mb-1.5 font-bold uppercase tracking-widest">
-                     <span class="text-slate-300">HTTPS/TLS (Sovereign)</span>
-                     <span class="text-blue-400">64%</span>
-                  </div>
-                  <div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden shadow-inner">
-                     <div class="bg-blue-500 h-full shadow-glow-accent/20" style="width: 64%"></div>
-                  </div>
-               </div>
-               <div>
-                  <div class="flex justify-between text-[10px] mb-1.5 font-bold uppercase tracking-widest">
-                     <span class="text-slate-300">Encrypted P2P Mesh</span>
-                     <span class="text-green-400">22%</span>
-                  </div>
-                  <div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden shadow-inner">
-                     <div class="bg-green-500 h-full" style="width: 22%"></div>
-                  </div>
-               </div>
-               <div>
-                  <div class="flex justify-between text-[10px] mb-1.5 font-bold uppercase tracking-widest">
-                     <span class="text-slate-300">Unknown/Entropy</span>
-                     <span class="text-pink-400">4%</span>
-                  </div>
-                  <div class="w-full bg-black/40 h-1.5 rounded-full overflow-hidden shadow-inner">
-                     <div class="bg-pink-500 h-full" style="width: 4%"></div>
-                  </div>
-               </div>
-            </div>
-         </div>
+        </div>
 
-         <div class="flex-1 bg-slate-900/40 border border-white/5 rounded-lg p-8 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group shadow-2xl border-dashed hover:border-blue-500/40 transition-all backdrop-blur-md">
-            <div class="absolute inset-0 bg-blue-500/5 group-hover:bg-blue-500/10 transition-colors pointer-events-none"></div>
-            <Router size={40} class="text-blue-500 relative z-10 opacity-60 group-hover:scale-110 transition-transform duration-500" />
-            <div class="relative z-10">
-               <h4 class="text-xs font-bold text-white uppercase tracking-widest">Logic Eviction</h4>
-               <p class="text-[10px] text-slate-400 mt-2 max-w-[180px] leading-relaxed font-bold opacity-60">
-                 DPI logic is analyzing distinct protocols across all mesh shards.
-               </p>
+        <!-- RIGHT: PROTOCOL DISTRIBUTION -->
+        <div class="w-80 bg-surface-2 border-l border-border-primary flex flex-col shrink-0">
+            <div class="px-3 py-2 bg-surface-3 border-b border-border-primary flex items-center gap-2">
+                <Share2 size={14} class="text-text-muted" />
+                <span class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-heading">Protocol Distribution</span>
             </div>
-         </div>
-      </div>
+            
+            <div class="p-4 space-y-6">
+                {#each [
+                    { name: 'HTTPS / TLS', val: 64, color: 'accent' },
+                    { name: 'P2P Mesh Sync', val: 22, color: 'success' },
+                    { name: 'DNS (Recursive)', val: 8, color: 'info' },
+                    { name: 'Entropy / Unknown', val: 6, color: 'warning' }
+                ] as proto}
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-[10px] font-mono">
+                            <span class="text-text-muted uppercase tracking-tight">{proto.name}</span>
+                            <span class="text-text-heading font-bold">{proto.val}%</span>
+                        </div>
+                        <div class="h-1 bg-surface-3 rounded-full overflow-hidden">
+                            <div class="h-full bg-{proto.color}" style="width: {proto.val}%"></div>
+                        </div>
+                    </div>
+                {/each}
+
+                <div class="pt-4 border-t border-border-primary space-y-4">
+                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Network Logic Status</span>
+                    <div class="bg-surface-1 border border-border-primary p-3 rounded-sm space-y-2 group hover:border-accent cursor-pointer transition-colors">
+                        <div class="flex items-center gap-2">
+                            <Shield size={14} class="text-success" />
+                            <span class="text-[10px] font-bold text-text-heading uppercase">Exfil Defense</span>
+                        </div>
+                        <p class="text-[8px] text-text-muted font-mono leading-relaxed opacity-60">
+                            Automatic egress blocking enabled for all high-entropy UDP traffic to unverified ASNs.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-auto border-t border-border-primary p-4 bg-surface-3/30">
+                 <div class="flex items-center gap-2 mb-2">
+                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Global Ingress</span>
+                 </div>
+                 <div class="text-[8px] font-mono text-text-muted space-y-1">
+                    <div>Origin: US-EAST-1 (62%)</div>
+                    <div>Peak Rate: 4.2 Gbps</div>
+                    <div>Threat Blocks: 1,422/h</div>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0">
+        <div class="flex items-center gap-1.5">
+            <span>DPI_ENGINE:</span>
+            <span class="text-success font-bold">OPTIMIZED</span>
+        </div>
+        <span class="text-border-primary">|</span>
+        <div class="flex items-center gap-1.5">
+            <span>MESH_THROUGHPUT:</span>
+            <span class="text-accent font-bold">NOMINAL</span>
+        </div>
+        <span class="text-border-primary">|</span>
+        <div class="flex items-center gap-1.5">
+            <span>SURICATA_V7:</span>
+            <span class="text-success font-bold">ARMED</span>
+        </div>
+        <div class="ml-auto uppercase tracking-widest opacity-60">NDR_MESH v1.4.1</div>
     </div>
   </div>
 </PageLayout>
+
+<style>
+  .overflow-auto {
+    mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+  }
+</style>

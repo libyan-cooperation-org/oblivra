@@ -56,7 +56,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import EnrichmentViewer from '@pages/EnrichmentViewer.svelte';
   import AgentConsole from '@pages/AgentConsole.svelte';
   import IncidentResponse from '@pages/IncidentResponse.svelte';
-  import VaultManager from '@pages/VaultManager.svelte';
   import RuntimeTrust from '@pages/RuntimeTrust.svelte';
   import ForensicsPage from '@pages/ForensicsPage.svelte';
   import RansomwareUI from '@pages/RansomwareUI.svelte';
@@ -83,6 +82,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import SecretManager from '@pages/SecretManager.svelte';
   import SuppressionManager from '@pages/SuppressionManager.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
+  import SetupWizard from '@pages/SetupWizard.svelte';
+  import EvidenceVault from '@pages/EvidenceVault.svelte';
 
   // ── Types
   interface RouteDefinition {
@@ -90,7 +91,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     component: any;
   }
 
-  let showCommandPalette = $state(false);
   let ready = $state(false);
   let error = $state<string | null>(null);
   let mainEl = $state<HTMLElement | null>(null);
@@ -190,7 +190,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     // Governance, Trust & Identity
     { path: '/compliance',     component: CompliancePage },
     { path: '/governance',     component: CompliancePage },
-    { path: '/vault',          component: VaultManager },
+    { path: '/vault',          component: EvidenceVault },
+    { path: '/evidence-vault', component: EvidenceVault },
+    { path: '/setup',          component: SetupWizard },
+    { path: '/setup-wizard',   component: SetupWizard },
     { path: '/trust',          component: RuntimeTrust },
     { path: '/runtime-trust',  component: RuntimeTrust },
     { path: '/identity-admin', component: IdentityAdmin },
@@ -238,12 +241,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     }
   });
 
-  function togglePalette() { showCommandPalette = !showCommandPalette; }
-
   function onKeyDown(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
-      togglePalette();
+      appStore.toggleCommandPalette();
     }
   }
 </script>
@@ -287,8 +288,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
         </div>
       </div>
 
-      {#if showCommandPalette}
-        <CommandPalette bind:open={showCommandPalette} />
+      {#if appStore.showCommandPalette}
+        <CommandPalette bind:open={appStore.showCommandPalette} />
       {/if}
 
       <ToastContainer />

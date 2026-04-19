@@ -6,7 +6,7 @@
   import type { Snippet } from 'svelte';
 
   interface Column<T> {
-    key: keyof T & string;
+    key: string;
     label: string;
     width?: string;
     align?: 'left' | 'center' | 'right';
@@ -17,7 +17,7 @@
   interface Props {
     columns: Column<T>[];
     data: T[];
-    rowKey?: keyof T & string;
+    rowKey?: string;
     emptyMessage?: string;
     compact?: boolean;
     striped?: boolean;

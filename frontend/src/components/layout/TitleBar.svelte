@@ -7,16 +7,6 @@
   import { IS_BROWSER } from '@lib/context';
   import { appStore } from '@lib/stores/app.svelte';
 
-  let quickVal = $state('');
-  let isMaximized = $state(false);
-
-  function handleQuickConnect() {
-    const val = quickVal.trim();
-    if (!val) return;
-    quickVal = '';
-    appStore.connectToHost(val);
-  }
-
   onMount(() => {
     if (IS_BROWSER) return;
     
@@ -27,8 +17,7 @@
       try {
         const { Window } = await import('@wailsio/runtime');
         const checkMax = async () => {
-          const max = await Window.IsMaximised();
-          isMaximized = max;
+          await Window.IsMaximised();
         };
         checkMax();
         interval = setInterval(checkMax, 1000);
@@ -57,66 +46,57 @@
 </script>
 
 <header
-  class="flex items-center h-[var(--header-height)] bg-[#0d0e10] border-b border-black select-none z-100 gap-0"
+  class="flex items-center h-7 bg-[var(--s1)] border-b border-[var(--b1)] select-none z-100 px-3 gap-4"
   style="-webkit-app-region: drag;"
 >
   <!-- macOS traffic lights (desktop only) -->
   {#if !IS_BROWSER}
-    <div class="flex items-center gap-1.5 px-3.5 shrink-0" style="-webkit-app-region: no-drag;">
-      <button
-        class="w-3 h-3 rounded-full bg-[#ff5f57] border-none cursor-pointer hover:brightness-120 hover:scale-110 transition-all duration-fast"
-        onclick={windowClose}
-        title="Close"
-        aria-label="Close OBLIVRA"
-      ></button>
-      <button
-        class="w-3 h-3 rounded-full bg-[#ffbd2e] border-none cursor-pointer hover:brightness-120 hover:scale-110 transition-all duration-fast"
-        onclick={windowMinimize}
-        title="Minimize"
-        aria-label="Minimize Window"
-      ></button>
-      <button
-        class="w-3 h-3 rounded-full bg-[#28c840] border-none cursor-pointer hover:brightness-120 hover:scale-110 transition-all duration-fast"
-        onclick={windowToggleMax}
-        title={isMaximized ? 'Restore' : 'Maximize'}
-        aria-label={isMaximized ? 'Restore Window' : 'Maximize Window'}
-      ></button>
+    <div class="flex items-center gap-1.5 shrink-0 pr-2" style="-webkit-app-region: no-drag;">
+      <button class="w-3 h-3 rounded-full bg-[#ff5f57] border-none cursor-pointer" onclick={windowClose} title="Close"></button>
+      <button class="w-3 h-3 rounded-full bg-[#ffbd2e] border-none cursor-pointer" onclick={windowMinimize} title="Minimize"></button>
+      <button class="w-3 h-3 rounded-full bg-[#28c840] border-none cursor-pointer" onclick={windowToggleMax} title="Maximize"></button>
     </div>
   {/if}
 
   <!-- Brand -->
-  <div class="flex items-center gap-2 px-4 bg-accent-cta h-full shrink-0">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2L4 6.5v11L12 22l8-4.5v-11L12 2z" stroke="var(--accent-primary)" stroke-width="1.5" fill="none"/>
-      <circle cx="12" cy="12" r="2.5" fill="var(--accent-primary)"/>
-    </svg>
-    <span class="font-[var(--font-ui)] text-[13px] font-extrabold text-white tracking-wide uppercase">
-      Sovereign
-    </span>
-  </div>
-
-  <!-- Quick Connect -->
-  <div class="flex-1 flex justify-center items-center px-3" style="-webkit-app-region: no-drag;">
-    <div class="flex items-center bg-surface-2 border border-border-primary rounded-sm px-2 h-[26px] gap-2 w-[300px] transition-all duration-fast focus-within:border-accent focus-within:shadow-glow">
-      <span class="text-accent text-[9px] font-bold font-mono tracking-widest whitespace-nowrap opacity-80 shrink-0">SSH</span>
-      <div class="w-px h-3.5 bg-border-primary shrink-0"></div>
-      <input
-        class="flex-1 bg-transparent border-none outline-none text-text-primary font-mono text-[11px] placeholder:text-text-muted"
-        type="text"
-        placeholder="user@host or ip:port"
-        bind:value={quickVal}
-        onkeydown={(e) => { if (e.key === 'Enter') handleQuickConnect(); }}
-      />
-      <span class="text-text-muted text-[10px] font-mono opacity-50 shrink-0">↵</span>
+  <div class="flex items-center gap-2 h-full shrink-0">
+    <div style="font-family:var(--mn); font-size:10px; font-weight:600; color:#d0e8f8; letter-spacing:0.1em;">
+      OBL<em style="color:#e05050; font-style:normal;">IV</em>RA
+    </div>
+    <div class="px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded-sm text-[8px] font-mono text-accent font-bold">
+      {IS_BROWSER ? 'WEB' : 'DESKTOP'}
     </div>
   </div>
 
+  <!-- Tenant / Status -->
+  <div class="flex items-center gap-3 ml-4 h-full">
+     <div class="flex items-center gap-1.5 px-2 py-0.5 bg-surface-2 border border-border-primary rounded-sm h-[18px]">
+        <div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+        <span class="text-[9px] font-mono text-text-muted uppercase">Sovereign Cloud</span>
+     </div>
+  </div>
+
+  <!-- Quick Search / Command -->
+  <div class="flex-1 flex justify-center items-center" style="-webkit-app-region: no-drag;">
+    <button 
+      type="button"
+      class="flex items-center bg-surface-2 border border-border-primary rounded-sm px-2 h-[18px] gap-2 w-[240px] hover:border-border-hover cursor-pointer" 
+      onclick={() => appStore.toggleCommandPalette()}
+      style="-webkit-app-region: no-drag;"
+    >
+      <span class="text-text-muted text-[8px] font-mono uppercase tracking-widest opacity-60">Search commands...</span>
+      <span class="ml-auto text-text-muted text-[8px] font-mono opacity-40">⌃K</span>
+    </button>
+  </div>
+
   <!-- Right controls -->
-  <div class="flex items-center gap-2.5 shrink-0 pr-3" style="-webkit-app-region: no-drag;">
-    <span class="font-mono text-[9px] text-text-muted tracking-wider opacity-50">v0.1</span>
-    <div
-      class="w-[26px] h-[26px] bg-accent rounded-sm flex items-center justify-center text-[11px] font-bold font-[var(--font-ui)] text-white cursor-pointer hover:brightness-110 hover:scale-105 transition-all duration-fast shrink-0"
-      title="Profile"
-    >K</div>
+  <div class="flex items-center gap-3 shrink-0" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center gap-2">
+        <span class="text-[9px] font-mono text-text-muted">OPERATOR:</span>
+        <span class="text-[9px] font-mono text-text-heading font-bold uppercase tracking-tight">K. MAVERICK</span>
+    </div>
+    <div class="w-5 h-5 bg-accent/20 border border-accent/40 rounded-sm flex items-center justify-center text-[10px] font-bold font-mono text-accent">
+        KM
+    </div>
   </div>
 </header>

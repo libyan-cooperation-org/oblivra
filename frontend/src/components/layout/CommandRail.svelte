@@ -201,8 +201,8 @@
     width: 64px;
     min-width: 64px;
     height: 100%;
-    background: var(--surface-1);
-    border-right: 1px solid var(--border-primary);
+    background: var(--s1);
+    border-right: 1px solid var(--b1);
     display: flex;
     flex-direction: column;
     z-index: 1000;
@@ -216,7 +216,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-bottom: 1px solid var(--border-primary);
+    border-bottom: 1px solid var(--b1);
     flex-shrink: 0;
   }
 
@@ -224,7 +224,7 @@
     position: relative;
     background: transparent;
     border: none;
-    color: var(--text-muted);
+    color: var(--tx2);
     width: 100%;
     padding: 8px 0 6px 0;
     cursor: pointer;
@@ -236,12 +236,13 @@
     border-radius: 0;
   }
   .cr-nav-btn:hover:not(.locked) {
-    color: var(--text-secondary);
-    background: rgba(0, 245, 212, 0.04);
+    color: var(--tx);
+    background: rgba(24, 120, 200, 0.04);
   }
   .cr-nav-btn.active {
-    color: var(--accent-primary) !important;
-    background: rgba(0, 245, 212, 0.08) !important;
+    color: var(--ac) !important;
+    background: rgba(24, 120, 200, 0.08) !important;
+    box-shadow: inset 2px 0 6px rgba(24, 120, 200, 0.15);
   }
   .cr-nav-btn.active::before {
     content: '';
@@ -249,9 +250,10 @@
     left: 0;
     top: 20%;
     bottom: 20%;
-    width: 3px;
-    background: var(--accent-primary);
-    border-radius: 0 3px 3px 0;
+    width: 2px;
+    background: var(--ac);
+    border-radius: 0 1px 1px 0;
+    box-shadow: 0 0 6px var(--ac);
   }
   .cr-nav-btn.locked {
     opacity: 0.28;
@@ -266,11 +268,10 @@
   }
   .cr-nav-btn.active .cr-nav-icon {
     opacity: 1;
-    filter: drop-shadow(0 0 8px rgba(0, 245, 212, 0.45));
   }
   .cr-nav-label {
-    font-family: var(--font-ui);
-    font-size: 9px;
+    font-family: var(--sn);
+    font-size: 8px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -286,10 +287,10 @@
     margin-top: 2px;
   }
   .cr-divider-label {
-    font-family: var(--font-mono);
+    font-family: var(--mn);
     font-size: 6.5px;
     font-weight: 700;
-    color: var(--text-muted);
+    color: var(--tx3);
     opacity: 0.35;
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -298,23 +299,23 @@
   .cr-flyout {
     position: fixed;
     left: 65px;
-    background: var(--surface-2);
-    border: 1px solid var(--border-secondary);
-    border-radius: var(--radius-md);
+    background: var(--s2);
+    border: 1px solid var(--b2);
+    border-radius: 2px;
     z-index: 2000;
     min-width: 192px;
     padding: 4px;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-premium);
   }
   .cr-flyout-header {
-    font-family: var(--font-mono);
+    font-family: var(--mn);
     font-size: 9px;
     font-weight: 800;
-    color: var(--text-muted);
+    color: var(--tx3);
     padding: 8px 10px 6px 10px;
     letter-spacing: 1px;
     text-transform: uppercase;
-    border-bottom: 1px solid var(--border-primary);
+    border-bottom: 1px solid var(--b1);
     margin-bottom: 4px;
   }
   .cr-flyout-item {
@@ -322,22 +323,22 @@
     width: 100%;
     background: transparent;
     border: none;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
+    border-radius: 1px;
+    color: var(--tx2);
     padding: 7px 10px;
     text-align: left;
-    font-family: var(--font-ui);
-    font-size: 12px;
+    font-family: var(--sn);
+    font-size: 11px;
     cursor: pointer;
     transition: all 100ms ease;
   }
   .cr-flyout-item:hover {
-    background: var(--surface-3);
-    color: var(--text-primary);
+    background: var(--s3);
+    color: var(--tx);
   }
   .cr-flyout-item.active {
-    background: rgba(87, 139, 255, 0.12);
-    color: var(--accent-primary);
+    background: rgba(24, 120, 200, 0.12);
+    color: var(--ac);
     font-weight: 600;
   }
 </style>
@@ -345,11 +346,9 @@
 <nav class="cr-rail">
   <!-- Logo -->
   <div class="cr-logo">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2L4 6.5v11L12 22l8-4.5v-11L12 2z" stroke="var(--accent-primary)" stroke-width="1.5" fill="none"/>
-      <path d="M12 6.5L7 9.25v5.5L12 17.5l5-2.75v-5.5L12 6.5z" fill="var(--accent-primary)" opacity="0.2"/>
-      <circle cx="12" cy="12" r="2" fill="var(--accent-primary)"/>
-    </svg>
+    <div style="font-family:var(--mn); font-size:11px; font-weight:500; color:#d0e8f8; letter-spacing:0.1em;">
+      OBL<em style="color:#e05050; font-style:normal;">IV</em>RA
+    </div>
   </div>
 
   <!-- OBS section -->

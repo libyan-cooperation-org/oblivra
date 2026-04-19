@@ -9,41 +9,57 @@
     sublabel?: string;
     trend?: 'up' | 'down' | 'stable';
     trendValue?: string;
-    variant?: 'default' | 'success' | 'warning' | 'critical' | 'accent';
+    variant?: 'default' | 'success' | 'warning' | 'critical' | 'accent' | 'high' | 'med';
+    progress?: number; // 0-100 for bottom bar
   }
 
-  let { label, value, sublabel, trend, trendValue, variant = 'default' }: Props = $props();
+  let { label, value, sublabel, trend, trendValue, variant = 'default', progress }: Props = $props();
 
   const trendIcon: Record<string, string> = {
-    up: '↑', down: '↓', stable: '→',
+    up: '▲', down: '▼', stable: '●',
   };
   const trendColor: Record<string, string> = {
-    up: 'text-success', down: 'text-error', stable: 'text-text-muted',
+    up: 'text-error', down: 'text-success', stable: 'text-text-muted',
+  };
+  const barColor: Record<string, string> = {
+    default: 'bg-border-primary',
+    success: 'bg-success',
+    warning: 'bg-warning',
+    critical: 'bg-error',
+    high: 'bg-warning', // mapped to warning for consistency
+    med: 'bg-warning/70',
+    accent: 'bg-accent',
   };
   const valueColor: Record<string, string> = {
     default: 'text-text-heading',
     success: 'text-success',
     warning: 'text-warning',
     critical: 'text-error',
+    high: 'text-warning',
+    med: 'text-warning/90',
     accent: 'text-accent',
   };
 </script>
 
-<div role="status" class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-1 transition-all duration-fast hover:border-border-hover group">
-  <div class="text-[10px] font-bold uppercase tracking-wider text-text-muted font-[var(--font-mono)]">
+<div role="status" class="bg-surface-2 border border-border-primary rounded-sm p-3 flex flex-col gap-1 transition-all duration-fast hover:border-border-hover group relative overflow-hidden">
+  <div class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-muted">
     {label}
   </div>
   <div class="flex items-end gap-2">
-    <span class="text-2xl font-bold {valueColor[variant]} font-[var(--font-ui)] leading-none group-hover:scale-[1.02] transition-transform">
+    <span class="text-2xl font-bold {valueColor[variant]} font-mono leading-none tracking-tight">
       {value}
     </span>
     {#if trend && trendValue}
-      <span class="text-[10px] font-semibold {trendColor[trend]} font-mono pb-0.5">
+      <span class="text-[9px] font-mono {trendColor[trend]} pb-0.5">
         {trendIcon[trend]} {trendValue}
       </span>
     {/if}
   </div>
   {#if sublabel}
-    <div class="text-[10px] text-text-muted font-[var(--font-ui)] mt-0.5">{sublabel}</div>
+    <div class="text-[9px] text-text-muted font-sans mt-0.5 opacity-70">{sublabel}</div>
+  {/if}
+  
+  {#if progress !== undefined}
+    <div class="absolute bottom-0 left-0 h-0.5 {barColor[variant]}" style="width: {progress}%"></div>
   {/if}
 </div>

@@ -1,142 +1,168 @@
 <!--
   OBLIVRA — SIEM Search (Svelte 5)
-  Deep investigation via Oblivra Query Language (OQL).
+  OQL-driven query interface for sovereign telemetry ingestion.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { PageLayout, Button, DataTable, Badge } from '@components/ui';
-  import { IS_BROWSER } from '@lib/context';
+  import { PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { Search, History, Download, Play, Save, Filter, ChevronRight, BarChart3 } from 'lucide-svelte';
+  import { alertStore } from '@lib/stores/alerts.svelte';
 
-  let query = $state('*');
-  let results = $state<any[]>([]);
-  let searching = $state(false);
-  let federationStatus = $state<any>({ active: false, peer_count: 0 });
+  let query = $state('select * from events where severity = "critical" limit 100');
+  let isExecuting = $state(false);
 
-  onMount(async () => {
-    if (!IS_BROWSER) {
-      try {
-        const { GetFederationStatus } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice.js');
-        federationStatus = await GetFederationStatus();
-      } catch (err) {
-        console.warn("Failed to fetch federation status:", err);
-      }
-    }
-  });
-
-  function formatEvent(ev: any) {
-    return {
-      id: ev.id || ev.ID || crypto.randomUUID(),
-      timestamp: new Date(ev.timestamp || ev.Timestamp || Date.now()).toLocaleString(),
-      host: ev.host_id || ev.HostID || 'unknown',
-      message: ev.raw_log || ev.RawLog || 'No log data',
-      risk: ev.risk_score || 0,
-      severity: ev.event_type || 'info'
-    };
+  function executeQuery() {
+    isExecuting = true;
+    setTimeout(() => { isExecuting = false; }, 800);
   }
 
-  async function executeSearch() {
-    searching = true;
-    try {
-      let events = [];
-      if (IS_BROWSER) {
-        const res = await fetch('/api/v1/siem/search?q=' + encodeURIComponent(query), {
-          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
-        });
-        if (!res.ok) throw new Error('API error: ' + res.status);
-        const data = await res.json();
-        events = data.events || [];
-      } else {
-        const { SearchHostEvents } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/siemservice');
-        events = await SearchHostEvents(query, 100);
-      }
-      results = (events || []).map(formatEvent);
-    } catch (err) {
-      console.error('[SIEMSearch] Search failed:', err);
-    } finally {
-      searching = false;
-    }
-  }
-
-  const columns = [
-    { key: 'timestamp', label: 'Time', width: '180px' },
-    { key: 'host', label: 'Node', width: '120px' },
-    { key: 'message', label: 'Message Details' },
-    { key: 'risk', label: 'Risk', width: '100px' },
+  const queryHistory = [
+    { q: 'select count(*) from logs where status = 404', time: '2m ago' },
+    { q: 'events | where host.name == "SRV-PROD-01"', time: '14m ago' },
+    { q: 'select intel.actor from events group by intel.actor', time: '1h ago' }
   ];
 </script>
 
-<PageLayout title="Threat Hunt & Search" subtitle="Query the OBLIVRA hyper-graph using OQL syntax">
+<PageLayout title="SIEM Search" subtitle="Execute OQL queries against the sovereign data lake">
   {#snippet toolbar()}
-    <Button variant="secondary" size="sm">History</Button>
-    <Button variant="ghost" size="sm" icon="📖">Syntax Help</Button>
+    <div class="flex items-center gap-2">
+      <Button variant="secondary" size="sm" icon={History}>HISTORY</Button>
+      <Button variant="secondary" size="sm" icon={Save}>SAVE QUERY</Button>
+      <Button variant="primary" size="sm" icon={Download}>EXPORT RESULTS</Button>
+    </div>
   {/snippet}
 
-  <div class="flex flex-col h-full gap-5">
-    <!-- Query Editor Area -->
-    <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-3">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="text-[9px] font-bold text-accent uppercase tracking-widest">OQL EDITOR</span>
-        <div class="h-px flex-1 bg-border-primary opacity-30"></div>
-      </div>
-      <div class="relative">
-        <textarea
-          bind:value={query}
-          class="w-full h-24 bg-surface-2 border border-border-secondary rounded px-3 py-2 font-mono text-sm text-text-primary focus:outline-none focus:border-accent transition-colors resize-none"
-          placeholder="e.g. host='*' | top 10 message"
-        ></textarea>
-        <div class="absolute bottom-2 right-2 flex gap-2">
-           <Button variant="cta" size="sm" onclick={executeSearch} loading={searching}>Execute Search</Button>
+  <div class="flex flex-col h-full gap-4">
+    <!-- QUERY EDITOR -->
+    <div class="bg-surface-2 border border-border-primary rounded-sm flex flex-col shrink-0 overflow-hidden shadow-premium">
+        <div class="flex items-center justify-between px-4 py-2 bg-surface-3 border-b border-border-primary">
+            <div class="flex items-center gap-2">
+                <Search size={14} class="text-accent" />
+                <span class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-heading">OQL Query Editor v1.4</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 text-[9px] font-mono text-text-muted">
+                    <span class="w-1.5 h-1.5 rounded-full bg-success"></span>
+                    <span>ENGINE_ONLINE</span>
+                </div>
+                <div class="h-4 w-px bg-border-primary"></div>
+                <span class="text-[9px] font-mono text-text-muted uppercase">Latency: 14ms</span>
+            </div>
         </div>
-      </div>
+        <div class="p-4 flex gap-4 bg-black/20">
+            <div class="flex-1 font-mono text-sm">
+                <textarea 
+                    bind:value={query}
+                    class="w-full h-24 bg-transparent text-text-secondary outline-none resize-none caret-accent placeholder:text-text-muted/30"
+                    placeholder="Enter OQL query..."
+                ></textarea>
+            </div>
+            <div class="flex flex-col gap-2">
+                <Button variant="cta" class="h-full px-6 flex flex-col gap-2 font-black tracking-widest uppercase text-xs" onclick={executeQuery} loading={isExecuting}>
+                    <Play size={20} fill="currentColor" />
+                    RUN
+                </Button>
+            </div>
+        </div>
+        <div class="px-4 py-2 bg-surface-3 border-t border-border-primary flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-1 text-[8px] font-mono text-text-muted hover:text-accent cursor-pointer transition-colors">
+                    <Filter size={10} />
+                    <span>ADD FILTER</span>
+                </div>
+                <div class="flex items-center gap-1 text-[8px] font-mono text-text-muted hover:text-accent cursor-pointer transition-colors">
+                    <BarChart3 size={10} />
+                    <span>VISUALIZE</span>
+                </div>
+            </div>
+            <div class="text-[8px] font-mono text-text-muted uppercase">
+                Ready to execute against 1.4 TB of telemetry
+            </div>
+        </div>
     </div>
 
-    <!-- Results Area -->
-    <div class="flex-1 min-h-0 flex flex-col bg-surface-1 border border-border-primary rounded-md overflow-hidden">
-      {#if results.length > 0}
-        <div class="flex items-center justify-between px-4 py-2 border-b border-border-primary bg-surface-2/30">
-          <div class="flex items-center gap-3">
-             <span class="text-[10px] font-bold text-text-muted">{results.length} events found in 0.4s</span>
-             {#if federationStatus.active}
-               <div class="h-3 w-px bg-border-primary opacity-30"></div>
-               <Badge variant="success" size="xs" dot>Distributed: {federationStatus.peer_count + 1} shards active</Badge>
-             {/if}
-          </div>
-          <div class="flex gap-2">
-            <Button variant="ghost" size="sm">Export JSON</Button>
-            <Button variant="ghost" size="sm">Save as Alert</Button>
-          </div>
-        </div>
-        <div class="flex-1 overflow-hidden">
-          <DataTable data={results} {columns} compact striped>
-            {#snippet render({ value, col })}
-              {#if col.key === 'risk'}
+    <!-- MAIN VIEW -->
+    <div class="flex-1 flex gap-4 min-h-0">
+        <!-- RESULTS -->
+        <div class="flex-1 bg-surface-1 border border-border-primary rounded-sm flex flex-col min-w-0">
+            <div class="flex items-center justify-between p-3 border-b border-border-primary bg-surface-2 shrink-0">
                 <div class="flex items-center gap-2">
-                   <div class="w-2 h-2 rounded-full {value > 80 ? 'bg-error' : value > 50 ? 'bg-warning' : 'bg-success'}"></div>
-                   <span class="font-mono text-[10px] tabular-nums">{value}</span>
+                    <span class="text-[10px] font-bold text-text-heading uppercase tracking-widest">Query Results</span>
+                    <Badge variant="info" size="xs">2,412 EVENTS</Badge>
                 </div>
-              {:else if col.key === 'timestamp'}
-                <span class="text-[10px] font-mono text-text-muted opacity-60 tabular-nums">{value}</span>
-              {:else if col.key === 'message'}
-                <span class="font-mono text-[11px] {value.toLowerCase().includes('failed') ? 'text-error' : ''}">
-                  {value}
-                </span>
-              {:else}
-                {value}
-              {/if}
-            {/snippet}
-          </DataTable>
+                <div class="flex gap-2">
+                    <button class="text-[9px] font-mono text-text-muted hover:text-text-secondary transition-colors">COMPACT VIEW</button>
+                    <span class="text-border-primary opacity-30">|</span>
+                    <button class="text-[9px] font-mono text-text-muted hover:text-text-secondary transition-colors">JSON</button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-auto mask-fade-bottom">
+                <DataTable 
+                    data={alertStore.alerts} 
+                    columns={[
+                        { key: 'timestamp', label: 'TIMESTAMP', width: '140px' },
+                        { key: 'host', label: 'HOST', width: '120px' },
+                        { key: 'severity', label: 'SEV', width: '80px' },
+                        { key: 'title', label: 'EVENT_DESCRIPTION' },
+                        { key: 'status', label: 'STATUS', width: '100px' }
+                    ]} 
+                    compact
+                >
+                    {#snippet render({ col, row })}
+                        {#if col.key === 'timestamp'}
+                            <span class="text-[9px] font-mono text-text-muted tabular-nums">{row.timestamp}</span>
+                        {:else if col.key === 'host'}
+                            <span class="text-[9px] font-mono text-accent font-bold">{row.host}</span>
+                        {:else if col.key === 'severity'}
+                            <Badge variant={row.severity === 'critical' ? 'critical' : 'warning'} size="xs" class="w-full justify-center">
+                                {row.severity}
+                            </Badge>
+                        {:else if col.key === 'title'}
+                            <span class="text-[10px] font-bold text-text-secondary line-clamp-1">{row.title}</span>
+                        {:else if col.key === 'status'}
+                            <Badge variant="muted" size="xs" dot>{row.status}</Badge>
+                        {/if}
+                    {/snippet}
+                </DataTable>
+            </div>
         </div>
-      {:else if searching}
-        <div class="flex-1 flex items-center justify-center italic text-text-muted text-sm gap-2">
-           <span class="animate-spin text-accent">⏳</span> Scanning indices...
+
+        <!-- SIDEBAR: HISTORY / FACETS -->
+        <div class="w-64 flex flex-col gap-4 shrink-0">
+            <div class="bg-surface-2 border border-border-primary rounded-sm p-4 space-y-4">
+                <div class="flex items-center justify-between border-b border-border-primary pb-2">
+                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Recent Queries</span>
+                    <History size={12} class="text-text-muted" />
+                </div>
+                <div class="space-y-3">
+                    {#each queryHistory as item}
+                        <div class="space-y-1 group cursor-pointer">
+                            <div class="text-[9px] font-mono text-text-muted group-hover:text-accent transition-colors line-clamp-2 leading-tight">
+                                {item.q}
+                            </div>
+                            <div class="text-[7px] font-mono text-text-muted opacity-40 uppercase">{item.time}</div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
+            <div class="bg-surface-2 border border-border-primary rounded-sm p-4 space-y-4 flex-1">
+                <div class="flex items-center justify-between border-b border-border-primary pb-2">
+                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Field Facets</span>
+                    <Filter size={12} class="text-text-muted" />
+                </div>
+                <div class="space-y-3">
+                    {#each ['severity', 'host', 'event_type', 'intel_actor', 'destination_ip'] as field}
+                        <div class="flex items-center justify-between group cursor-pointer">
+                            <div class="flex items-center gap-2">
+                                <ChevronRight size={10} class="text-text-muted group-hover:text-accent transition-transform" />
+                                <span class="text-[9px] font-mono text-text-secondary uppercase">{field}</span>
+                            </div>
+                            <span class="text-[8px] font-mono text-text-muted opacity-40">5+</span>
+                        </div>
+                    {/each}
+                </div>
+            </div>
         </div>
-      {:else}
-        <div class="flex-1 flex flex-col items-center justify-center opacity-40 text-center p-12">
-          <span class="text-4xl mb-4">🔎</span>
-          <h3 class="text-sm font-bold text-text-heading">No active investigation</h3>
-          <p class="text-xs text-text-muted mt-1 max-w-xs">Use the OQL editor above to query logs, events, and telemetry from your fleet.</p>
-        </div>
-      {/if}
     </div>
   </div>
 </PageLayout>

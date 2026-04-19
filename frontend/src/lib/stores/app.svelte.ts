@@ -37,6 +37,7 @@ class AppStore {
     transfers = $state<Transfer[]>([]);
     isMaximized = $state(false);
     systemHealth = $state<SystemHealth>({ status: 'healthy' });
+    showCommandPalette = $state(false);
 
     private _initialized = false;
 
@@ -173,6 +174,7 @@ class AppStore {
     setActiveNavTab(tab: NavTab) { this.activeNavTab = tab; }
     setWorkspace(ws: Workspace) { this.workspace = ws; }
     toggleFocusMode() { this.focusMode = !this.focusMode; }
+    toggleCommandPalette() { this.showCommandPalette = !this.showCommandPalette; }
 
     /**
      * navigate — programmatic navigation helper used by page components.

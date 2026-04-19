@@ -42,7 +42,7 @@ export class DiagnosticsStore {
     this.init();
   }
 
-  private init() {
+  init() {
     subscribe<DiagnosticsSnapshot>('diagnostics:snapshot', (snap) => {
       this.snapshot = snap;
       this.connected = true;

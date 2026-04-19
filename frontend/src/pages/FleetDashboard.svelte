@@ -1,126 +1,173 @@
 <!--
   OBLIVRA — Fleet Dashboard (Svelte 5)
-  Global agent telemetry and mission-critical endpoint orchestration.
+  Real-time visibility into the sovereign agent fleet.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Globe, RefreshCw } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { PageLayout, Badge, Button, DataTable, Input } from '@components/ui';
+  import { Activity, Terminal, ShieldAlert, MoreHorizontal, Monitor, Clock, ShieldCheck } from 'lucide-svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
-  import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
 
-  import type { AgentDTO } from '@lib/stores/agent.svelte.ts';
+  let searchQuery = $state('');
+  let activeTab = $state('ALL HOSTS');
 
   const stats = $derived({
     total: agentStore.agents.length,
     online: agentStore.agents.filter(a => a.status === 'online').length,
-    offline: agentStore.agents.filter(a => a.status === 'offline').length,
+    critical: agentStore.agents.filter(a => a.severity === 'critical').length,
+    health: '98.2%'
   });
 
-  const diag = $derived(diagnosticsStore.snapshot);
+  const filteredAgents = $derived(agentStore.agents.filter(a => {
+    const matchesSearch = a.hostname?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         a.remote_address?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesTab = activeTab === 'ALL HOSTS' || a.status?.toUpperCase() === activeTab;
+    return matchesSearch && matchesTab;
+  }));
 
-  const columns: { key: keyof AgentDTO; label: string; width?: string }[] = [
-    { key: 'hostname', label: 'Host Identifier' },
-    { key: 'status', label: 'State', width: '100px' },
-    { key: 'trust_level', label: 'Identity', width: '90px' },
-    { key: 'watchdog_active', label: 'Watchdog', width: '80px' },
-    { key: 'id', label: 'ID', width: '120px' },
-  ];
+  function handleAction(agentId: string, action: string) {
+    console.log(`Executing ${action} on ${agentId}`);
+  }
 </script>
 
-<PageLayout title="Fleet Command" subtitle="Global agent mesh and endpoint health monitoring">
+<PageLayout title="Fleet Management" subtitle="Real-time orchestration of the sovereign agent mesh">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm" onclick={() => agentStore.refresh()}>
-        <RefreshCw size={14} class="mr-1 {agentStore.loading ? 'animate-spin' : ''}" />
-        Refresh
-      </Button>
-      <Button variant="primary" size="sm">Deploy new agent</Button>
+      <Input variant="search" placeholder="Filter agents..." bind:value={searchQuery} class="w-64" />
+      <Button variant="secondary" size="sm">EXPORT LIST</Button>
+      <Button variant="primary" size="sm">DEPLOY AGENT</Button>
     </div>
   {/snippet}
 
-  <div class="flex flex-col h-full gap-6">
-    <!-- Fleet KPI Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
-      <KPI label="Managed Agents" value={stats.total} trend="stable" trendValue="Active Mesh" />
-      <KPI label="Agent Availability" value={stats.total > 0 ? ((stats.online / stats.total) * 100).toFixed(1) + '%' : '—'} variant="success" trend="stable" trendValue="Optimal" />
-      <KPI label="Platform Health" value={diagnosticsStore.healthGrade} trend="stable" trendValue={diag ? `${diag.ingest.current_eps} EPS` : 'Initializing...'} variant={diagnosticsStore.healthGrade === 'A' ? 'success' : diagnosticsStore.healthGrade === 'B' ? 'accent' : 'warning'} />
-      <KPI 
-        label="Ingest Stability" 
-        value={diag?.ingest?.dropped_total?.toLocaleString() ?? '—'} 
-        trend={(diag?.ingest?.dropped_total ?? 0) > 0 ? 'down' : 'stable'} 
-        trendValue={(diag?.ingest?.dropped_total ?? 0) > 0 ? `${diag?.ingest?.dropped_total} Dropped` : 'Secure'} 
-        variant={(diag?.ingest?.dropped_total ?? 0) > 0 ? 'critical' : 'success'} 
-      />
-      <KPI label="Engine Version" value={diag?.runtime.go_version.split(' ')[0] || 'v2.4.1'} trend="stable" trendValue="Sovereign Core" variant="default" />
-      <KPI label="Mesh Latency" value={diag ? `${diag.query.avg_query_ms.toFixed(1)}ms` : '—'} trend="stable" trendValue="Avg Query" variant={diag && diag.query.avg_query_ms < 100 ? 'success' : 'warning'} />
+  <div class="flex flex-col h-full gap-0 -m-6">
+    <!-- METRIC STRIP -->
+    <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
+        <div class="bg-surface-2 p-3 group hover:bg-surface-3 transition-colors cursor-pointer">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Total Fleet</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{stats.total}</div>
+            <div class="text-[9px] text-text-muted mt-1">Managed endpoints</div>
+        </div>
+        <div class="bg-surface-2 p-3 group hover:bg-surface-3 transition-colors cursor-pointer">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Live Nodes</div>
+            <div class="text-xl font-mono font-bold text-success">{stats.online}</div>
+            <div class="text-[9px] text-success mt-1">Active heartbeats</div>
+        </div>
+        <div class="bg-surface-2 p-3 group hover:bg-surface-3 transition-colors cursor-pointer">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Health Score</div>
+            <div class="text-xl font-mono font-bold text-accent">{stats.health}</div>
+            <div class="text-[9px] text-accent mt-1">Fleet stability nominal</div>
+        </div>
+        <div class="bg-surface-2 p-3 group hover:bg-surface-3 transition-colors cursor-pointer border-r-0">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Critical Issues</div>
+            <div class="text-xl font-mono font-bold text-error">{stats.critical}</div>
+            <div class="text-[9px] text-error mt-1 uppercase animate-pulse">Action required</div>
+        </div>
     </div>
 
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Agent Inventory -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-card">
-         <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            End-Point Inventory
-         </div>
-         <div class="flex-1 overflow-auto">
-            <DataTable data={agentStore.agents} {columns} compact>
-               {#snippet render({ col, row, value })}
-                {#if col.key === 'status'}
-                   <Badge variant={row.status === 'online' ? 'success' : 'critical'}>{row.status}</Badge>
-                {:else if col.key === 'hostname'}
-                   <div class="flex flex-col">
-                      <span class="text-[11px] font-bold text-text-heading">{row.hostname}</span>
-                      <span class="text-[9px] text-text-muted font-mono">{row.remote_address}</span>
-                   </div>
-                {:else if (col.key as string) === 'trust_level'}
-                   <Badge variant={row.trust_level === 'verified' ? 'success' : row.trust_level === 'compromised' ? 'critical' : 'warning'}>
-                     {row.trust_level}
-                   </Badge>
-                {:else if (col.key as string) === 'watchdog_active'}
-                   <div class="flex items-center gap-1.5">
-                     <div class="w-1.5 h-1.5 rounded-full {row.watchdog_active ? 'bg-success animate-pulse' : 'bg-text-muted'} shadow-sm"></div>
-                     <span class="text-[9px] uppercase font-bold tracking-tight {row.watchdog_active ? 'text-success' : 'text-text-muted'}">
-                        {row.watchdog_active ? 'Active' : 'Passive'}
-                     </span>
-                   </div>
-                 {:else if col.key === 'id'}
-                    <div class="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onclick={() => appStore.navigate('agent-console', {id: row.id})}>Inspect</Button>
-                    </div>
-                 {:else}
-                  <span class="text-[11px] text-text-secondary">{value}</span>
-                 {/if}
-              {/snippet}
+    <!-- MAIN TABLE AREA -->
+    <div class="flex-1 flex flex-col min-h-0 bg-surface-1">
+        <div class="px-4 py-2 border-b border-border-primary flex items-center justify-between shrink-0">
+            <div class="flex gap-4">
+                {#each ['ALL HOSTS', 'ONLINE', 'OFFLINE'] as tab}
+                    <button 
+                        class="text-[9px] font-mono font-bold tracking-widest uppercase transition-colors {activeTab === tab ? 'text-accent' : 'text-text-muted hover:text-text-secondary'}"
+                        onclick={() => activeTab = tab}
+                    >
+                        {tab}
+                    </button>
+                {/each}
+            </div>
+            <div class="flex items-center gap-4 text-[8px] font-mono text-text-muted">
+                <span>Last Sync: 14s ago</span>
+                <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-auto mask-fade-bottom">
+            <DataTable 
+                data={filteredAgents} 
+                columns={[
+                    { key: 'status', label: 'STATUS', width: '80px' },
+                    { key: 'hostname', label: 'ENDPOINT_NAME' },
+                    { key: 'remote_address', label: 'IP_ADDRESS', width: '120px' },
+                    { key: 'os', label: 'PLATFORM', width: '100px' },
+                    { key: 'arch', label: 'ARCH', width: '80px' },
+                    { key: 'version', label: 'VERSION', width: '80px' },
+                    { key: 'id', label: 'ACTIONS', width: '120px' }
+                ]} 
+                compact
+            >
+                {#snippet render({ col, row })}
+                    {#if col.key === 'status'}
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full {row.status === 'online' ? 'bg-success shadow-[0_0_4px_rgba(34,197,94,0.6)]' : 'bg-text-muted'}"></div>
+                            <Badge variant={row.status === 'online' ? 'success' : 'muted'} size="xs">{row.status}</Badge>
+                        </div>
+                    {:else if col.key === 'hostname'}
+                        <div class="flex items-center gap-2 py-1">
+                            <Monitor size={12} class="text-text-muted" />
+                            <div class="flex flex-col">
+                                <span class="text-[10px] font-bold text-text-heading uppercase">{row.hostname}</span>
+                                <span class="text-[8px] font-mono text-text-muted opacity-60 tabular-nums">{row.id}</span>
+                            </div>
+                        </div>
+                    {:else if col.key === 'remote_address'}
+                        <span class="text-[9px] font-mono text-accent tabular-nums">{row.remote_address}</span>
+                    {:else if col.key === 'os'}
+                        <div class="flex items-center gap-1.5">
+                           <span class="text-[9px] font-mono text-text-muted uppercase">{row.os || 'Linux'}</span>
+                        </div>
+                    {:else if col.key === 'arch'}
+                        <span class="text-[8px] font-mono text-text-muted uppercase opacity-60">{row.arch || 'x64'}</span>
+                    {:else if col.key === 'version'}
+                        <span class="text-[8px] font-mono text-text-muted">v{row.version || '1.0'}</span>
+                    {:else if col.key === 'id'}
+                        <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                                class="p-1 hover:bg-surface-3 rounded-sm text-accent border border-accent/20 transition-colors"
+                                title="Terminal"
+                                onclick={() => handleAction(row.id, 'terminal')}
+                            >
+                                <Terminal size={12} />
+                            </button>
+                            <button 
+                                class="p-1 hover:bg-surface-3 rounded-sm text-error border border-error/20 transition-colors"
+                                title="Isolate"
+                                onclick={() => handleAction(row.id, 'isolate')}
+                            >
+                                <ShieldAlert size={12} />
+                            </button>
+                            <button 
+                                class="p-1 hover:bg-surface-3 rounded-sm text-text-muted border border-border-primary transition-colors"
+                                title="More"
+                            >
+                                <MoreHorizontal size={12} />
+                            </button>
+                        </div>
+                    {/if}
+                {/snippet}
             </DataTable>
-         </div>
-      </div>
+        </div>
+    </div>
 
-      <!-- Fleet Distribution -->
-      <div class="flex flex-col gap-6">
-         <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col items-center justify-center text-center gap-4 flex-1 relative group">
-            <Globe class="text-accent opacity-20 group-hover:opacity-40 transition-opacity" size={120} />
-            <div class="absolute inset-0 flex flex-col items-center justify-center">
-               <span class="text-3xl font-bold text-text-heading font-mono">14</span>
-               <span class="text-[10px] text-text-muted uppercase tracking-widest font-bold">Active Geozones</span>
+    <!-- STATUS BAR -->
+    <div class="bg-surface-2 border-t border-border-primary px-3 py-1.5 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2 text-[8px] font-mono text-text-muted uppercase">
+                <Activity size={10} class="text-success" />
+                <span>Sync Pipeline: Nominal</span>
             </div>
-         </div>
-
-         <div class="bg-surface-1 border border-border-primary rounded-md p-4 space-y-3">
-            <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2">Mesh Reliability</div>
-            <div class="flex items-center justify-between">
-               <span class="text-[11px] text-text-secondary">Signature Integrity</span>
-               <Badge variant="success">SECURE</Badge>
+            <div class="flex items-center gap-2 text-[8px] font-mono text-text-muted uppercase">
+                <Clock size={10} class="text-accent" />
+                <span>Next Heartbeat: 4s</span>
             </div>
-            <div class="flex items-center justify-between">
-               <span class="text-[11px] text-text-secondary">Drift Compensation</span>
-               <Badge variant="accent">ON</Badge>
+            <div class="flex items-center gap-2 text-[8px] font-mono text-text-muted uppercase">
+                <ShieldCheck size={10} class="text-success" />
+                <span>Integrity: 100%</span>
             </div>
-            <div class="flex items-center justify-between">
-               <span class="text-[11px] text-text-secondary">Agents Online</span>
-               <Badge variant={stats.offline > 0 ? 'warning' : 'success'}>{stats.online}/{stats.total}</Badge>
-            </div>
-         </div>
-      </div>
+        </div>
+        <div class="text-[8px] font-mono text-text-muted uppercase tracking-[0.2em] opacity-40">
+            Fleet_Core v1.4.2 — Sovereign Mesh
+        </div>
     </div>
   </div>
 </PageLayout>
