@@ -58,6 +58,10 @@ class AppStore {
         this.showCommandPalette = !this.showCommandPalette;
     }
 
+    setHealth(status: SystemHealth['status'], message?: string) {
+        this.systemHealth = { status, message };
+    }
+
     connectToHost(hostId: string) {
         // Mock for web version
         this.notify(`Connecting to ${hostId} (Terminal simulation)`, 'info');

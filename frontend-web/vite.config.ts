@@ -20,6 +20,16 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-echarts': ['echarts'],
+          'vendor-d3':      ['d3'],
+          'vendor-icons':   ['lucide-svelte'],
+          'vendor-core':    ['axios', 'svelte'],
+        }
+      }
+    }
   },
   resolve: {
     alias: {

@@ -6,27 +6,29 @@
   import LoadingScreen from './components/ui/LoadingScreen.svelte';
 
   // ── Pages (lazy via dynamic import map)
-  import Login             from './pages/Login.svelte';
-  import Onboarding        from './pages/Onboarding.svelte';
-  import Dashboard         from './core/Dashboard.svelte';
-  import FleetManagement   from './pages/FleetManagement.svelte';
-  import SIEMSearch        from './pages/SIEMSearch.svelte';
-  import IdentityAdmin     from './pages/IdentityAdmin.svelte';
-  import AlertManagement   from './pages/AlertManagement.svelte';
-  import LookupManager     from './pages/LookupManager.svelte';
-  import EscalationCenter  from './pages/EscalationCenter.svelte';
-  import ThreatIntelDash   from './pages/ThreatIntelDashboard.svelte';
-  import EnrichmentViewer  from './pages/EnrichmentViewer.svelte';
-  import MitreHeatmap      from './pages/MitreHeatmap.svelte';
-  import PlaybookBuilder   from './pages/PlaybookBuilder.svelte';
-  import UEBADashboard     from './pages/UEBADashboard.svelte';
-  import NDRDashboard      from './pages/NDRDashboard.svelte';
-  import RansomwareCenter  from './pages/RansomwareCenter.svelte';
-  import RegulatorPortal   from './pages/RegulatorPortal.svelte';
-  import EvidenceVault     from './pages/EvidenceVault.svelte';
-  import PlaybookMetrics   from './pages/PlaybookMetrics.svelte';
-  import PeerAnalytics     from './pages/PeerAnalytics.svelte';
-  import FusionDashboard   from './pages/FusionDashboard.svelte';
+  // ── Pages (Dynamic Imports)
+  const Login             = () => import('./pages/Login.svelte');
+  const Onboarding        = () => import('./pages/Onboarding.svelte');
+  const Dashboard         = () => import('./core/Dashboard.svelte');
+  const FleetManagement   = () => import('./pages/FleetManagement.svelte');
+  const SIEMSearch        = () => import('./pages/SIEMSearch.svelte');
+  const IdentityAdmin     = () => import('./pages/IdentityAdmin.svelte');
+  const AlertManagement   = () => import('./pages/AlertManagement.svelte');
+  const LookupManager     = () => import('./pages/LookupManager.svelte');
+  const EscalationCenter  = () => import('./pages/EscalationCenter.svelte');
+  const ThreatIntelDash   = () => import('./pages/ThreatIntelDashboard.svelte');
+  const EnrichmentViewer  = () => import('./pages/EnrichmentViewer.svelte');
+  const MitreHeatmap      = () => import('./pages/MitreHeatmap.svelte');
+  const PlaybookBuilder   = () => import('./pages/PlaybookBuilder.svelte');
+  const UEBADashboard     = () => import('./pages/UEBADashboard.svelte');
+  const NDRDashboard      = () => import('./pages/NDRDashboard.svelte');
+  const RansomwareCenter  = () => import('./pages/RansomwareCenter.svelte');
+  const RegulatorPortal   = () => import('./pages/RegulatorPortal.svelte');
+  const EvidenceVault     = () => import('./pages/EvidenceVault.svelte');
+  const PlaybookMetrics   = () => import('./pages/PlaybookMetrics.svelte');
+  const PeerAnalytics     = () => import('./pages/PeerAnalytics.svelte');
+  const FusionDashboard   = () => import('./pages/FusionDashboard.svelte');
+  const Investigation     = () => import('./pages/InvestigationCanvas.svelte');
 
   const PUBLIC_PATHS = ['/login', '/onboarding'];
 
@@ -52,6 +54,7 @@
     '/playbook-metrics': PlaybookMetrics,
     '/peer-analytics':   PeerAnalytics,
     '/fusion':           FusionDashboard,
+    '/investigation':    Investigation,
   };
 
   let ready = $state(false);
@@ -66,11 +69,25 @@
     ready = true;
   });
 
-  const currentComponent = $derived(ROUTES[router.path] ?? Dashboard);
+  import { fade } from 'svelte/transition';
+
+  const loader = $derived(ROUTES[router.path] ?? Dashboard);
 </script>
 
 {#if ready}
-  <currentComponent></currentComponent>
+  {#await loader()}
+    <div transition:fade={{ duration: 150 }}>
+      <LoadingScreen />
+    </div>
+  {:then module}
+    <div transition:fade={{ duration: 200 }}>
+      <module.default />
+    </div>
+  {:catch error}
+    <div class="h-screen w-screen flex items-center justify-center bg-surface-0 text-error font-mono" transition:fade>
+      TACTICAL_LOAD_FAILURE: {error.message}
+    </div>
+  {/await}
 {:else}
   <LoadingScreen />
 {/if}

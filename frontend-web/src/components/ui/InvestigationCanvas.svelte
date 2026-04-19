@@ -1,7 +1,7 @@
 <script module>
   export interface Node {
     id: string;
-    type: 'user' | 'host' | 'process' | 'file' | 'ip';
+    type: 'user' | 'host' | 'process' | 'file' | 'ip' | 'dns' | 'registry';
     label?: string;
     meta?: Record<string, string>;
     x?: number;
@@ -27,7 +27,9 @@
     Globe, 
     Maximize2, 
     Search,
-    AlertTriangle
+    AlertTriangle,
+    Database,
+    Network
   } from 'lucide-svelte';
 
   let { nodes = [], edges = [], onNodeClick = (_n: Node) => {} } = $props();
@@ -88,6 +90,8 @@
       case 'process': return Cpu;
       case 'file': return FileText;
       case 'ip': return Globe;
+      case 'dns': return Network;
+      case 'registry': return Database;
       default: return AlertTriangle;
     }
   }
@@ -99,6 +103,8 @@
       case 'process': return 'var(--color-warning)';
       case 'file': return 'var(--color-success)';
       case 'ip': return 'var(--color-critical)';
+      case 'dns': return 'var(--color-accent)';
+      case 'registry': return 'var(--color-warning)';
       default: return 'var(--color-text-muted)';
     }
   }
