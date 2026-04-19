@@ -104,7 +104,14 @@
           <div class="ss-field-group">
             <div class="ss-field-name">{field}</div>
             {#each vals as [val, count]}
-              <div class="ss-field-val" onclick={() => appendFilter(field, val as string)} title='Filter: {field}="{val}"'>
+              <div 
+                role="button"
+                tabindex="0"
+                class="ss-field-val" 
+                onclick={() => appendFilter(field, val as string)} 
+                onkeydown={(e) => e.key === 'Enter' && appendFilter(field, val as string)}
+                title='Filter: {field}="{val}"'
+              >
                 <span class="ss-field-text">{val}</span>
                 <span class="ss-field-count">{count}</span>
               </div>

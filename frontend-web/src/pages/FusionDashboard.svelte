@@ -1,202 +1,339 @@
-<!-- OBLIVRA Web — FusionDashboard (Svelte 5) -->
+<!-- OBLIVRA Web — Fusion Dashboard (Svelte 5) -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { Badge, Button, PageLayout, Spinner } from '@components/ui';
+  import { Layers, Target, Activity, Activity as Pulse, ShieldAlert, Share2, ChevronRight } from 'lucide-svelte';
   import { request } from '../services/api';
 
-  interface FusionCampaign { id:string; entities:string[]; alert_count:number; tactic_stages:string[]; stage_count:number; confidence:number; first_seen:string; last_seen:string; status:'active'|'closed'|'investigating'; kill_chain_progress:number; }
-  interface KillChainStage  { tactic_id:string; tactic_name:string; hit_count:number; techniques:string[]; first_seen?:string; }
-
-  const TACTIC_ORDER = ['Initial Access','Execution','Persistence','Privilege Escalation','Defense Evasion','Credential Access','Discovery','Lateral Movement','Collection','Command & Control','Exfiltration','Impact'];
-
-  let campaigns  = $state<FusionCampaign[]>([]);
-  let selected   = $state<FusionCampaign|null>(null);
-  let killChain  = $state<KillChainStage[]>([]);
-  let loading    = $state(true);
-  let loadingKC  = $state(false);
-
-  async function fetchCampaigns() {
-    loading = true;
-    try { const r = await request<{campaigns:FusionCampaign[]}>('/fusion/campaigns'); campaigns = r.campaigns ?? []; }
-    catch { campaigns = []; }
-    loading = false;
+  // -- Types --
+  interface FusionCampaign {
+    id: string;
+    entities: string[];
+    alert_count: number;
+    tactic_stages: string[];
+    stage_count: number;
+    confidence: number;
+    first_seen: string;
+    last_seen: string;
+    status: 'active' | 'closed' | 'investigating';
+    kill_chain_progress: number;
+  }
+  interface KillChainStage {
+    tactic_id: string;
+    tactic_name: string;
+    hit_count: number;
+    techniques: string[];
+    first_seen?: string;
   }
 
-  async function selectCampaign(c: FusionCampaign) {
-    selected = selected?.id === c.id ? null : c;
-    if (selected) {
-      loadingKC = true;
-      try { const r = await request<{stages:KillChainStage[]}>(`/fusion/campaigns/${c.id}/kill-chain`); killChain = r.stages ?? []; }
-      catch { killChain = []; }
-      loadingKC = false;
+  // -- Constants --
+  const TACTIC_ORDER = [
+    'Initial Access', 'Execution', 'Persistence', 'Privilege Escalation',
+    'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement',
+    'Collection', 'Command & Control', 'Exfiltration', 'Impact',
+  ];
+
+  // -- State --
+  let campaigns      = $state<FusionCampaign[]>([]);
+  let selected       = $state<FusionCampaign | null>(null);
+  let killChain      = $state<KillChainStage[]>([]);
+  let loading        = $state(true);
+
+  // -- Helpers --
+  const confidenceColor = (c: number) => {
+    if (c >= 0.8) return 'var(--alert-critical)';
+    if (c >= 0.6) return 'var(--alert-high)';
+    if (c >= 0.4) return 'var(--alert-medium)';
+    return 'var(--status-online)';
+  };
+
+
+  const activeCount = $derived(campaigns.filter(c => c.status === 'active').length);
+  const avgConf     = $derived(campaigns.length ? Math.round(campaigns.reduce((a,b)=>a+b.confidence, 0) / campaigns.length * 100) : 0);
+  const maxStages   = $derived(campaigns.length ? Math.max(...campaigns.map(c => c.stage_count)) : 0);
+
+  // -- Actions --
+  async function fetchData() {
+    loading = true;
+    try {
+      const res = await request<{ campaigns: FusionCampaign[] }>('/fusion/campaigns');
+      campaigns = res.campaigns ?? [];
+      if (campaigns.length > 0 && !selected) {
+        selectCampaign(campaigns[0]);
+      }
+    } catch (e) {
+      console.error('Fusion Data fetch failed', e);
+    } finally {
+      loading = false;
     }
   }
 
-  onMount(fetchCampaigns);
+  async function selectCampaign(c: FusionCampaign) {
+    selected = c;
 
-  const activeCampaigns = $derived(campaigns.filter(c => c.status==='active').length);
-  const highConf        = $derived(campaigns.filter(c => c.confidence>=0.7).length);
-  const maxStages       = $derived(Math.max(0, ...campaigns.map(c=>c.stage_count)));
+    try {
+      const res = await request<{ stages: KillChainStage[] }>(`/fusion/campaigns/${c.id}/kill-chain`);
+      killChain = res.stages ?? [];
+    } catch {
+      killChain = [];
+    } finally {
 
-  function confColor(c:number){ return c>=0.8?'#ff3355':c>=0.6?'#ff6600':c>=0.4?'#ffaa00':'#00ff88'; }
-  function statusColor(s:string){ return s==='active'?'#ff3355':s==='investigating'?'#ffaa00':'#607070'; }
-
-  function tacticActive(campaign:FusionCampaign, tactic:string){
-    return campaign.tactic_stages.some(s => s.toLowerCase().includes(tactic.toLowerCase().split(' ')[0]));
+    }
   }
+
+  onMount(() => {
+    fetchData();
+  });
 </script>
 
-<div class="fd-page">
-  <div class="fd-header">
-    <div>
-      <h1 class="fd-title">⬡ FUSION ENGINE</h1>
-      <p class="fd-sub">Kill chain correlation · Campaign clustering · Probabilistic attack scoring</p>
+<PageLayout title="Fusion Intelligence" subtitle="Mapping tactical telemetry to strategic mission objectives via multi-layer correlation engine">
+  {#snippet toolbar()}
+    <div class="flex items-center gap-2">
+      <Button variant="secondary" size="sm" onclick={fetchData}>
+        <Pulse size={14} class="mr-2" />
+        RE-CORRELATE
+      </Button>
     </div>
-    <button class="fd-refresh" onclick={fetchCampaigns}>↻ REFRESH</button>
-  </div>
+  {/snippet}
 
-  <div class="fd-stats">
-    {#each [{label:'TOTAL CAMPAIGNS',val:campaigns.length,c:'#c8d8d8'},{label:'ACTIVE',val:activeCampaigns,c:'#ff3355'},{label:'HIGH CONFIDENCE',val:highConf,c:'#ff6600'},{label:'MAX STAGE COVERAGE',val:`${maxStages}/12`,c:'#ffaa00'}] as s}
-      <div class="fd-stat">
-        <div class="fd-stat-val" style="color:{s.c}">{s.val}</div>
-        <div class="fd-stat-label">{s.label}</div>
-      </div>
-    {/each}
-  </div>
-
-  {#if loading}
-    <div class="fd-loading">Loading fusion data…</div>
-  {:else if campaigns.length === 0}
-    <div class="fd-empty">
-      <div class="fd-empty-icon">🔗</div>
-      <div>NO CAMPAIGNS DETECTED</div>
-      <p>The Fusion Engine correlates alerts sharing entities across tactic stages. Campaigns appear when 3+ tactic stages are observed on the same entity cluster.</p>
+  <div class="flex flex-col h-full gap-0 -m-6 overflow-hidden">
+    <!-- METRIC STRIP -->
+    <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Clusters</div>
+            <div class="text-xl font-mono font-bold text-alert-critical">{activeCount}</div>
+            <div class="text-[9px] text-alert-critical mt-1 {activeCount > 0 ? 'animate-pulse' : ''}">
+              {activeCount > 0 ? '▲ High Density Detect' : '✓ Nominal Security State'}
+            </div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Correlation Depth</div>
+            <div class="text-xl font-mono font-bold text-accent-primary">L7+</div>
+            <div class="text-[9px] text-status-online mt-1">Cross-Platform Sync</div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Avg Confidence</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{avgConf}%</div>
+            <div class="text-[9px] text-status-online mt-1">Sovereign-grade ML</div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Max Coverage</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{maxStages}/12</div>
+            <div class="text-[9px] text-text-muted mt-1">Kill-chain penetration</div>
+        </div>
     </div>
-  {:else}
-    <div class="fd-content">
-      <!-- Campaign list -->
-      <div class="fd-list">
-        {#each campaigns as c (c.id)}
-          <div
-            class="fd-campaign"
-            class:fd-campaign--selected={selected?.id === c.id}
-            style="border-left-color:{statusColor(c.status)}"
-            onclick={() => selectCampaign(c)}
-            role="button"
-            tabindex="0"
-            onkeydown={(e) => e.key==='Enter' && selectCampaign(c)}
-          >
-            <div class="fd-campaign-top">
-              <span class="fd-campaign-id">{c.id.slice(0,12)}…</span>
-              <span class="fd-campaign-status" style="color:{statusColor(c.status)}">{c.status.toUpperCase()}</span>
-            </div>
-            <div class="fd-kc-mini">
-              {#each TACTIC_ORDER as tactic}
-                <div class="fd-kc-slot" style="background:{tacticActive(c,tactic) ? confColor(c.confidence) : '#1e3040'}" title={tactic}></div>
-              {/each}
-            </div>
-            <div class="fd-campaign-meta">
-              <span>{c.stage_count}/12 stages</span>
-              <span>{c.alert_count} alerts</span>
-              <span style="color:{confColor(c.confidence)}">{Math.round(c.confidence*100)}% confidence</span>
-            </div>
-            <div class="fd-campaign-entities">{c.entities.slice(0,3).join(', ')}{c.entities.length>3 ? ` +${c.entities.length-3}` : ''}</div>
-          </div>
-        {/each}
-      </div>
 
-      <!-- Kill chain detail -->
-      <div class="fd-detail">
-        {#if !selected}
-          <div class="fd-detail-empty"><div class="fd-empty-icon">🔗</div>SELECT A CAMPAIGN TO VIEW KILL CHAIN</div>
-        {:else}
-          <div class="fd-detail-header">
-            <div>
-              <div class="fd-detail-id">{selected.id}</div>
-              <div class="fd-detail-dates">
-                First seen: {new Date(selected.first_seen).toLocaleString()} ·
-                Last activity: {new Date(selected.last_seen).toLocaleString()}
-              </div>
+    <!-- MAIN BODY -->
+    <div class="flex-1 flex min-h-0 bg-surface-0">
+        <!-- LEFT: CAMPAIGN LIST -->
+        <div class="w-96 bg-surface-1 border-r border-border-primary flex flex-col shrink-0 overflow-hidden">
+            <div class="p-3 bg-surface-2 border-b border-border-primary flex items-center gap-2 shrink-0">
+                <Layers size={14} class="text-accent-primary" />
+                <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Active Threat Campaigns</span>
             </div>
-            <div class="fd-detail-conf">
-              <div class="fd-detail-conf-val" style="color:{confColor(selected.confidence)}">{Math.round(selected.confidence*100)}%</div>
-              <div class="fd-detail-conf-label">confidence</div>
-            </div>
-          </div>
-          <div class="fd-entities">
-            {#each selected.entities as e}<span class="fd-entity">{e}</span>{/each}
-          </div>
+            
+            <div class="flex-1 overflow-auto p-3 space-y-3">
+              {#if loading}
+                <div class="py-12 flex justify-center"><Spinner /></div>
+              {:else}
+                {#each campaigns as campaign}
+                    <button 
+                        class="w-full text-left bg-surface-2 border {selected?.id === campaign.id ? 'border-accent-primary' : 'border-border-primary'} p-4 rounded-sm space-y-4 hover:border-accent-primary transition-all cursor-pointer group relative overflow-hidden"
+                        onclick={() => selectCampaign(campaign)}
+                    >
+                        <div class="flex items-start justify-between">
+                            <div class="flex flex-col">
+                                <span class="text-[12px] font-black text-text-heading tracking-tight leading-tight uppercase italic">{campaign.id.slice(0, 16)}</span>
+                                <span class="text-[8px] font-mono text-text-muted uppercase opacity-60">INGESTED: {new Date(campaign.first_seen).toLocaleDateString()}</span>
+                            </div>
+                            <Badge variant={campaign.status === 'active' ? 'danger' : 'warning'} size="xs" class="font-bold">
+                                {campaign.status.toUpperCase()}
+                            </Badge>
+                        </div>
+                        
+                        <div class="space-y-1.5">
+                           <div class="flex justify-between items-center text-[9px] font-mono text-text-muted">
+                              <span>KILL CHAIN PROGRESSION</span>
+                              <span>{campaign.stage_count}/12</span>
+                           </div>
+                           <div class="flex gap-0.5 h-1.5">
+                              {#each TACTIC_ORDER as tactic}
+                                 {@const active = campaign.tactic_stages.some(s => s.toLowerCase().includes(tactic.toLowerCase().split(' ')[0]))}
+                                 <div class="flex-1 rounded-xs transition-colors" style="background: {active ? confidenceColor(campaign.confidence) : 'var(--surface-0)'}"></div>
+                              {/each}
+                           </div>
+                        </div>
 
-          <div class="fd-kc-panel">
-            <div class="fd-kc-label">KILL CHAIN PROGRESSION</div>
-            {#if loadingKC}
-              <div class="fd-loading">Loading kill chain…</div>
-            {:else}
-              <div class="fd-kc-track">
-                {#each TACTIC_ORDER as tactic, i}
-                  {@const stage = killChain.find(s => s.tactic_name.toLowerCase().includes(tactic.toLowerCase().split(' ')[0]))}
-                  {@const active = stage || tacticActive(selected, tactic)}
-                  <div
-                    class="fd-kc-node"
-                    class:fd-kc-node--active={active}
-                    style={active ? `background:#2a0d15; border-color:#ff3355; color:#ff3355` : ''}
-                    title={stage ? `${stage.hit_count} hits: ${stage.techniques.join(', ')}` : 'Not observed'}
-                  >
-                    <div class="fd-kc-node-dot">{active ? (stage ? stage.hit_count : '●') : '○'}</div>
-                    <div class="fd-kc-node-label">{tactic}</div>
+                        <div class="flex justify-between items-end border-t border-border-subtle pt-3">
+                            <div class="flex flex-col">
+                                <span class="text-[8px] font-mono text-text-muted uppercase tracking-tight">Confidence</span>
+                                <span class="text-[11px] font-mono font-bold" style="color: {confidenceColor(campaign.confidence)}">{Math.round(campaign.confidence * 100)}%</span>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[8px] font-mono text-text-muted uppercase tracking-tight">Entities</span>
+                                <span class="text-[10px] font-mono font-bold text-text-heading">{campaign.entities.length} SHARDS</span>
+                            </div>
+                        </div>
+                        
+                        {#if selected?.id === campaign.id}
+                            <div class="absolute inset-y-0 right-0 w-1 bg-accent-primary"></div>
+                        {/if}
+                    </button>
+                {:else}
+                  <div class="py-20 text-center opacity-40 flex flex-col items-center gap-4">
+                     <Layers size={48} />
+                     <p class="text-[10px] font-mono uppercase tracking-widest">No strategic campaigns detected</p>
                   </div>
-                  {#if i < 11}<div class="fd-kc-arrow" style="color:{active ? '#ff3355' : '#1e3040'}">→</div>{/if}
                 {/each}
+              {/if}
+            </div>
+        </div>
+
+        <!-- RIGHT: CORRELATION ANALYSIS -->
+        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {#if !selected}
+               <div class="flex-1 flex flex-col items-center justify-center text-text-muted opacity-20 gap-6 p-20 text-center">
+                  <Target size={120} />
+                  <p class="font-mono text-xs uppercase tracking-widest max-w-sm leading-relaxed">
+                    Select a detected threat campaign to initialize deep-layer correlation analysis and kill-chain orchestration.
+                  </p>
+               </div>
+            {:else}
+              <div class="bg-surface-1 border-b border-border-primary p-3 flex items-center justify-between shrink-0">
+                  <div class="flex items-center gap-2">
+                      <Target size={14} class="text-alert-critical" />
+                      <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Correlation Analysis: {selected.id}</span>
+                  </div>
+                  <div class="flex gap-2">
+                      <Button variant="secondary" size="xs" icon={Share2}>VIEW GRAPH</Button>
+                      <Button variant="danger" size="xs" icon={ShieldAlert}>SHARD ISOLATION</Button>
+                  </div>
+              </div>
+
+              <div class="flex-1 overflow-auto p-6 space-y-10">
+                  <!-- CAMPAIGN METADATA HEADER -->
+                  <div class="bg-surface-2 border border-border-primary p-5 rounded-sm relative overflow-hidden group">
+                     <div class="absolute -right-4 -bottom-4 opacity-[0.03] grayscale group-hover:scale-110 transition-transform duration-700">
+                        <Pulse size={160} />
+                     </div>
+                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
+                        <div class="space-y-1">
+                           <span class="text-[9px] font-mono text-text-muted uppercase tracking-widest">Temporal Context</span>
+                           <div class="text-[11px] font-bold text-text-secondary">First: {new Date(selected.first_seen).toLocaleString()}</div>
+                           <div class="text-[11px] font-bold text-text-secondary">Last: {new Date(selected.last_seen).toLocaleString()}</div>
+                        </div>
+                        <div class="space-y-1">
+                           <span class="text-[9px] font-mono text-text-muted uppercase tracking-widest">Alert Density</span>
+                           <div class="text-2xl font-mono font-black text-text-heading italic">{selected.alert_count} TRIGGERED</div>
+                        </div>
+                        <div class="space-y-1">
+                           <span class="text-[9px] font-mono text-text-muted uppercase tracking-widest">Probabilistic Score</span>
+                           <div class="text-2xl font-mono font-black italic" style="color: {confidenceColor(selected.confidence)}">
+                              {Math.round(selected.confidence * 100)}% CONF
+                           </div>
+                        </div>
+                     </div>
+                     <div class="mt-6 flex flex-wrap gap-2 relative z-10">
+                        {#each selected.entities as entity}
+                           <div class="px-2 py-1 bg-surface-1 border border-border-subtle rounded-xs flex items-center gap-2">
+                              <div class="w-1.5 h-1.5 rounded-full bg-accent-primary/40"></div>
+                              <span class="text-[9px] font-mono font-bold text-text-secondary uppercase">{entity}</span>
+                           </div>
+                        {/each}
+                     </div>
+                  </div>
+
+                  <!-- ATTACK TIMELINE / KILL CHAIN -->
+                  <div class="space-y-6">
+                      <span class="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
+                        <Activity size={12} class="text-accent-primary" />
+                        Multi-Stage Propagation Path
+                      </span>
+                      
+                      <div class="flex overflow-x-auto pb-4 gap-2 scrollbar-hide">
+                         {#each TACTIC_ORDER as tactic, i}
+                            {@const stage = killChain.find(s => s.tactic_name.toLowerCase().includes(tactic.toLowerCase().split(' ')[0]))}
+                            <div class="flex items-center gap-2 shrink-0">
+                               <div class="w-32 bg-surface-1 border border-border-primary rounded-sm p-3 flex flex-col gap-2 transition-all
+                                 {stage ? 'border-alert-critical bg-alert-critical/5' : 'opacity-40'}">
+                                  <div class="flex justify-between items-start">
+                                     <span class="text-[8px] font-black text-text-muted italic">0{i+1}</span>
+                                     {#if stage}<Badge variant="danger" size="xs">{stage.hit_count}</Badge>{:else}<div class="w-3 h-3 border border-border-subtle rounded-full"></div>{/if}
+                                  </div>
+                                  <div class="text-[10px] font-black uppercase tracking-tighter leading-tight {stage ? 'text-alert-critical' : 'text-text-muted'}">{tactic}</div>
+                                  {#if stage}
+                                     <div class="text-[8px] font-mono text-alert-critical/60 truncate uppercase">{stage.techniques[0] || 'Unknown Technique'}</div>
+                                  {/if}
+                               </div>
+                               {#if i < TACTIC_ORDER.length - 1}
+                                  <ChevronRight size={14} class="text-border-primary" />
+                               {/if}
+                            </div>
+                         {/each}
+                      </div>
+                  </div>
+
+                  <!-- DETAILED HITS (If available from killChain) -->
+                  {#if killChain.length > 0}
+                    <div class="space-y-4">
+                       <span class="text-[10px] font-mono font-bold text-text-muted uppercase tracking-widest">Observed Technique Clusters</span>
+                       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {#each killChain as stage}
+                             <div class="bg-surface-2 border border-border-primary p-4 rounded-sm space-y-3">
+                                <div class="flex justify-between items-center border-b border-border-subtle pb-2">
+                                   <span class="text-[10px] font-black text-text-heading uppercase tracking-widest">{stage.tactic_name}</span>
+                                   <span class="text-[9px] font-mono text-text-muted">{stage.hit_count} HITS</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                   {#each stage.techniques as tech}
+                                      <span class="text-[8px] font-mono bg-surface-1 px-1.5 py-0.5 border border-border-subtle text-text-muted uppercase">{tech}</span>
+                                   {/each}
+                                </div>
+                             </div>
+                          {/each}
+                       </div>
+                    </div>
+                  {/if}
               </div>
             {/if}
-          </div>
-        {/if}
-      </div>
+        </div>
     </div>
-  {/if}
-</div>
+
+    <!-- STATUS BAR -->
+    <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0 uppercase tracking-widest">
+        <div class="flex items-center gap-1.5">
+            <div class="w-1 h-1 rounded-full bg-status-online"></div>
+            <span>FUSION_CORE:</span>
+            <span class="text-status-online font-bold italic">STABLE</span>
+        </div>
+        <span class="text-border-primary opacity-30">|</span>
+        <div class="flex items-center gap-1.5">
+            <span>LAYERS:</span>
+            <span class="text-accent-primary font-bold italic">EDR, SIEM, NDR, UEBA, CTI</span>
+        </div>
+        <span class="text-border-primary opacity-30">|</span>
+        <div class="flex items-center gap-1.5">
+            <span>PIPELINE:</span>
+            <span class="text-status-online font-bold italic">AUTO_CORRELATE</span>
+        </div>
+        <div class="ml-auto opacity-40">OBLIVRA_FUSION_ENGINE v2.4.1</div>
+    </div>
+  </div>
+</PageLayout>
 
 <style>
-  .fd-page { padding:28px; color:#c8d8d8; font-family:var(--font-mono); min-height:100vh; background:#080f12; }
-  .fd-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
-  .fd-title  { font-size:20px; letter-spacing:.14em; margin:0; color:#ff3355; }
-  .fd-sub    { margin:3px 0 0; font-size:11px; color:#607070; }
-  .fd-refresh { background:#1e3040; border:1px solid #607070; color:#607070; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:11px; font-family:inherit; }
-  .fd-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
-  .fd-stat { background:#0d1a1f; border:1px solid #1e3040; border-top:2px solid #1e3040; padding:14px; border-radius:4px; }
-  .fd-stat-val   { font-size:26px; font-weight:700; }
-  .fd-stat-label { font-size:10px; color:#607070; letter-spacing:.12em; margin-top:2px; }
-  .fd-loading { color:#607070; padding:28px; text-align:center; font-size:12px; }
-  .fd-empty { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; padding:56px; text-align:center; color:#607070; }
-  .fd-empty-icon { font-size:36px; opacity:0.3; margin-bottom:12px; }
-  .fd-empty p { font-size:11px; max-width:440px; margin:8px auto 0; line-height:1.6; }
-  .fd-content { display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start; }
-  .fd-list { display:flex; flex-direction:column; gap:10px; }
-  .fd-campaign { background:#0d1a1f; border:1px solid #1e3040; border-left:3px solid transparent; border-radius:4px; padding:14px; cursor:pointer; transition:border-color 100ms; }
-  .fd-campaign--selected { border-color:#ff3355 !important; }
-  .fd-campaign:hover:not(.fd-campaign--selected) { border-color:#2a3a48; }
-  .fd-campaign-top { display:flex; justify-content:space-between; margin-bottom:6px; }
-  .fd-campaign-id     { font-size:12px; font-weight:700; color:#c8d8d8; }
-  .fd-campaign-status { font-size:10px; font-weight:700; letter-spacing:.1em; }
-  .fd-kc-mini { display:flex; gap:2px; margin-bottom:7px; }
-  .fd-kc-slot { flex:1; height:6px; border-radius:1px; }
-  .fd-campaign-meta   { display:flex; gap:14px; font-size:10px; color:#607070; }
-  .fd-campaign-entities { font-size:10px; color:#607070; margin-top:3px; }
-  .fd-detail { }
-  .fd-detail-empty { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; padding:40px; text-align:center; color:#607070; font-size:12px; letter-spacing:.1em; }
-  .fd-detail-header { background:#0d1a1f; border:1px solid #1e3040; border-top:2px solid #ff3355; border-radius:6px; padding:18px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:flex-start; }
-  .fd-detail-id    { font-size:13px; color:#ff3355; letter-spacing:.08em; margin-bottom:5px; }
-  .fd-detail-dates { font-size:11px; color:#607070; }
-  .fd-detail-conf  { text-align:right; }
-  .fd-detail-conf-val   { font-size:24px; font-weight:700; }
-  .fd-detail-conf-label { font-size:10px; color:#607070; }
-  .fd-entities { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:14px; }
-  .fd-entity   { background:#1e3040; color:#c8d8d8; padding:2px 8px; border-radius:2px; font-size:10px; }
-  .fd-kc-panel { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; padding:18px; }
-  .fd-kc-label { font-size:10px; color:#607070; letter-spacing:.12em; margin-bottom:14px; }
-  .fd-kc-track { display:flex; align-items:center; gap:3px; overflow-x:auto; padding-bottom:7px; }
-  .fd-kc-node  { flex-shrink:0; padding:8px 10px; border-radius:3px; font-size:10px; text-align:center; min-width:80px; background:#0a1318; border:1px solid #1e3040; color:#3a5060; }
-  .fd-kc-node--active {}
-  .fd-kc-node-dot   { font-weight:700; margin-bottom:2px; font-size:12px; }
-  .fd-kc-node-label { font-size:9px; letter-spacing:.04em; }
-  .fd-kc-arrow { font-size:13px; flex-shrink:0; }
+  :global(.flex-1::-webkit-scrollbar) {
+    width: 6px;
+    height: 6px;
+  }
+  :global(.flex-1::-webkit-scrollbar-track) {
+    background: var(--surface-0);
+  }
+  :global(.flex-1::-webkit-scrollbar-thumb) {
+    background: var(--border-primary);
+    border-radius: 3px;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 </style>

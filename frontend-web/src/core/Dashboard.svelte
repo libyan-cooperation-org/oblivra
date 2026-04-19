@@ -5,7 +5,8 @@
   import { APP_CONTEXT } from '../context';
   import type { Severity } from '../components/SeverityIcon.svelte';
   import SeverityIcon from '../components/SeverityIcon.svelte';
-  import CommandPalette, { type PaletteAction } from '../components/CommandPalette.svelte';
+  import { CommandPalette } from '@components/ui';
+  import type { PaletteAction } from '@lib/stores/app.svelte.ts';
   import WarRoomGrid from '../components/WarRoomGrid.svelte';
   import FleetOverview from '../components/FleetOverview.svelte';
   import AccessibleTerminal from '../components/AccessibleTerminal.svelte';
@@ -132,7 +133,7 @@
           </div>
         </div>
         <div class="db-heatmap-grid">
-          {#each heatmapData as s, i}
+          {#each heatmapData as s}
             <div
               class="db-heatmap-cell"
               style="background-color:var(--alert-{s}); background-image:var(--pattern-{s});"
@@ -260,7 +261,7 @@
 
   /* War room */
   .db-warroom { display:grid; grid-template-columns:1fr 380px; gap:24px; }
-  .db-warroom-left {}
+
   .db-warroom-right { display:flex; flex-direction:column; gap:24px; }
   .db-warroom-section-title { font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.2em; color:var(--text-muted); margin:0 0 10px; }
   .db-criticality-card { border:1px solid rgba(127,29,29,0.3); background:rgba(127,29,29,0.08); padding:14px; }

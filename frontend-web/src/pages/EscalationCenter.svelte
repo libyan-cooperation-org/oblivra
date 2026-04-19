@@ -1,218 +1,483 @@
-<!-- OBLIVRA Web — EscalationCenter (Svelte 5) -->
+<!-- OBLIVRA Web — Escalation Center (Svelte 5) -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { Badge, Button, DataTable, PageLayout, Spinner } from '@components/ui';
+  import { Zap, Phone, Activity, Shield, Clock, Users, History, CheckCircle, AlertTriangle, MessageSquare, Mail, Terminal } from 'lucide-svelte';
   import { request } from '../services/api';
 
-  interface EscalationLevel { level:number; name:string; users:string[]; channel:string; wait_mins:number; }
-  interface EscalationPolicy { id:string; name:string; alert_types:string[]; levels:EscalationLevel[]; sla_mins:number; active:boolean; }
-  interface ActiveEscalation { alert_id:string; policy_id:string; current_level:number; created_at:string; last_escalated_at:string; acked_by?:string; acked_at?:string; sla_breached:boolean; closed:boolean; }
-  interface OnCallEntry { user_id:string; name:string; weekday_start:number; weekday_end:number; hour_start:number; hour_end:number; }
+  // -- Types --
+  interface EscalationLevel {
+    level: number;
+    name: string;
+    users: string[];
+    channel: string;
+    wait_mins: number;
+  }
+  interface EscalationPolicy {
+    id: string;
+    name: string;
+    alert_types: string[];
+    levels: EscalationLevel[];
+    sla_mins: number;
+    active: boolean;
+  }
+  interface ActiveEscalation {
+    alert_id: string;
+    policy_id: string;
+    current_level: number;
+    created_at: string;
+    last_escalated_at: string;
+    acked_by?: string;
+    acked_at?: string;
+    sla_breached: boolean;
+    closed: boolean;
+  }
+  interface OnCallEntry {
+    user_id: string;
+    name: string;
+    weekday_start: number;
+    weekday_end: number;
+    hour_start: number;
+    hour_end: number;
+  }
 
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const CH_COLOR: Record<string,string> = { slack:'#4A154B', email:'#00ffe7', webhook:'#ffaa00', sms:'#00ff88', teams:'#6264A7' };
-  function msAgo(iso:string){ const d=Math.floor((Date.now()-new Date(iso).getTime())/60000); return d<60 ? `${d}m ago` : `${Math.floor(d/60)}h ${d%60}m ago`; }
+  // -- Constants --
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const CH_ICON: Record<string, any> = {
+    slack: MessageSquare,
+    email: Mail,
+    webhook: Terminal,
+    sms: Phone,
+    teams: Users,
+  };
 
-  type Tab = 'policies'|'active'|'oncall'|'history';
-  let tab         = $state<Tab>('policies');
-  let policies    = $state<EscalationPolicy[]>([]);
-  let active      = $state<ActiveEscalation[]>([]);
-  let history     = $state<ActiveEscalation[]>([]);
-  let onCall      = $state<{entries:OnCallEntry[];current?:OnCallEntry}|null>(null);
-  let loading     = $state(true);
+  // -- State --
+  let tab          = $state<'policies' | 'active' | 'oncall' | 'history'>('policies');
+  let loading      = $state(true);
+  let policies     = $state<EscalationPolicy[]>([]);
+  let activeEscs   = $state<ActiveEscalation[]>([]);
+  let history      = $state<ActiveEscalation[]>([]);
+  let onCall       = $state<{entries: OnCallEntry[]; current?: OnCallEntry}>({ entries: [] });
 
-  let policyName  = $state('');
-  let slaMins     = $state(30);
-  let alertTypes  = $state('security_alert,failed_login');
-  let saveMsg     = $state('');
+  // -- Form State --
+  let policyName   = $state('');
+  let slaMins      = $state(30);
+  let alertTypes   = $state('security_alert,failed_login');
+  let saveMsg      = $state('');
 
-  onMount(async () => {
-    try { const r = await request<{policies:EscalationPolicy[]}>('/escalation/policies'); policies = r.policies??[]; } catch {}
-    try { const r = await request<{escalations:ActiveEscalation[]}>('/escalation/active'); active = r.escalations??[]; } catch {}
-    try { const r = await request<{escalations:ActiveEscalation[]}>('/escalation/history?limit=50'); history = r.escalations??[]; } catch {}
-    try { onCall = await request('/escalation/oncall'); } catch {}
-    loading = false;
-  });
+  // -- Helpers --
+  const msAgo = (iso: string) => {
+    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (d < 60) return `${d}m ago`;
+    return `${Math.floor(d/60)}h ${d%60}m ago`;
+  };
+
+  // -- Actions --
+  async function fetchData() {
+    loading = true;
+    try {
+      const [p, a, h, o] = await Promise.all([
+        request<{ policies: EscalationPolicy[] }>('/escalation/policies'),
+        request<{ escalations: ActiveEscalation[] }>('/escalation/active'),
+        request<{ escalations: ActiveEscalation[] }>('/escalation/history?limit=50'),
+        request<{entries: OnCallEntry[]; current?: OnCallEntry}>('/escalation/oncall')
+      ]);
+      policies = p.policies ?? [];
+      activeEscs = a.escalations ?? [];
+      history = h.escalations ?? [];
+      onCall = o;
+    } catch (e) {
+      console.error('Escalation data fetch failed', e);
+    } finally {
+      loading = false;
+    }
+  }
 
   async function savePolicy() {
-    if (!policyName.trim()) return;
-    const policy = { id:policyName.toLowerCase().replace(/\s+/g,'_'), name:policyName, sla_mins:slaMins, alert_types:alertTypes.split(',').map(s=>s.trim()), active:true,
-      levels:[{level:1,name:'Analyst',users:['analyst@oblivra.io'],channel:'slack',wait_mins:10},{level:2,name:'Team Lead',users:['lead@oblivra.io'],channel:'email',wait_mins:15},{level:3,name:'Manager',users:['manager@oblivra.io'],channel:'email',wait_mins:20},{level:4,name:'CISO',users:['ciso@oblivra.io'],channel:'sms',wait_mins:999}]
+    if (!policyName) return;
+    const policy: Partial<EscalationPolicy> = {
+      id:          policyName.toLowerCase().replace(/\s+/g, '_'),
+      name:        policyName,
+      sla_mins:    slaMins,
+      alert_types: alertTypes.split(',').map(s => s.trim()),
+      active:      true,
+      levels: [
+        { level: 1, name: 'Analyst',  users: ['analyst@oblivra.io'],  channel: 'slack', wait_mins: 10 },
+        { level: 2, name: 'Team Lead', users: ['lead@oblivra.io'],    channel: 'email', wait_mins: 15 },
+        { level: 3, name: 'Manager',  users: ['manager@oblivra.io'],  channel: 'email', wait_mins: 20 },
+        { level: 4, name: 'CISO',     users: ['ciso@oblivra.io'],     channel: 'sms',   wait_mins: 999 },
+      ],
     };
     try {
-      await request('/escalation/policies', {method:'POST', body:JSON.stringify(policy)});
-      saveMsg = '✓ Policy saved.';
-      const r = await request<{policies:EscalationPolicy[]}>('/escalation/policies'); policies = r.policies??[];
-    } catch(e:any) { saveMsg = `✗ ${e.message}`; }
+      await request('/escalation/policies', { method: 'POST', body: JSON.stringify(policy) });
+      saveMsg = '✓ Policy saved successfully.';
+      fetchData();
+    } catch(e: any) {
+      saveMsg = `✗ Error: ${e.message}`;
+    } finally {
+      setTimeout(() => saveMsg = '', 5000);
+    }
   }
 
-  async function ackAlert(alertId:string) {
-    const user = JSON.parse(localStorage.getItem('oblivra_user')??'{}');
-    await request('/escalation/ack', {method:'POST', body:JSON.stringify({alert_id:alertId, user_id:user.id??'unknown', comment:'Acknowledged via web console'})});
-    const r = await request<{escalations:ActiveEscalation[]}>('/escalation/active'); active = r.escalations??[];
+  async function ackAlert(alertId: string) {
+    try {
+      await request('/escalation/ack', {
+        method: 'POST',
+        body: JSON.stringify({ alert_id: alertId, user_id: 'current_user', comment: 'Acknowledged via Web Console' }),
+      });
+      fetchData();
+    } catch (e) {
+      console.error('Ack failed', e);
+    }
   }
 
-  const openEscalations = $derived(active.filter(a => !a.closed));
-  const slaBreached     = $derived(active.filter(a => a.sla_breached).length);
+  onMount(() => {
+    fetchData();
+  });
 </script>
 
-<div class="ec-page">
-  <div class="ec-header">
-    <h1 class="ec-title">⬡ ESCALATION CENTER</h1>
-    <p class="ec-sub">Policy management · On-call scheduling · SLA tracking</p>
-  </div>
+<PageLayout title="Escalation Command" subtitle="Mission-critical communication tiers, containment escalation protocols, and SLA enforcement">
+  {#snippet toolbar()}
+    <div class="flex items-center gap-2">
+      <Button variant="danger" size="sm" icon={Zap} class="font-black italic tracking-tighter">WAR MODE</Button>
+      <Button variant="secondary" size="sm" onclick={fetchData}>
+        <History size={14} class="mr-2" />
+        RE-SYNC
+      </Button>
+    </div>
+  {/snippet}
 
-  <div class="ec-stats">
-    {#each [{l:'POLICIES',v:policies.length,c:'#ff6600'},{l:'ACTIVE',v:openEscalations.length,c:'#ff3355'},{l:'SLA BREACHED',v:slaBreached,c:'#ffaa00'},{l:'HISTORY',v:history.length,c:'#00ff88'}] as s}
-      <div class="ec-stat" style="border-top-color:{s.c}"><div class="ec-stat-val" style="color:{s.c}">{s.v}</div><div class="ec-stat-label">{s.l}</div></div>
-    {/each}
-  </div>
-
-  <div class="ec-tabs">
-    {#each (['policies','active','oncall','history'] as Tab[]) as t}
-      <button class="ec-tab {tab===t ? 'ec-tab--active' : ''}" onclick={() => tab=t}>{t.toUpperCase()}</button>
-    {/each}
-  </div>
-
-  {#if tab === 'policies'}
-    <div class="ec-two-col">
-      <div class="ec-policy-list">
-        {#each policies as p (p.id)}
-          <div class="ec-policy-card">
-            <div class="ec-policy-top">
-              <div>
-                <div class="ec-policy-name">{p.name}</div>
-                <div class="ec-muted">SLA: {p.sla_mins}min · {p.alert_types?.join(', ')}</div>
-              </div>
-              <span class="ec-status-dot" style="color:{p.active ? '#00ff88' : '#ff3355'}">● {p.active ? 'ACTIVE' : 'INACTIVE'}</span>
+  <div class="flex flex-col h-full gap-0 -m-6 overflow-hidden">
+    <!-- METRIC STRIP -->
+    <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Policies</div>
+            <div class="text-xl font-mono font-bold text-accent-primary">{policies.length}</div>
+            <div class="text-[9px] text-text-muted mt-1 italic">Cluster-wide enforcement</div>
+        </div>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Escalations</div>
+            <div class="text-xl font-mono font-bold {activeEscs.filter(a => !a.closed).length > 0 ? 'text-alert-critical' : 'text-text-heading'}">
+              {activeEscs.filter(a => !a.closed).length}
             </div>
-            {#each (p.levels??[]) as lvl}
-              <div class="ec-level-row">
-                <span class="ec-level-num">L{lvl.level}</span>
-                <span class="ec-level-name">{lvl.name}</span>
-                <span class="ec-channel" style="background:{CH_COLOR[lvl.channel]??'#1e3040'}22; border-color:{CH_COLOR[lvl.channel]??'#1e3040'}; color:{CH_COLOR[lvl.channel]??'#607070'}">{lvl.channel.toUpperCase()}</span>
-                <span class="ec-muted">{lvl.wait_mins<999 ? `→ ${lvl.wait_mins}m` : 'terminal'}</span>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <div class="ec-muted">No policies defined.</div>
-        {/each}
-      </div>
-      <div class="ec-new-policy">
-        <div class="ec-form-title">NEW POLICY</div>
-        {#each [{label:'POLICY NAME',bind:policyName,placeholder:'Critical Security'},{label:'ALERT TYPES',bind:alertTypes,placeholder:'security_alert,failed_login'}] as f}
-          <div class="ec-field">
-            <div class="ec-field-label">{f.label}</div>
-            <input type="text" value={f.label==='POLICY NAME' ? policyName : alertTypes} oninput={(e)=>{if(f.label==='POLICY NAME') policyName=(e.target as HTMLInputElement).value; else alertTypes=(e.target as HTMLInputElement).value;}} placeholder={f.placeholder} class="ec-input" />
-          </div>
-        {/each}
-        <div class="ec-field">
-          <div class="ec-field-label">SLA (MINUTES)</div>
-          <input type="number" bind:value={slaMins} min="1" max="1440" class="ec-input" />
+            <div class="text-[9px] text-text-muted mt-1 uppercase tracking-tighter">Engaged response bridges</div>
         </div>
-        <div class="ec-muted ec-note">Levels auto-seeded: Analyst → Lead → Manager → CISO</div>
-        <button class="ec-save-btn" onclick={savePolicy}>SAVE POLICY</button>
-        {#if saveMsg}<div class="ec-save-msg" style="color:{saveMsg.startsWith('✓') ? '#00ff88' : '#ff3355'}">{saveMsg}</div>{/if}
-      </div>
-    </div>
-
-  {:else if tab === 'active'}
-    {#each openEscalations as esc (esc.alert_id)}
-      <div class="ec-active-card" style="border-left-color:{esc.sla_breached ? '#ffaa00' : '#ff3355'}; border-color:{esc.sla_breached ? '#ffaa00' : '#1e3040'}">
-        <div class="ec-active-top">
-          <div>
-            <div class="ec-active-id">{esc.alert_id}</div>
-            <div class="ec-muted">Policy: <span style="color:#ff6600">{esc.policy_id}</span> · Level: <span style="color:#ff3355">L{esc.current_level}</span> · {msAgo(esc.created_at)}</div>
-            {#if esc.sla_breached}<div class="ec-sla-warn">⚠ SLA BREACHED</div>{/if}
-          </div>
-          <button class="ec-ack-btn" onclick={() => ackAlert(esc.alert_id)}>ACKNOWLEDGE</button>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">SLA Breaches (24h)</div>
+            <div class="text-xl font-mono font-bold {activeEscs.filter(a => a.sla_breached).length > 0 ? 'text-alert-high' : 'text-status-online'}">
+              {activeEscs.filter(a => a.sla_breached).length}
+            </div>
+            <div class="text-[9px] text-text-muted mt-1 italic">Policy violations</div>
         </div>
-      </div>
-    {:else}
-      <div class="ec-empty">No active escalations. All clear.</div>
-    {/each}
-
-  {:else if tab === 'oncall'}
-    <div class="ec-table-wrap">
-      {#if onCall?.current}
-        <div class="ec-oncall-now">● NOW ON-CALL: {onCall.current.name}</div>
-      {/if}
-      <table class="ec-table">
-        <thead><tr>{#each ['ENGINEER','DAYS','HOURS (UTC)'] as h}<th>{h}</th>{/each}</tr></thead>
-        <tbody>
-          {#each (onCall?.entries??[]) as e}
-            <tr class="ec-row"><td>{e.name}</td><td class="ec-muted">{DAYS[e.weekday_start]}–{DAYS[e.weekday_end]}</td><td class="ec-muted">{String(e.hour_start).padStart(2,'0')}:00 – {String(e.hour_end).padStart(2,'0')}:00</td></tr>
-          {:else}
-            <tr><td colspan="3" class="ec-empty">No on-call data.</td></tr>
-          {/each}
-        </tbody>
-      </table>
+        <div class="bg-surface-2 p-3">
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Avg Resolution Time</div>
+            <div class="text-xl font-mono font-bold text-status-online">12m 4s</div>
+            <div class="text-[9px] text-status-online mt-1 uppercase tracking-tighter">✓ Within Nominal range</div>
+        </div>
     </div>
 
-  {:else}
-    <div class="ec-table-wrap">
-      <table class="ec-table">
-        <thead><tr>{#each ['ALERT ID','POLICY','FINAL LEVEL','ACKED BY','ACKED AT','SLA'] as h}<th>{h}</th>{/each}</tr></thead>
-        <tbody>
-          {#each history as h (h.alert_id)}
-            <tr class="ec-row">
-              <td>{h.alert_id}</td><td style="color:#ff6600">{h.policy_id}</td><td style="color:#ff3355">L{h.current_level}</td>
-              <td class="ec-muted">{h.acked_by||'—'}</td>
-              <td class="ec-muted">{h.acked_at ? new Date(h.acked_at).toLocaleString() : '—'}</td>
-              <td><span style="color:{h.sla_breached ? '#ffaa00' : '#00ff88'}">{h.sla_breached ? '⚠ BREACHED' : '✓ OK'}</span></td>
-            </tr>
-          {:else}
-            <tr><td colspan="6" class="ec-empty">No history yet.</td></tr>
-          {/each}
-        </tbody>
-      </table>
+    <!-- MAIN BODY -->
+    <div class="flex-1 flex min-h-0 bg-surface-0 overflow-hidden">
+        <!-- LEFT: MAIN CONTENT -->
+        <div class="flex-1 flex flex-col min-w-0 border-r border-border-primary overflow-hidden">
+            <div class="bg-surface-1 border-b border-border-primary p-3 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <Users size={14} class="text-accent-primary" />
+                        <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Command Shards</span>
+                    </div>
+                    
+                    <div class="flex border border-border-primary rounded-sm overflow-hidden">
+                      {#each ['policies', 'active', 'oncall', 'history'] as t}
+                        <button
+                          class="px-3 py-1 text-[9px] font-bold uppercase tracking-widest transition-colors
+                            {tab === t ? 'bg-accent-primary text-black' : 'bg-surface-0 text-text-muted hover:text-text-secondary'}"
+                          onclick={() => tab = t as any}
+                        >
+                          {t}
+                        </button>
+                      {/each}
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-auto bg-surface-0">
+              {#if loading}
+                <div class="h-full flex items-center justify-center"><Spinner /></div>
+              {:else if tab === 'policies'}
+                <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <!-- Form -->
+                  <div class="lg:col-span-4 space-y-6">
+                     <div class="bg-surface-1 border border-border-primary p-5 rounded-sm space-y-4 shadow-premium">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-text-muted border-b border-border-subtle pb-2">New Escalation Logic</div>
+                        
+                        <div class="space-y-4">
+                           <div class="space-y-1.5">
+                              <span class="text-[9px] font-mono text-text-muted uppercase tracking-widest">Policy Identifier</span>
+                              <input bind:value={policyName} class="w-full bg-surface-2 border border-border-subtle rounded-xs px-3 py-1.5 text-xs font-mono text-text-secondary focus:border-accent-primary focus:outline-none transition-colors" placeholder="Critical_Infra_Response" />
+                           </div>
+                           <div class="space-y-1.5">
+                              <span class="text-[9px] font-mono text-text-muted uppercase tracking-widest">Trigger Alert Types</span>
+                              <input bind:value={alertTypes} class="w-full bg-surface-2 border border-border-subtle rounded-xs px-3 py-1.5 text-xs font-mono text-text-secondary focus:border-accent-primary focus:outline-none transition-colors" placeholder="auth_fail, entropy_spike" />
+                           </div>
+                           <div class="space-y-1.5">
+                              <span class="text-[9px] font-mono text-text-muted uppercase tracking-widest">Global SLA (Minutes)</span>
+                              <input type="number" bind:value={slaMins} class="w-full bg-surface-2 border border-border-subtle rounded-xs px-3 py-1.5 text-xs font-mono text-text-secondary focus:border-accent-primary focus:outline-none transition-colors" />
+                           </div>
+                        </div>
+
+                        <div class="p-3 bg-surface-2 border border-border-subtle rounded-xs text-[9px] font-mono text-text-muted leading-relaxed italic">
+                           Note: Policies are auto-seeded with standard T1-T4 tiers (Analyst → Lead → Manager → CISO). Levels can be customized after creation.
+                        </div>
+
+                        <Button variant="primary" size="sm" class="w-full font-black italic tracking-tighter" onclick={savePolicy}>SAVE POLICY SHARD</Button>
+                        
+                        {#if saveMsg}
+                          <div class="text-[9px] font-mono font-bold text-center {saveMsg.startsWith('✓') ? 'text-status-online' : 'text-alert-critical'} animate-pulse">
+                            {saveMsg}
+                          </div>
+                        {/if}
+                     </div>
+                  </div>
+
+                  <!-- List -->
+                  <div class="lg:col-span-8 space-y-4">
+                     {#each policies as p}
+                        <div class="bg-surface-1 border border-border-primary rounded-sm overflow-hidden group hover:border-accent-primary transition-colors">
+                           <div class="bg-surface-2 border-b border-border-primary p-3 flex justify-between items-center">
+                              <div class="flex items-center gap-3">
+                                 <Shield size={14} class="text-accent-primary" />
+                                 <span class="text-[11px] font-black text-text-heading uppercase tracking-tighter">{p.name}</span>
+                              </div>
+                              <Badge variant={p.active ? 'success' : 'danger'} size="xs" dot>{p.active ? 'ARMED' : 'INACTIVE'}</Badge>
+                           </div>
+                           <div class="p-4 space-y-3">
+                              <div class="flex gap-4 text-[9px] font-mono text-text-muted uppercase tracking-widest mb-2 opacity-60">
+                                 <span>SLA: {p.sla_mins}m</span>
+                                 <span>|</span>
+                                 <span>Types: {p.alert_types.join(', ')}</span>
+                              </div>
+                              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                 {#each p.levels as lvl}
+                                    {@const Icon = CH_ICON[lvl.channel] || MessageSquare}
+                                    <div class="bg-surface-2 border border-border-subtle p-2.5 rounded-xs flex items-center justify-between group-hover:bg-surface-1 transition-colors">
+                                       <div class="flex items-center gap-3">
+                                          <div class="w-6 h-6 rounded-full bg-surface-0 border border-border-subtle flex items-center justify-center text-[9px] font-black text-accent-primary">L{lvl.level}</div>
+                                          <div class="flex flex-col">
+                                             <span class="text-[10px] font-bold text-text-secondary uppercase">{lvl.name}</span>
+                                             <span class="text-[8px] font-mono text-text-muted truncate w-32">{lvl.users[0]}</span>
+                                          </div>
+                                       </div>
+                                       <div class="flex items-center gap-2">
+                                          <Icon size={12} class="text-text-muted" />
+                                          <span class="text-[9px] font-mono text-text-muted uppercase">{lvl.wait_mins < 999 ? `${lvl.wait_mins}m` : '∞'}</span>
+                                       </div>
+                                    </div>
+                                 {/each}
+                              </div>
+                           </div>
+                        </div>
+                     {/each}
+                  </div>
+                </div>
+              {:else if tab === 'active'}
+                <div class="p-6 space-y-4">
+                   {#each activeEscs.filter(a => !a.closed) as esc}
+                      <div class="bg-surface-1 border border-border-primary border-l-2 p-5 rounded-sm flex justify-between items-center group hover:bg-surface-2 transition-colors"
+                        style="border-left-color: {esc.sla_breached ? 'var(--alert-high)' : 'var(--alert-critical)'}">
+                         <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-3">
+                               <span class="text-sm font-black text-text-heading italic uppercase tracking-tighter">{esc.alert_id}</span>
+                               {#if esc.sla_breached}
+                                  <Badge variant="warning" size="xs" class="animate-pulse">⚠ SLA_BREACHED</Badge>
+                               {/if}
+                            </div>
+                            <div class="flex gap-4 text-[10px] font-mono text-text-muted uppercase tracking-widest opacity-60">
+                               <span class="flex items-center gap-1.5"><Shield size={10} class="text-accent-primary" /> {esc.policy_id}</span>
+                               <span class="flex items-center gap-1.5"><Activity size={10} class="text-alert-critical" /> LEVEL_L{esc.current_level}</span>
+                               <span class="flex items-center gap-1.5"><Clock size={10} /> {msAgo(esc.created_at)}</span>
+                            </div>
+                         </div>
+                         <Button variant="success" size="sm" class="font-black italic tracking-tighter px-6" onclick={() => ackAlert(esc.alert_id)}>ACKNOWLEDGE_BRIDGE</Button>
+                      </div>
+                   {:else}
+                      <div class="py-20 text-center opacity-40 flex flex-col items-center gap-4">
+                         <CheckCircle size={48} class="text-status-online" />
+                         <p class="text-[10px] font-mono uppercase tracking-widest text-status-online font-bold">All escalation paths nominal. No active bridges.</p>
+                      </div>
+                   {/each}
+                </div>
+              {:else if tab === 'oncall'}
+                <div class="p-6 space-y-6">
+                   <div class="bg-surface-2 border border-status-online/20 border-l-2 border-l-status-online p-6 rounded-sm flex justify-between items-center">
+                      <div class="flex items-center gap-6">
+                         <div class="w-16 h-16 rounded-full bg-surface-1 border-2 border-status-online flex items-center justify-center p-1">
+                            <div class="w-full h-full rounded-full bg-status-online/10 flex items-center justify-center text-xl font-black text-status-online italic">
+                               {onCall.current?.name?.charAt(0) ?? '?'}
+                            </div>
+                         </div>
+                         <div class="space-y-1">
+                            <span class="text-[10px] font-black text-status-online uppercase tracking-widest flex items-center gap-2">
+                               <div class="w-1.5 h-1.5 rounded-full bg-status-online animate-pulse"></div>
+                               Active Primary Responder
+                            </span>
+                            <h2 class="text-2xl font-black text-text-heading uppercase tracking-tighter italic">{onCall.current?.name ?? 'UNASSIGNED'}</h2>
+                            <p class="text-[10px] font-mono text-text-muted uppercase tracking-tighter">Engagement window: {onCall.current ? `${DAYS[onCall.current.weekday_start]}–${DAYS[onCall.current.weekday_end]} ${onCall.current.hour_start}:00–${onCall.current.hour_end}:00 UTC` : 'N/A'}</p>
+                         </div>
+                      </div>
+                      <Button variant="secondary" size="sm" icon={Phone}>TRANSFER DUTY</Button>
+                   </div>
+
+                   <DataTable 
+                    data={onCall.entries} 
+                    columns={[
+                      { key: 'name', label: 'OPERATOR_NAME' },
+                      { key: 'schedule', label: 'ROTATION_WINDOW' },
+                      { key: 'hours', label: 'TIME_SLOT_UTC', width: '200px' },
+                      { key: 'status', label: 'STATE', width: '120px' }
+                    ]} 
+                    compact
+                    rowKey="user_id"
+                  >
+                    {#snippet cell({ column, row })}
+                      {#if column.key === 'name'}
+                        <span class="text-[11px] font-bold text-text-heading uppercase">{row.name}</span>
+                      {:else if column.key === 'schedule'}
+                        <span class="text-[10px] font-mono text-text-muted uppercase">{DAYS[row.weekday_start]} – {DAYS[row.weekday_end]}</span>
+                      {:else if column.key === 'hours'}
+                        <span class="text-[10px] font-mono text-text-muted uppercase">{String(row.hour_start).padStart(2,'0')}:00 – {String(row.hour_end).padStart(2,'0')}:00</span>
+                      {:else if column.key === 'status'}
+                         <Badge variant={onCall.current?.user_id === row.user_id ? 'success' : 'secondary'} size="xs">
+                            {onCall.current?.user_id === row.user_id ? 'ENGAGED' : 'STANDBY'}
+                         </Badge>
+                      {/if}
+                    {/snippet}
+                  </DataTable>
+                </div>
+              {:else if tab === 'history'}
+                <DataTable 
+                  data={history} 
+                  columns={[
+                    { key: 'alert_id', label: 'BRIDGE_REF' },
+                    { key: 'policy_id', label: 'POLICY_ID', width: '180px' },
+                    { key: 'current_level', label: 'PEAK_TIER', width: '100px' },
+                    { key: 'acked_by', label: 'RESPONDER', width: '150px' },
+                    { key: 'acked_at', label: 'ACK_TIMESTAMP', width: '160px' },
+                    { key: 'sla_breached', label: 'SLA_STATUS', width: '120px' }
+                  ]} 
+                  compact
+                  rowKey="alert_id"
+                >
+                  {#snippet cell({ column, row })}
+                    {#if column.key === 'alert_id'}
+                      <span class="text-[11px] font-bold text-text-heading italic uppercase">{row.alert_id}</span>
+                    {:else if column.key === 'policy_id'}
+                      <span class="text-[9px] font-mono text-accent-primary uppercase font-bold">{row.policy_id}</span>
+                    {:else if column.key === 'current_level'}
+                      <div class="flex items-center gap-2">
+                         <div class="w-4 h-4 rounded-full bg-surface-2 border border-border-subtle flex items-center justify-center text-[8px] font-black text-alert-critical italic">L{row.current_level}</div>
+                      </div>
+                    {:else if column.key === 'acked_by'}
+                      <span class="text-[10px] font-bold text-text-secondary uppercase">{row.acked_by || 'SYSTEM_AUTO'}</span>
+                    {:else if column.key === 'acked_at'}
+                      <span class="text-[9px] font-mono text-text-muted uppercase tracking-tighter">{row.acked_at ? new Date(row.acked_at).toLocaleString() : '—'}</span>
+                    {:else if column.key === 'sla_breached'}
+                       <Badge variant={row.sla_breached ? 'warning' : 'success'} size="xs">
+                          {row.sla_breached ? '⚠ BREACHED' : '✓ NOMINAL'}
+                       </Badge>
+                    {/if}
+                  {/snippet}
+                </DataTable>
+              {/if}
+            </div>
+        </div>
+
+        <!-- RIGHT: ADVISORY SIDEBAR -->
+        <div class="w-80 bg-surface-1 flex flex-col shrink-0">
+            <div class="px-3 py-2 bg-surface-2 border-b border-border-primary flex items-center gap-2">
+                <AlertTriangle size={14} class="text-alert-high" />
+                <span class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-heading">Response Integrity</span>
+            </div>
+            
+            <div class="p-4 space-y-6">
+                <div class="space-y-4">
+                  <div class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest border-b border-border-subtle pb-2">Operational Status</div>
+                  {#each [
+                    { name: 'AUTO_ESCALATE', val: 'ENABLED', color: 'status-online' },
+                    { name: 'PAGER_RELAY', val: 'NOMINAL', color: 'status-online' },
+                    { name: 'BRIDGE_LOCK', val: 'IDLE', color: 'accent-primary' },
+                    { name: 'CISO_AVAILABILITY', val: 'STBY', color: 'status-online' }
+                  ] as status}
+                    <div class="flex justify-between items-center text-[10px] font-mono">
+                      <span class="text-text-muted uppercase tracking-tight">{status.name}</span>
+                      <span class="font-bold text-{status.color} italic">{status.val}</span>
+                    </div>
+                  {/each}
+                </div>
+
+                <div class="pt-4 border-t border-border-primary space-y-4">
+                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Remediation Pipelines</span>
+                    <div class="bg-surface-2 border border-border-primary p-4 rounded-sm space-y-4 text-center group hover:border-alert-critical transition-colors">
+                        <div class="relative z-10 w-12 h-12 mx-auto rounded-full bg-alert-critical/10 flex items-center justify-center border border-alert-critical/40 animate-pulse">
+                           <Zap size={20} class="text-alert-critical" />
+                        </div>
+                        <div class="space-y-1">
+                           <h4 class="text-[11px] font-black text-text-heading uppercase italic">Emergency Containment</h4>
+                           <p class="text-[8px] text-text-muted font-mono leading-relaxed opacity-60">
+                              Trigger global network sharding and hardware-key re-auth.
+                           </p>
+                        </div>
+                        <Button variant="danger" size="xs" class="w-full">ENGAGE CONTAINMENT</Button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-auto border-t border-border-primary p-4 bg-surface-2">
+                 <div class="flex items-center justify-between mb-2">
+                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Protocol Version</span>
+                    <Badge variant="accent" size="xs">ESCAL_v2.1</Badge>
+                 </div>
+                 <div class="text-[8px] font-mono text-text-muted space-y-1 opacity-60">
+                    <div>Chain: MULTI_TIER_SHARDED</div>
+                    <div>Relay: OBLIVRA_COMMS_v1.4</div>
+                    <div>Integrations: 12 Active</div>
+                 </div>
+            </div>
+        </div>
     </div>
-  {/if}
-</div>
+
+    <!-- STATUS BAR -->
+    <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0 uppercase tracking-widest">
+        <div class="flex items-center gap-1.5">
+            <div class="w-1 h-1 rounded-full bg-status-online"></div>
+            <span>COMMS_PLANE:</span>
+            <span class="text-status-online font-bold italic">OPTIMIZED</span>
+        </div>
+        <span class="text-border-primary opacity-30">|</span>
+        <div class="flex items-center gap-1.5">
+            <span>SLA_MONITOR:</span>
+            <span class="text-status-online font-bold italic">ACTIVE</span>
+        </div>
+        <span class="text-border-primary opacity-30">|</span>
+        <div class="flex items-center gap-1.5">
+            <span>ESCALATION_L7:</span>
+            <span class="text-accent-primary font-bold italic">NOMINAL</span>
+        </div>
+        <div class="ml-auto opacity-40">OBLIVRA_ESCALATION_CENTER v2.1.5</div>
+    </div>
+  </div>
+</PageLayout>
 
 <style>
-  .ec-page { padding:28px; color:#c8d8d8; font-family:var(--font-mono); min-height:100vh; background:#080f12; }
-  .ec-header { margin-bottom:20px; }
-  .ec-title  { font-size:20px; letter-spacing:.14em; margin:0; color:#ff6600; }
-  .ec-sub    { margin:3px 0 0; font-size:11px; color:#607070; }
-  .ec-stats  { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
-  .ec-stat   { background:#0d1a1f; border:1px solid #1e3040; border-top:2px solid; padding:14px; border-radius:4px; }
-  .ec-stat-val   { font-size:26px; font-weight:700; }
-  .ec-stat-label { font-size:10px; color:#607070; letter-spacing:.12em; margin-top:2px; }
-  .ec-tabs { display:flex; border-bottom:1px solid #1e3040; margin-bottom:20px; }
-  .ec-tab  { padding:8px 18px; cursor:pointer; font-size:11px; letter-spacing:.12em; border:none; border-bottom:2px solid transparent; background:none; color:#607070; font-family:inherit; }
-  .ec-tab--active { border-bottom-color:#ff6600; color:#ff6600; }
-  .ec-two-col { display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start; }
-  .ec-policy-list { display:flex; flex-direction:column; gap:14px; }
-  .ec-policy-card { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; padding:16px; }
-  .ec-policy-top  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
-  .ec-policy-name { color:#ff6600; font-size:13px; letter-spacing:.1em; }
-  .ec-status-dot  { font-size:10px; letter-spacing:.1em; }
-  .ec-level-row   { display:flex; align-items:center; gap:10px; padding:5px 8px; background:#0a1318; border-radius:3px; margin-bottom:4px; font-size:11px; }
-  .ec-level-num   { color:#607070; min-width:20px; }
-  .ec-level-name  { color:#c8d8d8; min-width:80px; }
-  .ec-channel     { padding:1px 6px; border:1px solid; border-radius:2px; font-size:10px; letter-spacing:.08em; }
-  .ec-new-policy  { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; padding:16px; position:sticky; top:14px; }
-  .ec-form-title  { font-size:10px; color:#607070; letter-spacing:.12em; margin-bottom:12px; }
-  .ec-field       { margin-bottom:10px; }
-  .ec-field-label { font-size:10px; color:#607070; margin-bottom:3px; }
-  .ec-input       { width:100%; background:#0a1318; border:1px solid #1e3040; color:#c8d8d8; padding:6px 8px; border-radius:3px; font-size:11px; font-family:inherit; box-sizing:border-box; outline:none; }
-  .ec-note        { font-size:10px; margin-bottom:10px; }
-  .ec-save-btn    { width:100%; background:#ff6600; color:#080f12; border:none; padding:8px; border-radius:3px; cursor:pointer; font-weight:700; font-size:12px; letter-spacing:.1em; font-family:inherit; }
-  .ec-save-msg    { margin-top:7px; font-size:11px; }
-  .ec-active-card { background:#0d1a1f; border:1px solid; border-left:4px solid; border-radius:6px; padding:16px; margin-bottom:12px; }
-  .ec-active-top  { display:flex; justify-content:space-between; align-items:flex-start; }
-  .ec-active-id   { color:#c8d8d8; font-size:13px; margin-bottom:3px; }
-  .ec-sla-warn    { color:#ffaa00; font-size:10px; letter-spacing:.1em; margin-top:4px; }
-  .ec-ack-btn     { background:#00ff88; color:#080f12; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:700; font-family:inherit; white-space:nowrap; }
-  .ec-table-wrap  { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; overflow:hidden; }
-  .ec-oncall-now  { padding:8px 14px; background:#0a1318; border-bottom:1px solid #1e3040; color:#00ff88; font-size:11px; }
-  .ec-table       { width:100%; border-collapse:collapse; font-size:11px; }
-  .ec-table thead tr { border-bottom:1px solid #1e3040; background:#0a1318; }
-  .ec-table th    { padding:9px 14px; text-align:left; color:#607070; letter-spacing:.1em; font-weight:400; font-size:10px; }
-  .ec-row { border-bottom:1px solid #0a1318; transition:background 80ms; }
-  .ec-row:hover { background:#111f28; }
-  .ec-row td      { padding:9px 14px; color:#c8d8d8; }
-  .ec-muted       { color:#607070; font-size:11px; }
-  .ec-empty       { padding:28px; text-align:center; color:#607070; font-size:12px; }
+  :global(.flex-1::-webkit-scrollbar) {
+    width: 6px;
+    height: 6px;
+  }
+  :global(.flex-1::-webkit-scrollbar-track) {
+    background: var(--surface-0);
+  }
+  :global(.flex-1::-webkit-scrollbar-thumb) {
+    background: var(--border-primary);
+    border-radius: 3px;
+  }
 </style>

@@ -32,12 +32,12 @@
 
     <form onsubmit={handleSubmit} class="lg-form">
       <div class="lg-field">
-        <label class="lg-label">Identity (Email)</label>
-        <input type="email" bind:value={email} class="lg-input" placeholder="operator@oblivra.org" required />
+        <label for="identity" class="lg-label">Identity (Email)</label>
+        <input id="identity" type="email" bind:value={email} class="lg-input" placeholder="operator@oblivra.org" required />
       </div>
       <div class="lg-field">
-        <label class="lg-label">Passphrase</label>
-        <input type="password" bind:value={password} class="lg-input" placeholder="••••••••••••" required />
+        <label for="passphrase" class="lg-label">Passphrase</label>
+        <input id="passphrase" type="password" bind:value={password} class="lg-input" placeholder="••••••••••••" required />
       </div>
 
       {#if error}

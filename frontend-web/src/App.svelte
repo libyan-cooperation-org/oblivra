@@ -70,7 +70,7 @@
 </script>
 
 {#if ready}
-  <svelte:component this={currentComponent} />
+  <currentComponent></currentComponent>
 {:else}
   <LoadingScreen />
 {/if}

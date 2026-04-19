@@ -86,7 +86,7 @@
       {/each}
     </div>
 
-    <div class="am-rows" role="list" aria-label="Alert list">
+    <div class="am-rows" role="listbox" aria-label="Alert list">
       {#if loading}
         <div class="am-loading">Loading alerts…</div>
       {:else if displayed.length === 0}
@@ -99,7 +99,7 @@
             class="am-row"
             class:am-row--selected={selected?.id === a.id}
             style="border-left-color:{selected?.id===a.id ? '#00ffe7' : s.color}"
-            role="listitem"
+            role="option"
             tabindex="0"
             onclick={() => selected = a}
             onkeydown={(e) => e.key==='Enter' && (selected = a)}
