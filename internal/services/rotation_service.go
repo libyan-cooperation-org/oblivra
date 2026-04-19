@@ -195,10 +195,10 @@ func (s *RotationService) rotateSSHKey(ctx context.Context, cred *database.Crede
 	return nil
 }
 
-func (s *RotationService) rotatePassword(ctx context.Context, cred *database.Credential, policy *database.RotationPolicy) error {
+func (s *RotationService) rotatePassword(_ context.Context, cred *database.Credential, _ *database.RotationPolicy) error {
 	// Implementation for password rotation (e.g. for database users or local linux users)
 	// This is more complex as it requires 'passwd' or SQL 'ALTER USER'
-	return fmt.Errorf("automated password rotation not yet fully implemented for all targets")
+	return fmt.Errorf("automated password rotation not yet fully implemented for credential: %s", cred.Label)
 }
 
 func (s *RotationService) RegisterPolicy(ctx context.Context, credID string, frequencyDays int, notifyOnly bool) (string, error) {

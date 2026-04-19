@@ -1412,7 +1412,7 @@ func (s *RESTServer) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userCopy := *identityUser
-	if userCopy.Role != auth.RoleAdmin {
+	if auth.Role(userCopy.RoleName) != auth.RoleAdmin {
 		userCopy.Permissions = []string{}
 	}
 	s.jsonResponse(w, http.StatusOK, userCopy)
