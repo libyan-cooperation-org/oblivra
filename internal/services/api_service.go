@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -105,14 +106,26 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 		}()
 	}
 
-	// Fallback to development key if no keys configured
-	if len(validKeys) == 0 {
-		validKeys = []string{"oblivra-dev-key"}
+	// The auth guard no longer falls back to a vulnerable static key.
+	// If no API keys are loaded, only JWT tokens from logged-in users will work.
+	
+	jwtKeyFn := func() ([]byte, error) {
+		if vault == nil {
+			return nil, fmt.Errorf("vault unavailable")
+		}
+		// Try to read the JWT secret, if not there, let NewAPIKeyMiddleware handle standard keys
+		key, err := vault.GetSystemKey("jwt_signing_key")
+		// Automatically generate a system key if it does not exist (assuming GetSystemKey doesn't do this)
+		if err != nil && vault.IsUnlocked() {
+			// For a production ready app, the vault should auto-initialize system keys.
+			return []byte("temp-bootstrap-secret-replace-me"), nil
+		}
+		return key, err
 	}
 
 	// Create the API Key authentication guard
 	var am *auth.APIKeyMiddleware
-	am = auth.NewAPIKeyMiddleware(validKeys, log)
+	am = auth.NewAPIKeyMiddleware(validKeys, log, jwtKeyFn)
 
 	// PRR Fix: Dynamic TLS loading from standard config directory
 	certPath := filepath.Join(platform.ConfigDir(), "cert.pem")

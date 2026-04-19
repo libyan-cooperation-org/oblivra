@@ -215,6 +215,18 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 		if subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
 			return ErrWrongPassword
 		}
+		// SEC-20: One-time migration to random canary
+		v.log.Info("Vault.Unlock: Migrating legacy static canary to random canary")
+		canaryPlain := make([]byte, 32)
+		crand.Read(canaryPlain)
+		newCanary, _ := Encrypt(key, canaryPlain)
+		hasher := sha256.New()
+		hasher.Write(canaryPlain)
+		meta.CanaryHash = hasher.Sum(nil)
+		meta.Canary = newCanary
+		if newData, err := json.Marshal(meta); err == nil {
+			_ = os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), newData, 0600)
+		}
 	}
 
 	v.masterKey = NewSecureBytesFromSlice(key)
@@ -294,6 +306,18 @@ func (v *Vault) UnlockWithKeychain() error {
 		expectedCanary := []byte("oblivra")
 		if subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
 			return ErrWrongPassword
+		}
+		// SEC-20: One-time migration to random canary
+		v.log.Info("Vault.UnlockWithKeychain: Migrating legacy static canary to random canary")
+		canaryPlain := make([]byte, 32)
+		crand.Read(canaryPlain)
+		newCanary, _ := Encrypt(key, canaryPlain)
+		hasher := sha256.New()
+		hasher.Write(canaryPlain)
+		meta.CanaryHash = hasher.Sum(nil)
+		meta.Canary = newCanary
+		if newData, err := json.Marshal(meta); err == nil {
+			_ = os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), newData, 0600)
 		}
 	}
 

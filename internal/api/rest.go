@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -15,7 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"golang.org/x/time/rate"
 
@@ -138,12 +139,17 @@ type RESTServer struct {
 	agents   map[string]*AgentInfo // registered agent fleet
 	agentsMu sync.RWMutex           // protects agents map
 	agentProvider AgentProvider     // provider for agent fleet data
-	limiter  *rate.Limiter
+	globalLimiter  *rate.Limiter
+	tenantLimiters sync.Map // map[string]*rate.Limiter
 	upgrader websocket.Upgrader
 
 	// Enrichment recent-query ring buffer
 	enrichMu     sync.RWMutex
-	enrichRecent []map[string]interface{}
+	enrichRecent map[string][]map[string]interface{}
+
+	// TLS state
+	isTLS bool
+	isTLSMu sync.RWMutex
 
 	// Phase 6.5 — Evidence Locker
 	evidence *forensics.EvidenceLocker
@@ -207,7 +213,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		attest:   attest,
 		certManager: certManager,
 		agents:   make(map[string]*AgentInfo),
-		limiter:  rate.NewLimiter(rate.Limit(20), 50), // 20 req/sec, burst of 50
+		enrichRecent: make(map[string][]map[string]interface{}),
+		globalLimiter:  rate.NewLimiter(rate.Limit(200), 500), // global higher limit
 		maxWS:    100,                               // Max 100 concurrent websocket listeners
 		evidence: forensics.NewEvidenceLocker(&DynamicHMACSigner{provider: keyProvider, purpose: "forensic_hmac"}, log),
 		mcpRegistry: mcpRegistry,
@@ -228,8 +235,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 			CheckOrigin: func(r *http.Request) bool {
 				origin := r.Header.Get("Origin")
 				if origin == "" {
-					// Non-browser clients (CLI agents) omit Origin header; allow them.
-					return true
+					// SEC-16: Reject empty-origin to prevent CSRF / spoofing bypass
+					return false
 				}
 				// Allow same-host requests (Wails desktop shell and localhost agents)
 				host := r.Host
@@ -260,6 +267,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// Authentication endpoints
 	mux.HandleFunc("/api/v1/auth/login", s.handleLogin)
 	mux.HandleFunc("/api/v1/auth/logout", s.handleLogout)
+	mux.HandleFunc("/api/v1/auth/refresh", s.handleRefresh)
 	mux.HandleFunc("/api/v1/auth/me", s.handleMe)
 	mux.HandleFunc("/api/v1/auth/oidc/login", s.handleOIDCLogin)
 	mux.HandleFunc("/api/v1/auth/oidc/callback", s.handleOIDCCallback)
@@ -398,7 +406,6 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 
 	// Security & Hardening routes
 	s.initSecurityRoutes(mux)
-	
 	var handler http.Handler = mux
 
 	// Wrap entire mux with Authentication middleware if provided, BUT exclude
@@ -407,20 +414,22 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/api/v1/auth/login") ||
 			strings.HasPrefix(path, "/api/v1/auth/oidc") ||
+			strings.HasPrefix(path, "/api/v1/auth/refresh") ||
 			path == "/healthz" || path == "/readyz" {
 			mux.ServeHTTP(w, r)
 			return
 		}
 
 		if s.auth != nil {
-			// Auth -> Tenant Isolation chain
-			s.auth.Middleware(s.tenantMiddleware(mux)).ServeHTTP(w, r)
+			// Auth -> Tenant Isolation -> Rate Limit chain
+			s.auth.Middleware(s.tenantMiddleware(s.tenantRateLimitMiddleware(mux))).ServeHTTP(w, r)
 		} else {
-			mux.ServeHTTP(w, r)
+			http.Error(w, "Auth not configured", http.StatusServiceUnavailable)
+			return
 		}
 	})
 
-	// Wrap entire router with security middleware (CORS, Headers, Rate Limiting)
+	// Wrap entire router with security middleware (CORS, Headers, Global Rate Limiting)
 	handler = s.secureMiddleware(finalHandler)
 
 	s.server = &http.Server{
@@ -451,13 +460,21 @@ func (s *RESTServer) Start() {
 		// Attempt TLS if certs are available
 		if s.certManager != nil && s.server.TLSConfig != nil {
 			s.log.Info("[REST] Starting TLS listener on port %d", s.port)
+			s.isTLSMu.Lock()
+			s.isTLS = true
+			s.isTLSMu.Unlock()
 			err := s.server.ListenAndServeTLS("", "")
 			if err != nil && err != http.ErrServerClosed {
-				s.log.Warn("[REST] TLS server failed: %v — falling back to plaintext HTTP", err)
-				// Clean up and try plaintext
+				if os.Getenv("OBLIVRA_ENV") == "production" {
+					s.log.Fatal("TLS required in production; cert load failed: %v", err)
+				} else {
+					s.log.Warn("[REST] TLS server failed: %v — falling back to plaintext HTTP", err)
+				}
 			} else {
 				return
 			}
+		} else if os.Getenv("OBLIVRA_ENV") == "production" {
+			s.log.Fatal("TLS required in production; no certificates loaded.")
 		}
 
 		// Fallback to plaintext HTTP
@@ -477,12 +494,10 @@ func (s *RESTServer) Stop(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-// IsTLS returns true if the server is configured with TLS certificates
 func (s *RESTServer) IsTLS() bool {
-	home, _ := os.UserHomeDir()
-	certPath := filepath.Join(home, ".oblivrashell", "cert.pem")
-	_, err := os.Stat(certPath)
-	return err == nil
+	s.isTLSMu.RLock()
+	defer s.isTLSMu.RUnlock()
+	return s.isTLS
 }
 
 type DataConfidence int
@@ -504,32 +519,65 @@ func (s *RESTServer) jsonResponse(w http.ResponseWriter, status int, data interf
 	}
 
 	b, err := json.Marshal(data)
-	if err == nil && len(b) > 0 && b[0] == '{' {
-		confField := fmt.Sprintf(`"data_confidence":%d,`, confidence)
-		w.Write([]byte("{"))
-		w.Write([]byte(confField))
-		w.Write(b[1:])
-		return
+	if err == nil {
+		var m map[string]interface{}
+		if err := json.Unmarshal(b, &m); err == nil {
+			m["data_confidence"] = confidence
+			json.NewEncoder(w).Encode(m)
+			return
+		}
 	}
 	
-	json.NewEncoder(w).Encode(data)
+	// Fallback if data isn't an object
+	wrapper := map[string]interface{}{
+		"data_confidence": confidence,
+		"data":            data,
+	}
+	json.NewEncoder(w).Encode(wrapper)
 }
 
 func (s *RESTServer) stubHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("OBLIVRA_ENV") == "production" {
-			panic("Stub data not allowed in production")
+			http.Error(w, "Not Implemented", http.StatusNotImplemented)
+			return
 		}
+		
+		role := auth.GetRole(r.Context())
+		if role == "" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		h(w, r)
 	}
 }
 
 // --- Middleware ---
 
+func (s *RESTServer) tenantRateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenantID, _ := database.TenantFromContext(r.Context())
+		if tenantID == "" {
+			tenantID = "GLOBAL"
+		}
+		
+		limiterI, _ := s.tenantLimiters.LoadOrStore(tenantID, rate.NewLimiter(rate.Limit(20), 50))
+		limiter := limiterI.(*rate.Limiter)
+
+		if !limiter.Allow() {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+		
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 1. Rate Limiting
-		if !s.limiter.Allow() {
+		// 1. Global Rate Limiting
+		if !s.globalLimiter.Allow() {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -589,6 +637,10 @@ func (s *RESTServer) handleReadyz(w http.ResponseWriter, r *http.Request) {
 func (s *RESTServer) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if auth.GetRole(r.Context()) != auth.RoleAdmin {
+		http.Error(w, "Forbidden: Admin only", http.StatusForbidden)
 		return
 	}
 
@@ -769,6 +821,12 @@ func (s *RESTServer) handleIngestReplay(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	cleanPath := filepath.Clean(req.WALPath)
+	if strings.Contains(cleanPath, "..") {
+		http.Error(w, "wal_path path traversal blocked", http.StatusBadRequest)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 	defer cancel()
 
@@ -819,6 +877,8 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 		s.log.Error("[REST] WebSocket upgrade failed: %v", err)
 		return
 	}
+	// SEC-35: Enforce read limit to prevent DoS via massive WS payloads
+	conn.SetReadLimit(32768)
 	
 	atomic.AddInt64(&s.activeWS, 1)
 	defer atomic.AddInt64(&s.activeWS, -1)
@@ -897,9 +957,123 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *RESTServer) generateTokens(user *database.User) (string, string, error) {
+	var jwtSecret []byte
+	if s.keyProvider != nil {
+		secret, err := s.keyProvider.GetSystemKey("jwt_signing_key")
+		if err == nil {
+			jwtSecret = secret
+		}
+	}
+	if len(jwtSecret) == 0 {
+		jwtSecret = []byte("temp-bootstrap-secret-replace-me")
+	}
+
+	// 1. Access Token (15m)
+	accessClaims := jwt.MapClaims{
+		"sub":    user.ID,
+		"email":  user.Email,
+		"role":   user.RoleID,
+		"tenant": user.TenantID,
+		"type":   "access",
+		"exp":    time.Now().Add(15 * time.Minute).Unix(),
+	}
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessStr, err := accessToken.SignedString(jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+
+	// 2. Refresh Token (7d)
+	refreshClaims := jwt.MapClaims{
+		"sub":    user.ID,
+		"type":   "refresh",
+		"exp":    time.Now().Add(7 * 24 * time.Hour).Unix(),
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshStr, err := refreshToken.SignedString(jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessStr, refreshStr, nil
+}
+
+func (s *RESTServer) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var jwtSecret []byte
+	if s.keyProvider != nil {
+		secret, err := s.keyProvider.GetSystemKey("jwt_signing_key")
+		if err == nil {
+			jwtSecret = secret
+		}
+	}
+	if len(jwtSecret) == 0 {
+		jwtSecret = []byte("temp-bootstrap-secret-replace-me")
+	}
+
+	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return jwtSecret, nil
+	})
+
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || claims["type"] != "refresh" {
+		http.Error(w, "Invalid token type", http.StatusUnauthorized)
+		return
+	}
+
+	userID := claims["sub"].(string)
+
+	user, err := s.identity.GetUser(userID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+
+	accessStr, refreshStr, err := s.generateTokens(user)
+	if err != nil {
+		http.Error(w, "Failed to generate tokens", http.StatusInternalServerError)
+		return
+	}
+
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"token":         accessStr,
+		"refresh_token": refreshStr,
+	})
+}
+
 func (s *RESTServer) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
+	if auth.GetRole(r.Context()) == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	w.Header().Set("Content-Type", "application/yaml")
-	http.ServeFile(w, r, "docs/openapi.yaml")
+	absPath, err := filepath.Abs("docs/openapi.yaml")
+	if err != nil {
+		http.Error(w, "File not found", http.StatusInternalServerError)
+		return
+	}
+	http.ServeFile(w, r, absPath)
 }
 
 func (s *RESTServer) handleDocs(w http.ResponseWriter, r *http.Request) {
@@ -934,12 +1108,17 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For the MVP, we'll return the user and a placeholder token.
-	// In Phase 0.5, we'll implement full JWT/session persistence.
+	accessToken, refreshToken, err := s.generateTokens(user)
+	if err != nil {
+		http.Error(w, "Failed to generate session tokens", http.StatusInternalServerError)
+		return
+	}
+
 	s.appendAuditEntry(user.Email, "login", "system", "success", r)
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"user":  user,
-		"token": "oblivra-dev-key", // Temporary: using dev-key to pass existing middleware
+		"user":          user,
+		"token":         accessToken,
+		"refresh_token": refreshToken,
 	})
 }
 
@@ -949,19 +1128,44 @@ func (s *RESTServer) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stateBytes := make([]byte, 16)
+	_, _ = rand.Read(stateBytes)
+	state := hex.EncodeToString(stateBytes)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    state,
+		MaxAge:   300,
+		HttpOnly: true,
+		Secure:   s.IsTLS(),
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	url, err := s.identity.GetOIDCURL()
 	if err != nil {
 		http.Error(w, "Failed to generate OIDC redirect", http.StatusInternalServerError)
 		return
+	}
+	if strings.Contains(url, "?") {
+		url += "&state=" + state
+	} else {
+		url += "?state=" + state
 	}
 
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 func (s *RESTServer) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
+	state := r.URL.Query().Get("state")
+	cookie, err := r.Cookie("oauth_state")
+	if err != nil || cookie.Value != state || state == "" {
+		http.Error(w, "CSRF / State mismatch", http.StatusForbidden)
+		return
+	}
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		http.Error(w, "Missing state or code", http.StatusBadRequest)
+		http.Error(w, "Missing code", http.StatusBadRequest)
 		return
 	}
 
@@ -971,8 +1175,13 @@ func (s *RESTServer) handleOIDCCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Redirect to frontend with a temporary session fragment (Phase 0.5 will use secure cookies)
-	http.Redirect(w, r, fmt.Sprintf("/?user=%s&token=oblivra-dev-key", user.ID), http.StatusTemporaryRedirect)
+	accessToken, refreshToken, err := s.generateTokens(user)
+	if err != nil {
+		http.Error(w, "Failed to generate tokens", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/?user=%s&token=%s&refresh=%s", user.ID, accessToken, refreshToken), http.StatusTemporaryRedirect)
 }
 
 func (s *RESTServer) handleSAMLLogin(w http.ResponseWriter, r *http.Request) {
@@ -981,16 +1190,41 @@ func (s *RESTServer) handleSAMLLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stateBytes := make([]byte, 16)
+	_, _ = rand.Read(stateBytes)
+	relayState := hex.EncodeToString(stateBytes)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "saml_state",
+		Value:    relayState,
+		MaxAge:   300,
+		HttpOnly: true,
+		Secure:   s.IsTLS(),
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	url, err := s.identity.GetSAMLURL()
 	if err != nil {
 		http.Error(w, "Failed to generate SAML redirect", http.StatusInternalServerError)
 		return
+	}
+	if strings.Contains(url, "?") {
+		url += "&RelayState=" + relayState
+	} else {
+		url += "?RelayState=" + relayState
 	}
 
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 func (s *RESTServer) handleSAMLCallback(w http.ResponseWriter, r *http.Request) {
+	relayState := r.FormValue("RelayState")
+	cookie, err := r.Cookie("saml_state")
+	if err != nil || cookie.Value != relayState || relayState == "" {
+		http.Error(w, "CSRF / State mismatch", http.StatusForbidden)
+		return
+	}
+
 	samlResponse := r.FormValue("SAMLResponse")
 	if samlResponse == "" {
 		http.Error(w, "Missing SAML response", http.StatusBadRequest)
@@ -1003,13 +1237,31 @@ func (s *RESTServer) handleSAMLCallback(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/?user=%s&token=oblivra-dev-key", user.ID), http.StatusTemporaryRedirect)
+	accessToken, refreshToken, err := s.generateTokens(user)
+	if err != nil {
+		http.Error(w, "Failed to generate tokens", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/?user=%s&token=%s&refresh=%s", user.ID, accessToken, refreshToken), http.StatusTemporaryRedirect)
 }
 
 func (s *RESTServer) handleSAMLMetadata(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
-	// Placeholder: In a real implementation, this would be generated by a SAML library
-	fmt.Fprintf(w, "<EntityDescriptor>OBLIVRA-SAML-V2-MVP</EntityDescriptor>")
+	baseURL := "https://" + r.Host
+	if !s.IsTLS() {
+		baseURL = "http://" + r.Host
+	}
+	// SEC-15: Output proper SP Metadata EntityDescriptor
+	xml := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="%s/api/v1/auth/saml/metadata">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="%s/api/v1/auth/saml/callback" index="1"/>
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>`, baseURL, baseURL)
+	fmt.Fprint(w, xml)
 }
 
 func (s *RESTServer) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -1149,13 +1401,21 @@ func (s *RESTServer) handleLookupQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *RESTServer) handleMe(w http.ResponseWriter, r *http.Request) {
+	if s.auth == nil {
+		http.Error(w, "Auth not configured", http.StatusServiceUnavailable)
+		return
+	}
 	// This relies on the middleware having injected the user into context.
 	identityUser := auth.UserFromContext(r.Context())
 	if identityUser == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	s.jsonResponse(w, http.StatusOK, identityUser)
+	userCopy := *identityUser
+	if userCopy.Role != auth.RoleAdmin {
+		userCopy.Permissions = []string{}
+	}
+	s.jsonResponse(w, http.StatusOK, userCopy)
 }
 
 // ── Escalation Handlers (Phase 2.1.5) ─────────────────────────────────────────
@@ -1424,12 +1684,17 @@ func (s *RESTServer) handleEnrich(w http.ResponseWriter, r *http.Request) {
 		result["enrichment_skip_reason"] = "rate_limit_exceeded"
 	}
 
-	// Add to recent ring buffer
+	// Add to recent ring buffer scoped by tenant
+	tenant, _ := database.TenantFromContext(r.Context())
+	if tenant == "" { tenant = "GLOBAL" }
+
 	s.enrichMu.Lock()
-	s.enrichRecent = append([]map[string]interface{}{result}, s.enrichRecent...)
-	if len(s.enrichRecent) > 20 {
-		s.enrichRecent = s.enrichRecent[:20]
+	list := s.enrichRecent[tenant]
+	list = append([]map[string]interface{}{result}, list...)
+	if len(list) > 20 {
+		list = list[:20]
 	}
+	s.enrichRecent[tenant] = list
 	s.enrichMu.Unlock()
 
 	s.jsonResponse(w, http.StatusOK, result)
@@ -1441,9 +1706,18 @@ func (s *RESTServer) handleEnrichRecent(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	tenant, _ := database.TenantFromContext(r.Context())
+	if tenant == "" { tenant = "GLOBAL" }
+
 	s.enrichMu.RLock()
 	defer s.enrichMu.RUnlock()
-	s.jsonResponse(w, http.StatusOK, s.enrichRecent)
+	
+	list := s.enrichRecent[tenant]
+	if list == nil {
+		list = make([]map[string]interface{}, 0)
+	}
+	
+	s.jsonResponse(w, http.StatusOK, list)
 }
 
 // ── MITRE ATT&CK Handlers (Phase 4) ──────────────────────────────────────────
@@ -1574,10 +1848,12 @@ func (s *RESTServer) handleEvidenceItem(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "POST required", http.StatusMethodNotAllowed)
 			return
 		}
-		actor := r.Header.Get("X-Actor")
-		if actor == "" {
-			actor = "api"
+		authUser := auth.UserFromContext(r.Context())
+		if authUser == nil {
+			s.jsonResponse(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+			return
 		}
+		actor := authUser.Email
 		if err := s.evidence.Seal(id, actor, "Sealed via REST API"); err != nil {
 			s.jsonResponse(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 			return
@@ -1613,6 +1889,17 @@ func (s *RESTServer) handleEvidenceExport(w http.ResponseWriter, r *http.Request
 
 // ── Audit / Regulator Portal Handlers (Phase 6.6) ────────────────────────────
 
+func getClientIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
+		parts := strings.Split(ip, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return strings.TrimSpace(ip)
+	}
+	return r.RemoteAddr
+}
+
 // appendAuditEntry persists an entry to the AuditRepository.
 // Call this from any handler that performs a significant action.
 func (s *RESTServer) appendAuditEntry(actor, action, resource, outcome string, r *http.Request) {
@@ -1625,7 +1912,7 @@ func (s *RESTServer) appendAuditEntry(actor, action, resource, outcome string, r
 		"action":     action,
 		"resource":   resource,
 		"outcome":    outcome,
-		"ip":         r.RemoteAddr,
+		"ip":         getClientIP(r),
 		"user_agent": r.UserAgent(),
 	}
 
@@ -1658,8 +1945,9 @@ func (s *RESTServer) handleAuditLog(w http.ResponseWriter, r *http.Request) {
 }
 
 // compliancePackagesMu + compliancePackages stores generated packages in memory
+// compliancePackagesMu + compliancePackages stores generated packages in memory
 var compliancePackagesMu sync.RWMutex
-var compliancePackages []map[string]interface{}
+var compliancePackages = make(map[string][]map[string]interface{})
 
 // GET /api/v1/audit/packages
 func (s *RESTServer) handleAuditPackages(w http.ResponseWriter, r *http.Request) {
@@ -1667,9 +1955,12 @@ func (s *RESTServer) handleAuditPackages(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	tenant, _ := database.TenantFromContext(r.Context())
+	if tenant == "" { tenant = "GLOBAL" }
+	
 	compliancePackagesMu.RLock()
-	pkgs := make([]map[string]interface{}, len(compliancePackages))
-	copy(pkgs, compliancePackages)
+	pkgs := make([]map[string]interface{}, len(compliancePackages[tenant]))
+	copy(pkgs, compliancePackages[tenant])
 	compliancePackagesMu.RUnlock()
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"packages": pkgs})
 }
@@ -1709,9 +2000,13 @@ func (s *RESTServer) handleAuditPackageGenerate(w http.ResponseWriter, r *http.R
 		"download_url":    fmt.Sprintf("/api/v1/audit/packages/%s/download", id),
 	}
 
+	tenant, _ := database.TenantFromContext(r.Context())
+	if tenant == "" { tenant = "GLOBAL" }
+
 	compliancePackagesMu.Lock()
-	compliancePackages = append(compliancePackages, pkg)
+	compliancePackages[tenant] = append(compliancePackages[tenant], pkg)
 	compliancePackagesMu.Unlock()
+
 
 	s.jsonResponse(w, http.StatusCreated, pkg)
 }
@@ -1779,6 +2074,9 @@ func (s *RESTServer) handleMCPExecute(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, status, resp)
 }
 
+var mcpApprovalsMu sync.Mutex
+var mcpApprovals = make(map[string]map[string]bool)
+
 func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1798,8 +2096,31 @@ func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
 
 	// In a real M-of-N system, we would:
 	// 1. Verify the signature against ActorID's public key
+	
+	mcpApprovalsMu.Lock()
+	if mcpApprovals[req.ApprovalID] == nil {
+		mcpApprovals[req.ApprovalID] = make(map[string]bool)
+	}
+	mcpApprovals[req.ApprovalID][req.ActorID] = true
+	count := len(mcpApprovals[req.ApprovalID])
+	mcpApprovalsMu.Unlock()
+
+	requiredApprovals := 2 // SEC-12: M of N threshold
+
 	// 2. Increment approval count for ApprovalID
 	// 3. If threshold met, generate a one-time execution token
+	if count < requiredApprovals {
+		s.jsonResponse(w, http.StatusAccepted, map[string]interface{}{
+			"status":   "pending_threshold",
+			"approved": count,
+			"required": requiredApprovals,
+		})
+		return
+	}
+
+	mcpApprovalsMu.Lock()
+	delete(mcpApprovals, req.ApprovalID)
+	mcpApprovalsMu.Unlock()
 
 	// MVP: Generate a simple HMAC-based token
 	token := s.mcpHandler.GenerateApprovalToken(req.ApprovalID, req.ActorID)

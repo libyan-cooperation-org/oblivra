@@ -90,7 +90,7 @@ func VerifyHMAC(r *http.Request, body []byte, secret []byte) error {
 	if diff < 0 {
 		diff = -diff
 	}
-	if diff > 60 { // 60s tolerance for clock drift
+	if diff > 30 { // 30s tolerance for clock drift
 		return fmt.Errorf("request expired (clock drift too high)")
 	}
 

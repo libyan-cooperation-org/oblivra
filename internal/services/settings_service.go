@@ -2,16 +2,20 @@ package services
 
 import (
 	"context"
+	"encoding/base64"
+	"strings"
 
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/gdpr"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/vault"
 )
 
 type SettingsService struct {
 	BaseService
 	db        database.DatabaseStore
+	vault     vault.Provider
 	bus       *eventbus.Bus
 	log       *logger.Logger
 	destroyer *gdpr.DataDestructionService
@@ -32,9 +36,10 @@ func (s *SettingsService) Stop(ctx context.Context) error {
 	return nil
 }
 
-func NewSettingsService(db database.DatabaseStore, bus *eventbus.Bus, log *logger.Logger, destroyer *gdpr.DataDestructionService) *SettingsService {
+func NewSettingsService(db database.DatabaseStore, vault vault.Provider, bus *eventbus.Bus, log *logger.Logger, destroyer *gdpr.DataDestructionService) *SettingsService {
 	return &SettingsService{
 		db:        db,
+		vault:     vault,
 		bus:       bus,
 		log:       log.WithPrefix("settings"),
 		destroyer: destroyer,
@@ -49,6 +54,24 @@ func (s *SettingsService) Get(key string) (string, error) {
 	err := s.db.DB().QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&val)
 	if err != nil {
 		return "", err
+	}
+	sensitiveKeys := map[string]bool{
+		"smtp_password":   true,
+		"api_key":         true,
+		"secret_key":      true,
+		"vault_key":       true,
+		"token":           true,
+		"slack_webhook":   true,
+		"discord_webhook": true,
+	}
+	if sensitiveKeys[key] && s.vault != nil && s.vault.IsUnlocked() {
+		if strings.HasPrefix(val, "v1:") {
+			if decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(val, "v1:")); err == nil {
+				if plaintext, err := s.vault.Decrypt(decoded); err == nil {
+					return string(plaintext), nil
+				}
+			}
+		}
 	}
 	return val, nil
 }
@@ -70,6 +93,11 @@ func (s *SettingsService) Set(key string, value string) error {
 	displayValue := value
 	if sensitiveKeys[key] {
 		displayValue = "[REDACTED]"
+		if s.vault != nil && s.vault.IsUnlocked() {
+			if ciphertext, err := s.vault.Encrypt([]byte(value)); err == nil {
+				value = "v1:" + base64.StdEncoding.EncodeToString(ciphertext)
+			}
+		}
 	}
 
 	s.log.Debug("Setting setting: %s=%s", key, displayValue)
@@ -97,7 +125,23 @@ func (s *SettingsService) ClearDatabase() error {
 		"siem_events",
 	}
 
+	allowedTables := map[string]bool{
+		"hosts":       true,
+		"snippets":    true,
+		"settings":    true,
+		"metrics":     true,
+		"recordings":  true,
+		"notes":       true,
+		"sessions":    true,
+		"audit_logs":  true,
+		"siem_events": true,
+	}
+
 	for _, table := range tables {
+		if !allowedTables[table] {
+			continue
+		}
+		
 		s.log.Debug("Wiping table: %s", table)
 		// Use CryptoWipe for secure erasure
 		if err := s.destroyer.CryptoWipe(table, "1=1"); err != nil {
