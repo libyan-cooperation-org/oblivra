@@ -182,7 +182,7 @@ var (
 	peerGroupsSeeded bool
 )
 
-func seedPeerGroups(agentCount int) {
+func seedPeerGroups() {
 	if peerGroupsSeeded && len(cachedPeerGroups) > 0 {
 		return
 	}
@@ -197,12 +197,9 @@ func (s *RESTServer) handlePeerGroups(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.agentsMu.RLock()
-	agentCount := len(s.agents)
-	s.agentsMu.RUnlock()
 
 	peerGroupsMu.Lock()
-	seedPeerGroups(agentCount)
+	seedPeerGroups()
 	out := make([]peerGroup, len(cachedPeerGroups))
 	copy(out, cachedPeerGroups)
 	peerGroupsMu.Unlock()

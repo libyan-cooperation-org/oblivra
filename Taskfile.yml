@@ -5,9 +5,6 @@ includes:
   windows: ./build/windows/Taskfile.yml
   linux: ./build/linux/Taskfile.yml
   agent: ./build/agent/Taskfile.yml
-  # darwin: ./build/darwin/Taskfile.yml
-  # ios: ./build/ios/Taskfile.yml
-  # android: ./build/android/Taskfile.yml
 
 vars:
   APP_NAME: "oblivrashell"
@@ -18,57 +15,50 @@ tasks:
   build:
     summary: Builds the application
     cmds:
-      - task: "{{OS}}:build"
+      - task: "windows:build"
 
   package:
     summary: Packages a production build of the application
     cmds:
-      - task: "{{OS}}:package"
+      - task: "windows:package"
 
   run:
     summary: Runs the application
     cmds:
       - task: clean:ports
-      - task: "{{OS}}:run"
+      - task: "windows:run"
 
   dev:
     summary: Runs the application in development mode
     cmds:
       - task: clean:ports
-      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+      - wails3 dev -port {{.VITE_PORT}}
 
   clean:ports:
     summary: Kills processes on OBLIVRA standard ports
     internal: true
     cmds:
-      - fuser -k 9090/tcp || true
-      - fuser -k 6060/tcp || true
-      - fuser -k 8080/tcp || true
-      - fuser -k 8443/tcp || true
-      - fuser -k 1514/udp || true
+      - powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 9090 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue"
+      - powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 6060 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue"
+      - powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue"
+      - powershell -Command "Stop-Process -Id (Get-NetTCPConnection -LocalPort 8443 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue"
 
   setup:docker:
-    summary: Builds Docker image for cross-compilation (~800MB download)
     cmds:
       - task: common:setup:docker
 
   build:server:
-    summary: Builds the application in server mode (no GUI, HTTP server only)
     cmds:
       - task: common:build:server
 
   run:server:
-    summary: Runs the application in server mode
     cmds:
       - task: common:run:server
 
   build:docker:
-    summary: Builds a Docker image for server mode deployment
     cmds:
       - task: common:build:docker
 
   run:docker:
-    summary: Builds and runs the Docker image
     cmds:
       - task: common:run:docker
-

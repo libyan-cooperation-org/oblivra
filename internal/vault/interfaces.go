@@ -26,5 +26,7 @@ type Provider interface {
 	HasKeychainEntry() bool
 	GetPassword(id string) ([]byte, error)
 	GetPrivateKey(id string) ([]byte, string, error)
+	GetSystemKey(purpose string) ([]byte, error)
+	GetTenantKey(tenantID string) ([]byte, error)
 	NuclearDestruction() error
 }

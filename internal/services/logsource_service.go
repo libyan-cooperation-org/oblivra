@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/logsources"
@@ -123,7 +124,8 @@ func (s *LogSourceService) loadPersistedSources() {
 	if s.analytics == nil {
 		return
 	}
-	data, err := s.analytics.LoadConfig(s.ctx, configKeyLogSources)
+	ctx := database.WithGlobalSearch(s.ctx)
+	data, err := s.analytics.LoadConfig(ctx, configKeyLogSources)
 	if err != nil {
 		return
 	}
@@ -152,7 +154,8 @@ func (s *LogSourceService) persistSources() {
 		safe[i].Password = obfuscate(safe[i].Password)
 	}
 	if data, err := json.Marshal(safe); err == nil {
-		s.analytics.SaveConfig(s.ctx, configKeyLogSources, string(data))
+		ctx := database.WithGlobalSearch(s.ctx)
+		s.analytics.SaveConfig(ctx, configKeyLogSources, string(data))
 	}
 }
 
@@ -160,7 +163,8 @@ func (s *LogSourceService) loadPersistedSearches() {
 	if s.analytics == nil {
 		return
 	}
-	data, err := s.analytics.LoadConfig(s.ctx, configKeySavedSearch)
+	ctx := database.WithGlobalSearch(s.ctx)
+	data, err := s.analytics.LoadConfig(ctx, configKeySavedSearch)
 	if err != nil {
 		return
 	}
@@ -176,7 +180,8 @@ func (s *LogSourceService) persistSearches() {
 	s.savedMu.RLock()
 	defer s.savedMu.RUnlock()
 	if data, err := json.Marshal(s.savedSearches); err == nil {
-		s.analytics.SaveConfig(s.ctx, configKeySavedSearch, string(data))
+		ctx := database.WithGlobalSearch(s.ctx)
+		s.analytics.SaveConfig(ctx, configKeySavedSearch, string(data))
 	}
 }
 

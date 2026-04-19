@@ -554,6 +554,41 @@ func (c *Client) ExecuteCommand(cmd string) ([]byte, error) {
 	return output, nil
 }
 
+// ExecuteCommandWithStdin runs a command and pipes the given string to stdin.
+// This avoids embedding data in shell arguments, preventing process listing exposure.
+func (c *Client) ExecuteCommandWithStdin(cmd string, stdinData string) ([]byte, error) {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+
+	if conn == nil {
+		return nil, fmt.Errorf("not connected")
+	}
+
+	session, err := conn.NewSession()
+	if err != nil {
+		return nil, fmt.Errorf("new session: %w", err)
+	}
+	defer session.Close()
+
+	stdinPipe, err := session.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("stdin pipe: %w", err)
+	}
+
+	go func() {
+		defer stdinPipe.Close()
+		io.WriteString(stdinPipe, stdinData)
+	}()
+
+	output, err := session.CombinedOutput(cmd)
+	if err != nil {
+		return output, fmt.Errorf("execute: %w", err)
+	}
+
+	return output, nil
+}
+
 // DialTCP opens a TCP connection through the SSH tunnel
 func (c *Client) DialTCP(addr string) (net.Conn, error) {
 	c.mu.RLock()

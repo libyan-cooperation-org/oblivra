@@ -113,6 +113,14 @@ func (p *RemoteProvider) Decrypt(data []byte) ([]byte, error) {
 	return p.call("decrypt", data)
 }
 
+func (p *RemoteProvider) GetSystemKey(purpose string) ([]byte, error) {
+	return p.call("system_key", []byte(purpose))
+}
+
+func (p *RemoteProvider) GetTenantKey(tenantID string) ([]byte, error) {
+	return p.call("tenant_key", []byte(tenantID))
+}
+
 func (p *RemoteProvider) AccessMasterKey(fn func(key []byte) error) error {
 	key, err := p.call("master_key", nil)
 	if err != nil {

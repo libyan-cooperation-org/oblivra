@@ -35,7 +35,7 @@ func TestSettingsService_ClearDatabase(t *testing.T) {
 	// Mock DatabaseStore
 	mockDB := &mockDatabaseStore{sqlDB: sqlDB}
 
-	svc := NewSettingsService(mockDB, bus, log, destroyer)
+	svc := NewSettingsService(mockDB, nil, bus, log, destroyer)
 
 	if svc == nil {
 		t.Fatal("Failed to create SettingsService")

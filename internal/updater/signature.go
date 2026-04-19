@@ -54,7 +54,10 @@ func NewSignatureVerifier(log *logger.Logger) (*SignatureVerifier, error) {
 // The signature file must be at <bundlePath>.sig and contain a hex-encoded signature.
 func (v *SignatureVerifier) VerifyBundle(bundlePath string, data []byte) error {
 	if v.pubKey == nil {
-		v.log.Warn("[UPDATER] Skipping signature verification — no public key configured")
+		if os.Getenv("OBLIVRA_ENV") == "production" {
+			return fmt.Errorf("CRITICAL: no sovereign public key configured — cannot verify bundle signature in production")
+		}
+		v.log.Warn("[UPDATER] Skipping signature verification — no public key configured (non-production)")
 		return nil
 	}
 
