@@ -1,146 +1,186 @@
-<!-- OBLIVRA Web — FleetManagement (Svelte 5) -->
+<!-- OBLIVRA Web — Fleet Management (Svelte 5) -->
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { PageLayout, Badge, Button, Spinner, DataTable, KPI } from '@components/ui';
+  import { 
+    Monitor, 
+    RefreshCw, 
+    Search, 
+    Activity, 
+    Cpu, 
+    HardDrive, 
+    ShieldCheck, 
+    ShieldAlert, 
+    Globe, 
+    Terminal, 
+    Clock
+  } from 'lucide-svelte';
   import { request } from '../services/api';
 
-  interface Agent { id:string; hostname:string; os:string; arch:string; version:string; collectors:string[]; last_seen:string; status:string; tenant_id?:string; }
+  // -- Types --
+  interface Agent { 
+    id: string; 
+    hostname: string; 
+    os: string; 
+    arch: string; 
+    version: string; 
+    collectors: string[]; 
+    last_seen: string; 
+    status: 'online' | 'offline' | 'degraded'; 
+    tenant_id?: string; 
+  }
 
+  // -- State --
   let agents  = $state<Agent[]>([]);
   let loading = $state(true);
   let search  = $state('');
 
+  // -- Actions --
   async function fetchAgents() {
     loading = true;
-    try { agents = await request<Agent[]>('/agents'); }
-    catch { agents = []; }
-    loading = false;
+    try {
+      agents = await request<Agent[]>('/agents');
+    } catch {
+      agents = [];
+    } finally {
+      loading = false;
+    }
   }
 
   onMount(fetchAgents);
 
+  // -- Derived --
   const filtered = $derived(agents.filter(a =>
     a.hostname?.toLowerCase().includes(search.toLowerCase()) ||
     (a.tenant_id ?? '').toLowerCase().includes(search.toLowerCase())
   ));
 
-  const online   = $derived(agents.filter(a => a.status === 'online').length);
-  const offline  = $derived(agents.filter(a => a.status !== 'online').length);
+  const stats = $derived({
+    total: agents.length,
+    online: agents.filter(a => a.status === 'online').length,
+    offline: agents.filter(a => a.status === 'offline').length,
+    degraded: agents.filter(a => a.status === 'degraded').length
+  });
 
-  function statusColor(s?: string): string {
-    return s==='online' ? '#00ff88' : s==='degraded' ? '#ffaa00' : s==='offline' ? '#ff3355' : '#607070';
-  }
+  const statusMap: Record<string, { label: string; variant: any }> = {
+    online:   { label: 'ONLINE',   variant: 'success' },
+    offline:  { label: 'OFFLINE',  variant: 'secondary' },
+    degraded: { label: 'DEGRADED', variant: 'warning' },
+  };
+
   function timeSince(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime();
     const m = Math.floor(diff / 60000);
-    return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : `${Math.floor(m/60)}h ago`;
+    if (m < 1) return 'JUST NOW';
+    if (m < 60) return `${m}M AGO`;
+    return `${Math.floor(m/60)}H AGO`;
   }
-
-  const headers = ['STATUS','HOSTNAME','TENANT','PLATFORM','COLLECTORS','VERSION','LAST SEEN'];
 </script>
 
-<div class="fm-page">
-  <div class="fm-header">
-    <div>
-      <h1 class="fm-title">⬡ FLEET MANAGEMENT</h1>
-      <p class="fm-sub">Multi-tenant agent status &amp; telemetry</p>
+<PageLayout title="Fleet Command" subtitle="Agent telemetry orchestration, multi-tenant shard monitoring, and deployment state validation">
+  {#snippet toolbar()}
+    <div class="flex items-center gap-2">
+      <Button variant="secondary" size="sm" onclick={fetchAgents}>
+        <RefreshCw size={14} class="mr-2" />
+        RE-SYNC
+      </Button>
+      <Button variant="primary" size="sm" icon={ShieldCheck}>PROVISION_NODE</Button>
     </div>
-    <div class="fm-controls">
-      <input type="text" placeholder="Search by host or tenant…" bind:value={search} class="fm-search" />
-      <button class="fm-refresh" onclick={fetchAgents}>↻ REFRESH</button>
-    </div>
-  </div>
+  {/snippet}
 
-  <div class="fm-stats">
-    <div class="fm-stat fm-stat--teal">
-      <div class="fm-stat-val">{agents.length}</div>
-      <div class="fm-stat-label">TOTAL AGENTS</div>
+  <div class="flex flex-col h-full gap-6">
+    <!-- METRIC STRIP -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+      <KPI title="Total Nodes" value={stats.total.toString()} trend="Global Fleet" variant="accent" />
+      <KPI title="Operational" value={stats.online.toString()} trend="Active Heartbeat" variant="success" />
+      <KPI title="Degraded" value={stats.degraded.toString()} trend="Action Required" variant="warning" />
+      <KPI title="Offline" value={stats.offline.toString()} trend="Silent Shards" variant="danger" />
     </div>
-    <div class="fm-stat fm-stat--green">
-      <div class="fm-stat-val">{online}</div>
-      <div class="fm-stat-label">ONLINE</div>
-    </div>
-    <div class="fm-stat fm-stat--red">
-      <div class="fm-stat-val">{offline}</div>
-      <div class="fm-stat-label">OFFLINE / DEGRADED</div>
-    </div>
-  </div>
 
-  <div class="fm-table-wrap">
-    <table class="fm-table">
-      <thead>
-        <tr>{#each headers as h}<th>{h}</th>{/each}</tr>
-      </thead>
-      <tbody>
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 flex flex-col bg-surface-1 border border-border-primary rounded-sm overflow-hidden shadow-premium">
+      <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3 bg-surface-0 border border-border-primary rounded-sm px-3 py-1.5 focus-within:border-accent-primary transition-colors group">
+          <Search size={14} class="text-text-muted group-focus-within:text-accent-primary" />
+          <input bind:value={search} placeholder="Filter by host or tenant..." class="bg-transparent border-none outline-none text-xs font-mono text-text-secondary w-64" />
+        </div>
+        <div class="text-[9px] font-mono text-text-muted uppercase tracking-widest italic">
+          Sharding active across {new Set(agents.map(a => a.tenant_id)).size} tenants
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-auto">
         {#if loading}
-          <tr><td colspan="7" class="fm-cell-center">Loading agents…</td></tr>
-        {:else if filtered.length === 0}
-          <tr><td colspan="7" class="fm-cell-center">No agents registered. Deploy via the Onboarding wizard.</td></tr>
+          <div class="h-full flex items-center justify-center"><Spinner /></div>
         {:else}
-          {#each filtered as agent (agent.id)}
-            <tr class="fm-row">
-              <td>
-                <span class="fm-dot" style="background:{statusColor(agent.status)}"></span>
-                <span class="fm-status-text" style="color:{statusColor(agent.status)}">{(agent.status??'unknown').toUpperCase()}</span>
-              </td>
-              <td class="fm-hostname">
-                {agent.hostname}
-                <div class="fm-id">{agent.id}</div>
-              </td>
-              <td class="fm-tenant">{agent.tenant_id ?? 'GLOBAL'}</td>
-              <td>
-                <span class="fm-badge">{agent.os || 'unknown'}</span>
-                <span class="fm-badge">{agent.arch || 'unknown'}</span>
-              </td>
-              <td>
-                <div class="fm-tags">
-                  {#each (agent.collectors || []) as c}
-                    <span class="fm-tag">{c}</span>
+          <DataTable 
+            data={filtered} 
+            columns={[
+              { key: 'status', label: 'NODE_STATE', width: '120px' },
+              { key: 'hostname', label: 'IDENTITY_ENDPOINT' },
+              { key: 'tenant', label: 'TENANT_SHARD', width: '150px' },
+              { key: 'platform', label: 'ARCHITECTURE', width: '180px' },
+              { key: 'collectors', label: 'TELEMETRY_PIPELINE' },
+              { key: 'version', label: 'BUILD', width: '100px' },
+              { key: 'last_seen', label: 'HEARTBEAT', width: '150px' }
+            ]} 
+            compact
+            rowKey="id"
+          >
+            {#snippet cell({ column, row })}
+              {#if column.key === 'status'}
+                {@const s = statusMap[row.status] ?? statusMap.offline}
+                <Badge variant={s.variant} size="xs" dot class="font-black italic">{s.label}</Badge>
+              {:else if column.key === 'hostname'}
+                <div class="flex flex-col py-1">
+                  <span class="text-[11px] font-bold text-text-heading uppercase tracking-tighter italic">{row.hostname}</span>
+                  <span class="text-[9px] font-mono text-text-muted opacity-40 uppercase tracking-tighter">ID: {row.id}</span>
+                </div>
+              {:else if column.key === 'tenant'}
+                <span class="text-[10px] font-mono text-accent-primary font-bold uppercase">{row.tenant_id || 'GLOBAL_ROOT'}</span>
+              {:else if column.key === 'platform'}
+                <div class="flex items-center gap-2">
+                  <Badge variant="secondary" size="xs">{row.os?.toUpperCase()}</Badge>
+                  <span class="text-[9px] font-mono text-text-muted opacity-60 uppercase">{row.arch}</span>
+                </div>
+              {:else if column.key === 'collectors'}
+                <div class="flex flex-wrap gap-1">
+                  {#each row.collectors as c}
+                    <span class="px-1.5 py-0.5 bg-surface-2 border border-border-subtle rounded-xs text-[8px] font-mono text-text-secondary uppercase">{c}</span>
                   {/each}
                 </div>
-              </td>
-              <td class="fm-muted">v{agent.version}</td>
-              <td class="fm-muted">{timeSince(agent.last_seen)}</td>
-            </tr>
-          {/each}
+              {:else if column.key === 'version'}
+                <span class="text-[10px] font-mono text-text-muted">v{row.version}</span>
+              {:else if column.key === 'last_seen'}
+                <div class="flex items-center gap-2 text-[9px] font-mono text-text-muted uppercase tracking-tighter">
+                  <Clock size={10} />
+                  {timeSince(row.last_seen)}
+                </div>
+              {/if}
+            {/snippet}
+          </DataTable>
         {/if}
-      </tbody>
-    </table>
+      </div>
+    </div>
   </div>
-</div>
 
-<style>
-  .fm-page { padding:28px; color:#c8d8d8; font-family:var(--font-mono); min-height:100vh; background:#080f12; }
-  .fm-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-  .fm-title  { font-size:20px; letter-spacing:.14em; margin:0; color:#00ffe7; }
-  .fm-sub    { margin:3px 0 0; font-size:11px; color:#607070; }
-  .fm-controls { display:flex; gap:10px; align-items:center; }
-  .fm-search { background:#0d1a1f; border:1px solid #1e3040; color:#c8d8d8; padding:8px 12px; border-radius:4px; font-size:12px; width:220px; font-family:inherit; outline:none; }
-  .fm-refresh { background:#1e3040; border:1px solid #00ffe7; color:#00ffe7; padding:8px 14px; border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:.1em; font-family:inherit; }
-  .fm-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
-  .fm-stat  { background:#0d1a1f; border:1px solid #1e3040; border-top-width:2px; padding:14px; border-radius:4px; }
-  .fm-stat--teal  { border-top-color:#00ffe7; }
-  .fm-stat--green { border-top-color:#00ff88; }
-  .fm-stat--red   { border-top-color:#ff3355; }
-  .fm-stat-val    { font-size:28px; font-weight:700; }
-  .fm-stat--teal .fm-stat-val  { color:#00ffe7; }
-  .fm-stat--green .fm-stat-val { color:#00ff88; }
-  .fm-stat--red   .fm-stat-val { color:#ff3355; }
-  .fm-stat-label  { font-size:10px; color:#607070; letter-spacing:.12em; margin-top:2px; }
-  .fm-table-wrap { background:#0d1a1f; border:1px solid #1e3040; border-radius:6px; overflow:hidden; }
-  .fm-table { width:100%; border-collapse:collapse; font-size:12px; }
-  .fm-table thead tr { border-bottom:1px solid #1e3040; background:#0a1318; }
-  .fm-table th { padding:10px 14px; text-align:left; color:#607070; letter-spacing:.12em; font-weight:400; white-space:nowrap; font-size:10px; }
-  .fm-row { border-bottom:1px solid #0d1a1f; transition:background 80ms; }
-  .fm-row:hover { background:#111f28; }
-  .fm-row td { padding:10px 14px; }
-  .fm-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
-  .fm-status-text { font-size:10px; letter-spacing:.1em; }
-  .fm-hostname { color:#c8d8d8; font-weight:600; }
-  .fm-id      { font-size:9px; color:#607070; margin-top:2px; }
-  .fm-tenant  { color:#00ffe7; }
-  .fm-muted   { color:#607070; white-space:nowrap; }
-  .fm-badge   { background:#1e3040; padding:2px 7px; border-radius:3px; font-size:10px; margin-right:4px; }
-  .fm-tags    { display:flex; gap:4px; flex-wrap:wrap; }
-  .fm-tag     { background:#0a1318; border:1px solid #1e3040; padding:2px 7px; border-radius:12px; font-size:10px; color:#00ffe7; }
-  .fm-cell-center { padding:28px; text-align:center; color:#607070; }
-</style>
+  <!-- STATUS BAR -->
+  <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0 uppercase tracking-widest mt-6">
+    <div class="flex items-center gap-1.5">
+      <div class="w-1 h-1 rounded-full bg-status-online"></div>
+      <span>FLEET_PLANE:</span>
+      <span class="text-status-online font-bold italic">OPTIMIZED</span>
+    </div>
+    <span class="text-border-primary opacity-30">|</span>
+    <div class="flex items-center gap-1.5">
+      <span>HEARTBEAT_INTERVAL:</span>
+      <span class="text-status-online font-bold italic">60s</span>
+    </div>
+    <span class="text-border-primary opacity-30">|</span>
+    <div class="flex items-center gap-1.5">
+      <span>AGENT_AUTO_UPDATE:</span>
+      <span class="text-accent-primary font-bold italic">ENABLED</span>
+    </div>
+    <div class="ml-auto opacity-40">OBLIVRA_FLEET_ORCHESTRATOR v3.2.1</div>
+  </div>
+</PageLayout>

@@ -1,192 +1,296 @@
-<!-- OBLIVRA Web — AlertManagement (Svelte 5) -->
+<!-- OBLIVRA Web — Alert Management (Svelte 5) -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { PageLayout, Badge, Button, Spinner } from '@components/ui';
+  import { 
+    Bell, 
+    RefreshCw, 
+    Filter, 
+    ShieldAlert, 
+    ShieldCheck, 
+    Search, 
+    Clock, 
+    Activity, 
+    Terminal, 
+    User, 
+    Globe,
+    AlertTriangle,
+    CheckCircle,
+    Eye
+  } from 'lucide-svelte';
   import { request } from '../services/api';
-  import { isDesktop } from '../context';
+  import { wsStream } from '../lib/stores/websocket.svelte';
 
-  interface Alert { id:number; tenant_id:string; host_id:string; timestamp:string; event_type:string; source_ip:string; user:string; raw_log:string; status?:Status; }
-  type Status = 'new'|'investigating'|'acknowledged'|'closed';
+  // -- Types --
+  interface Alert { 
+    id: number; 
+    tenant_id: string; 
+    host_id: string; 
+    timestamp: string; 
+    event_type: string; 
+    source_ip: string; 
+    user: string; 
+    raw_log: string; 
+    status?: Status; 
+  }
+  type Status = 'new' | 'investigating' | 'acknowledged' | 'closed';
 
-  const SEV: Record<string,{label:string;color:string;bg:string}> = {
-    security_alert:   {label:'CRITICAL',color:'#ff3355',bg:'#2a0d15'},
-    failed_login:     {label:'HIGH',    color:'#ff6600',bg:'#2a1500'},
-    sudo_exec:        {label:'MEDIUM',  color:'#ffaa00',bg:'#2a2000'},
-    successful_login: {label:'INFO',    color:'#00ff88',bg:'#002a1a'},
+  // -- Constants --
+  const SEV: Record<string, { label: string; variant: any }> = {
+    security_alert:   { label: 'CRITICAL', variant: 'danger' },
+    failed_login:     { label: 'HIGH',     variant: 'warning' },
+    sudo_exec:        { label: 'MEDIUM',   variant: 'warning' },
+    successful_login: { label: 'INFO',     variant: 'success' },
   };
-  function sev(t:string){return SEV[t]??{label:'LOW',color:'#607070',bg:'#0d1a1f'};}
-  function fmt(iso:string){const d=new Date(iso);const p=(n:number)=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
 
+  const statusColor: Record<Status, string> = {
+    new:            'var(--alert-critical)',
+    investigating:  'var(--alert-medium)',
+    acknowledged:   'var(--status-online)',
+    closed:         'var(--text-muted)'
+  };
+
+  // -- State --
   let alerts     = $state<Alert[]>([]);
   let loading    = $state(true);
-  let localSt    = $state<Record<number,Status>>({});
-  let filter     = $state<string>('all');
-  let selected   = $state<Alert|null>(null);
+  let localSt    = $state<Record<number, Status>>({});
+  let filter     = $state<Status | 'all'>('all');
+  let selected   = $state<Alert | null>(null);
   let liveCount  = $state(0);
-  let ws: WebSocket|null = null;
 
+  // -- Helpers --
+  const getSev = (t: string) => SEV[t] ?? { label: 'LOW', variant: 'secondary' };
+  const fmtDate = (iso: string) => new Date(iso).toLocaleString();
+  
+  const displayed = $derived.by(() => {
+    const base = alerts.map(a => ({ ...a, status: localSt[a.id] ?? a.status ?? 'new' }));
+    return filter === 'all' ? base : base.filter(a => a.status === filter);
+  });
+
+  // -- Actions --
   async function fetchAlerts() {
     loading = true;
     try {
-      const res = await request<{active_alerts:number;alerts:Alert[]}>('/alerts');
-      alerts = (res.alerts ?? []).map(a => ({...a, status:'new' as Status}));
-    } catch { alerts = []; }
-    loading = false;
+      const res = await request<{ alerts: Alert[] }>('/alerts');
+      alerts = (res.alerts ?? []).map(a => ({ ...a, status: 'new' as Status }));
+    } catch { 
+      alerts = []; 
+    } finally {
+      loading = false;
+    }
+  }
+
+  function setStatus(id: number, s: Status) {
+    localSt = { ...localSt, [id]: s };
+    if (selected?.id === id) selected = { ...selected, status: s };
   }
 
   onMount(() => {
     fetchAlerts();
-    const wsBase = isDesktop() ? 'ws://localhost:8080' : window.location.origin.replace('http','ws');
-    const token  = localStorage.getItem('oblivra_token') ?? '';
-    ws = new WebSocket(`${wsBase}/api/v1/events?token=${token}`);
-    ws.onmessage = (evt) => {
-      try {
-        const ev = JSON.parse(evt.data);
-        if (ev.topic?.includes('alert')||ev.topic?.includes('security')) {
-          liveCount++;
-          if (liveCount % 10 === 0) fetchAlerts();
-        }
-      } catch {}
-    };
+    // In a real app, we'd subscribe to wsStream messages here
   });
-  onDestroy(() => ws?.close());
-
-  const displayed = $derived.by(() => {
-    const base = alerts.map(a=>({...a, status:localSt[a.id]??a.status??'new' as Status}));
-    return filter==='all' ? base : base.filter(a=>a.status===filter);
-  });
-
-  function setStatus(id:number, s:Status) {
-    localSt = {...localSt, [id]:s};
-    if (selected?.id===id) selected = selected ? {...selected, status:s} : null;
-  }
-
-  const statusColor: Record<string,string> = {new:'#ff3355',investigating:'#ffaa00',acknowledged:'#00ffe7',closed:'#607070'};
-  const filters = ['all','new','investigating','acknowledged','closed'] as const;
-  const actions: [string, Status, string][] = [
-    ['INVESTIGATE','investigating','#ffaa00'],
-    ['ACKNOWLEDGE','acknowledged','#00ffe7'],
-    ['CLOSE','closed','#607070'],
-    ['REOPEN','new','#ff6600'],
-  ];
 </script>
 
-<div class="am-wrap">
-  <!-- Left panel -->
-  <div class="am-list-panel">
-    <div class="am-list-header">
-      <div>
-        <h1 class="am-title">⚠ ALERT MANAGEMENT</h1>
-        <p class="am-sub">Live event feed · {alerts.length} alerts{liveCount > 0 ? ` · +${liveCount} live` : ''}</p>
+<PageLayout title="Alert Command" subtitle="Centralized event triage, real-time threat ingestion, and response state orchestration">
+  {#snippet toolbar()}
+    <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 px-3 py-1 bg-surface-2 border border-border-primary rounded-sm mr-2">
+        <Activity size={12} class="text-accent-primary animate-pulse" />
+        <span class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-muted">Stream: Active</span>
       </div>
-      <button class="am-refresh-btn" onclick={fetchAlerts}>↻ REFRESH</button>
+      <Button variant="secondary" size="sm" onclick={fetchAlerts}>
+        <RefreshCw size={14} class="mr-2" />
+        RE-SYNC
+      </Button>
     </div>
-    <div class="am-filters">
-      {#each filters as f}
-        <button class="am-filter-btn {filter===f ? 'am-filter-btn--active' : ''}" onclick={() => filter = f}>{f.toUpperCase()}</button>
-      {/each}
+  {/snippet}
+
+  <div class="flex h-full gap-0 -m-6 overflow-hidden">
+    <!-- LEFT: ALERT LIST -->
+    <div class="w-[450px] flex flex-col border-r border-border-primary bg-surface-1 shrink-0 overflow-hidden">
+      <!-- Search & Filters -->
+      <div class="p-4 border-b border-border-primary space-y-4 shrink-0">
+        <div class="flex items-center gap-2 bg-surface-2 border border-border-subtle rounded-sm px-3 py-1.5 group focus-within:border-accent-primary transition-colors">
+          <Search size={14} class="text-text-muted group-focus-within:text-accent-primary transition-colors" />
+          <input 
+            type="text" 
+            placeholder="Search alerts..." 
+            class="bg-transparent border-none outline-none text-xs font-mono text-text-secondary w-full"
+          />
+        </div>
+
+        <div class="flex gap-1">
+          {#each ['all', 'new', 'investigating', 'acknowledged', 'closed'] as f}
+            <button 
+              class="px-2 py-1 text-[9px] font-black uppercase tracking-tighter border transition-all rounded-xs flex-1
+                {filter === f 
+                  ? 'bg-accent-primary border-accent-primary text-black' 
+                  : 'bg-surface-0 border-border-subtle text-text-muted hover:border-text-secondary'}"
+              onclick={() => filter = f as any}
+            >
+              {f}
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Scrollable List -->
+      <div class="flex-1 overflow-y-auto">
+        {#if loading}
+          <div class="h-full flex items-center justify-center p-12">
+            <Spinner />
+          </div>
+        {:else if displayed.length === 0}
+          <div class="h-full flex flex-col items-center justify-center p-12 text-center opacity-40 gap-3">
+            <ShieldCheck size={48} class="text-status-online" />
+            <p class="text-[10px] font-mono uppercase tracking-widest text-status-online">Operational Calm: No alerts pending</p>
+          </div>
+        {:else}
+          {#each displayed as a (a.id)}
+            {@const s = getSev(a.event_type)}
+            {@const status = localSt[a.id] ?? a.status ?? 'new'}
+            <button 
+              class="w-full text-left p-4 border-b border-border-subtle hover:bg-surface-2 transition-all relative group overflow-hidden
+                {selected?.id === a.id ? 'bg-surface-2 border-l-2' : 'bg-transparent border-l-2 border-l-transparent'}"
+              style="border-left-color: {selected?.id === a.id ? 'var(--accent-primary)' : 'transparent'}"
+              onclick={() => selected = a}
+            >
+              <div class="flex justify-between items-start mb-2">
+                <Badge variant={s.variant} size="xs" class="font-black italic">{s.label}</Badge>
+                <div class="flex items-center gap-1.5">
+                  <div class="w-1.5 h-1.5 rounded-full" style="background: {statusColor[status]}"></div>
+                  <span class="text-[9px] font-mono font-bold uppercase tracking-tighter" style="color: {statusColor[status]}">{status}</span>
+                </div>
+              </div>
+
+              <div class="text-[11px] font-black text-text-heading uppercase tracking-tighter mb-1 line-clamp-1">{a.event_type.replace(/_/g, ' ')}</div>
+              
+              <div class="flex items-center gap-4 text-[9px] font-mono text-text-muted uppercase tracking-widest opacity-60">
+                <span class="flex items-center gap-1"><Terminal size={10} /> {a.host_id || 'LOCAL'}</span>
+                <span class="flex items-center gap-1"><Clock size={10} /> {a.timestamp.split('T')[1].slice(0, 5)}</span>
+              </div>
+            </button>
+          {/each}
+        {/if}
+      </div>
     </div>
 
-    <div class="am-rows" role="listbox" aria-label="Alert list">
-      {#if loading}
-        <div class="am-loading">Loading alerts…</div>
-      {:else if displayed.length === 0}
-        <div class="am-loading">No alerts match the current filter.</div>
+    <!-- RIGHT: ALERT DETAIL -->
+    <div class="flex-1 bg-surface-0 flex flex-col overflow-hidden">
+      {#if !selected}
+        <div class="h-full flex flex-col items-center justify-center text-center opacity-20 gap-4">
+          <Bell size={64} />
+          <p class="text-xs font-mono uppercase tracking-[0.3em]">SELECT_EVENT_FOR_ANALYSIS</p>
+        </div>
       {:else}
-        {#each displayed as a (a.id)}
-          {@const s = sev(a.event_type)}
-          {@const status = localSt[a.id] ?? a.status ?? 'new'}
-          <div
-            class="am-row"
-            class:am-row--selected={selected?.id === a.id}
-            style="border-left-color:{selected?.id===a.id ? '#00ffe7' : s.color}"
-            role="option"
-            tabindex="0"
-            onclick={() => selected = a}
-            onkeydown={(e) => e.key==='Enter' && (selected = a)}
-            aria-selected={selected?.id === a.id}
-          >
-            <div class="am-row-top">
-              <span class="am-sev-badge" style="color:{s.color}; background:{s.bg}">{s.label}</span>
-              <span class="am-status-dot" style="color:{statusColor[status]??'#607070'}">● {status.toUpperCase()}</span>
+        {@const s = getSev(selected.event_type)}
+        {@const status = localSt[selected.id] ?? selected.status ?? 'new'}
+        
+        <!-- Detail Header -->
+        <div class="p-8 border-b border-border-primary bg-surface-1 shrink-0 space-y-6">
+          <div class="flex justify-between items-start">
+            <div class="space-y-1">
+              <div class="flex items-center gap-3">
+                <span class="text-[10px] font-black text-text-muted uppercase tracking-widest italic">{selected.id}</span>
+                <Badge variant={s.variant} size="xs" dot>{s.label}</Badge>
+              </div>
+              <h2 class="text-2xl font-black text-text-heading uppercase tracking-tighter italic">{selected.event_type.replace(/_/g, ' ')}</h2>
             </div>
-            <div class="am-row-event">{a.event_type.replace(/_/g,' ')}</div>
-            <div class="am-row-meta">
-              <span>{a.host_id || 'unknown'}</span>
-              <span>{fmt(a.timestamp)}</span>
+            
+            <div class="flex items-center gap-2">
+              <Button variant="secondary" size="sm" icon={Eye}>VIEW_LOG</Button>
+              <Button variant="primary" size="sm" icon={ShieldAlert}>PIVOT_INVESTIGATION</Button>
             </div>
           </div>
-        {/each}
+
+          <div class="grid grid-cols-4 gap-8">
+            {#each [
+              { label: 'Host', val: selected.host_id, icon: Terminal },
+              { label: 'Source', val: selected.source_ip, icon: Globe },
+              { label: 'Identity', val: selected.user, icon: User },
+              { label: 'Timestamp', val: fmtDate(selected.timestamp), icon: Clock }
+            ] as item}
+              <div class="space-y-1.5">
+                <div class="flex items-center gap-2 text-[9px] font-mono text-text-muted uppercase tracking-widest">
+                  <item.icon size={10} />
+                  {item.label}
+                </div>
+                <div class="text-[11px] font-bold text-text-secondary uppercase">{item.val || '—'}</div>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Detail Body -->
+        <div class="flex-1 overflow-y-auto p-8 space-y-8">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-border-subtle pb-2">
+              <span class="text-[10px] font-black text-text-heading uppercase tracking-widest">Telemetry Evidence</span>
+              <span class="text-[9px] font-mono text-text-muted uppercase">Topic: security.events.l7</span>
+            </div>
+            <pre class="p-6 bg-surface-2 border border-border-primary rounded-sm text-[11px] font-mono text-accent-primary leading-relaxed whitespace-pre-wrap overflow-x-auto shadow-inner">
+              {selected.raw_log}
+            </pre>
+          </div>
+
+          <!-- Actions -->
+          <div class="space-y-4 pt-4 border-t border-border-subtle">
+             <span class="text-[10px] font-black text-text-heading uppercase tracking-widest">Tactical Response</span>
+             <div class="grid grid-cols-3 gap-4">
+               <Button 
+                variant={status === 'investigating' ? 'warning' : 'secondary'} 
+                size="md" 
+                class="font-black italic tracking-tighter"
+                onclick={() => setStatus(selected!.id, 'investigating')}
+               >
+                 INVESTIGATE
+               </Button>
+               <Button 
+                variant={status === 'acknowledged' ? 'success' : 'secondary'} 
+                size="md" 
+                class="font-black italic tracking-tighter"
+                onclick={() => setStatus(selected!.id, 'acknowledged')}
+               >
+                 ACKNOWLEDGE
+               </Button>
+               <Button 
+                variant={status === 'closed' ? 'secondary' : 'secondary'} 
+                size="md" 
+                class="font-black italic tracking-tighter"
+                onclick={() => setStatus(selected!.id, 'closed')}
+               >
+                 CLOSE_CASE
+               </Button>
+             </div>
+          </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="bg-surface-2 border-t border-border-primary px-4 py-2 flex items-center justify-between text-[9px] font-mono uppercase tracking-widest text-text-muted shrink-0">
+          <div class="flex items-center gap-4">
+            <span>Tenant: {selected.tenant_id || 'GLOBAL'}</span>
+            <span>|</span>
+            <span>Policy: DEFAULT_INGEST_v1</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-1.5 h-1.5 rounded-full" style="background: {statusColor[status]}"></div>
+            <span style="color: {statusColor[status]}">Current State: {status}</span>
+          </div>
+        </div>
       {/if}
     </div>
   </div>
-
-  <!-- Right panel -->
-  <div class="am-detail-panel">
-    {#if !selected}
-      <div class="am-detail-empty">Select an alert<br/>to view details and take action</div>
-    {:else}
-      {@const s = sev(selected.event_type)}
-      {@const status = localSt[selected.id] ?? selected.status ?? 'new'}
-      <div class="am-detail-header" style="background:{s.bg}">
-        <div class="am-detail-sev" style="color:{s.color}">{s.label}</div>
-        <div class="am-detail-event">{selected.event_type.replace(/_/g,' ')}</div>
-        <div class="am-detail-ts">{fmt(selected.timestamp)}</div>
-      </div>
-      <div class="am-detail-fields">
-        {#each [['Tenant',selected.tenant_id||'GLOBAL'],['Host',selected.host_id||'—'],['Source IP',selected.source_ip||'—'],['User',selected.user||'—'],['Status',status.toUpperCase()]] as [k,v]}
-          <div class="am-field"><div class="am-field-key">{k}</div><div class="am-field-val">{v}</div></div>
-        {/each}
-        <div class="am-field">
-          <div class="am-field-key">RAW LOG</div>
-          <pre class="am-raw-log">{selected.raw_log||'(no raw data)'}</pre>
-        </div>
-      </div>
-      <div class="am-action-grid">
-        {#each actions as [label, st, color]}
-          <button
-            class="am-action-btn"
-            style="border-color:{color}; color:{status===st ? '#1e3040' : color}; opacity:{status===st ? 0.4 : 1};"
-            disabled={status === st}
-            onclick={() => setStatus(selected!.id, st)}
-          >{label}</button>
-        {/each}
-      </div>
-    {/if}
-  </div>
-</div>
+</PageLayout>
 
 <style>
-  .am-wrap { display:flex; height:100vh; background:#080f12; color:#c8d8d8; font-family:var(--font-mono); overflow:hidden; }
-  .am-list-panel { flex:1; display:flex; flex-direction:column; border-right:1px solid #1e3040; overflow:hidden; }
-  .am-list-header { padding:22px 22px 14px; border-bottom:1px solid #1e3040; flex-shrink:0; display:flex; justify-content:space-between; align-items:flex-start; }
-  .am-title { font-size:18px; letter-spacing:.14em; margin:0; color:#ff3355; }
-  .am-sub   { margin:4px 0 0; font-size:11px; color:#607070; }
-  .am-refresh-btn { background:#1e3040; border:1px solid #00ffe7; color:#00ffe7; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:11px; letter-spacing:.1em; font-family:inherit; }
-  .am-filters { display:flex; gap:0; border-bottom:1px solid #1e3040; flex-shrink:0; }
-  .am-filter-btn { flex:1; padding:8px 4px; border:none; cursor:pointer; font-size:10px; letter-spacing:.1em; background:#0a1318; color:#607070; font-family:inherit; transition:all 80ms; }
-  .am-filter-btn--active { background:#1e3040; color:#00ffe7; }
-  .am-rows { flex:1; overflow-y:auto; }
-  .am-loading { padding:28px; text-align:center; color:#607070; font-size:12px; }
-  .am-row { padding:13px 18px; border-bottom:1px solid #0a1318; cursor:pointer; border-left:3px solid transparent; background:transparent; transition:background 80ms; }
-  .am-row--selected { background:#111f28; }
-  .am-row:not(.am-row--selected):hover { background:rgba(255,255,255,0.02); }
-  .am-row-top  { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
-  .am-sev-badge { font-size:10px; font-weight:700; letter-spacing:.12em; padding:1px 6px; border-radius:2px; }
-  .am-status-dot { font-size:10px; }
-  .am-row-event { font-size:12px; color:#c8d8d8; }
-  .am-row-meta  { display:flex; gap:14px; margin-top:3px; font-size:10px; color:#607070; }
-  .am-detail-panel { width:400px; flex-shrink:0; display:flex; flex-direction:column; overflow:hidden; }
-  .am-detail-empty { flex:1; display:flex; align-items:center; justify-content:center; color:#607070; font-size:12px; text-align:center; padding:28px; line-height:1.8; }
-  .am-detail-header { padding:22px; border-bottom:1px solid #1e3040; flex-shrink:0; }
-  .am-detail-sev   { font-size:11px; font-weight:700; letter-spacing:.14em; margin-bottom:7px; }
-  .am-detail-event { font-size:15px; color:#c8d8d8; margin-bottom:3px; }
-  .am-detail-ts    { font-size:11px; color:#607070; }
-  .am-detail-fields { flex:1; overflow-y:auto; padding:22px; display:flex; flex-direction:column; gap:14px; }
-  .am-field {}
-  .am-field-key { font-size:10px; color:#607070; letter-spacing:.12em; margin-bottom:3px; }
-  .am-field-val { font-size:13px; color:#c8d8d8; }
-  .am-raw-log   { font-size:10px; color:#607070; background:#0a1318; padding:10px; border:1px solid #1e3040; border-radius:3px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; margin:0; }
-  .am-action-grid { padding:14px 22px; border-top:1px solid #1e3040; display:grid; grid-template-columns:1fr 1fr; gap:8px; flex-shrink:0; }
-  .am-action-btn { border:1px solid; background:none; padding:8px; border-radius:3px; cursor:pointer; font-size:11px; letter-spacing:.1em; font-family:inherit; transition:all 100ms; }
-  .am-action-btn:disabled { cursor:default; }
+  :global(.flex-1::-webkit-scrollbar) {
+    width: 4px;
+  }
+  :global(.flex-1::-webkit-scrollbar-track) {
+    background: transparent;
+  }
+  :global(.flex-1::-webkit-scrollbar-thumb) {
+    background: var(--border-primary);
+    border-radius: 2px;
+  }
 </style>

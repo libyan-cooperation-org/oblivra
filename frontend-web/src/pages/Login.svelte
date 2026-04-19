@@ -2,6 +2,8 @@
 <script lang="ts">
   import { login } from '../services/auth';
   import { push } from '../core/router.svelte';
+  import { Button, Spinner } from '@components/ui';
+  import { Shield, Lock, Key, Globe, ShieldCheck } from 'lucide-svelte';
 
   let email    = $state('');
   let password = $state('');
@@ -23,66 +25,105 @@
   }
 </script>
 
-<div class="lg-wrap">
-  <div class="lg-card">
-    <div class="lg-header">
-      <h1 class="lg-title">OBLIVRA <span class="lg-badge">ENTERPRISE</span></h1>
-      <p class="lg-sub">Headless Access Portal v0.5.0</p>
+<div class="min-h-screen bg-surface-0 flex items-center justify-center p-6 font-mono selection:bg-accent-primary selection:text-black relative overflow-hidden">
+  <!-- Dynamic Background Shards -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+    <div class="absolute -top-1/4 -left-1/4 w-full h-full bg-accent-primary/10 rounded-full blur-[120px]"></div>
+    <div class="absolute -bottom-1/4 -right-1/4 w-full h-full bg-accent-primary/5 rounded-full blur-[120px]"></div>
+  </div>
+
+  <div class="w-full max-w-md bg-surface-1 border border-border-primary p-10 shadow-premium relative z-10 backdrop-blur-sm">
+    <div class="text-center mb-10">
+      <div class="inline-flex p-4 bg-surface-2 border border-border-primary rounded-sm mb-6 relative group">
+        <Shield size={32} class="text-accent-primary group-hover:scale-110 transition-transform duration-500" />
+        <div class="absolute inset-0 bg-accent-primary/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      </div>
+      <h1 class="text-3xl font-black italic uppercase tracking-tighter text-text-heading">
+        OBLIVRA <span class="bg-accent-primary text-black px-2 not-italic">ORBIT</span>
+      </h1>
+      <p class="text-[10px] font-mono text-text-muted uppercase tracking-[0.3em] mt-2">Sovereign Access Substrate v1.2.0</p>
     </div>
 
-    <form onsubmit={handleSubmit} class="lg-form">
-      <div class="lg-field">
-        <label for="identity" class="lg-label">Identity (Email)</label>
-        <input id="identity" type="email" bind:value={email} class="lg-input" placeholder="operator@oblivra.org" required />
+    <form onsubmit={handleSubmit} class="space-y-6">
+      <div class="space-y-2">
+        <label for="identity" class="text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-2">
+          <Globe size={12} class="text-accent-primary/60" />
+          Operator Identity
+        </label>
+        <div class="relative">
+          <input 
+            id="identity" 
+            type="email" 
+            bind:value={email} 
+            class="w-full bg-surface-2 border border-border-primary p-4 text-sm text-text-secondary outline-none focus:border-accent-primary transition-colors pl-12" 
+            placeholder="operator@oblivra.org" 
+            required 
+          />
+          <div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted">
+            @
+          </div>
+        </div>
       </div>
-      <div class="lg-field">
-        <label for="passphrase" class="lg-label">Passphrase</label>
-        <input id="passphrase" type="password" bind:value={password} class="lg-input" placeholder="••••••••••••" required />
+
+      <div class="space-y-2">
+        <label for="passphrase" class="text-[10px] font-black text-text-muted uppercase tracking-widest flex items-center gap-2">
+          <Lock size={12} class="text-accent-primary/60" />
+          Neural Passphrase
+        </label>
+        <div class="relative">
+          <input 
+            id="passphrase" 
+            type="password" 
+            bind:value={password} 
+            class="w-full bg-surface-2 border border-border-primary p-4 text-sm text-text-secondary outline-none focus:border-accent-primary transition-colors pl-12" 
+            placeholder="••••••••••••" 
+            required 
+          />
+          <div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted">
+            <Key size={14} />
+          </div>
+        </div>
       </div>
 
       {#if error}
-        <div class="lg-error">ACCESS DENIED: {error}</div>
+        <div class="p-4 bg-alert-critical/10 border border-alert-critical text-alert-critical text-[10px] font-black uppercase tracking-widest text-center animate-pulse">
+          ACCESS_DENIED: {error}
+        </div>
       {/if}
 
-      <button type="submit" disabled={loading} class="lg-submit">
+      <Button type="submit" disabled={loading} variant="primary" class="w-full py-6 font-black italic tracking-tighter text-lg relative overflow-hidden group">
         {#if loading}
-          <div class="lg-spinner"></div>
+          <Spinner />
         {:else}
-          Authorize Session
+          <span class="relative z-10">INITIALIZE_SESSION</span>
+          <div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform"></div>
         {/if}
-      </button>
+      </Button>
     </form>
 
-    <div class="lg-sso">
-      <button onclick={() => window.location.href='/api/v1/auth/oidc/login'} class="lg-sso-btn">Single Sign-On (OIDC)</button>
-      <button onclick={() => window.location.href='/api/v1/auth/saml/login'} class="lg-sso-btn">Federated Identity (SAML)</button>
+    <div class="mt-10 pt-8 border-t border-border-primary space-y-3">
+      <button 
+        onclick={() => window.location.href='/api/v1/auth/oidc/login'} 
+        class="w-full border border-border-subtle p-3 text-[10px] font-bold text-text-muted uppercase tracking-widest hover:border-text-muted hover:text-text-secondary transition-all flex items-center justify-center gap-2"
+      >
+        SINGLE SIGN-ON (OIDC)
+      </button>
+      <button 
+        onclick={() => window.location.href='/api/v1/auth/saml/login'} 
+        class="w-full border border-border-subtle p-3 text-[10px] font-bold text-text-muted uppercase tracking-widest hover:border-text-muted hover:text-text-secondary transition-all flex items-center justify-center gap-2"
+      >
+        FEDERATED IDENTITY (SAML)
+      </button>
     </div>
 
-    <p class="lg-footer">Sovereign-Grade Encryption Active<br/>Hardware Root-of-Trust Attestation: <span class="lg-verified">VERIFIED</span></p>
+    <div class="mt-10 text-center space-y-2">
+      <div class="flex items-center justify-center gap-2 text-[9px] font-mono text-text-muted uppercase tracking-[0.2em]">
+        <ShieldCheck size={12} class="text-status-online" />
+        Root-of-Trust Attestation: <span class="text-status-online font-black">VERIFIED</span>
+      </div>
+      <p class="text-[8px] font-mono text-text-muted/40 uppercase tracking-widest">
+        End-to-End Encryption Protocol: RSA_4096_L7_AWARE
+      </p>
+    </div>
   </div>
 </div>
-
-<style>
-  .lg-wrap { min-height:100vh; background:#000; display:flex; align-items:center; justify-content:center; padding:16px; }
-  .lg-card { width:100%; max-width:420px; background:#18181b; border:1px solid #3f3f46; padding:32px; font-family:var(--font-mono); box-shadow:0 0 50px rgba(0,0,0,0.5); }
-  .lg-header { margin-bottom:28px; border-bottom:1px solid #27272a; padding-bottom:16px; }
-  .lg-title  { font-size:22px; font-weight:900; color:#fff; text-transform:uppercase; font-style:italic; letter-spacing:-.03em; margin:0; }
-  .lg-badge  { background:#dc2626; color:#000; padding:0 4px; font-style:normal; }
-  .lg-sub    { color:#52525b; font-size:11px; text-transform:uppercase; letter-spacing:.15em; margin:6px 0 0; }
-  .lg-form   { display:flex; flex-direction:column; gap:20px; }
-  .lg-field  { display:flex; flex-direction:column; gap:7px; }
-  .lg-label  { font-size:11px; text-transform:uppercase; letter-spacing:.15em; font-weight:700; color:#71717a; }
-  .lg-input  { width:100%; background:#000; border:1px solid #3f3f46; padding:12px; color:#fff; font-size:14px; font-family:inherit; outline:none; transition:border-color 100ms; }
-  .lg-input:focus { border-color:#dc2626; }
-  .lg-error  { background:rgba(127,29,29,0.3); border:1px solid #7f1d1d; padding:10px; color:#f87171; font-size:11px; text-transform:uppercase; font-weight:700; text-align:center; }
-  .lg-submit { width:100%; background:#fff; color:#000; font-weight:900; text-transform:uppercase; padding:16px; border:none; cursor:pointer; font-family:inherit; font-size:13px; letter-spacing:.04em; transition:all 150ms; position:relative; min-height:52px; }
-  .lg-submit:hover:not(:disabled) { background:#dc2626; color:#fff; }
-  .lg-submit:disabled { opacity:0.5; cursor:not-allowed; }
-  .lg-spinner { width:20px; height:20px; border:2px solid #000; border-top-color:transparent; border-radius:50%; animation:spin 0.7s linear infinite; margin:0 auto; }
-  .lg-sso    { display:flex; flex-direction:column; gap:8px; margin-top:24px; padding-top:20px; border-top:1px solid #27272a; }
-  .lg-sso-btn { width:100%; border:1px solid #3f3f46; color:#71717a; font-size:11px; font-weight:700; text-transform:uppercase; padding:8px; background:transparent; cursor:pointer; font-family:inherit; letter-spacing:.08em; transition:all 100ms; }
-  .lg-sso-btn:hover { border-color:#71717a; color:#d4d4d8; }
-  .lg-footer { margin-top:20px; font-size:10px; color:#3f3f46; text-align:center; text-transform:uppercase; letter-spacing:.18em; line-height:1.7; }
-  .lg-verified { color:#14532d; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-</style>
