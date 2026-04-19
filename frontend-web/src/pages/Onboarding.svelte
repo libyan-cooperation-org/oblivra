@@ -5,7 +5,6 @@
   import { 
     Monitor, 
     Terminal, 
-    ShieldCheck, 
     ShieldAlert, 
     Cpu, 
     Network, 
@@ -14,8 +13,8 @@
     CheckCircle,
     Copy,
     ArrowRight,
-    ArrowLeft,
-    Zap
+    Zap,
+    Activity
   } from 'lucide-svelte';
 
   let step      = $state(1);

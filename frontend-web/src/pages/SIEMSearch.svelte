@@ -36,7 +36,6 @@
   // -- State --
   let query     = $state('');
   let limit     = $state(100);
-  let lastQuery = $state('');
   let results   = $state<HostEvent[]>([]);
   let loading   = $state(false);
   let expanded  = $state<Set<number>>(new Set());
@@ -83,7 +82,6 @@
   // -- Actions --
   async function runSearch() {
     if (!query.trim()) return;
-    lastQuery = query;
     loading = true;
     expanded = new Set();
     try {

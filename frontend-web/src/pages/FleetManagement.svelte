@@ -3,16 +3,9 @@
   import { onMount } from 'svelte';
   import { PageLayout, Badge, Button, Spinner, DataTable, KPI } from '@components/ui';
   import { 
-    Monitor, 
     RefreshCw, 
     Search, 
-    Activity, 
-    Cpu, 
-    HardDrive, 
     ShieldCheck, 
-    ShieldAlert, 
-    Globe, 
-    Terminal, 
     Clock
   } from 'lucide-svelte';
   import { request } from '../services/api';
@@ -91,10 +84,10 @@
   <div class="flex flex-col h-full gap-6">
     <!-- METRIC STRIP -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI title="Total Nodes" value={stats.total.toString()} trend="Global Fleet" variant="accent" />
-      <KPI title="Operational" value={stats.online.toString()} trend="Active Heartbeat" variant="success" />
-      <KPI title="Degraded" value={stats.degraded.toString()} trend="Action Required" variant="warning" />
-      <KPI title="Offline" value={stats.offline.toString()} trend="Silent Shards" variant="danger" />
+      <KPI label="Total Nodes" value={stats.total.toString()} sublabel="Global Fleet" variant="accent" />
+      <KPI label="Operational" value={stats.online.toString()} sublabel="Active Heartbeat" variant="success" />
+      <KPI label="Degraded" value={stats.degraded.toString()} sublabel="Action Required" variant="warning" />
+      <KPI label="Offline" value={stats.offline.toString()} sublabel="Silent Shards" variant="critical" />
     </div>
 
     <!-- MAIN CONTENT -->

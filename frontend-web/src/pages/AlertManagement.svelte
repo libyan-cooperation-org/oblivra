@@ -1,11 +1,10 @@
 <!-- OBLIVRA Web — Alert Management (Svelte 5) -->
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { PageLayout, Badge, Button, Spinner } from '@components/ui';
   import { 
     Bell, 
     RefreshCw, 
-    Filter, 
     ShieldAlert, 
     ShieldCheck, 
     Search, 
@@ -14,12 +13,9 @@
     Terminal, 
     User, 
     Globe,
-    AlertTriangle,
-    CheckCircle,
     Eye
   } from 'lucide-svelte';
   import { request } from '../services/api';
-  import { wsStream } from '../lib/stores/websocket.svelte';
 
   // -- Types --
   interface Alert { 
@@ -56,7 +52,6 @@
   let localSt    = $state<Record<number, Status>>({});
   let filter     = $state<Status | 'all'>('all');
   let selected   = $state<Alert | null>(null);
-  let liveCount  = $state(0);
 
   // -- Helpers --
   const getSev = (t: string) => SEV[t] ?? { label: 'LOW', variant: 'secondary' };
@@ -237,8 +232,8 @@
           <div class="space-y-4 pt-4 border-t border-border-subtle">
              <span class="text-[10px] font-black text-text-heading uppercase tracking-widest">Tactical Response</span>
              <div class="grid grid-cols-3 gap-4">
-               <Button 
-                variant={status === 'investigating' ? 'warning' : 'secondary'} 
+                <Button 
+                variant={status === 'investigating' ? 'cta' : 'secondary'} 
                 size="md" 
                 class="font-black italic tracking-tighter"
                 onclick={() => setStatus(selected!.id, 'investigating')}

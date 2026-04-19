@@ -3,15 +3,10 @@
   import { onMount } from 'svelte';
   import { PageLayout, Badge, Button, Spinner, DataTable } from '@components/ui';
   import { 
-    Users, 
     Shield, 
-    Key, 
     Search, 
     UserPlus, 
     Settings, 
-    Activity, 
-    Lock, 
-    CheckCircle, 
     XCircle,
     UserCheck,
     Globe
