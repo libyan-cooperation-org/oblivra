@@ -395,7 +395,7 @@ func (c *Container) initProduct() error {
 	c.Product.TransferManager = services.NewTransferManager(c.Product.SSHService, c.Infra.Bus, c.Log)
 	c.Product.SSHService.SetTransferManager(c.Product.TransferManager)
 	
-	c.Product.SettingsService = services.NewSettingsService(c.Infra.DB, c.Infra.Bus, c.Log, nil)
+	c.Product.SettingsService = services.NewSettingsService(c.Infra.DB, c.Infra.Vault, c.Infra.Bus, c.Log, nil)
 	c.Product.SnippetService = services.NewSnippetService(database.NewSnippetRepository(c.Infra.DB), c.Product.SSHService, nil, c.Infra.Bus, c.Log)
 	c.Product.MultiExecService = services.NewMultiExecService(hostRepo, c.Infra.Vault, c.Infra.Bus, c.Log)
 	c.Product.FileService = services.NewFileService(nil, c.Product.SSHService, c.Log)

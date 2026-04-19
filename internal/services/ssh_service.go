@@ -140,8 +140,7 @@ func (s *SSHService) fetchAndDecryptHostPassword(ctx context.Context, hostID str
 	}
 	blob, err := base64.StdEncoding.DecodeString(encRaw)
 	if err != nil {
-		// Not base64 — legacy plaintext row; use as-is (migration edge case)
-		return []byte(encRaw), nil
+		return nil, fmt.Errorf("credential requires migration to vault encryption")
 	}
 	decrypted, err := s.vault.Decrypt(blob)
 	if err != nil {

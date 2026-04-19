@@ -93,6 +93,17 @@ func (s *LuaSandbox) Start() error {
 	// 3. Apply execution limits
 	s.applyLimits()
 
+	// 4. Verify signature before execution
+	if err := VerifyManifestPlugin(s.manifest); err != nil {
+		if s.cancelCtx != nil {
+			s.cancelCtx()
+			s.cancelCtx = nil
+		}
+		s.state.Close()
+		s.state = nil
+		return fmt.Errorf("plugin signature invalid: %w", err)
+	}
+
 	// Execute the main script
 	if err := s.state.DoFile(s.manifest.Main); err != nil {
 		if s.cancelCtx != nil {
@@ -129,6 +140,7 @@ func (s *LuaSandbox) loadRestrictedLibs() {
 	s.state.SetGlobal("dofile", lua.LNil)
 	s.state.SetGlobal("loadfile", lua.LNil)
 	s.state.SetGlobal("module", lua.LNil)
+	s.state.SetGlobal("require", lua.LNil)
 
 	if s.manifest.HasPermission(PermFilesystem) {
 		// Restricted IO would go here

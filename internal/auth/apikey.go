@@ -2,24 +2,24 @@ package auth
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-
-
-// APIKeyMiddleware validates incoming HTTP requests against a list of authorized keys.
+// APIKeyMiddleware validates incoming HTTP requests against a list of authorized keys or JWTs.
 type APIKeyMiddleware struct {
 	validKeys map[string]UserAccount
 	log       *logger.Logger
+	jwtKeyFn  func() ([]byte, error)
 }
 
-// NewAPIKeyMiddleware initializes the auth guard with authorized keys.
-// In a full feature, these keys would be loaded from Vault.
-func NewAPIKeyMiddleware(keys []string, log *logger.Logger) *APIKeyMiddleware {
+// NewAPIKeyMiddleware initializes the auth guard with authorized keys and a dynamic JWT secret function.
+func NewAPIKeyMiddleware(keys []string, log *logger.Logger, jwtKeyFn func() ([]byte, error)) *APIKeyMiddleware {
 	valid := make(map[string]UserAccount)
 	for _, k := range keys {
 		// By default, system keys are given Admin. In a real DB they would map to specific user roles.
@@ -35,6 +35,7 @@ func NewAPIKeyMiddleware(keys []string, log *logger.Logger) *APIKeyMiddleware {
 	return &APIKeyMiddleware{
 		validKeys: valid,
 		log:       log,
+		jwtKeyFn:  jwtKeyFn,
 	}
 }
 
@@ -65,8 +66,66 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 
 		user, isValid := m.isValid(key)
 		if !isValid {
-			m.log.Warn("[AUTH] Invalid API key used for %s %s", r.Method, r.URL.Path)
-			http.Error(w, "Unauthorized: Invalid API Key", http.StatusUnauthorized)
+			// Discard the simple string match and try to parse as JWT
+			if m.jwtKeyFn != nil {
+				if secret, err := m.jwtKeyFn(); err == nil && len(secret) > 0 {
+					token, err := jwt.Parse(key, func(token *jwt.Token) (interface{}, error) {
+						if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+							return nil, fmt.Errorf("unexpected signing method")
+						}
+						return secret, nil
+					})
+
+					if err == nil && token.Valid {
+						if claims, ok := token.Claims.(jwt.MapClaims); ok {
+							// Successfully authenticated via JWT
+							id, _ := claims["sub"].(string)
+							tenant, _ := claims["tenant"].(string)
+							email, _ := claims["email"].(string)
+							role, _ := claims["role"].(string)
+							
+							identityUser := &IdentityUser{
+								ID:       id,
+								TenantID: tenant,
+								Email:    email,
+								Name:     email,
+								RoleID:   role,
+								RoleName: role,
+							}
+							
+							// Derive permissions
+							switch role {
+							case string(RoleAdmin):
+								identityUser.Permissions = []string{"*"}
+							case string(RoleAnalyst):
+								identityUser.Permissions = []string{
+									PermHostsRead, PermSessionsRead,
+									PermSIEMRead, PermSIEMWrite,
+									PermIncidentsRead, PermIncidentsWrite,
+									PermEvidenceRead, PermEvidenceWrite,
+									PermSnippetsRead,
+									PermComplianceRead,
+									PermMCPExecute, PermMCPSimulate,
+								}
+							case string(RoleReadOnly):
+								identityUser.Permissions = []string{
+									PermHostsRead, PermSessionsRead,
+									PermSIEMRead, PermIncidentsRead, PermEvidenceRead,
+									PermSnippetsRead, PermComplianceRead,
+								}
+							}
+
+							ctx := ContextWithUser(r.Context(), identityUser)
+							ctx = database.WithTenant(ctx, identityUser.TenantID)
+							next.ServeHTTP(w, r.WithContext(ctx))
+							return
+						}
+					}
+				}
+			}
+
+			m.log.Warn("[AUTH] Invalid API key or Token used for %s %s", r.Method, r.URL.Path)
+			http.Error(w, "Unauthorized: Invalid API Key or Token", http.StatusUnauthorized)
 			return
 		}
 
