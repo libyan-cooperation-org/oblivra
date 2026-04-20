@@ -87,11 +87,11 @@ func (s *AIService) SendMessage(content string) (string, error) {
 func (s *AIService) ProcessAgentDecision(content string) (*AIResponse, error) {
 	s.log.Info("Evaluating cognitive agent intent for: %s", content)
 
-	// Instruct the AI to respond in JSON for autonomous orchestration
-	prompt := fmt.Sprintf(`You are OBLIVRA Cortex, an autonomous defense AI. 
+	// Instruct the AI to respond in JSON for human-in-the-loop proposals
+	prompt := fmt.Sprintf(`You are OBLIVRA Cortex, an AI defense assistant. 
 Evaluate the following request: "%s".
 If the user is asking to isolate, contain, or block a specific host, you MUST respond ONLY with a raw JSON object in this exact format:
-{"action": "isolate", "target": "<hostname or IP>"}
+{"action": "propose_isolate", "target": "<hostname or IP>", "reason": "<why this is recommended>"}
 
 If the request is a general question or analysis, respond ONLY with a raw JSON object in this exact format:
 {"action": "chat", "response": "<your conversational answer>"}`, content)
@@ -101,10 +101,11 @@ If the request is a general question or analysis, respond ONLY with a raw JSON o
 		return nil, err
 	}
 
-	// Attempt to parse the autonomous response
+	// Attempt to parse the proposal response
 	var intent struct {
 		Action   string `json:"action"`
 		Target   string `json:"target"`
+		Reason   string `json:"reason"`
 		Response string `json:"response"`
 	}
 
@@ -116,13 +117,16 @@ If the request is a general question or analysis, respond ONLY with a raw JSON o
 	}
 
 	if err := json.Unmarshal([]byte(cleanResp), &intent); err == nil {
-		if intent.Action == "isolate" && intent.Target != "" {
-			s.log.Warn("[CORTEX] Autonomous capability triggered: EXECUTING ISOLATION on %s", intent.Target)
-			s.bus.Publish("network.isolate_requested", map[string]interface{}{
-				"host_id": intent.Target,
-				"reason":  "Autonomous agent containment logic triggered by operator prompt.",
-			})
-			return &AIResponse{Text: fmt.Sprintf("Autonomous Response Execution: Host %s has been isolated from the network.", intent.Target)}, nil
+		if intent.Action == "propose_isolate" && intent.Target != "" {
+			s.log.Info("[CORTEX] Action proposed: ISOLATION on %s", intent.Target)
+			return &AIResponse{
+				Text: fmt.Sprintf("I recommend isolating **%s**. Reason: %s. Would you like me to initiate the containment protocol?", intent.Target, intent.Reason),
+				ActionProposal: &ActionProposal{
+					Action:      "isolate",
+					Target:      intent.Target,
+					Description: intent.Reason,
+				},
+			}, nil
 		}
 		if intent.Action == "chat" && intent.Response != "" {
 			return &AIResponse{Text: intent.Response}, nil

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -26,6 +27,7 @@ type HostService struct {
 	db    database.DatabaseStore
 	vault vault.Provider
 	hosts database.HostStore
+	rbac  *auth.RBACEngine
 	bus   *eventbus.Bus
 	log   *logger.Logger
 }
@@ -38,17 +40,25 @@ func (s *HostService) Dependencies() []string {
 	return []string{"vault"}
 }
 
-func NewHostService(db database.DatabaseStore, v vault.Provider, repo database.HostStore, bus *eventbus.Bus, log *logger.Logger) *HostService {
+func NewHostService(db database.DatabaseStore, v vault.Provider, repo database.HostStore, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *HostService {
 	return &HostService{
 		db:    db,
 		vault: v,
 		hosts: repo,
+		rbac:  rbac,
 		bus:   bus,
 		log:   log.WithPrefix("hosts"),
 	}
 }
 
+func (s *HostService) Store() database.HostStore {
+	return s.hosts
+}
+
 func (s *HostService) ListHosts(ctx context.Context) ([]database.Host, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsRead); err != nil {
+		return nil, err
+	}
 	s.log.Debug("Fetching all hosts")
 	return s.hosts.GetAll(ctx)
 }
@@ -144,6 +154,9 @@ func (s *HostService) pollHosts() {
 }
 
 func (s *HostService) Create(ctx context.Context, host database.Host) (*database.Host, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return nil, err
+	}
 	if host.ID == "" {
 		host.ID = uuid.New().String()
 	}
@@ -158,6 +171,9 @@ func (s *HostService) Create(ctx context.Context, host database.Host) (*database
 }
 
 func (s *HostService) Update(ctx context.Context, host database.Host) (*database.Host, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return nil, err
+	}
 	s.log.Info("Updating host: %s (hostname: %s, tenant from ctx: %s)",
 		host.ID, host.Hostname, database.MustTenantFromContext(ctx))
 
@@ -171,6 +187,9 @@ func (s *HostService) Update(ctx context.Context, host database.Host) (*database
 }
 
 func (s *HostService) Delete(ctx context.Context, id string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return err
+	}
 	s.log.Info("Deleting host: %s (tenant from ctx: %s)",
 		id, database.MustTenantFromContext(ctx))
 
@@ -184,6 +203,9 @@ func (s *HostService) Delete(ctx context.Context, id string) error {
 }
 
 func (s *HostService) ToggleFavorite(ctx context.Context, id string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsRead); err != nil {
+		return err
+	}
 	s.log.Debug("Toggling favorite: %s", id)
 	_, err := s.hosts.ToggleFavorite(ctx, id)
 	return err
@@ -191,6 +213,9 @@ func (s *HostService) ToggleFavorite(ctx context.Context, id string) error {
 
 // WakeHost sends a WOL Magic Packet to the host if a MAC tag exists
 func (s *HostService) WakeHost(ctx context.Context, id string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return err
+	}
 	host, err := s.hosts.GetByID(ctx, id)
 	if err != nil {
 		return err
@@ -214,6 +239,9 @@ func (s *HostService) WakeHost(ctx context.Context, id string) error {
 
 // ImportSSHConfig reads the user's local ~/.ssh/config file and bulk-imports the host declarations into the database
 func (s *HostService) ImportSSHConfig(ctx context.Context) (int, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermHostsWrite); err != nil {
+		return 0, err
+	}
 	s.log.Info("Starting bulk import from local ~/.ssh/config")
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

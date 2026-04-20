@@ -3,16 +3,29 @@
   Strategic campaign orchestration and multi-layer correlation.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { PageLayout, Badge, Button } from '@components/ui';
   import { Layers, Target, Filter } from 'lucide-svelte';
 
-  const campaigns = [
-    { id: 'FC-2026-004', name: 'FIN_EXFIL_TEMPEST', severity: 'critical', confidence: 98, stages: 4, assets: 12, actor: 'SILVER_VOXEL' },
-    { id: 'FC-2026-003', name: 'RANSOM_PREP_BETA', severity: 'high', confidence: 82, stages: 2, assets: 42, actor: 'COBALT_MIRROR' },
-    { id: 'FC-2026-002', name: 'AD_PERSISTENCE_CHART', severity: 'medium', confidence: 44, stages: 1, assets: 2, actor: 'NEON_TEMPEST' }
-  ];
+  let campaigns = $state([]);
+  let selectedCampaign = $state(null);
 
-  let selectedCampaign = $state(campaigns[0]);
+  onMount(async () => {
+    const res = await fetch('/api/v1/fusion/campaigns', { credentials: 'include' });
+    if (res.ok) {
+        const data = await res.json();
+        campaigns = data.campaigns.map((c: any) => ({
+            id: c.ID || c.id,
+            name: c.Name || c.name || 'UNNAMED_CAMPAIGN',
+            severity: c.Severity?.toLowerCase() || 'medium',
+            confidence: c.Confidence || 50,
+            stages: c.Alerts?.length || 0,
+            assets: c.EntityCount || 0,
+            actor: c.Actor || 'UNKNOWN'
+        }));
+        if (campaigns.length > 0) selectedCampaign = campaigns[0];
+    }
+  });
 </script>
 
 <PageLayout title="Fusion Intelligence" subtitle="Mapping tactical telemetry to strategic mission objectives">
@@ -59,7 +72,7 @@
                 </span>
                 {#each campaigns as campaign}
                     <button 
-                        class="w-full text-left bg-surface-1 border {selectedCampaign.id === campaign.id ? 'border-accent' : 'border-border-primary'} p-4 rounded-sm space-y-4 hover:border-accent transition-all cursor-pointer group relative overflow-hidden"
+                        class="w-full text-left bg-surface-1 border {selectedCampaign?.id === campaign.id ? 'border-accent' : 'border-border-primary'} p-4 rounded-sm space-y-4 hover:border-accent transition-all cursor-pointer group relative overflow-hidden"
                         onclick={() => selectedCampaign = campaign}
                     >
                         <div class="flex items-start justify-between">
@@ -92,7 +105,7 @@
                                 </div>
                             </div>
                         </div>
-                        {#if selectedCampaign.id === campaign.id}
+                        {#if selectedCampaign?.id === campaign.id}
                             <div class="absolute inset-y-0 right-0 w-1 bg-accent"></div>
                         {/if}
                     </button>
@@ -105,7 +118,7 @@
             <div class="bg-surface-1 border-b border-border-primary p-3 flex items-center justify-between shrink-0">
                 <div class="flex items-center gap-2">
                     <Target size={14} class="text-error" />
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Correlation Analysis: {selectedCampaign.name}</span>
+                    <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Correlation Analysis: {selectedCampaign?.name || 'SELECT CAMPAIGN'}</span>
                 </div>
                 <div class="flex gap-2">
                     <Button variant="secondary" size="xs">VIEW GRAPH</Button>

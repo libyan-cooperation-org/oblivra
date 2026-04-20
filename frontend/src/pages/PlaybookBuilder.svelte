@@ -5,20 +5,21 @@
 <script lang="ts">
   import { PageLayout, Badge, Button } from '@components/ui';
   import { Zap, Plus, History, GitBranch, Save, Play } from 'lucide-svelte';
+  import { playbookStore } from '@lib/stores/playbook.svelte';
+  import { onMount } from 'svelte';
 
-  const actions = [
-    { type: 'TRIGGER', name: 'Alert Severity > 80', desc: 'Starts playbook when risk exceeds threshold' },
-    { type: 'LOGIC', name: 'If Asset == Critical', desc: 'Conditional routing based on asset gravity' },
-    { type: 'ACTION', name: 'Isolate Asset', desc: 'Terminate all egress on target node' },
-    { type: 'ACTION', name: 'Purge RAM', desc: 'Wipe volatile memory for forensics' },
-    { type: 'ACTION', name: 'Snapshot Disk', desc: 'Create immutable forensic copy' }
-  ];
+  const actions = $derived(playbookStore.actions.map(a => ({
+      type: 'ACTION',
+      name: a.replace(/_/g, ' '),
+      desc: `Automated response: ${a}`
+  })));
 
-  const recentExecutions = [
-    { time: '10:42:15', playbook: 'Ransomware Containment', status: 'success', duration: '1.2s' },
-    { time: '10:30:12', playbook: 'Exfil Block', status: 'success', duration: '0.8s' },
-    { time: '09:12:44', playbook: 'Lateral Detection', status: 'failed', duration: '4.2s' }
-  ];
+  const metrics = $derived(playbookStore.metrics);
+  const recentExecutions = $derived(playbookStore.metrics.recent_executions);
+
+  onMount(() => {
+    playbookStore.refresh();
+  });
 </script>
 
 <PageLayout title="Playbook Orchestration" subtitle="Mission-critical response logic: Designing and validating automated tactical playbooks">
@@ -33,24 +34,24 @@
     <!-- METRIC STRIP -->
     <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
         <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Response Logic</div>
-            <div class="text-xl font-mono font-bold text-success">42</div>
-            <div class="text-[9px] text-success mt-1">▲ Verified playbooks</div>
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Executions</div>
+            <div class="text-xl font-mono font-bold text-success">{metrics.total_executions}</div>
+            <div class="text-[9px] text-success mt-1">▲ Total automated runs</div>
         </div>
         <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Automation Rate</div>
-            <div class="text-xl font-mono font-bold text-accent">88%</div>
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Success Rate</div>
+            <div class="text-xl font-mono font-bold text-accent">{metrics.total_executions > 0 ? Math.round((metrics.success_count / metrics.total_executions) * 100) : 0}%</div>
             <div class="text-[9px] text-accent mt-1">Tactical events handled</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Avg Execution Time</div>
-            <div class="text-xl font-mono font-bold text-text-heading">1.4s</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{metrics.avg_duration_ms}ms</div>
             <div class="text-[9px] text-success mt-1">Zero-lag response</div>
         </div>
         <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Logic Integrity</div>
-            <div class="text-xl font-mono font-bold text-success">VAL-OK</div>
-            <div class="text-[9px] text-success mt-1">All logic signed</div>
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Failures</div>
+            <div class="text-xl font-mono font-bold text-error">{metrics.failure_count}</div>
+            <div class="text-[9px] text-error mt-1">Requires manual review</div>
         </div>
     </div>
 

@@ -204,7 +204,13 @@ func (s *IdentityService) UpdateUserRole(ctx context.Context, userID, roleID str
 
 // ProvisionSCIMUser handles automated provisioning from an IdP
 func (s *IdentityService) ProvisionSCIMUser(ctx context.Context, u *database.User) error {
-	s.log.Info("SCIM Provisioning for: %s (ExternalID: %s)", u.Email, u.ExternalID)
+	tenantID := database.MustTenantFromContext(ctx)
+	if u.TenantID != "" && u.TenantID != tenantID {
+		return fmt.Errorf("tenant mismatch in SCIM provisioning: expected %s, got %s", tenantID, u.TenantID)
+	}
+	u.TenantID = tenantID
+
+	s.log.Info("SCIM: Provisioning user %s (ExternalID: %s) for tenant %s", u.Email, u.ExternalID, tenantID)
 
 	// Check if user exists by email or external ID
 	existing, err := s.userRepo.GetUserByEmail(ctx, u.Email)
@@ -515,4 +521,9 @@ func (s *IdentityService) DeleteConnector(ctx context.Context, id string) error 
 func (s *IdentityService) TriggerSync(ctx context.Context, id string) error {
 	s.log.Info("Manually triggering sync for connector: %s", id)
 	return s.connectorRepo.MarkSyncStart(ctx, id)
+}
+
+
+func (s *IdentityService) RBAC() *auth.RBACEngine {
+	return s.rbac
 }

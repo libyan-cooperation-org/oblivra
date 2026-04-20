@@ -31,13 +31,14 @@ type WAL struct {
 // NewWAL creates or opens an existing Write-Ahead Log in the given data directory.
 func NewWAL(dataDir string, log *logger.Logger) (*WAL, error) {
 	walDir := filepath.Join(dataDir, "wal")
-	if err := os.MkdirAll(walDir, 0755); err != nil {
+	// CS-25: Restrict permissions to owner only (0700) to prevent local exposure.
+	if err := os.MkdirAll(walDir, 0700); err != nil {
 		return nil, fmt.Errorf("create wal dir: %w", err)
 	}
 
 	walFile := filepath.Join(walDir, "ingest.wal")
 
-	f, err := os.OpenFile(walFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	f, err := os.OpenFile(walFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("open wal file: %w", err)
 	}
@@ -143,7 +144,7 @@ func (w *WAL) Checkpoint() error {
 	w.file.Close()
 
 	// Truncate the file payload by recreating it empty
-	f, err := os.OpenFile(w.filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR|os.O_APPEND, 0644)
+	f, err := os.OpenFile(w.filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR|os.O_APPEND, 0600)
 	if err != nil {
 		return fmt.Errorf("checkpoint reopen failed: %w", err)
 	}

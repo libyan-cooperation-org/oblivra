@@ -31,7 +31,23 @@ export class ForensicsStore {
   async loadIncidentEvidence(incidentID: string) {
     this.loading = true;
     try {
-      if (IS_BROWSER) return;
+      if (IS_BROWSER) {
+        const res = await fetch(`/api/v1/forensics/evidence?incident_id=${incidentID}`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            this.items = (data.evidence || []).map((e: any) => ({
+                id: e.id,
+                name: e.name,
+                type: e.type,
+                size: e.size_human || `${(e.size / 1024 / 1024).toFixed(2)} MB`,
+                timestamp: e.timestamp,
+                collector: e.collector,
+                sealed: e.sealed,
+                hash: e.hash
+            }));
+        }
+        return;
+      }
       const { ListEvidence } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
       const list = await ListEvidence(incidentID);
       this.items = (list || []).map((e: any) => ({
@@ -52,8 +68,11 @@ export class ForensicsStore {
   }
 
   async loadChain(itemID: string) {
-    if (IS_BROWSER) return;
     try {
+      if (IS_BROWSER) {
+          // Chain of custody might need its own endpoint if complex
+          return;
+      }
       const { GetChainOfCustody } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
       const chain = await GetChainOfCustody(itemID);
       this.activeChain = (chain || []).map((c: any) => ({

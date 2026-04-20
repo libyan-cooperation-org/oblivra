@@ -12,15 +12,13 @@ export interface User {
 
 interface AuthResponse {
   user: User;
-  token: string;
 }
 
 /**
  * Handle login (Browser mode only)
  */
 export async function login(email: string, password: string): Promise<User> {
-  // In the real app, this would be a fetch to the backend.
-  // For now, mirroring the SolidJS logic but with fetch.
+  // CS-02: Authenticate and receive HttpOnly cookies
   const response = await fetch('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -28,13 +26,14 @@ export async function login(email: string, password: string): Promise<User> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({ message: 'Authentication failed' }));
     throw new Error(error.message || 'Authentication failed');
   }
 
-  const { user, token } = await response.json() as AuthResponse;
+  const { user } = await response.json() as AuthResponse;
 
-  localStorage.setItem('oblivra_token', token);
+  // We only store the user metadata, not the token.
+  // The token is now in a secure HttpOnly cookie.
   localStorage.setItem('oblivra_user', JSON.stringify(user));
   
   return user;
@@ -45,8 +44,11 @@ export async function login(email: string, password: string): Promise<User> {
  */
 export async function logout() {
   if (IS_BROWSER) {
-    await fetch('/api/v1/auth/logout', { method: 'POST' }).catch(() => {});
-    localStorage.removeItem('oblivra_token');
+    await fetch('/api/v1/auth/logout', { 
+      method: 'POST',
+      credentials: 'include' // Ensure cookies are sent and cleared
+    }).catch(() => {});
+    
     localStorage.removeItem('oblivra_user');
   }
 }
@@ -70,5 +72,7 @@ export function getCurrentUser(): User | null {
  */
 export function isAuthenticated(): boolean {
   if (!IS_BROWSER) return true; // Desktop mode uses VaultLocked barrier
-  return localStorage.getItem('oblivra_token') !== null;
+  // We check for the user metadata existence. The actual session
+  // validity is enforced by the backend using HttpOnly cookies.
+  return localStorage.getItem('oblivra_user') !== null;
 }

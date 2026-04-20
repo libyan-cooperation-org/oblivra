@@ -115,7 +115,37 @@ func (s *SSHService) Name() string { return "ssh-service" }
 
 func (s *SSHService) Start(ctx context.Context) error {
 	s.ctx = ctx
+	go s.startIdleReaper(ctx)
 	return nil
+}
+
+func (s *SSHService) startIdleReaper(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	// CS-15: Default 15 minutes idle timeout
+	timeout := 15 * time.Minute
+
+	for {
+		select {
+		case <-ticker.C:
+			sessions := s.manager.GetAll()
+			now := time.Now()
+			for _, sess := range sessions {
+				if sess.GetStatus() != ssh.SessionActive {
+					continue
+				}
+				idle := now.Sub(sess.LastActivityTime())
+				if idle > timeout {
+					s.log.Info("[SSH-REAPER] Closing idle session %s (idle for %v)", sess.ID, idle)
+					sess.Close()
+					s.bus.Publish(eventbus.EventConnectionClosed, sess.ID)
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (s *SSHService) Stop(ctx context.Context) error {
@@ -546,8 +576,11 @@ func (s *SSHService) ImportSSHConfig() ([]ssh.SSHConfigEntry, error) {
 
 // DeployKey generates a local SSH key and deploys it to the remote host
 func (s *SSHService) DeployKey(hostID string, password string) error {
+	if password == "" {
+		return fmt.Errorf("authentication failed: password cannot be empty")
+	}
 	if s.vault != nil && !s.vault.IsUnlocked() {
-		return fmt.Errorf("vault is locked")
+		return fmt.Errorf("vault must be unlocked to deploy keys")
 	}
 	s.log.Info("Deploying SSH key to host: %s", hostID)
 

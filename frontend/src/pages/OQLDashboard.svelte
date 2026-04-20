@@ -6,12 +6,26 @@
   import { KPI, PageLayout, Badge, Button, DataTable, Input } from '@components/ui';
   import { Search, Zap, Code, Save, Play, Activity, Database, Terminal } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
+  import { siemStore } from '@lib/stores/siem.svelte';
+  import { onMount } from 'svelte';
+
+  const stats = $derived(siemStore.stats || {
+    TotalEvents: 0,
+    EventsPerSecond: 0,
+    ActiveAgents: 0,
+    StorageUsed: 0,
+    OQLVelocity: 1.2
+  });
 
   const queries = [
     { id: 'Q-01', name: 'Identity Lateral Jump', complexity: '0.82', category: 'Hunt', status: 'ready' },
     { id: 'Q-02', name: 'Entropy Spike Ingress', complexity: '0.45', category: 'Audit', status: 'ready' },
     { id: 'Q-03', name: 'Kernel Syscall Anomaly', complexity: '0.94', category: 'Forensic', status: 'running' },
   ];
+
+  onMount(() => {
+    siemStore.refreshStats();
+  });
 </script>
 
 <PageLayout title="OQL Orchestration" subtitle="Managing Oblivra Query Language (OQL) modules for autonomous threat hunting and deep forensic search">
@@ -24,10 +38,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Active Modules" value={queries.length} trend="stable" trendValue="Library" />
-      <KPI label="Query Velocity" value="1.2k/s" trend="up" trendValue="Real-time" variant="accent" />
-      <KPI label="Logical Coverage" value="94%" trend="up" trendValue="MITRE Sync" variant="success" />
-      <KPI label="OQL Engine" value="v4.2" trend="stable" trendValue="Hardened" variant="success" />
+      <KPI label="Total Events" value={stats.TotalEvents.toLocaleString()} trend="stable" trendValue="Archive" />
+      <KPI label="Query Velocity" value={stats.EventsPerSecond + " eps"} trend="up" trendValue="Real-time" variant="accent" />
+      <KPI label="Active Agents" value={stats.ActiveAgents} trend="up" trendValue="MITRE Sync" variant="success" />
+      <KPI label="Storage Used" value={(stats.StorageUsed / 1024 / 1024).toFixed(2) + "MB"} trend="stable" trendValue="Hardened" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">

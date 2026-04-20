@@ -12,6 +12,7 @@ import (
 type GraphService struct {
 	engine          *graph.GraphEngine
 	campaignBuilder interface{ GetActiveClusters() []detection.CampaignCluster }
+	snapshotPath    string
 	log             *logger.Logger
 }
 
@@ -22,6 +23,10 @@ func NewGraphService(engine *graph.GraphEngine, log *logger.Logger) *GraphServic
 	}
 }
 
+func (s *GraphService) SetSnapshotPath(path string) {
+	s.snapshotPath = path
+}
+
 func (s *GraphService) Name() string { return "graph-service" }
 
 // Dependencies returns service dependencies
@@ -30,9 +35,17 @@ func (s *GraphService) Dependencies() []string {
 }
 
 func (s *GraphService) Start(ctx context.Context) error {
+	// 1. Attempt to restore from persistent storage
+	if s.snapshotPath != "" {
+		if err := s.engine.LoadSnapshot(s.snapshotPath); err != nil {
+			s.log.Warn("[GRAPH] Failed to load snapshot: %v", err)
+		}
+	}
+
+	// 2. Subscribe to real-time events
 	s.engine.SubscribeToAlerts()
 	
-	// Seed sample data if graph is currently empty (Day Zero UI wow factor)
+	// 3. Seed sample data if graph is currently empty (Day Zero UI wow factor)
 	stats := s.engine.Stats()
 	if stats.NodeCount == 0 {
 		s.engine.SeedSampleData()
@@ -42,6 +55,12 @@ func (s *GraphService) Start(ctx context.Context) error {
 }
 
 func (s *GraphService) Stop(ctx context.Context) error {
+	if s.snapshotPath != "" {
+		s.log.Info("[GRAPH] Saving snapshot to %s", s.snapshotPath)
+		if err := s.engine.SaveSnapshot(s.snapshotPath); err != nil {
+			s.log.Error("[GRAPH] Failed to save snapshot: %v", err)
+		}
+	}
 	return nil
 }
 

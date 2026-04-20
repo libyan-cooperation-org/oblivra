@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/kingknull/oblivrashell/internal/database"
@@ -16,6 +18,8 @@ type APIKeyMiddleware struct {
 	validKeys map[string]UserAccount
 	log       *logger.Logger
 	jwtKeyFn  func() ([]byte, error)
+	blacklist map[string]time.Time // Token ID -> Expiration time
+	blackMu   sync.RWMutex
 }
 
 // NewAPIKeyMiddleware initializes the auth guard with authorized keys and a dynamic JWT secret function.
@@ -36,6 +40,7 @@ func NewAPIKeyMiddleware(keys []string, log *logger.Logger, jwtKeyFn func() ([]b
 		validKeys: valid,
 		log:       log,
 		jwtKeyFn:  jwtKeyFn,
+		blacklist: make(map[string]time.Time),
 	}
 }
 
@@ -56,6 +61,13 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 		// 3. Fallback: Query parameter for WebSockets
 		if key == "" {
 			key = r.URL.Query().Get("token")
+		}
+
+		// 4. CS-02: Check access_token cookie for secure browser-based sessions
+		if key == "" {
+			if cookie, err := r.Cookie("access_token"); err == nil {
+				key = cookie.Value
+			}
 		}
 
 		if key == "" {
@@ -79,6 +91,18 @@ func (m *APIKeyMiddleware) Middleware(next http.Handler) http.Handler {
 					if err == nil && token.Valid {
 						if claims, ok := token.Claims.(jwt.MapClaims); ok {
 							// Successfully authenticated via JWT
+							jti, _ := claims["jti"].(string)
+							if jti != "" {
+								m.blackMu.RLock()
+								_, revoked := m.blacklist[jti]
+								m.blackMu.RUnlock()
+								if revoked {
+									m.log.Warn("[AUTH] Rejected revoked token jti: %s", jti)
+									http.Error(w, "Unauthorized: Token revoked", http.StatusUnauthorized)
+									return
+								}
+							}
+
 							id, _ := claims["sub"].(string)
 							tenant, _ := claims["tenant"].(string)
 							email, _ := claims["email"].(string)
@@ -197,6 +221,26 @@ func apiKeyToIdentityUser(u *UserAccount) *IdentityUser {
 		RoleID:      string(u.Role),
 		RoleName:    string(u.Role),
 		Permissions: perms,
+	}
+}
+
+// RevokeToken adds a token ID (jti) to the blacklist until it expires.
+func (m *APIKeyMiddleware) RevokeToken(jti string, expiresAt time.Time) {
+	m.blackMu.Lock()
+	defer m.blackMu.Unlock()
+	m.blacklist[jti] = expiresAt
+	m.log.Info("[AUTH] Revoked token jti: %s (expires: %v)", jti, expiresAt)
+}
+
+// CleanupBlacklist removes expired tokens from the revocation list.
+func (m *APIKeyMiddleware) CleanupBlacklist() {
+	m.blackMu.Lock()
+	defer m.blackMu.Unlock()
+	now := time.Now()
+	for jti, exp := range m.blacklist {
+		if now.After(exp) {
+			delete(m.blacklist, jti)
+		}
 	}
 }
 

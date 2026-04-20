@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/forensics"
@@ -25,6 +26,7 @@ type ForensicsService struct {
 	collector *forensics.LocalCollector
 	signer    *forensics.TPMSigner
 	store     database.EvidenceStore
+	rbac      *auth.RBACEngine
 	bus       *eventbus.Bus
 	log       *logger.Logger
 	analyzer  *forensics.ForensicAnalyzer
@@ -41,7 +43,7 @@ func (s *ForensicsService) Dependencies() []string {
 // NewForensicsService creates a new forensics service.
 // It initialises the evidence locker using a TPM-rooted signer (falls back to
 // vault-derived HMAC key when hardware TPM is unavailable).
-func NewForensicsService(store database.EvidenceStore, v vault.Provider, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
+func NewForensicsService(store database.EvidenceStore, v vault.Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
 	// Derive fallback HMAC key from vault; use sentinel if vault is locked
 	var fallbackKey []byte
 	if v != nil && v.IsUnlocked() {
@@ -66,6 +68,7 @@ func NewForensicsService(store database.EvidenceStore, v vault.Provider, bus *ev
 		locker:    forensics.NewEvidenceLocker(signer, log),
 		collector: forensics.NewLocalCollector(log),
 		signer:    signer,
+		rbac:      rbac,
 		bus:       bus,
 		log:       log.WithPrefix("forensics"),
 		analyzer:  forensics.NewForensicAnalyzer(log),
@@ -159,6 +162,9 @@ func (s *ForensicsService) CollectEvidence(
 	collector string,
 	notes string,
 ) (map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
+		return nil, err
+	}
 	// Decode base64 data from frontend
 	data := []byte(dataBase64) // In production, decode from base64
 
@@ -201,6 +207,9 @@ func (s *ForensicsService) CollectEvidence(
 
 // TransferEvidence records a custody transfer.
 func (s *ForensicsService) TransferEvidence(ctx context.Context, itemID string, toActor string, notes string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
+		return err
+	}
 	if err := s.locker.Transfer(itemID, toActor, notes); err != nil {
 		return err
 	}
@@ -210,6 +219,9 @@ func (s *ForensicsService) TransferEvidence(ctx context.Context, itemID string, 
 
 // AnalyzeEvidence records an analysis action.
 func (s *ForensicsService) AnalyzeEvidence(ctx context.Context, itemID string, analyst string, notes string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
+		return err
+	}
 	if err := s.locker.Analyze(itemID, analyst, notes); err != nil {
 		return err
 	}
@@ -219,6 +231,9 @@ func (s *ForensicsService) AnalyzeEvidence(ctx context.Context, itemID string, a
 
 // SealEvidence marks evidence as sealed — no further modifications.
 func (s *ForensicsService) SealEvidence(ctx context.Context, itemID string, sealer string, notes string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
+		return err
+	}
 	if err := s.locker.Seal(itemID, sealer, notes); err != nil {
 		return err
 	}
@@ -232,6 +247,9 @@ func (s *ForensicsService) SealEvidence(ctx context.Context, itemID string, seal
 
 // VerifyEvidence checks the chain-of-custody integrity.
 func (s *ForensicsService) VerifyEvidence(ctx context.Context, itemID string) (map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceRead); err != nil {
+		return nil, err
+	}
 	valid, err := s.locker.Verify(itemID)
 	if err != nil {
 		return nil, err
@@ -247,6 +265,9 @@ func (s *ForensicsService) VerifyEvidence(ctx context.Context, itemID string) (m
 
 // AnalyzeFile conducts a deep forensic entropy analysis.
 func (s *ForensicsService) AnalyzeFile(ctx context.Context, itemID string) (*forensics.ForensicReport, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceRead); err != nil {
+		return nil, err
+	}
 	item, err := s.locker.Get(itemID)
 	if err != nil {
 		return nil, err
@@ -262,11 +283,17 @@ func (s *ForensicsService) AnalyzeFile(ctx context.Context, itemID string) (*for
 
 // GetEvidence returns a single evidence item with full chain of custody.
 func (s *ForensicsService) GetEvidence(ctx context.Context, itemID string) (*forensics.EvidenceItem, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceRead); err != nil {
+		return nil, err
+	}
 	return s.locker.Get(itemID)
 }
 
 // ListEvidence returns all evidence for an incident.
 func (s *ForensicsService) ListEvidence(ctx context.Context, incidentID string) []*forensics.EvidenceItem {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceRead); err != nil {
+		return nil
+	}
 	if incidentID == "" {
 		return s.locker.ListAll()
 	}
@@ -283,6 +310,9 @@ func (s *ForensicsService) IsHardwareRooted() bool {
 
 // AcquireDiskImage performs a raw disk acquisition and stores it in the evidence locker.
 func (s *ForensicsService) AcquireDiskImage(ctx context.Context, devicePath string, incidentID string) (map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
+		return nil, err
+	}
 	s.log.Warn("[FORENSICS] 🔴 Starting disk acquisition: device=%s incident=%s", devicePath, incidentID)
 
 	// Use a longer timeout for disk IO, but preserve tenant context
@@ -332,6 +362,9 @@ func (s *ForensicsService) AcquireDiskImage(ctx context.Context, devicePath stri
 
 // AcquireMemoryDump captures the physical memory of the local machine.
 func (s *ForensicsService) AcquireMemoryDump(ctx context.Context, incidentID string) (map[string]interface{}, error) {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
+		return nil, err
+	}
 	s.log.Warn("[FORENSICS] 🔴 Starting memory dump for incident=%s", incidentID)
 
 	tenantID := database.MustTenantFromContext(ctx)

@@ -134,3 +134,41 @@ func (r *SessionRepository) GetByHostID(ctx context.Context, hostID string, limi
 
 	return sessions, rows.Err()
 }
+
+func (r *SessionRepository) GetByID(ctx context.Context, id string) (*Session, error) {
+	r.db.RLock()
+	defer r.db.RUnlock()
+
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID, err := TenantFromContext(ctx)
+	if err != nil {
+		tenantID = "GLOBAL" // Fallback for system checks
+	}
+
+	row := conn.QueryRow(`
+		SELECT id, tenant_id, host_id, started_at, ended_at, duration_seconds,
+			bytes_sent, bytes_received, status, recording_path
+		FROM sessions WHERE id = ? AND (tenant_id = ? OR tenant_id = 'GLOBAL')`, id, tenantID)
+
+	var s Session
+	var endedAt sql.NullTime
+	err = row.Scan(
+		&s.ID, &s.TenantID, &s.HostID, &s.StartedAt, &endedAt,
+		&s.DurationSeconds, &s.BytesSent, &s.BytesReceived,
+		&s.Status, &s.RecordingPath,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if endedAt.Valid {
+		t := endedAt.Time.Format(time.RFC3339)
+		s.EndedAt = &t
+	}
+
+	return &s, nil
+}

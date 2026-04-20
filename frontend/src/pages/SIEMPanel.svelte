@@ -51,7 +51,7 @@
 
       if (IS_BROWSER) {
         const res = await fetch('/api/v1/siem/search?q=' + encodeURIComponent(query), {
-          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
+          credentials: 'include'
         });
         if (!res.ok) throw new Error('API error: ' + res.status);
         result = await res.json();

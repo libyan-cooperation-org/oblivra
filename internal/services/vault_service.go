@@ -452,6 +452,7 @@ func (s *VaultService) GetDecryptedCredential(ctx context.Context, id string) (s
 	if err != nil {
 		return "", fmt.Errorf("decrypt credential: %w", err)
 	}
+	defer vault.ZeroSlice(decrypted)
 
 	s.bus.Publish(eventbus.EventCredentialAccessed, map[string]string{
 		"id":    id,
@@ -463,6 +464,9 @@ func (s *VaultService) GetDecryptedCredential(ctx context.Context, id string) (s
 }
 
 func (s *VaultService) DeleteCredential(ctx context.Context, id string) error {
+	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermVaultWrite); err != nil {
+		return err
+	}
 	s.log.Info("Deleting credential: %s", id)
 	if err := s.creds.Delete(ctx, id); err != nil {
 		return err

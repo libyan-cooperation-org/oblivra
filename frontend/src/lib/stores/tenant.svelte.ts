@@ -26,19 +26,32 @@ export class MultiTenantStore {
     { id: 'CORP-BANK-03', name: 'Global Finance S.A.', abbr: 'GF', color: '#1aaa60', mode: 'CLOUD', tier: 'T2', agents: 2100, eps: '64K', incidents: 0, storage: '12%', health: 99.8 },
     { id: 'CORP-ENER-04', name: 'Grid Control Unit', abbr: 'GC', color: '#e08020', mode: 'SOVEREIGN', tier: 'T1', agents: 1640, eps: '49K', incidents: 0, storage: '28%', health: 97.2 }
   ]);
-
-  loading = $state(false);
-  platformMetrics = $derived({
-    totalAgents: this.tenants.reduce((sum, t) => sum + t.agents, 0),
-    totalIncidents: this.tenants.reduce((sum, t) => sum + t.incidents, 0),
-    platformEps: '441K', // Combined aggregate
-    activeTenants: this.tenants.length
+  
+  platformMetrics = $state({
+    totalAgents: 0,
+    totalIncidents: 0,
+    platformEps: '0',
+    activeTenants: 0
   });
 
+  loading = $state(false);
   async refresh() {
     this.loading = true;
     try {
-        // Future: Fetch from PlatformService
+        if (IS_BROWSER) {
+            const res = await fetch('/api/v1/platform/metrics', { credentials: 'include' });
+            if (res.ok) {
+                const metrics = await res.json();
+                this.platformMetrics = {
+                    totalAgents: metrics.totalAgents,
+                    totalIncidents: metrics.activeIncidents,
+                    platformEps: metrics.platformEps,
+                    activeTenants: metrics.activeTenants
+                };
+            }
+        }
+    } catch (e) {
+        console.error('[TenantStore] Refresh failed:', e);
     } finally {
         this.loading = false;
     }

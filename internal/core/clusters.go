@@ -73,6 +73,7 @@ type SecurityCluster struct {
 	QuorumManager       *security.QuorumManager
 	RotationService     *services.RotationService
 	SuppressionService  *services.SuppressionService
+	ShellSanitizer      *security.ShellSanitizer
 }
 
 // SIEMCluster holds ingestion, detection, and alerting services.
@@ -173,4 +174,5 @@ type PlatformCluster struct {
 	LicensingService     *services.LicensingService
 	CloudDiscovery       *cloud.CloudDiscoveryManager
 	ClusterService       *services.ClusterService
+	PlatformService      *services.PlatformService
 }

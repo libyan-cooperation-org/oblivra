@@ -51,7 +51,7 @@ export class AgentStore {
       if (IS_BROWSER) {
         // Fallback to REST API for browser context via Vite Proxy
         const res = await fetch('/api/v1/agent/fleet', {
-          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
+          credentials: 'include'
         });
         if (!res.ok) throw new Error('API error: ' + res.status);
         const data = await res.json();

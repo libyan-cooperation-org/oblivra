@@ -70,6 +70,8 @@ export async function initBridge(): Promise<void> {
     await loadWailsRuntime();
 }
 
+const messageQueue: any[] = [];
+
 /**
  * Browser Bridge: Event streaming via WebSocket
  */
@@ -88,10 +90,15 @@ function initBrowserBridge(): void {
     ws.onopen = () => {
         console.info('%c[bridge] WebSocket connected to event stream', 'color: #00ff00; font-weight: bold; background: #000; padding: 2px 5px;');
         reconnectAttempts = 0;
+        
+        // Flush queue
+        while (messageQueue.length > 0) {
+            const msg = messageQueue.shift();
+            ws.send(JSON.stringify(msg));
+        }
     };
 
     ws.onmessage = (event) => {
-        console.debug('[bridge] Raw WebSocket message:', event.data);
         try {
             const raw = JSON.parse(event.data);
             const eventType = raw.Type || raw.type;
@@ -102,7 +109,6 @@ function initBrowserBridge(): void {
             // Diagnostic: verbose logging for SIEM events
             if (eventType === 'siem.event_indexed') {
                 console.log('[bridge] Received SIEM indexing event via WS');
-                // Map to siem-stream for UI components
                 emitLocal('siem-stream', eventData);
             }
 
@@ -125,10 +131,29 @@ function initBrowserBridge(): void {
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
             console.log(`[bridge] Reconnecting in ${delay}ms...`);
             setTimeout(initBrowserBridge, delay);
-        } else {
-            console.error('[bridge] Maximum reconnect attempts reached. Live feed suspended.');
         }
     };
+}
+
+/**
+ * Send a message to the backend via WebSocket (Browser mode only).
+ * If not connected, queues the message.
+ */
+export function send(type: string, data: any): void {
+    if (!IS_BROWSER) {
+        // Desktop: use emitLocal for now as bridge is intra-process
+        emitLocal(type, data);
+        return;
+    }
+
+    const payload = { type, data };
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+    } else {
+        console.warn(`[bridge] WebSocket not ready, queuing message: ${type}`);
+        messageQueue.push(payload);
+        if (!ws) initBrowserBridge();
+    }
 }
 
 

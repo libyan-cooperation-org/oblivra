@@ -62,6 +62,7 @@ type SessionStore interface {
 	End(ctx context.Context, id string, status string, bytesSent, bytesReceived int64) error
 	GetRecent(ctx context.Context, limit int) ([]Session, error)
 	GetByHostID(ctx context.Context, hostID string, limit int) ([]Session, error)
+	GetByID(ctx context.Context, id string) (*Session, error)
 }
 
 // AuditStore defines the interface for audit logging and archival.

@@ -38,6 +38,7 @@ class AppStore {
     isMaximized = $state(false);
     systemHealth = $state<SystemHealth>({ status: 'healthy' });
     showCommandPalette = $state(false);
+    currentUser = $state<any>(null);
 
     private _initialized = false;
 
@@ -62,7 +63,12 @@ class AppStore {
             this.refreshHosts();
         });
 
-        if (!IS_BROWSER) {
+        if (IS_BROWSER) {
+            fetch('/api/v1/auth/me', { credentials: 'include' })
+                .then(res => res.json())
+                .then(user => { this.currentUser = user; })
+                .catch(err => console.error('Failed to fetch user:', err));
+        } else {
             try {
                 const { IsUnlocked } = await import(
                     '@wailsjs/github.com/kingknull/oblivrashell/internal/services/vaultservice'

@@ -4,13 +4,10 @@
 -->
 <script lang="ts">
   import { KPI, Badge, DataTable, PageLayout, Button, Input } from '@components/ui';
+  import { identityStore } from '@lib/stores/identity.svelte';
   import { User, Settings, Activity, ShieldCheck, Lock, Globe } from 'lucide-svelte';
 
-  const identities = [
-    { id: 'U-01', name: 'maverick', role: 'Super Admin', mfa: 'enabled', status: 'active', lastLogin: '2m ago' },
-    { id: 'U-02', name: 'iceman', role: 'Security Analyst', mfa: 'enabled', status: 'active', lastLogin: '14m ago' },
-    { id: 'U-03', name: 'goose', role: 'Forensics Lead', mfa: 'disabled', status: 'suspended', lastLogin: '2 months ago' },
-  ];
+  const identities = $derived(identityStore.identities);
 
   let searchQuery = $state('');
   const filteredIdentities = $derived(

@@ -6,11 +6,18 @@
   import { PageLayout, Button, Badge } from '@components/ui';
   import { appStore } from '@lib/stores/app.svelte';
   import { collabStore } from '@lib/stores/collaboration.svelte.ts';
+  import { alertStore } from '@lib/stores/alerts.svelte';
   import { Shield, AlertCircle, Radio, Lock, Power, MessageSquare, Send } from 'lucide-svelte';
 
   let countdown = $state(3600); // 1 hour containment window
   let containmentActive = $state(false);
   let messageText = $state('');
+
+  const criticalLogs = $derived(
+    alertStore.alerts
+      .filter(a => a.severity === 'critical' || a.severity === 'high')
+      .slice(0, 5)
+  );
 
   $effect(() => {
     let timer: any;
@@ -116,10 +123,16 @@
             <!-- LOGS -->
             <div class="h-48 border-t border-error/20 bg-black/40 p-4 font-mono text-[10px] space-y-1 overflow-auto">
                 <div class="text-error font-bold mb-2">[CRITICAL AUDIT TRAIL]</div>
-                <div class="flex gap-2 text-text-muted"><span class="opacity-40">10:42:15</span> <span class="text-error font-bold">[WARN]</span> Port scanning detected from unknown peer</div>
-                <div class="flex gap-2 text-text-muted"><span class="opacity-40">10:42:18</span> <span class="text-error font-bold">[HALT]</span> Execution blocked on SRV-APP-04 (Suspicious Payload)</div>
-                <div class="flex gap-2 text-text-muted"><span class="opacity-40">10:42:20</span> <span class="text-success font-bold">[INFO]</span> Ephemeral keys rotated globally</div>
-                <div class="flex gap-2 text-text-muted"><span class="opacity-40">10:42:21</span> <span class="text-error font-bold">[WARN]</span> Inbound SSH attempt from 203.0.113.5 blocked</div>
+                {#each criticalLogs as log}
+                    <div class="flex gap-2 text-text-muted">
+                        <span class="opacity-40">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <span class="text-error font-bold">[{log.severity.toUpperCase()}]</span>
+                        {log.title} — {log.host}
+                    </div>
+                {/each}
+                {#if criticalLogs.length === 0}
+                    <div class="text-success opacity-40">NO CRITICAL ANOMALIES DETECTED IN CURRENT WINDOW</div>
+                {/if}
             </div>
         </div>
 

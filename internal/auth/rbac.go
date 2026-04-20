@@ -128,6 +128,15 @@ func GetRole(ctx context.Context) Role {
 	return Role(user.RoleName)
 }
 
+// GetTenantID is a helper to extract the tenant ID from the context.
+func GetTenantID(ctx context.Context) string {
+	user := UserFromContext(ctx)
+	if user != nil {
+		return user.TenantID
+	}
+	return "GLOBAL"
+}
+
 // --- Permission Constants ---
 
 const (

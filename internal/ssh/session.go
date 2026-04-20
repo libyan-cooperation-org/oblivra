@@ -35,6 +35,8 @@ type Session struct {
 	onClose    func(sessionID string)
 	onError    func(sessionID string, err error)
 
+	LastActivity time.Time
+
 	Ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -48,14 +50,15 @@ func NewSession(hostID string, hostLabel string, cfg ConnectionConfig) *Session 
 func NewSessionWithID(id string, hostID string, hostLabel string, cfg ConnectionConfig) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Session{
-		ID:        id,
-		HostID:    hostID,
-		HostLabel: hostLabel,
-		Status:    SessionActive,
-		StartedAt: time.Now().Format(time.RFC3339),
-		client:    NewClient(cfg),
-		Ctx:       ctx,
-		cancel:    cancel,
+		ID:           id,
+		HostID:       hostID,
+		HostLabel:    hostLabel,
+		Status:       SessionActive,
+		StartedAt:    time.Now().Format(time.RFC3339),
+		LastActivity: time.Now(),
+		client:       NewClient(cfg),
+		Ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
@@ -123,9 +126,10 @@ func (s *Session) processEvents() {
 	for event := range s.client.Events() {
 		switch event.Type {
 		case EventDataReceived:
-			s.mu.RLock()
+			s.mu.Lock()
+			s.LastActivity = time.Now()
 			cb := s.onData
-			s.mu.RUnlock()
+			s.mu.Unlock()
 			if cb != nil {
 				cb(s.ID, event.Data)
 			}
@@ -153,6 +157,9 @@ func (s *Session) processEvents() {
 
 // Write sends input to the session
 func (s *Session) Write(data []byte) error {
+	s.mu.Lock()
+	s.LastActivity = time.Now()
+	s.mu.Unlock()
 	_, err := s.client.Write(data)
 	return err
 }
@@ -175,6 +182,13 @@ func (s *Session) Close() error {
 
 	s.setStatus(SessionClosed)
 	return s.client.Close()
+}
+
+// LastActivityTime returns the timestamp of the last data event or input
+func (s *Session) LastActivityTime() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.LastActivity
 }
 
 // GetStatus returns current status

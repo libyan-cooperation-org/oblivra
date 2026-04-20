@@ -5,26 +5,22 @@
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable, ProgressBar } from '@components/ui';
   import { User, Monitor, Activity, Radar } from 'lucide-svelte';
+  import { uebaStore } from '@lib/stores/ueba.svelte';
+  import { onMount } from 'svelte';
 
-  const highRiskEntities = [
-    { id: 'KM-ADMIN-01', type: 'user', risk: 94, deviations: 12, peer_group: 'Security Admin' },
-    { id: 'SRV-FIN-PROD', type: 'host', risk: 88, deviations: 8, peer_group: 'Fin-Service' },
-    { id: 'JD-DEV-04', type: 'user', risk: 72, deviations: 5, peer_group: 'Engineering' },
-    { id: 'WRK-HR-11', type: 'host', risk: 45, deviations: 2, peer_group: 'Corporate' },
-    { id: 'SVC-SYSMON', type: 'user', risk: 14, deviations: 0, peer_group: 'Service Account' }
-  ];
+  const highRiskEntities = $derived(uebaStore.profiles);
+  const anomalies = $derived(uebaStore.anomalies);
+  const stats = $derived(uebaStore.stats);
 
-  const anomalies = [
-    { time: '10:42:15', entity: 'KM-ADMIN-01', signal: 'Impossible Travel', score: 98, evidence: 'Login from 104.1.2.4 (RU)' },
-    { time: '10:41:02', entity: 'SRV-FIN-PROD', signal: 'Outlier Traffic', score: 82, evidence: '4.2GB upload to anon-host.net' },
-    { time: '10:38:44', entity: 'JD-DEV-04', signal: 'Privilege Escalation', score: 75, evidence: 'sudo -s executed (unusual)' }
-  ];
+  onMount(() => {
+    uebaStore.refresh();
+  });
 </script>
 
 <PageLayout title="Behavioral Intelligence" subtitle="Autonomous anomaly scoring and peer group analysis engine">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm">BASELINE STATUS</Button>
+      <Button variant="secondary" size="sm" onclick={() => uebaStore.refresh()} loading={uebaStore.loading}>BASELINE STATUS</Button>
       <Button variant="primary" size="sm">DOWNLOAD AUDIT</Button>
     </div>
   {/snippet}
@@ -34,23 +30,23 @@
     <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">High Risk Entities</div>
-            <div class="text-xl font-mono font-bold text-error">08</div>
+            <div class="text-xl font-mono font-bold text-error">{stats.high_risk_entities}</div>
             <div class="text-[9px] text-error mt-1">▲ Critical baseline breach</div>
         </div>
         <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Avg Risk Score</div>
-            <div class="text-xl font-mono font-bold text-text-heading">24.2</div>
-            <div class="text-[9px] text-text-muted mt-1">Global fleet average</div>
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Total Entities</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{stats.total_entities}</div>
+            <div class="text-[9px] text-text-muted mt-1">Global fleet total</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Anomaly Ingest</div>
-            <div class="text-xl font-mono font-bold text-accent">1.2k/h</div>
+            <div class="text-xl font-mono font-bold text-accent">{stats.anomalies_24h}/24h</div>
             <div class="text-[9px] text-success mt-1">ML Engine optimized</div>
         </div>
         <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">False Positive Rate</div>
-            <div class="text-xl font-mono font-bold text-text-heading">1.4%</div>
-            <div class="text-[9px] text-success mt-1">▼ -0.2% improvement</div>
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Baselines Active</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{stats.baselines_active}</div>
+            <div class="text-[9px] text-success mt-1">Continuous profiling</div>
         </div>
     </div>
 

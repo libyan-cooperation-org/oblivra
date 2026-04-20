@@ -36,7 +36,7 @@ class AlertStore {
       if (IS_BROWSER) {
         // Browser / server mode — fetch from REST API
         const res = await fetch('/api/v1/alerts', {
-          headers: { 'Authorization': 'Bearer oblivra-dev-key' }
+          credentials: 'include'
         });
         if (res.ok) {
           const data = await res.json();

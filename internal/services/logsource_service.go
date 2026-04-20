@@ -14,7 +14,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/logsources"
-	
+	"github.com/kingknull/oblivrashell/internal/security"
 )
 
 const (
@@ -60,6 +60,7 @@ type LogSourceService struct {
 	manager   *logsources.SourceManager
 	analytics analytics.Engine
 	bus       *eventbus.Bus
+	sanitizer *security.ShellSanitizer
 	log       *logger.Logger
 
 	// Health monitoring
@@ -87,11 +88,12 @@ func (s *LogSourceService) Dependencies() []string {
 	return []string{}
 }
 
-func NewLogSourceService(manager *logsources.SourceManager, ae analytics.Engine, bus *eventbus.Bus, log *logger.Logger) *LogSourceService {
+func NewLogSourceService(manager *logsources.SourceManager, ae analytics.Engine, bus *eventbus.Bus, sanitizer *security.ShellSanitizer, log *logger.Logger) *LogSourceService {
 	return &LogSourceService{
 		manager:       manager,
 		analytics:     ae,
 		bus:           bus,
+		sanitizer:     sanitizer,
 		log:           log,
 		healthMu:      &sync.RWMutex{},
 		healthStatus:  make(map[string]SourceHealth),
@@ -479,10 +481,17 @@ func (s *LogSourceService) ExportCSV(sourceID, query, timeRange string, limit in
 	var sb strings.Builder
 	sb.WriteString("timestamp,host,level,source,message\n")
 	for _, r := range results {
+		// Prevent CSV injection (formula injection) by sanitizing all fields
+		host := s.sanitizer.SanitizeCSV(r.Host)
+		level := s.sanitizer.SanitizeCSV(r.Level)
+		source := s.sanitizer.SanitizeCSV(r.Source)
+		
 		// Escape commas and quotes in message
 		msg := strings.ReplaceAll(r.Message, "\"", "\"\"")
+		msg = s.sanitizer.SanitizeCSV(msg)
+
 		sb.WriteString(fmt.Sprintf("%s,%s,%s,%s,\"%s\"\n",
-			r.Timestamp, r.Host, r.Level, r.Source, msg))
+			r.Timestamp, host, level, source, msg))
 	}
 	return sb.String(), nil
 }

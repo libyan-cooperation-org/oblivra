@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -20,6 +21,11 @@ type HotStore struct {
 // NewHotStore opens a BadgerDB instance in the specified directory.
 func NewHotStore(dataDir string, log *logger.Logger) (*HotStore, error) {
 	dbPath := filepath.Join(dataDir, "siem_hot.badger")
+
+	// CS-25: Restrict permissions to owner only (0700) to prevent local exposure.
+	if err := os.MkdirAll(dbPath, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create hot store directory: %w", err)
+	}
 
 	opts := badger.DefaultOptions(dbPath)
 	// Optimize for SSDs/NVMe & reduce memory footprint

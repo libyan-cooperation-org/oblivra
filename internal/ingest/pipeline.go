@@ -375,15 +375,48 @@ func (p *Pipeline) GetMetrics() MetricsSnapshot {
 }
 
 func (p *Pipeline) worker() {
+	for {
+		// Per-worker circuit breaker: prevent infinite restart loop on poisoned events
+		restartCount := 0
+		maxRestarts := 5
+		backoff := 1 * time.Second
+
+		p.workerLoop(restartCount, maxRestarts, backoff)
+		
+		select {
+		case <-p.ctx.Done():
+			return
+		default:
+			// If we exit workerLoop and aren't done, something is wrong.
+			// But the loop handles panics internally and restarts itself.
+			// This is just a safety net.
+			time.Sleep(10 * time.Second)
+		}
+	}
+}
+
+func (p *Pipeline) workerLoop(restartCount, maxRestarts int, backoff time.Duration) {
 	defer p.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			p.log.Error("[INGEST] Worker panicked: %v. Restarting worker...", r)
+			p.log.Error("[INGEST] Worker panicked: %v. (Restarts: %d/%d)", r, restartCount, maxRestarts)
+			
+			if restartCount >= maxRestarts {
+				p.log.Error("[INGEST] 🔴 Worker reached MAX RESTARTS. Circuit-breaker tripped to prevent CPU exhaustion. This worker will NOT restart.")
+				return
+			}
+
 			select {
 			case <-p.ctx.Done():
-			default:
+				return
+			case <-time.After(backoff):
 				p.wg.Add(1)
-				go p.worker()
+				// Exponential backoff
+				nextBackoff := backoff * 2
+				if nextBackoff > 1*time.Minute {
+					nextBackoff = 1 * time.Minute
+				}
+				go p.workerLoop(restartCount+1, maxRestarts, nextBackoff)
 			}
 		}
 	}()

@@ -200,7 +200,7 @@ func (c *Client) connectViaJumpHosts(finalConfig *ssh.ClientConfig) (*ssh.Client
 			return nil, fmt.Errorf("jump host %d auth: %w", i, err)
 		}
 
-		hostKeyCallback, err := buildHostKeyCallback(false)
+		hostKeyCallback, err := buildHostKeyCallback(c.config.StrictHostKey)
 		if err != nil {
 			return nil, fmt.Errorf("jump host %d hostkey: %w", i, err)
 		}

@@ -227,6 +227,7 @@ func (c *Container) initSecurity(_ context.Context) error {
 	c.Security.QuorumManager = security.NewQuorumManager(c.Security.FIDO2Manager, c.Log)
 	c.Security.AttestationService = attestation.NewAttestationService()
 	c.Security.MemorySecurity = services.NewMemorySecurityService(c.Log)
+	c.Security.ShellSanitizer = security.NewShellSanitizer()
 
 	userRepo := database.NewUserRepository(c.Infra.DB)
 	roleRepo := database.NewRoleRepository(c.Infra.DB)
@@ -296,7 +297,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 		c.Log.Warn("[CONTAINER] Failed to ensure local certificates: %v — ingestion may fail", err)
 	}
 
-	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Log), c.Infra.Bus, c.Log)
+	c.SIEM.IngestService = services.NewIngestService(pipeline, ingest.NewSyslogServer(pipeline, 1514, c.Log), ingest.NewAgentServer(pipeline, 8443, certFile, keyFile, "", c.Security.ShellSanitizer, c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.TimelineService = services.NewTimelineService(siemRepo, c.Log)
 	rulesDir := filepath.Join(platform.DataDir(), "rules")
 	evaluator, _ := detection.NewEvaluator(rulesDir, c.Log)
@@ -314,9 +315,9 @@ func (c *Container) initSIEM(_ context.Context) error {
 	
 	c.SIEM.NDRService = services.NewNDRService(ndr.NewFlowCollector(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.UEBAService = services.NewUEBAService(uebapkg.NewUEBAService(database.NewHostRepository(c.Infra.DB, c.Infra.Vault), c.Infra.Bus, c.Infra.HotStore, c.Log), c.Infra.Bus, c.Log)
-	c.SIEM.ForensicsService = services.NewForensicsService(database.NewEvidenceRepository(c.Infra.DB), c.Infra.Vault, c.Infra.Bus, c.Log)
+	c.SIEM.ForensicsService = services.NewForensicsService(database.NewEvidenceRepository(c.Infra.DB), c.Infra.Vault, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	c.SIEM.SourceManager = logsources.NewSourceManager(c.Log)
-	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
+	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Security.ShellSanitizer, c.Log)
 	c.SIEM.AgentService = services.NewAgentService(c.SIEM.IngestService.AgentServer(), c.Infra.RBAC, c.Log)
 	c.SIEM.FusionEngine = detection.NewAttackFusionEngine(c.Infra.Bus, c.Log)
 	c.SIEM.FusionService = services.NewFusionService(c.SIEM.FusionEngine, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Log)
@@ -330,6 +331,7 @@ func (c *Container) initIntel(_ context.Context) error {
 	c.Intel.TemporalService = services.NewTemporalService(nil, c.Infra.Bus, c.Log)
 	c.Intel.GraphEngine = graph.NewGraphEngine(c.Infra.Bus, c.Log)
 	c.Intel.GraphService = services.NewGraphService(c.Intel.GraphEngine, c.Log)
+	c.Intel.GraphService.SetSnapshotPath(filepath.Join(platform.DataDir(), "graph.snapshot.json"))
 	
 	hostRepo := database.NewHostRepository(c.Infra.DB, c.Infra.Vault)
 	userRepo := database.NewUserRepository(c.Infra.DB)
@@ -387,18 +389,18 @@ func (c *Container) initProduct() error {
 	sessRepo := database.NewSessionRepository(c.Infra.DB)
 	credRepo := database.NewCredentialRepository(c.Infra.DB)
 	
-	c.Product.HostService = services.NewHostService(c.Infra.DB, c.Infra.Vault, hostRepo, c.Infra.Bus, c.Log)
+	c.Product.HostService = services.NewHostService(c.Infra.DB, c.Infra.Vault, hostRepo, c.Security.IdentityService.RBAC(), c.Infra.Bus, c.Log)
 	c.Product.VaultService = services.NewVaultService(c.Infra.Vault, c.Infra.DB, c.Infra.AnalyticsEngine, &c.Infra.SearchEngine, &c.Infra.Federator, credRepo, nil, c.Security.FIDO2Manager, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	c.Product.SessionService = services.NewSessionService(sessRepo, nil, c.Infra.Bus, c.Log)
 	
-	c.Product.SSHService = services.NewSSHService(c.Infra.DB, c.Infra.Vault, hostRepo, sessRepo, credRepo, nil, c.Infra.Bus, c.Log, nil, nil, c.Infra.TelemetryManager, nil, security.NewShellSanitizer(), nil)
+	c.Product.SSHService = services.NewSSHService(c.Infra.DB, c.Infra.Vault, hostRepo, sessRepo, credRepo, nil, c.Infra.Bus, c.Log, nil, nil, c.Infra.TelemetryManager, nil, c.Security.ShellSanitizer, nil)
 	c.Product.TransferManager = services.NewTransferManager(c.Product.SSHService, c.Infra.Bus, c.Log)
 	c.Product.SSHService.SetTransferManager(c.Product.TransferManager)
 	
 	c.Product.SettingsService = services.NewSettingsService(c.Infra.DB, c.Infra.Vault, c.Infra.Bus, c.Log, nil)
 	c.Product.SnippetService = services.NewSnippetService(database.NewSnippetRepository(c.Infra.DB), c.Product.SSHService, nil, c.Infra.Bus, c.Log)
 	c.Product.MultiExecService = services.NewMultiExecService(hostRepo, c.Infra.Vault, c.Infra.Bus, c.Log)
-	c.Product.FileService = services.NewFileService(nil, c.Product.SSHService, c.Log)
+	c.Product.FileService = services.NewFileService(nil, c.Product.SSHService, sessRepo, c.Log)
 	c.Product.WorkspaceService = services.NewWorkspaceService(workspace.NewWorkspaceManager(database.NewWorkspaceRepository(c.Infra.DB)), c.Infra.Bus, c.Log)
 	c.Product.NotesService = services.NewNotesService(notes.NewNotesManager(), c.Infra.Bus, c.Log)
 	c.Product.ShareService = services.NewShareService(nil, nil, c.Infra.Bus, c.Log)
@@ -449,10 +451,11 @@ func (c *Container) initPlatform() error {
 	c.Platform.TelemetryService = services.NewTelemetryService(c.Log, c.Infra.TelemetryManager)
 	c.Platform.DataLifecycleService = services.NewDataLifecycleService(c.Infra.DB, c.Infra.Bus, c.Log)
 	c.Platform.ClusterService = services.NewClusterService(c.Infra.DB, c.Infra.Bus, c.Log, c.Infra.Federator)
+	c.Platform.PlatformService = services.NewPlatformService(c.Infra.TenantRepo, c.Product.HostService.Store(), c.SIEM.SIEMService.Store(), c.Log)
 	// Audit Repository (Persistence)
 	auditRepo := database.NewAuditRepository(c.Infra.DB)
 	
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {
@@ -580,6 +583,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Platform.DiagnosticsService)
 	c.mustRegister(c.Platform.APIService)
 	c.mustRegister(c.Platform.LicensingService)
+	c.mustRegister(c.Platform.PlatformService)
 
 	// Intel
 	c.mustRegister(c.Intel.AnalyticsService)

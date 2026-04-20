@@ -5,20 +5,21 @@
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable, ProgressBar } from '@components/ui';
   import { Shield, CheckCircle, AlertTriangle, Clock, RefreshCw, Filter, Download } from 'lucide-svelte';
+  import { complianceStore } from '@lib/stores/compliance.svelte';
+  import { onMount } from 'svelte';
 
-  const controls = [
-    { id: 'AC-01', framework: 'NIST 800-53', control: 'Access Control Policy', status: 'compliant', coverage: 100, last_audit: '2h ago' },
-    { id: 'IA-02', framework: 'NIST 800-53', control: 'Identification and Authentication', status: 'compliant', coverage: 98, last_audit: '4h ago' },
-    { id: 'SC-07', framework: 'SOC2', control: 'Boundary Protection', status: 'warning', coverage: 82, last_audit: '12m ago' },
-    { id: 'CP-09', framework: 'ISO 27001', control: 'Information Backup', status: 'compliant', coverage: 100, last_audit: '1 day ago' },
-    { id: 'SI-04', framework: 'GDPR', control: 'Information System Monitoring', status: 'critical', coverage: 45, last_audit: 'now' }
-  ];
+  const controls = $derived(complianceStore.controls);
+  const stats = $derived(complianceStore.stats);
+
+  onMount(() => {
+    complianceStore.refresh();
+  });
 </script>
 
 <PageLayout title="Compliance Hub" subtitle="Continuous regulatory monitoring and autonomous control validation">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm" icon={RefreshCw}>VALIDATE ALL</Button>
+      <Button variant="secondary" size="sm" icon={RefreshCw} onclick={() => complianceStore.validateAll()} loading={complianceStore.loading}>VALIDATE ALL</Button>
       <Button variant="primary" size="sm" icon={Download}>GENERATE REPORT</Button>
     </div>
   {/snippet}
@@ -28,22 +29,22 @@
     <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Global Compliance</div>
-            <div class="text-xl font-mono font-bold text-success">92.4%</div>
-            <div class="text-[9px] text-success mt-1">▲ 0.4% from last audit</div>
+            <div class="text-xl font-mono font-bold text-success">{stats.global_score}%</div>
+            <div class="text-[9px] text-success mt-1">▲ Real-time posture</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Breaches</div>
-            <div class="text-xl font-mono font-bold text-error">01</div>
-            <div class="text-[9px] text-error mt-1 animate-pulse">Critical: GDPR SI-04</div>
+            <div class="text-xl font-mono font-bold text-error">{stats.active_breaches.toString().padStart(2, '0')}</div>
+            <div class="text-[9px] text-error mt-1 {stats.active_breaches > 0 ? 'animate-pulse' : ''}">Critical breaches detected</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Controls Monitored</div>
-            <div class="text-xl font-mono font-bold text-text-heading">142</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{stats.controls_monitored}</div>
             <div class="text-[9px] text-text-muted mt-1">Continuous validation active</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Audit Readiness</div>
-            <div class="text-xl font-mono font-bold text-accent">LEVEL 5</div>
+            <div class="text-xl font-mono font-bold text-accent">{stats.audit_readiness}</div>
             <div class="text-[9px] text-accent mt-1">Real-time evidence locked</div>
         </div>
     </div>

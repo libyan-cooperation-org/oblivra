@@ -20,6 +20,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/agent"
 	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/security"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"golang.org/x/time/rate"
@@ -41,7 +42,7 @@ type AgentServer struct {
 	keyFile  string
 	caFile   string // Optional: for requiring client certs (mTLS)
 
-	// Agent Tracking
+	sanitizer      *security.ShellSanitizer
 	activeAgents   map[string]AgentInfo
 	desiredConfig  FleetConfig
 	pendingActions map[string][]PendingAction // agentID -> actions
@@ -94,7 +95,7 @@ type AgentInfo struct {
 
 
 // NewAgentServer creates a new agent ingestion server
-func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caFile string, log *logger.Logger) *AgentServer {
+func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caFile string, sanitizer *security.ShellSanitizer, log *logger.Logger) *AgentServer {
 	return &AgentServer{
 		pipeline:       pipeline,
 		port:           port,
@@ -103,6 +104,7 @@ func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caF
 		certFile:       certFile,
 		keyFile:        keyFile,
 		caFile:         caFile,
+		sanitizer:      sanitizer,
 		activeAgents:   make(map[string]AgentInfo),
 		pendingActions: make(map[string][]PendingAction),
 		desiredConfig: FleetConfig{
@@ -388,11 +390,11 @@ func (s *AgentServer) handleIngest(w http.ResponseWriter, r *http.Request) {
 
 		ingestEv := &events.SovereignEvent{
 			Timestamp: ev.Timestamp,
-			TenantID:  tenantID,
-			Host:      ev.Host,
+			TenantID:  s.sanitizer.SanitizeLogLine(tenantID),
+			Host:      s.sanitizer.SanitizeLogLine(ev.Host),
 			SourceIp:  r.RemoteAddr,
-			EventType: ev.Type,
-			User:      user,
+			EventType: s.sanitizer.SanitizeLogLine(ev.Type),
+			User:      s.sanitizer.SanitizeLogLine(user),
 			SessionId: "agent-" + ev.Source,
 			RawLine:   string(rawBytes),
 			Version:   1, // SovereignEvent uses int32 version

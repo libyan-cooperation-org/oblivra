@@ -2,7 +2,9 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -437,4 +439,57 @@ func (e *GraphEngine) SubscribeToAlerts() {
 			e.AddEdge(Edge{From: user, To: hostID, Type: EdgeAuthenticatedTo, Timestamp: now})
 		}
 	})
+}
+
+// SaveSnapshot serializes the current graph state to a file.
+func (e *GraphEngine) SaveSnapshot(path string) error {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	data := struct {
+		Nodes     map[string]Node `json:"nodes"`
+		Edges     []Edge          `json:"edges"`
+		RichEdges []RichEdge      `json:"rich_edges"`
+	}{
+		Nodes:     e.nodes,
+		Edges:     e.edges,
+		RichEdges: e.richEdges,
+	}
+
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshal graph: %w", err)
+	}
+
+	return os.WriteFile(path, bytes, 0600)
+}
+
+// LoadSnapshot restores the graph state from a file.
+func (e *GraphEngine) LoadSnapshot(path string) error {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read graph snapshot: %w", err)
+	}
+
+	var data struct {
+		Nodes     map[string]Node `json:"nodes"`
+		Edges     []Edge          `json:"edges"`
+		RichEdges []RichEdge      `json:"rich_edges"`
+	}
+
+	if err := json.Unmarshal(bytes, &data); err != nil {
+		return fmt.Errorf("unmarshal graph: %w", err)
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.nodes = data.Nodes
+	e.edges = data.Edges
+	e.richEdges = data.RichEdges
+	
+	e.log.Info("[GRAPH] Restored snapshot: %d nodes, %d edges", len(e.nodes), len(e.edges))
+	return nil
 }

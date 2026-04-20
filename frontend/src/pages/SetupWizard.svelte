@@ -7,6 +7,8 @@
   import { Key, Database, Network, Terminal, CheckCircle, Info, Zap } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
 
+  import { IS_BROWSER } from '@lib/context';
+
   let currentStep = $state(0);
   let status = $state('idle'); // idle, running, success, error
   let progress = $state(0);
@@ -21,30 +23,52 @@
 
   const CurrentIcon = $derived(steps[currentStep]?.icon || Key);
 
-  function nextStep() {
+  async function nextStep() {
     if (currentStep < steps.length - 1) {
         status = 'running';
         progress = 0;
-        simulateWork();
+        await performInitialization();
     } else {
         status = 'success';
         appStore.notify('Platform initialized successfully.', 'success');
     }
   }
 
-  function simulateWork() {
-    logs = [...logs, `[INIT] Starting ${steps[currentStep].title}...`];
-    const interval = setInterval(() => {
-        progress += 10;
-        if (progress >= 100) {
-            clearInterval(interval);
-            status = 'idle';
-            logs = [...logs, `[OK] ${steps[currentStep].title} completed.`];
-            currentStep++;
+  async function performInitialization() {
+    if (!IS_BROWSER) return;
+    
+    // Smooth progress simulation
+    const timer = setInterval(() => {
+        if (progress < 90) progress += 5;
+    }, 100);
+
+    try {
+        const res = await fetch('/api/v1/setup/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ step: currentStep }),
+            credentials: 'include'
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            clearInterval(timer);
+            progress = 100;
+            setTimeout(() => {
+                logs = [...logs, ...data.logs];
+                status = 'idle';
+                currentStep++;
+            }, 500);
+        } else {
+            clearInterval(timer);
+            status = 'error';
+            logs = [...logs, `[ERROR] Phase ${currentStep} failed: ${await res.text()}`];
         }
-        if (progress === 40) logs = [...logs, `[TASK] Verifying integrity...`];
-        if (progress === 70) logs = [...logs, `[TASK] Binding to TPM v2.0...`];
-    }, 200);
+    } catch (e) {
+        clearInterval(timer);
+        status = 'error';
+        logs = [...logs, `[ERROR] Connection failed during phase ${currentStep}`];
+    }
   }
 </script>
 

@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // ShellSanitizer provides utilities for validating commands before
@@ -37,10 +39,14 @@ func NewShellSanitizer() *ShellSanitizer {
 			regexp.MustCompile(`:\s*\(\s*\)\s*\{`),                     // fork bomb pattern :(){:|:&};
 			regexp.MustCompile(`(?i)>\s*/dev/(sd|nvme|hd|vd)`),          // direct disk overwrite
 			
-			// Additional dangerous commands
+			// Additional dangerous commands (CS-03 expansion)
 			regexp.MustCompile(`(?i)\bpasswd\b`),                       // prevent manual password changes via Exec
 			regexp.MustCompile(`(?i)\bchown\b`),                        // prevent ownership takeover
-			regexp.MustCompile(`(?i)\bchmod\s+777`),                    // prevent insecure permissions
+			regexp.MustCompile(`(?i)\bchmod\s+0?777`),                  // prevent insecure permissions
+			regexp.MustCompile(`(?i)\buser(add|del|mod)\b`),            // prevent user manipulation
+			regexp.MustCompile(`(?i)\bgroup(add|del|mod)\b`),           // prevent group manipulation
+			regexp.MustCompile(`(?i)\bsu\b`),                           // prevent user switching
+			regexp.MustCompile(`(?i)\bsudo\b`),                         // prevent privilege escalation
 		},
 	}
 }
@@ -62,6 +68,10 @@ func (s *ShellSanitizer) IsSafe(cmd string) bool {
 		return true
 	}
 
+	// CS-03: Apply full Unicode NFKD normalization to collapse homoglyphs
+	// and other Unicode bypass techniques.
+	normalisedBytes := norm.NFKD.Bytes([]byte(cmd))
+	
 	// Collapse all Unicode whitespace to single ASCII spaces before pattern matching
 	// to prevent "rm\u00a0-rf\u00a0/" style bypass
 	normalised := strings.Map(func(r rune) rune {
@@ -69,7 +79,7 @@ func (s *ShellSanitizer) IsSafe(cmd string) bool {
 			return ' '
 		}
 		return r
-	}, cmd)
+	}, string(normalisedBytes))
 
 	for _, re := range s.destructivePatterns {
 		if re.MatchString(normalised) {
@@ -78,4 +88,27 @@ func (s *ShellSanitizer) IsSafe(cmd string) bool {
 	}
 
 	return true
+}
+
+// SanitizeLogLine strips CRLF and control characters from a string to prevent log injection (CS-09).
+func (s *ShellSanitizer) SanitizeLogLine(input string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, input)
+}
+
+// SanitizeCSV prevents CSV formula injection by prefixing dangerous characters (CS-12).
+func (s *ShellSanitizer) SanitizeCSV(input string) string {
+	if input == "" {
+		return ""
+	}
+	// Dangerous characters: =, +, -, @
+	first := input[0]
+	if first == '=' || first == '+' || first == '-' || first == '@' {
+		return "'" + input
+	}
+	return input
 }

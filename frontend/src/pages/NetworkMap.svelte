@@ -5,8 +5,14 @@
 <script lang="ts">
   import { KPI, PageLayout, Button, Chart } from '@components/ui';
   import type { EChartsOption } from 'echarts';
+  import { ndrStore } from '@lib/stores/ndr.svelte';
+  import { onMount } from 'svelte';
 
-  const chartOption: EChartsOption = {
+  onMount(() => {
+    ndrStore.refresh();
+  });
+
+  const chartOption = $derived<EChartsOption>({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'item', formatter: '{b}' },
     geo: {
@@ -20,11 +26,10 @@
       {
         type: 'effectScatter',
         coordinateSystem: 'geo',
-        data: [
-          { name: 'US-East-1', value: [-74.006, 40.7128, 100] },
-          { name: 'EU-West-1', value: [-0.1278, 51.5074, 100] },
-          { name: 'AP-South-1', value: [103.8198, 1.3521, 100] },
-        ],
+        data: ndrStore.flows.map(f => ({
+            name: f.source_ip,
+            value: [0, 0, 100] // Placeholder for real coords
+        })),
         symbolSize: 8,
         showEffectOn: 'render',
         rippleEffect: { brushType: 'stroke' },
@@ -33,7 +38,7 @@
         zlevel: 1,
       },
     ],
-  };
+  });
 </script>
 
 <PageLayout title="Global Geospatial Map" subtitle="Mapping real-time platform presence and cross-border data flows">

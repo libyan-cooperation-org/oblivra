@@ -1,9 +1,5 @@
-/**
- * OBLIVRA — Collaboration Store (Svelte 5 runes)
- *
- * Manages real-time analyst presence and tactical communication in the War Room.
- */
-import { subscribe, emitLocal } from '@lib/bridge';
+import { subscribe, emitLocal, send } from '@lib/bridge';
+import { appStore } from './app.svelte';
 
 export interface Analyst {
   id: string;
@@ -24,11 +20,7 @@ export interface TacticalMessage {
 }
 
 export class CollaborationStore {
-  analysts = $state<Analyst[]>([
-    { id: 'A1', name: 'Maverick', role: 'Lead Responder', status: 'active', color: '#5aaef0', lastActive: new Date().toISOString() },
-    { id: 'A2', name: 'Phoenix', role: 'Forensic Analyst', status: 'active', color: '#9878e0', lastActive: new Date().toISOString() },
-    { id: 'A3', name: 'Iceman', role: 'Network Security', status: 'idle', color: '#1aaa60', lastActive: new Date().toISOString() }
-  ]);
+  analysts = $state<Analyst[]>([]);
 
   messages = $state<TacticalMessage[]>([
     { id: 'M1', analystId: 'A2', text: 'Analyzing memory dump for FIN-SRV-07', timestamp: new Date().toISOString(), type: 'action' },
@@ -40,6 +32,22 @@ export class CollaborationStore {
   }
 
   init() {
+    // If no analysts yet, add self as active
+    $effect(() => {
+        if (appStore.currentUser && this.analysts.length === 0) {
+            this.analysts = [{
+                id: appStore.currentUser.id,
+                name: appStore.currentUser.username || appStore.currentUser.name,
+                role: appStore.currentUser.role || 'Operator',
+                status: 'active',
+                color: '#5aaef0',
+                lastActive: new Date().toISOString()
+            }];
+            // Announce presence
+            send('presence.update', this.analysts[0]);
+        }
+    });
+
     subscribe('presence.update', (data: Analyst) => {
         const idx = this.analysts.findIndex(a => a.id === data.id);
         if (idx === -1) {
@@ -50,26 +58,33 @@ export class CollaborationStore {
     });
 
     subscribe('collab.message', (msg: TacticalMessage) => {
+        // Prevent duplicate local messages if echoed back by server
+        if (this.messages.find(m => m.id === msg.id)) return;
         this.messages = [...this.messages, msg];
     });
   }
 
   sendMessage(text: string, type: TacticalMessage['type'] = 'chat') {
+    if (!appStore.currentUser) return;
     const msg: TacticalMessage = {
-        id: `msg-${Date.now()}`,
-        analystId: 'A1', // Self
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        analystId: appStore.currentUser.id,
         text,
         timestamp: new Date().toISOString(),
         type
     };
     this.messages = [...this.messages, msg];
-    // Emit to backend for broadcast
-    emitLocal('collab.message', msg);
+    // Send to backend for global broadcast
+    send('collab.message', msg);
   }
 
   updateStatus(status: Analyst['status']) {
-    const self = this.analysts.find(a => a.id === 'A1');
-    if (self) self.status = status;
+    if (!appStore.currentUser) return;
+    const self = this.analysts.find(a => a.id === appStore.currentUser.id);
+    if (self) {
+        self.status = status;
+        send('presence.update', self);
+    }
   }
 }
 

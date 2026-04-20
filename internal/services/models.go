@@ -73,6 +73,14 @@ type MultiExecJob struct {
 
 // AIResponse holds the result from an AI model
 type AIResponse struct {
-	Text       string `json:"text"`
-	RawCommand string `json:"raw_command,omitempty"`
+	Text           string          `json:"text"`
+	RawCommand      string          `json:"raw_command,omitempty"`
+	ActionProposal *ActionProposal `json:"action_proposal,omitempty"`
+}
+
+// ActionProposal represents a suggested action by the AI that requires human approval (CS-01)
+type ActionProposal struct {
+	Action      string `json:"action"`
+	Target      string `json:"target"`
+	Description string `json:"description"`
 }
