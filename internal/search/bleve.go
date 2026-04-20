@@ -1,16 +1,17 @@
 package search
 
 import (
-"fmt"
-"os"
-"path/filepath"
-"strings"
-"sync"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
 
-"github.com/blevesearch/bleve/v2"
-"github.com/blevesearch/bleve/v2/mapping"
-"github.com/blevesearch/bleve/v2/search/query"
-"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/mapping"
+	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
 // SearchEngine provides full-text search capabilities over terminal logs and SIEM events
@@ -125,6 +126,7 @@ func (s *SearchEngine) Close() error {
 		}
 		_ = idx.Close()
 	}
+	s.indexes = make(map[string]bleve.Index)
 	return nil
 }
 
@@ -158,11 +160,50 @@ func (s *SearchEngine) BatchIndex(tenantID string, docs map[string]interface{}, 
 	return idx.Batch(batch)
 }
 
-// Search executes a Lucene-style query against the index
+// Search executes a Lucene-style query against the index.
+// If tenantID is empty, it performs a global search across all currently loaded indexes.
 func (s *SearchEngine) Search(tenantID string, queryStr string, limit, offset int) ([]SearchResult, error) {
-	idx, err := s.getIndex(tenantID)
-	if err != nil {
-		return nil, err
+	var indexes []bleve.Index
+
+	if tenantID == "" {
+		s.mu.RLock()
+		for _, idx := range s.indexes {
+			indexes = append(indexes, idx)
+		}
+		s.mu.RUnlock()
+
+		if s.log != nil {
+			s.log.Info("[SEARCH] Global search: %d indexes already loaded", len(indexes))
+		}
+
+		// If no indexes are loaded, try to load all from disk
+		if len(indexes) == 0 {
+			files, _ := os.ReadDir(s.dataDir)
+			for _, f := range files {
+				if f.IsDir() && strings.HasPrefix(f.Name(), "bleve_") && strings.HasSuffix(f.Name(), ".idx") {
+					tID := strings.TrimSuffix(strings.TrimPrefix(f.Name(), "bleve_"), ".idx")
+					if tID != "" {
+						if s.log != nil {
+							s.log.Info("[SEARCH] Global search: Found index for tenant %s on disk", tID)
+						}
+						idx, err := s.getIndex(tID)
+						if err == nil {
+							indexes = append(indexes, idx)
+						}
+					}
+				}
+			}
+		}
+	} else {
+		idx, err := s.getIndex(tenantID)
+		if err != nil {
+			return nil, err
+		}
+		indexes = append(indexes, idx)
+	}
+
+	if len(indexes) == 0 {
+		return []SearchResult{}, nil
 	}
 
 	var q query.Query
@@ -176,30 +217,48 @@ func (s *SearchEngine) Search(tenantID string, queryStr string, limit, offset in
 		q = bleve.NewMatchAllQuery()
 	}
 
-	req := bleve.NewSearchRequestOptions(q, limit, offset, false)
-	req.Fields = []string{"*"}
-	req.SortBy([]string{"-timestamp"})
-
-	res, err := idx.Search(req)
-	if err != nil {
-		return nil, fmt.Errorf("bleve search failed: %w", err)
-	}
-
-	var results []SearchResult
-	for _, hit := range res.Hits {
-		data := make(map[string]interface{})
-		for k, v := range hit.Fields {
-			data[k] = v
+	var allResults []SearchResult
+	for _, idx := range indexes {
+		req := bleve.NewSearchRequestOptions(q, limit+offset, 0, false)
+		req.Fields = []string{"*"}
+		res, err := idx.Search(req)
+		if err != nil {
+			continue
 		}
 
-		results = append(results, SearchResult{
-ID:    hit.ID,
-Score: hit.Score,
-Data:  data,
-})
+		for _, hit := range res.Hits {
+			data := make(map[string]interface{})
+			for k, v := range hit.Fields {
+				data[k] = v
+			}
+			allResults = append(allResults, SearchResult{
+				ID:    hit.ID,
+				Score: hit.Score,
+				Data:  data,
+			})
+		}
 	}
 
-	return results, nil
+	// Global sort
+	sort.Slice(allResults, func(i, j int) bool {
+		if allResults[i].Score != allResults[j].Score {
+			return allResults[i].Score > allResults[j].Score
+		}
+		ti, _ := allResults[i].Data["timestamp"].(float64)
+		tj, _ := allResults[j].Data["timestamp"].(float64)
+		return ti > tj
+	})
+
+	start := offset
+	if start > len(allResults) {
+		return []SearchResult{}, nil
+	}
+	end := start + limit
+	if end > len(allResults) {
+		end = len(allResults)
+	}
+
+	return allResults[start:end], nil
 }
 
 // Aggregate performs a faceted search against the index to count occurrences of a specific field.

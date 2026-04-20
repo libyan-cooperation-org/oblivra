@@ -175,10 +175,17 @@ func (r *BadgerSIEMRepository) GetTimelineEvents(ctx context.Context, principalI
 func (r *BadgerSIEMRepository) SearchHostEvents(ctx context.Context, query string, limit int) ([]database.HostEvent, error) {
 	tenantID := database.MustTenantFromContext(ctx)
 
+	if r.search == nil || *r.search == nil {
+		fmt.Printf("[DEBUG] SearchHostEvents: search engine is NIL (r.search=%v)\n", r.search)
+	}
+
 	if r.search != nil && *r.search != nil {
 		// Bleve search is already partitioned by tenant in the getIndex() call.
 		// Injecting a redundant +tenant query is unnecessary and can break if analyzer casing differs.
 		results, err := (*r.search).Search(tenantID, query, limit, 0)
+		if err != nil {
+			fmt.Printf("[DEBUG] SearchHostEvents: Bleve search error: %v\n", err)
+		}
 		if err == nil {
 			var events []database.HostEvent
 			for _, res := range results {

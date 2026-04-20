@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { ShieldCheck, Zap, Activity, Cpu, Database, Eye, ShieldX } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { ShieldCheck, Activity, Cpu, Eye } from 'lucide-svelte';
 
-  const processes = [
+  const processes: Record<string, any>[] = [
     { pid: 1422, name: 'oblivra-agent', trust: 1.0, status: 'verified', memory: '42MB' },
     { pid: 8821, name: 'kworker/u16:1', trust: 0.98, status: 'baseline', memory: '0MB' },
     { pid: 9001, name: 'unknown-binary', trust: 0.12, status: 'quarantine', memory: '128MB' },
@@ -22,10 +21,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Verified Load" value="94%" trend="Secure" variant="success" />
-      <KPI title="Quarantined" value="1" trend="Active" variant="error" />
-      <KPI title="Memory Integrity" value="High" trend="NOMINAL" variant="success" />
-      <KPI title="Kernel Trust" value="Ring 0" trend="Hardened" variant="accent" />
+      <KPI label="Verified Load" value="94%" trend="stable" trendValue="Secure" variant="success" />
+      <KPI label="Quarantined" value="1" trend="stable" trendValue="Active" variant="critical" />
+      <KPI label="Memory Integrity" value="High" trend="stable" trendValue="NOMINAL" variant="success" />
+      <KPI label="Kernel Trust" value="Ring 0" trend="stable" trendValue="Hardened" variant="accent" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -41,10 +40,10 @@
               { key: 'trust', label: 'Trust Score', width: '100px' },
               { key: 'status', label: 'State', width: '120px' },
               { key: 'action', label: '', width: '60px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
+            ]} compact>
+              {#snippet render({ col: column, row })}
                 {#if column.key === 'status'}
-                   <Badge variant={row.status === 'verified' ? 'success' : row.status === 'quarantine' ? 'error' : 'secondary'}>{row.status.toUpperCase()}</Badge>
+                   <Badge variant={row.status === 'verified' ? 'success' : row.status === 'quarantine' ? 'critical' : 'muted'}>{row.status.toUpperCase()}</Badge>
                 {:else if column.key === 'trust'}
                    <div class="flex items-center gap-2">
                       <div class="flex-1 h-1 bg-surface-3 rounded-full overflow-hidden w-12">

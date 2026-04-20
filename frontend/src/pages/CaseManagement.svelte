@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, Badge, DataTable, PageLayout, Button, Input } from '@components/ui';
-  import { Briefcase, Clock, User, AlertCircle, ExternalLink } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { User, ExternalLink } from 'lucide-svelte';
 
-  const cases = [
+  const cases: Record<string, any>[] = [
     { id: 'CASE-7721', title: 'Data Exfiltration - Node Alpha', severity: 'critical', owner: 'maverick', status: 'active', drift: '2.4h' },
     { id: 'CASE-7722', title: 'Persistent SSH Tunneling', severity: 'high', owner: 'iceman', status: 'investigating', drift: '12m' },
     { id: 'CASE-7723', title: 'Suspicious Cloud API calls', severity: 'medium', owner: 'system', status: 'closed', drift: '0s' },
@@ -27,10 +26,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Active Investigations" value={cases.filter(c => c.status !== 'closed').length} trend="Priority" />
-      <KPI title="Mean Time to Resolution" value="1.5 days" trend="-12%" variant="success" />
-      <KPI title="Backlog Volume" value="12" trend="+2" variant="warning" />
-      <KPI title="Legal Readiness" value="READY" trend="Locked" variant="success" />
+      <KPI label="Active Investigations" value={cases.filter(c => c.status !== 'closed').length} trend="stable" trendValue="Priority" />
+      <KPI label="Mean Time to Resolution" value="1.5 days" trend="down" trendValue="12%" variant="success" />
+      <KPI label="Backlog Volume" value="12" trend="up" trendValue="+2" variant="warning" />
+      <KPI label="Legal Readiness" value="READY" trend="stable" trendValue="Locked" variant="success" />
     </div>
 
     <div class="flex-1 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-sm">
@@ -49,10 +48,10 @@
           { key: 'owner', label: 'Lead Investigator', width: '150px' },
           { key: 'status', label: 'State', width: '120px' },
           { key: 'action', label: '', width: '60px' }
-        ]} density="compact">
-          {#snippet cell({ column, row })}
+        ]} compact>
+          {#snippet render({ col: column, row })}
             {#if column.key === 'severity'}
-               <Badge variant={row.severity === 'critical' ? 'error' : row.severity === 'high' ? 'warning' : 'info'}>{row.severity}</Badge>
+               <Badge variant={row.severity === 'critical' ? 'critical' : row.severity === 'high' ? 'warning' : 'info'}>{row.severity}</Badge>
             {:else if column.key === 'status'}
                <div class="flex items-center gap-2">
                  <div class="w-1.5 h-1.5 rounded-full {row.status === 'active' ? 'bg-accent animate-pulse' : row.status === 'investigating' ? 'bg-warning' : 'bg-text-muted'}"></div>

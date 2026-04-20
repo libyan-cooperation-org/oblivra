@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -79,6 +80,8 @@ func (e *AnalyticsEngine) Open(dbPath string, encryptionKey []byte) error {
 
 	e.db = db
 	e.opened = true
+	e.done = make(chan struct{})
+	e.closeOnce = sync.Once{}
 
 	// Setup worker context
 	ctx, cancel := context.WithCancel(context.Background())

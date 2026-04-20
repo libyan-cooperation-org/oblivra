@@ -132,13 +132,13 @@ func TestIntegrationSmoke(t *testing.T) {
 		time.Sleep(3 * time.Second)
 		
 		// Search for anything to see if we have events at all
-		allEvents, _ := application.SIEMService.SearchHostEvents(adminCtx, "*", 10)
+		allEvents, _ := application.SIEMService.SearchHostEvents(adminCtx, "", 10)
 		t.Logf("Total events found: %d", len(allEvents))
 		for i, e := range allEvents {
 			t.Logf("Event[%d]: Host=%s, User=%s, Type=%s, Raw=%s", i, e.HostID, e.User, e.EventType, e.RawLog)
 		}
 
-		events, err := application.SIEMService.SearchHostEvents(adminCtx, "oblivra", 10)
+		events, err := application.SIEMService.SearchHostEvents(adminCtx, "root", 10)
 		if err != nil {
 			t.Fatalf("SearchHostEvents: %v", err)
 		}

@@ -98,9 +98,15 @@ func NewCommandHistoryService(db database.DatabaseStore, log *logger.Logger) *Co
 	}
 
 	// Ensure the command_history table exists
-	svc.ensureTable()
-
 	return svc
+}
+
+var historyTableOnce sync.Once
+
+func (s *CommandHistoryService) lazyInit() {
+	historyTableOnce.Do(func() {
+		s.ensureTable()
+	})
 }
 
 // RecordCommand stores a command for a specific host.
@@ -139,6 +145,7 @@ func (s *CommandHistoryService) RecordCommand(hostID string, command string) err
 
 // GetHistory returns recent commands for a specific host.
 func (s *CommandHistoryService) GetHistory(hostID string, limit int) []string {
+	s.lazyInit()
 	if limit <= 0 {
 		limit = 50
 	}
@@ -219,6 +226,7 @@ func (s *CommandHistoryService) ensureTable() {
 }
 
 func (s *CommandHistoryService) persistCommand(entry CommandEntry) {
+	s.lazyInit()
 	conn, err := s.db.Conn()
 	if err != nil {
 		return

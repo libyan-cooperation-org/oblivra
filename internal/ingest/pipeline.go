@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
@@ -250,17 +251,29 @@ func (p *Pipeline) Start() {
 
 	// Distributed Log Fabric: Subscribe to NATS if available
 	if p.nats != nil {
-		p.log.Info("[INGEST] Enabling NATS JetStream Distributed Fabric (Multi-Priority)...")
+		p.log.Info("[INGEST] Enabling NATS JetStream Distributed Fabric (Multi-Priority, Load-Balanced)...")
 		
 		handler := func(data []byte) {
-			evt := &events.SovereignEvent{RawLine: string(data)}
-			p.processEvent(context.Background(), evt)
+			p.log.Info("[NATS] Received message (%d bytes)", len(data))
+			var evt events.SovereignEvent
+			if err := json.Unmarshal(data, &evt); err != nil {
+				// Fallback for legacy raw messages
+				evt = events.SovereignEvent{RawLine: string(data)}
+			}
+			p.processEvent(context.Background(), &evt)
 		}
 
-		// Subscribe to all priorities
-		p.nats.Subscribe("oblivra.ingest.logs", messaging.PriorityCritical, handler)
-		p.nats.Subscribe("oblivra.ingest.logs", messaging.PriorityHigh, handler)
-		p.nats.Subscribe("oblivra.ingest.logs", messaging.PriorityDefault, handler)
+		// Subscribe to all priorities using a shared queue group "ingest-workers"
+		// to ensure load balancing across shards and external workers.
+		if _, err := p.nats.QueueSubscribe("oblivra.ingest.logs", "ingest-workers", messaging.PriorityCritical, handler); err != nil {
+			p.log.Error("[INGEST] Failed to subscribe to NATS (critical): %v", err)
+		}
+		if _, err := p.nats.QueueSubscribe("oblivra.ingest.logs", "ingest-workers", messaging.PriorityHigh, handler); err != nil {
+			p.log.Error("[INGEST] Failed to subscribe to NATS (high): %v", err)
+		}
+		if _, err := p.nats.QueueSubscribe("oblivra.ingest.logs", "ingest-workers", messaging.PriorityDefault, handler); err != nil {
+			p.log.Error("[INGEST] Failed to subscribe to NATS (default): %v", err)
+		}
 	}
 
 	ac := NewAdaptiveController(p)
@@ -340,7 +353,13 @@ return err
 	}
 
 	if p.nats != nil {
-		return p.nats.Publish("oblivra.ingest.logs", priority, []byte(evt.RawLine))
+		data, err := json.Marshal(evt)
+		if err != nil {
+			p.log.Error("[INGEST] JSON Marshal failed: %v", err)
+			return p.nats.Publish("oblivra.ingest.logs", priority, []byte(evt.RawLine))
+		}
+		p.log.Info("[INGEST] Publishing event to NATS: host=%s type=%s priority=%s", evt.Host, evt.EventType, priority)
+		return p.nats.Publish("oblivra.ingest.logs", priority, data)
 	}
 
 	select {

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/monitoring"
@@ -42,17 +43,24 @@ func (s *MetricsService) Start(ctx context.Context) error {
 		return nil
 	}
 
-	// Start a local HTTP server for Prometheus scraping on port 9090
+	// Start a local HTTP server for Prometheus scraping.
+	// Allow overriding the port via environment variable (useful for tests to avoid port 9090 contention).
+	port := os.Getenv("OBLIVRA_METRICS_PORT")
+	if port == "" {
+		port = "9090"
+	}
+	addr := "127.0.0.1:" + port
+
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", s.metricsCollector.PrometheusHandler())
 
 	s.server = &http.Server{
-		Addr:    "127.0.0.1:9090",
+		Addr:    addr,
 		Handler: mux,
 	}
 
 	go func() {
-		s.log.Info("Starting Prometheus metrics server on http://127.0.0.1:9090/metrics")
+		s.log.Info("Starting Prometheus metrics server on http://%s/metrics", addr)
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.log.Error("Metrics server error: %v", err)
 		}

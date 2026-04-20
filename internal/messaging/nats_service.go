@@ -145,13 +145,37 @@ func GetSubject(base string, p Priority) string {
 func (s *NATSService) Publish(subject string, p Priority, data []byte) error {
 	fullSubject := GetSubject(subject, p)
 	_, err := s.js.Publish(fullSubject, data)
+	if err != nil {
+		s.log.Error("[NATS] Publish failed to %s: %v", fullSubject, err)
+	} else {
+		s.log.Info("[NATS] Published message to %s (%d bytes)", fullSubject, len(data))
+	}
 	return err
 }
 
 // Subscribe async registers a handler for a subject and priority.
 func (s *NATSService) Subscribe(subject string, p Priority, handler func([]byte)) (*nats.Subscription, error) {
+	return s.QueueSubscribe(subject, "", p, handler)
+}
+
+// QueueSubscribe registers a handler for a subject and priority within a queue group.
+func (s *NATSService) QueueSubscribe(subject string, group string, p Priority, handler func([]byte)) (*nats.Subscription, error) {
 	fullSubject := GetSubject(subject, p)
-	return s.js.Subscribe(fullSubject, func(m *nats.Msg) {
+	// JetStream requires unique group names per subject filter to avoid "subject does not match consumer"
+	fullGroup := group
+	if group != "" {
+		fullGroup = fmt.Sprintf("%s-%s", group, p)
+	}
+	
+	s.log.Info("[NATS] Subscribing to %s (Group: %s)", fullSubject, fullGroup)
+	if fullGroup == "" {
+		return s.js.Subscribe(fullSubject, func(m *nats.Msg) {
+			handler(m.Data)
+			m.Ack()
+		}, nats.ManualAck())
+	}
+
+	return s.js.QueueSubscribe(fullSubject, fullGroup, func(m *nats.Msg) {
 		handler(m.Data)
 		m.Ack()
 	}, nats.ManualAck())

@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Key, ShieldAlert, Zap, Lock, Skull, Activity, Database, Globe, RefreshCcw } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Key, Activity, Globe, RefreshCcw } from 'lucide-svelte';
 
-  const credentials = [
+  const credentials: Record<string, any>[] = [
     { id: 'C-901', identity: 'maverick@oblivra.sh', leakType: 'Public Pastebin', risk: 'High', status: 'monitored' },
     { id: 'C-902', identity: 'svc-bridge-alpha', leakType: 'None', risk: 'Low', status: 'verified' },
     { id: 'C-903', identity: 'iceman@oblivra.sh', leakType: 'Known Breach', risk: 'Critical', status: 'revoked' },
@@ -22,10 +21,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Tracked Identities" value="142" trend="Nominal" />
-      <KPI title="Exposed Secrets" value="3" trend="Critical" variant="error" />
-      <KPI title="Rotation Health" value="98%" trend="Optimal" variant="success" />
-      <KPI title="Darknet Reach" value="DEEP" trend="Active" variant="success" />
+      <KPI label="Tracked Identities" value="142" trend="stable" trendValue="Nominal" />
+      <KPI label="Exposed Secrets" value="3" trend="stable" trendValue="Critical" variant="critical" />
+      <KPI label="Rotation Health" value="98%" trend="stable" trendValue="Optimal" variant="success" />
+      <KPI label="Darknet Reach" value="DEEP" trend="stable" trendValue="Active" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -41,12 +40,12 @@
               { key: 'risk', label: 'Gravity', width: '100px' },
               { key: 'status', label: 'State', width: '100px' },
               { key: 'action', label: '', width: '60px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
+            ]} compact>
+              {#snippet render({ col: column, row })}
                 {#if column.key === 'status'}
-                   <Badge variant={row.status === 'verified' ? 'success' : row.status === 'revoked' ? 'error' : 'secondary'}>{row.status.toUpperCase()}</Badge>
+                   <Badge variant={row.status === 'verified' ? 'success' : row.status === 'revoked' ? 'critical' : 'muted'}>{row.status.toUpperCase()}</Badge>
                 {:else if column.key === 'risk'}
-                   <Badge variant={row.risk === 'Critical' ? 'error' : row.risk === 'High' ? 'warning' : 'info'}>{row.risk.toUpperCase()}</Badge>
+                   <Badge variant={row.risk === 'Critical' ? 'critical' : row.risk === 'High' ? 'warning' : 'info'}>{row.risk.toUpperCase()}</Badge>
                 {:else if column.key === 'identity'}
                    <div class="flex items-center gap-2">
                       <Key size={14} class="text-accent opacity-70" />

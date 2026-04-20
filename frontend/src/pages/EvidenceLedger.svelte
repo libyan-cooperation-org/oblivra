@@ -3,21 +3,15 @@
   Immutable hash-linked record of all SOC actions and forensic evidence.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button } from '@components/ui';
+  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { Shield } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const mockLedger = [
+  const mockLedger: Record<string, any>[] = [
     { id: 'tx_01', type: 'Artifact Hash', action: 'SHA-256 Registered', identity: 'maverick', timestamp: '2026-04-10 01:22:05', hash: 'e3b0c442...8fc1' },
     { id: 'tx_02', type: 'Decision', action: 'Kill Process - ID 4122', identity: 'system_autopilot', timestamp: '2026-04-10 01:21:55', hash: 'f8a1c92...a321' },
     { id: 'tx_03', type: 'Note', action: 'Entry Modified', identity: 'iceman', timestamp: '2026-04-10 01:15:00', hash: '928ca11...12cc' },
     { id: 'tx_04', type: 'Access', action: 'Vault Unlocked', identity: 'maverick', timestamp: '2026-04-10 01:05:12', hash: '412bb22...99ee' },
-  ];
-
-  const columns = [
-    { key: 'timestamp', label: 'Block Time', width: '180px' },
-    { key: 'type', label: 'Type', width: '120px' },
-    { key: 'action', label: 'Action Taken', sortable: true },
-    { key: 'identity', label: 'Identity', width: '150px' },
-    { key: 'hash', label: 'Cryptographic Proof', width: '120px' },
   ];
 </script>
 
@@ -36,10 +30,10 @@
   <div class="flex flex-col h-full gap-5">
     <!-- Ledger Metrics -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI title="Total Blocks" value="14,211" trend="Synced" />
-      <KPI title="Latest Commit" value="41s ago" trend="Chain Height: 882,109" variant="accent" />
-      <KPI title="Validator Nodes" value="8" trend="Healthy" variant="success" />
-      <KPI title="Ledger Stability" value="100.00%" trend="Zero Delta" variant="success" />
+      <KPI label="Total Blocks" value="14,211" trend="stable" trendValue="Synced" />
+      <KPI label="Latest Commit" value="41s ago" trend="stable" trendValue="Chain Height: 882,109" variant="accent" />
+      <KPI label="Validator Nodes" value="8" trend="stable" trendValue="Healthy" variant="success" />
+      <KPI label="Ledger Stability" value="100.00%" trend="stable" trendValue="Zero Delta" variant="success" />
     </div>
 
     <!-- Ledger Table -->
@@ -50,8 +44,8 @@
         { key: 'action', label: 'Mutation' },
         { key: 'identity', label: 'Signatory', width: '120px' },
         { key: 'hash', label: 'Merkle Proof', width: '150px' }
-      ]} density="compact">
-        {#snippet cell({ column, row })}
+      ]} compact>
+        {#snippet render({ col: column, row })}
           {#if column.key === 'hash'}
             <div class="flex items-center gap-2">
               <code class="text-[9px] font-mono text-accent opacity-70 truncate max-w-[100px]">{row.hash}</code>

@@ -283,6 +283,7 @@ func (s *VaultService) postUnlock() (retErr error) {
 			if err != nil {
 				s.log.Error("Failed to initialize search engine: %v", err)
 			} else {
+				fmt.Printf("[DEBUG] postUnlock: setting *s.searchEngine (%p) to %p\n", s.searchEngine, se)
 				*s.searchEngine = se
 				if s.analytics != nil {
 					s.analytics.SetSearchEngine(se)
@@ -327,12 +328,18 @@ func (s *VaultService) TryAutoUnlock() error {
 func (s *VaultService) Lock() {
 	s.log.Info("Locking vault")
 	s.vault.Lock()
+	if s.db != nil {
+		if err := s.db.Close(); err != nil {
+			s.log.Error("Failed to close database: %v", err)
+		}
+	}
 	if s.searchEngine != nil && *s.searchEngine != nil {
 		(*s.searchEngine).Close()
 		*s.searchEngine = nil
 	}
 	if s.analytics != nil {
 		s.analytics.SetSearchEngine(nil)
+		s.analytics.Close()
 	}
 	s.bus.Publish(eventbus.EventVaultLocked, nil)
 }

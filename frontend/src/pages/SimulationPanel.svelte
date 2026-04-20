@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Skull, Zap, Play, Activity, Target, ShieldCheck, RefreshCw, Layers } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Play, Activity, Target, RefreshCw, Layers } from 'lucide-svelte';
 
-  const simulations = [
+  const simulations: Record<string, any>[] = [
     { id: 'S-201', name: 'Ransomware Beaconing', agent: 'L-01', state: 'active', coverage: '94%' },
     { id: 'S-202', name: 'Credential Harvesting', agent: 'M-04', state: 'standby', coverage: '82%' },
     { id: 'S-203', name: 'Identity Lateral Mov', agent: 'M-02', state: 'complete', coverage: '100%' },
@@ -22,10 +21,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Active Drills" value="1" trend="Nominal" />
-      <KPI title="Logic Validation" value="98%" trend="Verified" variant="success" />
-      <KPI title="Simulation Depth" value="L9" trend="Advanced" variant="accent" />
-      <KPI title="Fleet Coverage" value="100%" trend="Optimal" variant="success" />
+      <KPI label="Active Drills" value="1" trend="stable" trendValue="Nominal" />
+      <KPI label="Logic Validation" value="98%" trend="stable" trendValue="Verified" variant="success" />
+      <KPI label="Simulation Depth" value="L9" trend="stable" trendValue="Advanced" variant="accent" />
+      <KPI label="Fleet Coverage" value="100%" trend="stable" trendValue="Optimal" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -41,10 +40,10 @@
               { key: 'coverage', label: 'Logic Coverage', width: '120px' },
               { key: 'state', label: 'Runtime', width: '100px' },
               { key: 'action', label: '', width: '80px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
+            ]} compact>
+              {#snippet render({ col: column, row })}
                 {#if column.key === 'state'}
-                   <Badge variant={row.state === 'active' ? 'accent' : row.state === 'complete' ? 'success' : 'secondary'} dot={row.state === 'active'}>{row.state.toUpperCase()}</Badge>
+                   <Badge variant={row.state === 'active' ? 'accent' : row.state === 'complete' ? 'success' : 'muted'} dot={row.state === 'active'}>{row.state.toUpperCase()}</Badge>
                 {:else if column.key === 'name'}
                    <div class="flex items-center gap-2">
                       <Layers size={14} class="text-accent opacity-70" />
@@ -79,7 +78,7 @@
                Tactical Success Velocity
             </div>
             <div class="flex-1 h-32 flex items-end justify-between px-2 gap-1 font-mono">
-               {#each Array(10) as _, i}
+               {#each Array(10) as _}
                   <div class="flex-1 bg-accent/20 rounded-t-sm border-x border-t border-accent/10" style="height: {30 + Math.random() * 60}%"></div>
                {/each}
             </div>

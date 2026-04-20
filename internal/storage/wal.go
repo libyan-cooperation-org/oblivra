@@ -26,6 +26,7 @@ type WAL struct {
 	flushedBytes int64
 	ctx          context.Context
 	cancel       context.CancelFunc
+	closeOnce    sync.Once
 }
 
 // NewWAL creates or opens an existing Write-Ahead Log in the given data directory.
@@ -292,16 +293,19 @@ func ReadWALManual(filename string, fn func(payload []byte) error) error {
 
 // Close gracefully flushes and shuts down the WAL.
 func (w *WAL) Close() error {
-	w.cancel()
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	var err error
+	w.closeOnce.Do(func() {
+		w.cancel()
+		w.mu.Lock()
+		defer w.mu.Unlock()
 
-	if w.writer != nil {
-		w.writer.Flush()
-	}
-	if w.file != nil {
-		w.file.Sync()
-		return w.file.Close()
-	}
-	return nil
+		if w.writer != nil {
+			w.writer.Flush()
+		}
+		if w.file != nil {
+			w.file.Sync()
+			err = w.file.Close()
+		}
+	})
+	return err
 }

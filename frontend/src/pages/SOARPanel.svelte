@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, Badge, PageLayout, Button, DataTable } from '@components/ui';
-  import { Zap, Play, Settings, Activity, Clock } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Zap, Play } from 'lucide-svelte';
 
-  const playbooks = [
+  const playbooks: Record<string, any>[] = [
     { name: 'Brute Force Auto-Contain', status: 'active', triggers: 142, success: '98%' },
     { name: 'Phishing URI Enrichment', status: 'active', triggers: 890, success: '100%' },
     { name: 'Crypto-Mining Kill Switch', status: 'paused', triggers: 5, success: '80%' },
@@ -22,10 +21,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Automation Rate" value="84%" trend="+5%" variant="success" />
-      <KPI title="Time Saved (MoMD)" value="122h" trend="Productive" variant="accent" />
-      <KPI title="Active Playbooks" value={playbooks.filter(p => p.status === 'active').length} trend="Nominal" />
-      <KPI title="Failure Rate" value="0.2%" trend="Low" variant="success" />
+      <KPI label="Automation Rate" value="84%" trend="up" trendValue="+5%" variant="success" />
+      <KPI label="Time Saved (MoMD)" value="122h" trend="stable" trendValue="Productive" variant="accent" />
+      <KPI label="Active Playbooks" value={playbooks.filter(p => p.status === 'active').length} trend="stable" trendValue="Nominal" />
+      <KPI label="Failure Rate" value="0.2%" trend="stable" trendValue="Low" variant="success" />
     </div>
 
     <div class="flex-1 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col">
@@ -39,8 +38,8 @@
             { key: 'triggers', label: 'Executions', width: '100px' },
             { key: 'success', label: 'Efficiency', width: '100px' },
             { key: 'action', label: '', width: '100px' }
-          ]} density="compact">
-            {#snippet cell({ column, row })}
+          ]} compact>
+            {#snippet render({ col: column, row })}
               {#if column.key === 'status'}
                  <Badge variant={row.status === 'active' ? 'success' : row.status === 'paused' ? 'warning' : 'info'}>{row.status}</Badge>
               {:else if column.key === 'name'}

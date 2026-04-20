@@ -4,9 +4,8 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Button, Badge, DataTable } from '@components/ui';
-  import { Shield, Search, FileText, Database, Activity } from 'lucide-svelte';
 
-  const artifacts = [
+  const artifacts: Record<string, any>[] = [
     { id: 'A-11', type: 'Env Var', name: 'HISTFILE', value: '/dev/null', risk: 'high' },
     { id: 'A-12', type: 'File op', name: '/etc/shadow', value: 'Read attempt', risk: 'critical' },
     { id: 'A-13', type: 'Pipe', name: 'nc -e /bin/sh', value: 'Outbound stream', risk: 'critical' },
@@ -23,10 +22,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Command Entropy" value="High" trend="Anomalous" variant="error" />
-      <KPI title="Detected Shells" value="3" trend="Isolated" variant="warning" />
-      <KPI title="Data Leakage" value="None" trend="Optimal" variant="success" />
-      <KPI title="Integrity Score" value="98%" trend="Verified" />
+      <KPI label="Command Entropy" value="High" trend="stable" trendValue="Anomalous" variant="critical" />
+      <KPI label="Detected Shells" value="3" trend="stable" trendValue="Isolated" variant="warning" />
+      <KPI label="Data Leakage" value="None" trend="stable" trendValue="Optimal" variant="success" />
+      <KPI label="Integrity Score" value="98%" trend="stable" trendValue="Verified" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -39,10 +38,10 @@
             { key: 'name', label: 'Indicator' },
             { key: 'value', label: 'Context' },
             { key: 'risk', label: 'Priority', width: '100px' }
-          ]} density="compact">
-            {#snippet cell({ column, row })}
+          ]} compact>
+            {#snippet render({ col: column, row })}
               {#if column.key === 'risk'}
-                <Badge variant={row.risk === 'critical' ? 'error' : row.risk === 'high' ? 'warning' : 'info'}>
+                <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'high' ? 'warning' : 'info'}>
                   {row.risk}
                 </Badge>
               {:else if column.key === 'type'}

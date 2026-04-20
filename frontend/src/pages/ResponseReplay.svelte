@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Shield, Zap, Play, RotateCcw, Activity, Search, Clock } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Shield, Play, RotateCcw, Activity } from 'lucide-svelte';
 
-  const replayHistory = [
+  const replayHistory: Record<string, any>[] = [
     { id: 'RR-101', mission: 'Auto-Isolation - Node Beta', trigger: 'Malicious Egress', time: '2026-04-09 14:22', result: 'Success' },
     { id: 'RR-102', mission: 'Vault Force-Lock', trigger: 'Lateral Movement', time: '2026-04-09 12:10', result: 'Partial' },
     { id: 'RR-103', mission: 'Binary Quarantine', trigger: 'Entropy Alert', time: '2026-04-08 22:45', result: 'Success' },
@@ -22,17 +21,17 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Replayed Missions" value={replayHistory.length} trend="Verified" />
-      <KPI title="Success Rate" value="94.2%" trend="Optimal" variant="success" />
-      <KPI title="Avg Replay Depth" value="L7" trend="Packet Level" variant="accent" />
-      <KPI title="Audit Stability" value="100%" trend="Signed" variant="success" />
+      <KPI label="Replayed Missions" value={replayHistory.length} trend="stable" trendValue="Verified" />
+      <KPI label="Success Rate" value="94.2%" trend="stable" trendValue="Optimal" variant="success" />
+      <KPI label="Avg Replay Depth" value="L7" trend="stable" trendValue="Packet Level" variant="accent" />
+      <KPI label="Audit Stability" value="100%" trend="stable" trendValue="Signed" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Replay Inventory -->
+      <!-- Replay Timeline -->
       <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-premium">
          <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            Mission Replay Archive
+            Mission Execution Archive
          </div>
          <div class="flex-1 overflow-auto">
             <DataTable data={replayHistory} columns={[
@@ -41,8 +40,8 @@
               { key: 'time', label: 'Execution Time', width: '150px' },
               { key: 'result', label: 'Outcome', width: '100px' },
               { key: 'action', label: '', width: '80px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
+            ]} compact>
+              {#snippet render({ col: column, row })}
                 {#if column.key === 'result'}
                    <Badge variant={row.result === 'Success' ? 'success' : 'warning'}>{row.result}</Badge>
                 {:else if column.key === 'mission'}

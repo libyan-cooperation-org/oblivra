@@ -56,6 +56,8 @@ type PartitionedPipeline struct {
 	maxEPS    int
 	log              *logger.Logger
 	metricsCollector *monitoring.MetricsCollector
+	wal              *storage.WAL
+	closeOnce        sync.Once
 }
 
 // PartitionedMetrics aggregates stats across all shards.
@@ -83,6 +85,7 @@ func NewPartitionedPipeline(
 		limiters:         make(map[string]*rate.Limiter),
 		maxEPS:           getEnvInt("OBLIVRA_MAX_EPS_PER_TENANT", 1000),
 		metricsCollector: mc,
+		wal:              wal,
 	}
 
 	for i := 0; i < PartitionCount; i++ {
@@ -109,17 +112,21 @@ func (pp *PartitionedPipeline) Start() {
 	}
 }
 
-// Stop drains and stops all shards.
+// Stop flushes all shards and shuts down workers.
 func (pp *PartitionedPipeline) Stop() {
-	var wg sync.WaitGroup
-	for _, s := range pp.shards {
-		wg.Add(1)
-		go func(p *Pipeline) {
-			defer wg.Done()
-			p.Stop()
-		}(s)
+	pp.log.Info("[PART] Shutting down %d pipeline shards...", len(pp.shards))
+	for _, shard := range pp.shards {
+		shard.Stop()
 	}
-	wg.Wait()
+
+	pp.closeOnce.Do(func() {
+		if pp.wal != nil {
+			if err := pp.wal.Close(); err != nil {
+				pp.log.Error("[PART] Failed to close shared WAL: %v", err)
+			}
+		}
+	})
+
 	pp.log.Info("[PART] All pipeline shards stopped")
 }
 
@@ -303,6 +310,7 @@ func (pp *PartitionedPipeline) Replay(ctx context.Context) error {
 func (pp *PartitionedPipeline) GetMetricsCollector() *monitoring.MetricsCollector {
 	return pp.metricsCollector
 }
+
 func getEnvInt(key string, defaultVal int) int {
 	valStr := os.Getenv(key)
 	if valStr == "" {

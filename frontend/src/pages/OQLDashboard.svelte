@@ -18,7 +18,7 @@
     OQLVelocity: 1.2
   });
 
-  const queries = [
+  const queries: Record<string, string>[] = [
     { id: 'Q-01', name: 'Identity Lateral Jump', complexity: '0.82', category: 'Hunt', status: 'ready' },
     { id: 'Q-02', name: 'Entropy Spike Ingress', complexity: '0.45', category: 'Audit', status: 'ready' },
     { id: 'Q-03', name: 'Kernel Syscall Anomaly', complexity: '0.94', category: 'Forensic', status: 'running' },

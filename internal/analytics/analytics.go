@@ -325,9 +325,6 @@ func (e *AnalyticsEngine) Close() error {
 	if e.archiver != nil {
 		e.archiver.Stop()
 	}
-	if e.searchEngine != nil {
-		e.searchEngine.Close()
-	}
 	if e.db != nil {
 		return e.db.Close()
 	}

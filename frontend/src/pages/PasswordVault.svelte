@@ -50,8 +50,8 @@
               { key: 'safety', label: 'Hardening', width: '100px' },
               { key: 'rot', label: 'Rotation', width: '80px' },
               { key: 'action', label: '', width: '80px' }
-            ]} density="compact">
-               {#snippet cell({ column, row }: { column: any, row: any })}
+            ]} compact>
+               {#snippet render({ col: column, row })}
                 {#if column.key === 'safety'}
                    <Badge variant={row.safety === 'hardened' ? 'success' : 'warning'}>{row.safety}</Badge>
                 {:else if column.key === 'label'}

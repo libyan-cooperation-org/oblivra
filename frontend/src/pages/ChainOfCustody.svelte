@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, Badge, DataTable, PageLayout, Button } from '@components/ui';
-  import { Shield, FileArchive, ArrowRight, User, Hash } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { FileArchive, ArrowRight, User } from 'lucide-svelte';
 
-  const evidence = [
+  const evidence: Record<string, any>[] = [
     { id: 'E-401', name: 'mem_dump_prod_01.bin', collector: 'maverick', size: '4.2 GB', protocol: 'SFTP-SEC', integrity: 'verified' },
     { id: 'E-402', name: 'bash_history_operator.log', collector: 'iceman', size: '12 KB', protocol: 'LOCAL', integrity: 'verified' },
     { id: 'E-403', name: 'secrets.gpg.bak', collector: 'system', size: '840 Bytes', protocol: 'SHADOW-COPY', integrity: 'warning' },
@@ -22,9 +21,9 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <KPI title="Managed Artifacts" value={evidence.length} trend="Active" />
-      <KPI title="Total Forensic Mass" value="4.20 GB" trend="High Density" variant="warning" />
-      <KPI title="Verification Score" value="99.2%" trend="Optimal" variant="success" />
+      <KPI label="Managed Artifacts" value={evidence.length} trend="stable" trendValue="Active" />
+      <KPI label="Total Forensic Mass" value="4.20 GB" trend="stable" trendValue="High Density" variant="warning" />
+      <KPI label="Verification Score" value="99.2%" trend="stable" trendValue="Optimal" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col">
@@ -36,8 +35,8 @@
           { key: 'collector', label: 'Acquired By', width: '120px' },
           { key: 'protocol', label: 'Transport', width: '120px' },
           { key: 'integrity', label: 'State', width: '100px' }
-        ]} density="compact">
-          {#snippet cell({ column, row })}
+        ]} compact>
+          {#snippet render({ col: column, row })}
             {#if column.key === 'integrity'}
                <Badge variant={row.integrity === 'verified' ? 'success' : 'warning'}>{row.integrity}</Badge>
             {:else if column.key === 'name'}

@@ -107,16 +107,24 @@ func (r *SIEMRepository) SearchHostEvents(ctx context.Context, query string, lim
 	}
 
 	tenantID := MustTenantFromContext(ctx)
+	likeQuery := "%" + query + "%"
 
-	sqlQuery := `
+	whereClause := "tenant_id = ?"
+	args := []interface{}{likeQuery, likeQuery, likeQuery, tenantID, limit}
+	if tenantID == "" {
+		whereClause = "1=1"
+		args = []interface{}{likeQuery, likeQuery, likeQuery, limit}
+	}
+
+	sqlQuery := fmt.Sprintf(`
 		SELECT id, host_id, timestamp, event_type, source_ip, user, raw_log, event_hash, prev_hash 
 		FROM host_events
-		WHERE (raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?) AND tenant_id = ?
+		WHERE (raw_log LIKE ? OR source_ip LIKE ? OR user LIKE ?) AND %s
 		ORDER BY timestamp DESC
 		LIMIT ?
-	`
-	likeQuery := "%" + query + "%"
-	rows, err := conn.QueryContext(ctx, sqlQuery, likeQuery, likeQuery, likeQuery, tenantID, limit)
+	`, whereClause)
+
+	rows, err := conn.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search host events: %w", err)
 	}

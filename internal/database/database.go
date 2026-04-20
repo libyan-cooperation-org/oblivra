@@ -39,7 +39,9 @@ func (d *Database) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.db != nil {
-		return d.db.Close()
+		err := d.db.Close()
+		d.db = nil
+		return err
 	}
 	return nil
 }

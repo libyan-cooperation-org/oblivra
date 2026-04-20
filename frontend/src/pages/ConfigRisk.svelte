@@ -4,10 +4,9 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Shield, Zap, Activity, ShieldCheck, Database, Settings, AlertTriangle } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Shield, Activity, Settings, AlertTriangle } from 'lucide-svelte';
 
-  const risks = [
+  const risks: Record<string, any>[] = [
     { id: 'CR-01', name: 'Open SSH Root Auth', severity: 'High', status: 'vulnerable', domain: 'Operations' },
     { id: 'CR-02', name: 'Weak Vault Entropy', severity: 'Critical', status: 'warning', domain: 'Security' },
     { id: 'CR-03', name: 'Unsigned Script Exec', severity: 'Medium', status: 'baseline', domain: 'Orchestration' },
@@ -22,10 +21,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Risk Factor" value="0.22" trend="-0.04" variant="success" />
-      <KPI title="Active Vulnerabilities" value="3" trend="Critical" variant="error" />
-      <KPI title="Compliance Score" value="94%" trend="Optimized" variant="success" />
-      <KPI title="OBLIVRA Posture" value="HARDENED" trend="NOMINAL" variant="success" />
+      <KPI label="Risk Factor" value="0.22" trend="down" trendValue="-0.04" variant="success" />
+      <KPI label="Active Vulnerabilities" value="3" trend="stable" trendValue="Critical" variant="critical" />
+      <KPI label="Compliance Score" value="94%" trend="stable" trendValue="Optimized" variant="success" />
+      <KPI label="OBLIVRA Posture" value="HARDENED" trend="stable" trendValue="NOMINAL" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -41,15 +40,15 @@
               { key: 'domain', label: 'Domain', width: '120px' },
               { key: 'status', label: 'Compliance', width: '120px' },
               { key: 'action', label: '', width: '60px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
+            ]} compact>
+              {#snippet render({ col: column, row })}
                 {#if column.key === 'status'}
                    <div class="flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full {row.status === 'vulnerable' ? 'bg-error animate-pulse' : row.status === 'warning' ? 'bg-warning' : 'bg-success'}"></div>
                       <span class="text-[10px] font-bold uppercase">{row.status}</span>
                    </div>
                 {:else if column.key === 'severity'}
-                   <Badge variant={row.severity === 'Critical' ? 'error' : row.severity === 'High' ? 'warning' : 'info'}>{row.severity.toUpperCase()}</Badge>
+                    <Badge variant={row.severity === 'Critical' ? 'critical' : row.severity === 'High' ? 'warning' : 'info'}>{row.severity.toUpperCase()}</Badge>
                 {:else if column.key === 'name'}
                    <div class="flex items-center gap-2">
                       <Settings size={14} class="text-accent opacity-70" />
