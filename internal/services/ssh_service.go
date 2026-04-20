@@ -522,6 +522,24 @@ func (s *SSHService) Exec(sessionID string, cmd string) (string, error) {
 	return string(output), nil
 }
 
+// ExecWithStdin runs a non-interactive command and pipes the given string to its stdin.
+func (s *SSHService) ExecWithStdin(sessionID string, cmd string, stdin string) (string, error) {
+	if !s.sanitizer.IsSafe(cmd) {
+		s.log.Warn("[SECURITY] Blocked dangerous command execution attempt: %s", cmd)
+		return "", fmt.Errorf("command violates security policy")
+	}
+
+	session, ok := s.manager.Get(sessionID)
+	if !ok {
+		return "", fmt.Errorf("session %s not found", sessionID)
+	}
+	output, err := session.GetClient().ExecuteCommandWithStdin(cmd, stdin)
+	if err != nil {
+		return string(output), err
+	}
+	return string(output), nil
+}
+
 // Resize changes the terminal dimensions for a session
 func (s *SSHService) Resize(sessionID string, cols int, rows int) error {
 	session, ok := s.manager.Get(sessionID)

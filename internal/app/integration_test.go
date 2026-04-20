@@ -204,7 +204,7 @@ func TestFullFlow(t *testing.T) {
 	t.Run("Compliance_Report", func(t *testing.T) {
 		start := time.Now().Add(-1 * time.Hour).Unix()
 		end := time.Now().Add(1 * time.Hour).Unix()
-		report, err := container.Product.ComplianceService.GenerateReport("security_audit", start, end)
+		report, err := container.Product.ComplianceService.GenerateReport(context.Background(), "security_audit", start, end)
 		if err != nil {
 			t.Errorf("Report generation failed: %v", err)
 		}

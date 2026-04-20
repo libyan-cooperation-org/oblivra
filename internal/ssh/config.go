@@ -75,7 +75,7 @@ func DefaultConfig() ConnectionConfig {
 		Cols:              120,
 		Rows:              40,
 		EnableAgent:       true, // Enable SSH agent by default
-		StrictHostKey:     false,
+		StrictHostKey:     true,
 		Compression:       true,
 	}
 }

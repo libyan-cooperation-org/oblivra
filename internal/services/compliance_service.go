@@ -60,12 +60,12 @@ func (s *ComplianceService) Stop(ctx context.Context) error {
 }
 
 // GenerateReport creates a new compliance report
-func (s *ComplianceService) GenerateReport(reportType string, startUnix, endUnix int64) (*compliance.ComplianceReport, error) {
+func (s *ComplianceService) GenerateReport(ctx context.Context, reportType string, startUnix, endUnix int64) (*compliance.ComplianceReport, error) {
 	start := time.Unix(startUnix, 0).Format(time.RFC3339)
 	end := time.Unix(endUnix, 0).Format(time.RFC3339)
 
 	s.log.Info("Generating %s report from %s to %s", reportType, start, end)
-	return s.reportGenerator.GenerateReport(compliance.ReportType(reportType), start, end)
+	return s.reportGenerator.GenerateReport(ctx, compliance.ReportType(reportType), start, end)
 }
 
 // ListReports returns previously generated reports
@@ -107,16 +107,16 @@ func (s *ComplianceService) ListCompliancePacks() ([]compliance.PackDefinition, 
 }
 
 // EvaluatePack runs a compliance evaluation for a specific pack.
-func (s *ComplianceService) EvaluatePack(packID string) (*compliance.PackResult, error) {
+func (s *ComplianceService) EvaluatePack(ctx context.Context, packID string) (*compliance.PackResult, error) {
 	if s.evaluator == nil {
 		return nil, fmt.Errorf("compliance evaluator not initialized")
 	}
 
 	// Fetch some stats from repos for the state
-	auditCount, _ := s.reportGenerator.GetAuditCount()
+	auditCount, _ := s.reportGenerator.GetAuditCount(ctx)
 
 	// Real-time Identity telemetry
-	identityStats, _ := s.identity.GetSecurityStats(s.ctx)
+	identityStats, _ := s.identity.GetSecurityStats(ctx)
 
 	// Real-time API telemetry
 	tlsActive := false
@@ -132,7 +132,7 @@ func (s *ComplianceService) EvaluatePack(packID string) (*compliance.PackResult,
 		FIMEnabled:           true, // Sentinel FIM is active
 		RBACEnabled:          identityStats.RBACActive,
 		AlertingEnabled:      true, // Alerting engine is operational
-		MerkleIntegrityValid: s.reportGenerator.IsMerkleValid(),
+		MerkleIntegrityValid: s.reportGenerator.IsMerkleValid(ctx),
 		EvidenceLockerAvail:  true, // Forensics service is bound
 		AuditLogCount:        auditCount,
 		EventTypesPresent:    make(map[string]bool),
@@ -142,8 +142,8 @@ func (s *ComplianceService) EvaluatePack(packID string) (*compliance.PackResult,
 }
 
 // ExportReportPDF generates a PDF for a report and returns the file path.
-func (s *ComplianceService) ExportReportPDF(reportType string, startUnix, endUnix int64) (string, error) {
-	report, err := s.GenerateReport(reportType, startUnix, endUnix)
+func (s *ComplianceService) ExportReportPDF(ctx context.Context, reportType string, startUnix, endUnix int64) (string, error) {
+	report, err := s.GenerateReport(ctx, reportType, startUnix, endUnix)
 	if err != nil {
 		return "", err
 	}

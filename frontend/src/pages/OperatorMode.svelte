@@ -62,8 +62,6 @@
   }
 
   const evidence = [
-
-  const evidence = [
     { id: 'EVD-044', name: 'HOST-FIN-044 · mem dump', size: '2.1 GB', ts: '00:54Z', sealed: true },
     { id: 'EVD-045', name: 'proc_tree.json', size: '44 KB', ts: '00:54Z', sealed: true },
     { id: 'EVD-046', name: 'netconn_capture.pcap', size: '18 MB', ts: '00:54Z', sealed: true },

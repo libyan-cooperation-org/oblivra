@@ -7,8 +7,18 @@
   import { PageLayout, Badge, Button } from '@components/ui';
   import { Layers, Target, Filter } from 'lucide-svelte';
 
-  let campaigns = $state([]);
-  let selectedCampaign = $state(null);
+  interface Campaign {
+    id: string;
+    name: string;
+    severity: string;
+    confidence: number;
+    stages: number;
+    assets: number;
+    actor: string;
+  }
+
+  let campaigns = $state<Campaign[]>([]);
+  let selectedCampaign = $state<Campaign | null>(null);
 
   onMount(async () => {
     const res = await fetch('/api/v1/fusion/campaigns', { credentials: 'include' });

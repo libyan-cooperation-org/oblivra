@@ -57,7 +57,7 @@ func (s *HoneypotService) InjectHoneypotCredential(id string, username string) s
 		DeployTime: time.Now().Format(time.RFC3339),
 	}
 	s.decoys[id] = decoy
-	s.log.Info("Injected honeypot credential: %s", username)
+	s.log.Info("Injected honeypot credential: [ID:%s]", id)
 	return id
 }
 

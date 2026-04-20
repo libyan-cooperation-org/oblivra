@@ -122,7 +122,7 @@ func TestIntegrationSmoke(t *testing.T) {
 			t.Error("expected at least one compliance pack")
 		}
 		if len(packs) > 0 {
-			result, err := application.ComplianceService.EvaluatePack(packs[0].ID)
+			result, err := application.ComplianceService.EvaluatePack(context.TODO(), packs[0].ID)
 			if err != nil {
 				t.Fatalf("EvaluatePack %s: %v", packs[0].ID, err)
 			}

@@ -84,6 +84,7 @@ func NewReportGenerator(audit database.AuditStore, session database.SessionStore
 
 // GenerateReport creates a compliance report for a given period
 func (g *ReportGenerator) GenerateReport(
+	ctx context.Context,
 	reportType ReportType,
 	periodStartStr string,
 	periodEndStr string,
@@ -100,13 +101,16 @@ func (g *ReportGenerator) GenerateReport(
 		PeriodEnd:   periodEndStr,
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	// Gather data
-	auditLogs, err := g.auditRepo.GetByDateRange(context.Background(), periodStartStr, periodEndStr, 100000)
+	auditLogs, err := g.auditRepo.GetByDateRange(ctx, periodStartStr, periodEndStr, 100000)
 	if err != nil {
 		return nil, fmt.Errorf("fetch audit logs: %w", err)
 	}
 
-	sessions, err := g.sessionRepo.GetRecent(context.Background(), 10000)
+	sessions, err := g.sessionRepo.GetRecent(ctx, 10000)
 	if err != nil {
 		return nil, fmt.Errorf("fetch sessions: %w", err)
 	}
@@ -120,7 +124,7 @@ func (g *ReportGenerator) GenerateReport(
 		}
 	}
 
-	hosts, err := g.hostRepo.GetAll(context.Background())
+	hosts, err := g.hostRepo.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetch hosts: %w", err)
 	}
@@ -569,13 +573,13 @@ func (g *ReportGenerator) buildSessionBreakdown(sessions []database.Session) map
 	return breakdown
 }
 
-func (g *ReportGenerator) GetAuditCount() (int64, error) {
-	return g.auditRepo.Count(context.Background())
+func (g *ReportGenerator) GetAuditCount(ctx context.Context) (int64, error) {
+	return g.auditRepo.Count(ctx)
 }
 
 // IsMerkleValid checks if the audit logs are cryptographically sound
-func (g *ReportGenerator) IsMerkleValid() bool {
-	return g.auditRepo.ValidateIntegrity(context.Background())
+func (g *ReportGenerator) IsMerkleValid(ctx context.Context) bool {
+	return g.auditRepo.ValidateIntegrity(ctx)
 }
 
 // ExportPDF renders a compliance report as a PDF document.

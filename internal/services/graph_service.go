@@ -152,3 +152,14 @@ func (s *GraphService) GetActiveClusters() []map[string]interface{} {
 func (s *GraphService) GetRichEdges() []graph.RichEdge {
 	return s.engine.GetRichEdges()
 }
+
+// GetGraphMetrics returns summary statistics for the dashboard.
+func (s *GraphService) GetGraphMetrics() map[string]interface{} {
+	stats := s.engine.Stats()
+	return map[string]interface{}{
+		"node_count":       stats.NodeCount,
+		"edge_count":       stats.EdgeCount,
+		"rich_edge_count":  stats.RichEdgeCount,
+		"density":          float64(stats.EdgeCount) / float64(stats.NodeCount+1), // basic heuristic
+	}
+}

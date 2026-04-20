@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/kingknull/oblivrashell/internal/licensing"
 )
 
 // ── In-memory playbook store ──────────────────────────────────────────────────
@@ -50,6 +52,9 @@ var defaultActions = []string{
 
 // GET/POST /api/v1/playbooks
 func (s *RESTServer) handlePlaybooks(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureSOAR) {
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		savedPlaybooksMu.RLock()
@@ -78,6 +83,9 @@ func (s *RESTServer) handlePlaybooks(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/playbooks/actions
 func (s *RESTServer) handlePlaybookActions(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureSOAR) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -171,6 +179,9 @@ func (s *RESTServer) handlePlaybookMetrics(w http.ResponseWriter, r *http.Reques
 
 // GET /api/v1/ueba/profiles
 func (s *RESTServer) handleUEBAProfiles(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureUEBA) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -187,6 +198,9 @@ func (s *RESTServer) handleUEBAProfiles(w http.ResponseWriter, r *http.Request) 
 
 // GET /api/v1/ueba/anomalies?limit=N
 func (s *RESTServer) handleUEBAAnomalies(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureUEBA) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -255,6 +269,9 @@ func (s *RESTServer) handleUEBAStats(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/ndr/flows?limit=N
 func (s *RESTServer) handleNDRFlows(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureNDR) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -288,6 +305,9 @@ func (s *RESTServer) handleNDRFlows(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/ndr/alerts?limit=N
 func (s *RESTServer) handleNDRAlerts(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureNDR) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -373,8 +393,44 @@ func (s *RESTServer) handleRansomwareEvents(w http.ResponseWriter, r *http.Reque
 	s.jsonResponse(w, http.StatusOK, events)
 }
 
+// GET /api/v1/ransomware/protection
+func (s *RESTServer) handleRansomwareProtection(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureRansomware) {
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.agentsMu.RLock()
+	defer s.agentsMu.RUnlock()
+
+	var hosts []map[string]interface{}
+	for _, a := range s.agents {
+		status := "protected"
+		if a.Status == "degraded" {
+			status = "at_risk"
+		}
+		hosts = append(hosts, map[string]interface{}{
+			"host_id":       a.ID,
+			"hostname":      a.Hostname,
+			"status":        status,
+			"canary_count":  3,
+			"last_scan":     a.LastSeen,
+			"entropy_score": 0.0, // Feature gap
+		})
+	}
+	if len(hosts) == 0 {
+		hosts = []map[string]interface{}{}
+	}
+	s.jsonResponse(w, http.StatusOK, hosts)
+}
+
 // GET /api/v1/ransomware/hosts
 func (s *RESTServer) handleRansomwareHosts(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureRansomware) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

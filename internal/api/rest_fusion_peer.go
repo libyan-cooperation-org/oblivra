@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kingknull/oblivrashell/internal/licensing"
 )
 
 // ── In-memory fusion campaign store ──────────────────────────────────────────
@@ -50,6 +52,9 @@ func seedFusionCampaigns() {
 
 // GET /api/v1/fusion/campaigns
 func (s *RESTServer) handleFusionCampaigns(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureSOAR) { // Fusion is part of SOAR/Enterprise
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

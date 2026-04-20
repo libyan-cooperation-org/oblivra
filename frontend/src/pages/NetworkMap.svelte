@@ -18,9 +18,12 @@
     geo: {
       map: 'world',
       roam: true,
-      label: { emphasis: { show: false } },
+      label: { show: false },
       itemStyle: { areaColor: '#1a1b26', borderColor: '#33467c' },
-      emphasis: { itemStyle: { areaColor: '#24283b' } },
+      emphasis: { 
+        label: { show: false },
+        itemStyle: { areaColor: '#24283b' } 
+      },
     },
     series: [
       {

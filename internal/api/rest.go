@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/mcp"
 	"github.com/kingknull/oblivrashell/internal/ueba"
+	"github.com/kingknull/oblivrashell/internal/licensing"
 	"github.com/kingknull/oblivrashell/internal/platform"
 )
 
@@ -74,7 +76,7 @@ type ForensicsProvider interface {
 }
 
 type ComplianceProvider interface {
-	EvaluatePack(packID string) (*compliance.PackResult, error)
+	EvaluatePack(ctx context.Context, packID string) (*compliance.PackResult, error)
 	ListCompliancePacks() ([]compliance.PackDefinition, error)
 }
 
@@ -167,6 +169,8 @@ type RESTServer struct {
 	agentsMu sync.RWMutex           // protects agents map
 	agentProvider AgentProvider     // provider for agent fleet data
 	globalLimiter  *rate.Limiter
+	ipLimiters     sync.Map // IP -> *rate.Limiter
+	failedLogins   sync.Map // email -> {count, lockoutUntil}
 	tenantLimiters sync.Map // map[string]*rate.Limiter
 	upgrader websocket.Upgrader
 
@@ -198,6 +202,7 @@ type RESTServer struct {
 	ueba          UEBAProvider
 	fleetSecret   []byte // Shared secret for agent HMAC verification
 	keyProvider   SystemKeyProvider
+	license       licensing.Provider
 }
 
 // AgentInfo tracks a registered agent.
@@ -221,7 +226,7 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, compliance ComplianceProvider, agentProvider AgentProvider, fleetSecret []byte, keyProvider SystemKeyProvider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, platformProvider PlatformProvider, forensicsProvider ForensicsProvider, fusion FusionProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, compliance ComplianceProvider, agentProvider AgentProvider, fleetSecret []byte, keyProvider SystemKeyProvider, license licensing.Provider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, platformProvider PlatformProvider, forensicsProvider ForensicsProvider, fusion FusionProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -260,6 +265,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		agentProvider: agentProvider,
 		fleetSecret:   fleetSecret,
 		keyProvider:   keyProvider,
+		license:       license,
 		upgrader: websocket.Upgrader{
 			// Restrict WebSocket upgrades to same-origin and explicitly allowed origins.
 			// Do NOT allow all origins — any web page could connect and receive live event data.
@@ -388,6 +394,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 
 	// Graph endpoints (Phase 9)
 	mux.HandleFunc("/api/v1/graph/subgraph", s.handleGraphSubgraph)
+	mux.HandleFunc("/api/v1/graph/metrics", s.handleGraphMetrics)
 
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.stubHandler(s.handleUsers))
@@ -552,6 +559,18 @@ func (s *RESTServer) IsTLS() bool {
 	return s.isTLS
 }
 
+func (s *RESTServer) checkFeature(w http.ResponseWriter, f licensing.Feature) bool {
+	if s.license == nil {
+		return true // Missing provider (test/dev)
+	}
+	if err := s.license.RequireFeature(f); err != nil {
+		s.log.Warn("[REST] Feature gate blocked: %s (Tier: %s)", f, s.license.CurrentTier())
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 type DataConfidence int
 
 const (
@@ -634,12 +653,24 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// 1.5 Per-IP Rate Limiting (Defense-in-Depth)
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		lim, _ := s.ipLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Limit(5), 10)) // 5 req/sec per IP
+		if !lim.(*rate.Limiter).Allow() {
+			s.log.Warn("[SECURITY] Rate limit exceeded for IP: %s", ip)
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		// 2. CORS Headers — restrict to local Wails frontend origins
 		origin := r.Header.Get("Origin")
 		allowedOrigins := map[string]bool{
 			"https://wails.localhost": true,
 			"wails://wails":           true,
-			"http://localhost:3000":   true,
+		}
+		// SEC-35: Allow localhost:3000 ONLY in debug mode to prevent DNS rebinding in production
+		if os.Getenv("OBLIVRA_DEBUG") == "true" {
+			allowedOrigins["http://localhost:3000"] = true
 		}
 		if allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -777,7 +808,8 @@ func (s *RESTServer) handleSIEMSearch(w http.ResponseWriter, r *http.Request) {
 
 	events, err := s.siem.SearchHostEvents(r.Context(), query, limit)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Search failed: %v", err), http.StatusInternalServerError)
+		s.log.Error("[REST] Search failed for tenant %s: %v", identityUser.TenantID, err)
+		http.Error(w, "Search unavailable. Internal processing error.", http.StatusInternalServerError)
 		return
 	}
 
@@ -821,7 +853,8 @@ func (s *RESTServer) handleAlertsList(w http.ResponseWriter, r *http.Request) {
 	alerts, err := s.siem.SearchHostEvents(ctx, query, 100)
 	cancel()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Query failed: %v", err), http.StatusInternalServerError)
+		s.log.Error("[REST] Query failed for tenant %s: %v", identityUser.TenantID, err)
+		http.Error(w, "Query unavailable. Internal processing error.", http.StatusInternalServerError)
 		return
 	}
 
@@ -1205,11 +1238,48 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. Lockout Check
+	now := time.Now()
+	if lockout, ok := s.failedLogins.Load(req.Email); ok {
+		info := lockout.(struct {
+			count   int
+			until   time.Time
+		})
+		if info.count >= 5 && now.Before(info.until) {
+			s.log.Warn("[SECURITY] Login blocked for %s: too many failed attempts (locked until %v)", req.Email, info.until)
+			http.Error(w, "Account temporarily locked. Please try again in 15 minutes.", http.StatusForbidden)
+			return
+		}
+	}
+
 	user, err := s.identity.LoginLocal(req.Email, req.Password)
 	if err != nil {
+		// Increment failure counter
+		count := 1
+		if existing, ok := s.failedLogins.Load(req.Email); ok {
+			count = existing.(struct {
+				count   int
+				until   time.Time
+			}).count + 1
+		}
+		
+		until := time.Time{}
+		if count >= 5 {
+			until = now.Add(15 * time.Minute)
+			s.appendAuditEntry(req.Email, "lockout", "system", "locked", r)
+		}
+		
+		s.failedLogins.Store(req.Email, struct {
+			count   int
+			until   time.Time
+		}{count, until})
+
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
+
+	// Success: clear failures
+	s.failedLogins.Delete(req.Email)
 
 	accessToken, refreshToken, err := s.generateTokens(user)
 	if err != nil {
@@ -2360,6 +2430,20 @@ func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
 
 // ── Graph Handlers (Phase 9) ────────────────────────────────────────────────
 
+func (s *RESTServer) handleGraphMetrics(w http.ResponseWriter, r *http.Request) {
+	if s.graphEngine == nil {
+		http.Error(w, "Graph engine not initialized", http.StatusNotImplemented)
+		return
+	}
+
+	stats := s.graphEngine.Stats()
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"node_count":       stats.NodeCount,
+		"edge_count":       stats.EdgeCount,
+		"rich_edge_count":  stats.RichEdgeCount,
+	})
+}
+
 func (s *RESTServer) handleGraphSubgraph(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -2416,7 +2500,7 @@ func (s *RESTServer) handleComplianceStatus(w http.ResponseWriter, r *http.Reque
 	breaches := 0
 	
 	for _, p := range packs {
-		res, err := s.compliance.EvaluatePack(p.ID)
+		res, err := s.compliance.EvaluatePack(r.Context(), p.ID)
 		if err == nil && res != nil {
 			status := "compliant"
 			if res.Score < 50 {

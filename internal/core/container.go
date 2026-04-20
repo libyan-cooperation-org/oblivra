@@ -455,7 +455,19 @@ func (c *Container) initPlatform() error {
 	// Audit Repository (Persistence)
 	auditRepo := database.NewAuditRepository(c.Infra.DB)
 	
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	// LicensingService — pubKeyHex injected at build time via ldflags.
+	// In dev/community builds the key is empty; the manager defaults to Community tier.
+	if c.Product.SettingsService != nil {
+		c.Platform.LicensingService = services.NewLicensingService(
+			licensePubKey, // var declared in main.go via -ldflags
+			c.Infra.Bus,
+			c.Log,
+			func(k string) (string, error) { return c.Product.SettingsService.Get(k) },
+			func(k, v string) error { return c.Product.SettingsService.Set(k, v) },
+		)
+	}
+
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Platform.LicensingService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {
@@ -484,17 +496,6 @@ func (c *Container) initPlatform() error {
 		c.Log.Info("[CONTAINER] CampaignBuilder wired into GraphService (GetActiveClusters active)")
 	}
 
-	// LicensingService — pubKeyHex injected at build time via ldflags.
-	// In dev/community builds the key is empty; the manager defaults to Community tier.
-	if c.Product.SettingsService != nil {
-		c.Platform.LicensingService = services.NewLicensingService(
-			licensePubKey, // var declared in main.go via -ldflags
-			c.Infra.Bus,
-			c.Log,
-			func(k string) (string, error) { return c.Product.SettingsService.Get(k) },
-			func(k, v string) error { return c.Product.SettingsService.Set(k, v) },
-		)
-	}
 
 	c.Platform.CloudDiscovery = cloud.NewCloudDiscoveryManager(c.Infra.CloudAssets, c.Log)
 

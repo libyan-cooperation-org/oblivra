@@ -19,6 +19,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/mcp"
+	"github.com/kingknull/oblivrashell/internal/licensing"
 	"time"
 )
 
@@ -94,7 +95,7 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, compliance *ComplianceService, vault *VaultService, settings *SettingsService, identity *IdentityService, platformSvc *PlatformService, forensics *ForensicsService, fusion *FusionService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
+func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, compliance *ComplianceService, licensingSvc *LicensingService, vault *VaultService, settings *SettingsService, identity *IdentityService, platformSvc *PlatformService, forensics *ForensicsService, fusion *FusionService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -140,7 +141,11 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 
 	fleetSecret := []byte("oblivra-fleet-secret-v1") // PRR: Move to secure vault
 	agentBridge := &agentProviderBridge{service: agentService}
-	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, compliance, agentBridge, fleetSecret, vault, attest, am, identity, platformSvc, forensics, fusion, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
+	var lm licensing.Provider
+	if licensingSvc != nil {
+		lm = licensingSvc.Manager()
+	}
+	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, compliance, agentBridge, fleetSecret, vault, lm, attest, am, identity, platformSvc, forensics, fusion, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server: server,

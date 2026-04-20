@@ -75,7 +75,7 @@ func (m *SourceManager) clientFor(src LogSource) *http.Client {
 		return c
 	}
 	if src.TLSSkipVerify {
-		m.log.Warn("⚠️ SECURITY: TLS certificate verification disabled for log source %s (%s)", src.Name, src.URL)
+		m.log.Error("🚨 CRITICAL SECURITY RISK: TLS certificate verification DISABLED for log source %s (%s). This source is vulnerable to Man-in-the-Middle (MITM) attacks.", src.Name, src.URL)
 	}
 	transport := &http.Transport{
 		MaxIdleConns:        10,

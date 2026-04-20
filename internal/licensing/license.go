@@ -27,6 +27,14 @@ import (
 	"time"
 )
 
+// Provider defines the interface for license management and feature gating.
+// Other packages should depend on this interface rather than the concrete Manager.
+type Provider interface {
+	IsFeatureEnabled(f Feature) bool
+	RequireFeature(f Feature) error
+	CurrentTier() Tier
+}
+
 // ─── Tiers ───────────────────────────────────────────────────────────────────
 
 // Tier represents a subscription level.

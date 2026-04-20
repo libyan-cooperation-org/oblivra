@@ -4,10 +4,11 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable, Input } from '@components/ui';
-  import { Search, Zap, Code, Save, Play, Activity, Database, Terminal } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Zap, Code, Play, Activity, Terminal } from 'lucide-svelte';
   import { siemStore } from '@lib/stores/siem.svelte';
   import { onMount } from 'svelte';
+
+  let filter = $state('');
 
   const stats = $derived(siemStore.stats || {
     TotalEvents: 0,
@@ -31,7 +32,7 @@
 <PageLayout title="OQL Orchestration" subtitle="Managing Oblivra Query Language (OQL) modules for autonomous threat hunting and deep forensic search">
   {#snippet toolbar()}
      <div class="flex items-center gap-2">
-        <Input variant="search" placeholder="Filter OQL modules..." class="w-64" />
+        <Input variant="search" placeholder="Filter OQL modules..." class="w-64" bind:value={filter} />
         <Button variant="primary" size="sm" icon="< >">New Module</Button>
      </div>
   {/snippet}
@@ -57,8 +58,8 @@
               { key: 'category', label: 'Intent', width: '100px' },
               { key: 'status', label: 'State', width: '100px' },
               { key: 'action', label: '', width: '80px' }
-            ]} density="compact">
-              {#snippet cell({ column, row })}
+            ]} compact>
+              {#snippet render({ col: column, row })}
                 {#if column.key === 'status'}
                    <Badge variant={row.status === 'running' ? 'accent' : 'success'} dot={row.status === 'running'}>{row.status.toUpperCase()}</Badge>
                 {:else if column.key === 'complexity'}

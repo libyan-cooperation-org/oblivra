@@ -145,6 +145,13 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
 
+	// SECURITY: tmpPath is system-generated but we validate it as a defense-in-depth measure.
+	// VACUUM INTO does not support parameters for the filename.
+	if strings.Contains(tmpPath, "'") || strings.Contains(tmpPath, ";") {
+		os.Remove(tmpPath)
+		return nil, fmt.Errorf("unsafe snapshot path: %s", tmpPath)
+	}
+
 	// Use SQLite VACUUM INTO to create a consistent copy of the database
 	// This is atomic and doesn't require locking the source database.
 	_, err = f.db.Exec(fmt.Sprintf("VACUUM INTO '%s'", tmpPath))

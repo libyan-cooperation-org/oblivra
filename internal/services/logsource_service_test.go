@@ -9,6 +9,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/logsources"
+	"github.com/kingknull/oblivrashell/internal/security"
 )
 
 func setupTestService(_ *testing.T) *LogSourceService {
@@ -22,7 +23,8 @@ func setupTestService(_ *testing.T) *LogSourceService {
 	_ = ae.Open(":memory:", []byte(""))
 	manager := logsources.NewSourceManager(l)
 
-	service := NewLogSourceService(manager, ae, bus, l)
+	sanitizer := security.NewShellSanitizer()
+	service := NewLogSourceService(manager, ae, bus, sanitizer, l)
 	service.ctx = context.Background()
 	return service
 }

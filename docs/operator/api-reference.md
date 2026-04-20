@@ -342,11 +342,12 @@ All errors return standard JSON:
 
 ## Rate Limiting
 
-The API applies per-token rate limiting:
+The API applies tiered rate limiting to protect platform stability:
 
-- Standard endpoints: **1,000 req/min**
-- Ingest endpoint: **50,000 events/min** (use syslog UDP for higher throughput)
+- Global limit: **12,000 req/min** (200 req/sec)
+- Per-IP limit: **300 req/min** (5 req/sec burst)
 - Search endpoint: **100 req/min** (queries are expensive)
+- Ingest endpoint: **50,000 events/min** (use syslog UDP for higher throughput)
 
 Rate limit headers:
 

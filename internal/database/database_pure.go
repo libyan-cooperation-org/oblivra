@@ -35,7 +35,7 @@ func (d *Database) Open(dbPath string, encryptionKey []byte) error {
 
 	// modernc.org/sqlite prefers standard paths with ?params on Windows
 	// and doesn't always need the file: prefix if we're not using special URI features.
-	dsn := filepath.ToSlash(dbPath) + "?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=10000"
+	dsn := filepath.ToSlash(dbPath) + "?_journal_mode=WAL&_pragma=foreign_keys(1)&_busy_timeout=10000"
 
 	// Open initializes the SQLite connection (pure driver)
 	// SQLite pure doesn't support encryption via this driver easily, but we'll ignore key for now
