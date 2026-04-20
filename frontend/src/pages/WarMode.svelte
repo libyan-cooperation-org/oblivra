@@ -5,10 +5,12 @@
 <script lang="ts">
   import { PageLayout, Button, Badge } from '@components/ui';
   import { appStore } from '@lib/stores/app.svelte';
-  import { Shield, AlertCircle, Radio, Zap, Lock, Power } from 'lucide-svelte';
+  import { collabStore } from '@lib/stores/collaboration.svelte.ts';
+  import { Shield, AlertCircle, Radio, Lock, Power, MessageSquare, Send } from 'lucide-svelte';
 
   let countdown = $state(3600); // 1 hour containment window
   let containmentActive = $state(false);
+  let messageText = $state('');
 
   $effect(() => {
     let timer: any;
@@ -30,22 +32,48 @@
     containmentActive = !containmentActive;
     if (containmentActive) {
         appStore.notify('GLOBAL CONTAINMENT ARMED', 'error', 'All egress traffic restricted to verified nodes.');
+        collabStore.sendMessage('GLOBAL CONTAINMENT ARMED', 'action');
+    } else {
+        collabStore.sendMessage('GLOBAL CONTAINMENT DISARMED', 'action');
     }
+  }
+
+  function handleSend(e: Event) {
+    e.preventDefault();
+    if (!messageText.trim()) return;
+    collabStore.sendMessage(messageText);
+    messageText = '';
   }
 </script>
 
 <PageLayout title="War Room Mode" subtitle="Tactical command interface for active threat containment and protocol execution">
   <div class="flex flex-col h-full -m-6 bg-error/5 animate-pulse-slow">
     <!-- CRITICAL ALERT STRIP -->
-    <div class="bg-error px-6 py-2 flex items-center justify-between shadow-[0_0_30px_rgba(200,44,44,0.3)]">
+    <div class="bg-error px-6 py-2 flex items-center justify-between shadow-[0_0_30px_rgba(200,44,44,0.3)] shrink-0">
         <div class="flex items-center gap-3">
             <Shield size={20} class="text-white animate-bounce" />
             <span class="text-sm font-bold text-white uppercase tracking-widest">Global Protocol Level: Red</span>
         </div>
-        <div class="flex items-center gap-6 text-white/80 font-mono text-[10px]">
-            <span>THREAT_ACTOR: APT-28 (ESTIMATED)</span>
-            <span>BLAST_RADIUS: 14 NODES</span>
-            <span>PROTOCOL: OBLIVRA_CONTAIN_V4</span>
+        <div class="flex items-center gap-4">
+            <div class="flex -space-x-2 mr-4">
+                {#each collabStore.analysts as analyst}
+                    <div 
+                        class="w-6 h-6 rounded-full border-2 border-error flex items-center justify-center text-[8px] font-black uppercase text-white shadow-lg"
+                        style="background: {analyst.color};"
+                        title="{analyst.name} ({analyst.role})"
+                    >
+                        {analyst.name[0]}
+                        {#if analyst.status === 'active'}
+                            <div class="absolute bottom-0 right-0 w-1.5 h-1.5 bg-success rounded-full border border-error"></div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+            <div class="flex items-center gap-6 text-white/80 font-mono text-[10px]">
+                <span>THREAT_ACTOR: APT-28</span>
+                <span>BLAST_RADIUS: 14 NODES</span>
+                <span class="bg-white/20 px-2 py-0.5 rounded-sm">PROTOCOL: OBLIVRA_CONTAIN_V4</span>
+            </div>
         </div>
     </div>
 
@@ -96,47 +124,75 @@
         </div>
 
         <!-- RIGHT: MISSION CONTROL -->
-        <div class="col-span-4 bg-surface-2 flex flex-col border-l border-error/20">
-            <div class="p-4 border-b border-error/20">
+        <div class="col-span-4 bg-surface-2 flex flex-col border-l border-error/20 overflow-hidden">
+            <!-- COLLABORATION FEED -->
+            <div class="flex-1 flex flex-col min-h-0 bg-black/20">
+                <div class="p-3 border-b border-error/20 flex items-center justify-between bg-surface-2">
+                    <div class="flex items-center gap-2">
+                        <MessageSquare size={14} class="text-error" />
+                        <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Tactical Comms</span>
+                    </div>
+                    <Badge variant="critical" size="xs" class="animate-pulse">{collabStore.analysts.filter(a => a.status === 'active').length} OPS</Badge>
+                </div>
+                
+                <div class="flex-1 overflow-auto p-3 space-y-3 font-mono text-[10px]">
+                    {#each collabStore.messages as msg}
+                        {@const analyst = collabStore.analysts.find(a => a.id === msg.analystId)}
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold" style="color: {analyst?.color || 'var(--text-muted)'}">{analyst?.name || 'Unknown'}</span>
+                                <span class="opacity-30 text-[8px]">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})}</span>
+                            </div>
+                            <div class="p-2 rounded-sm {msg.type === 'action' ? 'bg-error/10 border border-error/20 text-error font-bold italic' : 'bg-surface-3 text-text-secondary'}">
+                                {msg.text}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+
+                <!-- CHAT INPUT -->
+                <form class="p-2 bg-surface-2 border-t border-error/20 flex gap-2" onsubmit={handleSend}>
+                    <input 
+                        type="text" 
+                        bind:value={messageText}
+                        placeholder="SEND TACTICAL MSG..." 
+                        class="flex-1 bg-black/40 border border-border-primary rounded-sm px-2 py-1.5 text-[10px] font-mono text-text-heading focus:border-error focus:outline-none transition-colors"
+                    />
+                    <button type="submit" class="p-1.5 bg-error/20 border border-error/40 text-error hover:bg-error/30 transition-colors rounded-sm">
+                        <Send size={14} />
+                    </button>
+                </form>
+            </div>
+
+            <div class="p-4 border-t border-error/20 bg-surface-1">
                 <div class="flex items-center gap-2 mb-4">
                     <Radio size={14} class="text-error animate-pulse" />
                     <span class="text-[10px] font-mono font-bold uppercase tracking-widest">Active Protocols</span>
                 </div>
                 <div class="space-y-2">
-                    <div class="flex items-center justify-between p-2 bg-surface-1 border border-border-primary rounded-sm group hover:border-error transition-colors">
+                    <div class="flex items-center justify-between p-2 bg-surface-2 border border-border-primary rounded-sm group hover:border-error transition-colors">
                         <span class="text-[9px] font-mono font-bold uppercase">Network Isolation</span>
                         <Badge variant="critical">ACTIVE</Badge>
                     </div>
-                    <div class="flex items-center justify-between p-2 bg-surface-1 border border-border-primary rounded-sm group hover:border-error transition-colors">
-                        <span class="text-[9px] font-mono font-bold uppercase">Data Encryption Sharding</span>
+                    <div class="flex items-center justify-between p-2 bg-surface-2 border border-border-primary rounded-sm group hover:border-error transition-colors">
+                        <span class="text-[9px] font-mono font-bold uppercase">Data Sharding</span>
                         <Badge variant="success">READY</Badge>
-                    </div>
-                    <div class="flex items-center justify-between p-2 bg-surface-1 border border-border-primary rounded-sm group hover:border-error transition-colors">
-                        <span class="text-[9px] font-mono font-bold uppercase">Hardware Key Rotation</span>
-                        <Badge variant="warning">PENDING</Badge>
                     </div>
                 </div>
             </div>
 
-            <div class="p-6 flex flex-col gap-4 mt-auto">
-                <div class="flex items-center gap-2 mb-2">
-                    <Zap size={16} class="text-error" />
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-widest">Orchestration Actions</span>
-                </div>
-                <Button variant="danger" class="w-full h-12 uppercase font-black tracking-tighter text-md" onclick={toggleContainment}>
+            <div class="p-4 flex flex-col gap-3 bg-surface-2">
+                <Button variant="danger" class="w-full h-10 uppercase font-black tracking-tighter text-sm" onclick={toggleContainment}>
                     {containmentActive ? 'DISARM CONTAINMENT' : 'ARM GLOBAL CONTAINMENT'}
                 </Button>
                 <div class="grid grid-cols-2 gap-2">
-                    <Button variant="secondary" size="sm" class="font-bold">
-                        <Lock size={14} class="mr-2" /> LOCK VAULTS
+                    <Button variant="secondary" size="sm" class="text-[9px] font-bold">
+                        <Lock size={12} class="mr-2" /> LOCK VAULTS
                     </Button>
-                    <Button variant="secondary" size="sm" class="font-bold">
-                        <Power size={14} class="mr-2" /> REBOOT MESH
+                    <Button variant="secondary" size="sm" class="text-[9px] font-bold">
+                        <Power size={12} class="mr-2" /> REBOOT MESH
                     </Button>
                 </div>
-                <p class="text-[8px] font-mono text-text-muted italic text-center opacity-60">
-                    Executing these actions will impact global fleet performance. Use with extreme caution.
-                </p>
             </div>
         </div>
     </div>

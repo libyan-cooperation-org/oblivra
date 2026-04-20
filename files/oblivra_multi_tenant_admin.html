@@ -1,0 +1,202 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--ac:#1878c8;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--md3:rgba(154,128,0,0.1);--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{display:flex;flex-direction:column;min-height:860px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;height:28px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-family:var(--mn);font-size:11px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:#e05050;font-style:normal;}
+.ctx-admin{font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid var(--cr2);border-radius:2px;color:var(--cr2);background:var(--cr3);letter-spacing:0.12em;}
+.dv{width:1px;height:14px;background:var(--b1);}
+.ml{margin-left:auto;}
+.pl{font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.1em;}
+.kbd{font-family:var(--mn);font-size:8px;background:var(--s3);border:1px solid var(--b2);border-radius:2px;padding:1px 4px;color:var(--tx2);}
+.body{display:grid;grid-template-columns:200px 1fr 260px;flex:1;gap:0;}
+.left{background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow-y:auto;}
+.ph{padding:5px 10px;background:var(--s2);border-bottom:1px solid var(--b1);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.13em;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.nav-item{padding:5px 10px;display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--tx2);font-size:10px;transition:all 0.1s;border-left:2px solid transparent;}
+.nav-item:hover{color:var(--tx);background:var(--s3);}
+.nav-item.active{color:var(--tx);background:var(--s3);border-left-color:var(--ac);}
+.nav-icon{width:14px;text-align:center;font-size:10px;flex-shrink:0;}
+.nav-section-label{padding:8px 10px 3px;font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.12em;}
+.center{display:flex;flex-direction:column;border-right:1px solid var(--b1);}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--b1);border-bottom:1px solid var(--b1);flex-shrink:0;}
+.mc{background:var(--s2);padding:7px 12px;}
+.mc-l{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:3px;}
+.mc-v{font-family:var(--mn);font-size:18px;font-weight:500;line-height:1;}
+.mc-s{font-family:var(--mn);font-size:9px;color:var(--tx2);margin-top:2px;}
+.section-hd{padding:7px 12px;border-bottom:1px solid var(--b1);background:var(--s2);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.sh-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.12em;}
+.sh-actions{margin-left:auto;display:flex;gap:5px;}
+.btn-sm{font-family:var(--mn);font-size:9px;padding:2px 9px;border-radius:2px;border:1px solid var(--b2);background:none;color:var(--tx2);cursor:pointer;}
+.btn-sm:hover{border-color:var(--b3);color:var(--tx);}
+.btn-sm-ok{border-color:rgba(20,120,72,0.3);background:var(--ok3);color:var(--ok2);}
+.btn-sm-ok:hover{background:rgba(20,120,72,0.2);}
+.tenant-grid{padding:10px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;}
+.tenant-card{background:var(--s2);border:1px solid var(--b1);border-radius:2px;overflow:hidden;cursor:pointer;transition:background 0.1s;}
+.tenant-card:hover{border-color:var(--b2);background:var(--s3);}
+.tenant-card.active{border-color:rgba(24,120,200,0.35);border-left:2px solid var(--ac);}
+.tc-header{padding:8px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--b1);}
+.tc-avatar{width:28px;height:28px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:10px;font-weight:500;flex-shrink:0;}
+.tc-name{font-size:11px;font-weight:500;color:#d0e8f8;}
+.tc-id{font-family:var(--mn);font-size:9px;color:var(--tx3);}
+.tc-badges{display:flex;gap:4px;margin-left:auto;}
+.tc-badge{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;}
+.tcb-sov{background:var(--pu3);color:var(--pu2);}
+.tcb-cloud{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.tcb-crit{background:var(--cr3);color:var(--cr2);}
+.tcb-ok{background:var(--ok3);color:var(--ok2);}
+.tc-stats{padding:6px 10px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.tc-stat{text-align:center;}
+.tcs-val{font-family:var(--mn);font-size:11px;font-weight:500;color:var(--tx);}
+.tcs-label{font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:1px;}
+.tc-bar{padding:0 10px 6px;}
+.tcb-bg{height:2px;background:var(--b1);border-radius:1px;overflow:hidden;}
+.tcb-fill{height:100%;border-radius:1px;}
+.right{background:var(--s1);display:flex;flex-direction:column;overflow-y:auto;}
+.detail-section{border-bottom:1px solid var(--b1);padding:10px;}
+.ds-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.12em;margin-bottom:6px;}
+.ds-row{display:flex;justify-content:space-between;margin-bottom:4px;font-size:9px;}
+.dsr-key{color:var(--tx2);}
+.dsr-val{font-family:var(--mn);color:var(--tx);}
+.user-row{display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;margin-bottom:3px;cursor:pointer;transition:background 0.1s;}
+.user-row:hover{background:var(--s3);}
+.ur-avatar{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:8px;font-weight:500;flex-shrink:0;}
+.ur-name{font-size:10px;color:var(--tx);flex:1;}
+.ur-role{font-family:var(--mn);font-size:8px;color:var(--tx3);}
+.ur-status{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.urs-ok{background:var(--ok2);}
+.urs-off{background:var(--tx3);}
+.quota-bar{margin-bottom:5px;}
+.qb-label{display:flex;justify-content:space-between;font-family:var(--mn);font-size:9px;margin-bottom:2px;}
+.qb-key{color:var(--tx2);}
+.qb-val{color:var(--tx);}
+.qb-bg{height:3px;background:var(--b2);border-radius:1px;overflow:hidden;}
+.qb-fill{height:100%;border-radius:1px;}
+.isolation-panel{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:8px;margin:8px;}
+.ip-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:5px;display:flex;align-items:center;gap:5px;}
+.ip-ok{color:var(--ok2);}
+.ip-item{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:9px;}
+.ip-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.ip-text{color:var(--tx2);}
+.ip-val{font-family:var(--mn);font-size:8px;color:var(--ok2);margin-left:auto;}
+.statusbar{background:var(--s2);border-top:1px solid var(--b1);padding:3px 12px;display:flex;gap:12px;font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;}
+::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+</style>
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div>
+  <div class="ctx-admin">SUPER ADMIN</div>
+  <div class="dv"></div>
+  <div class="pl">MULTI-TENANT CONTROL PLANE</div>
+  <div class="dv"></div>
+  <div style="font-family:var(--mn);font-size:9px;color:var(--tx2);">4 ACTIVE TENANTS · SOVEREIGN CLUSTER</div>
+  <div class="ml" style="display:flex;gap:6px;"><span class="kbd">⌘T</span><span class="kbd">⌘N</span></div>
+</div>
+<div class="body">
+
+<div class="left">
+  <div class="ph">ADMIN NAVIGATION</div>
+  <div class="nav-section-label">TENANTS</div>
+  <div class="nav-item active"><div class="nav-icon">⬡</div>Tenant Overview</div>
+  <div class="nav-item" onclick="sendPrompt('Open tenant provisioning wizard to create a new OBLIVRA tenant')"><div class="nav-icon">+</div>New Tenant</div>
+  <div class="nav-item" onclick="sendPrompt('Show tenant isolation audit log')"><div class="nav-icon">⊞</div>Isolation Audit</div>
+  <div class="nav-section-label">PLATFORM</div>
+  <div class="nav-item" onclick="sendPrompt('Show OBLIVRA platform cluster health and node status')"><div class="nav-icon">◎</div>Cluster Health</div>
+  <div class="nav-item" onclick="sendPrompt('Show license usage across all tenants')"><div class="nav-icon">≡</div>License Usage</div>
+  <div class="nav-item" onclick="sendPrompt('Show platform-wide ingestion pipeline status')"><div class="nav-icon">⊕</div>Ingestion Pipeline</div>
+  <div class="nav-item" onclick="sendPrompt('Show storage quota and usage by tenant')"><div class="nav-icon">⊠</div>Storage Quotas</div>
+  <div class="nav-section-label">SECURITY</div>
+  <div class="nav-item" onclick="sendPrompt('Show global RBAC policy and cross-tenant access controls')"><div class="nav-icon">◈</div>Global RBAC</div>
+  <div class="nav-item" onclick="sendPrompt('Show admin audit trail for all tenant operations')"><div class="nav-icon">≡</div>Admin Audit Trail</div>
+  <div class="nav-item" onclick="sendPrompt('Show hardware key management and HSM status')"><div class="nav-icon">⊘</div>HSM / Key Mgmt</div>
+  <div class="nav-section-label">MAINTENANCE</div>
+  <div class="nav-item" onclick="sendPrompt('Show platform update and patch management status')"><div class="nav-icon">▷</div>Updates / Patches</div>
+  <div class="nav-item" onclick="sendPrompt('Show backup and disaster recovery status across tenants')"><div class="nav-icon">⊞</div>Backup / DR</div>
+</div>
+
+<div class="center">
+  <div class="metrics">
+    <div class="mc"><div class="mc-l">ACTIVE TENANTS</div><div class="mc-v">4</div><div class="mc-s">2 sovereign · 2 cloud</div></div>
+    <div class="mc"><div class="mc-l">TOTAL AGENTS</div><div class="mc-v">12,440</div><div class="mc-s">98.1% online</div></div>
+    <div class="mc"><div class="mc-l">PLATFORM EPS</div><div class="mc-v" style="color:var(--ok2);">441K</div><div class="mc-s">combined ingestion</div></div>
+    <div class="mc"><div class="mc-l">ACTIVE INCIDENTS</div><div class="mc-v" style="color:var(--cr2);">3</div><div class="mc-s">across all tenants</div></div>
+  </div>
+  <div class="section-hd">
+    <div class="sh-title">TENANT ROSTER</div>
+    <div class="sh-actions">
+      <button class="btn-sm" onclick="sendPrompt('Filter tenants by sovereign deployment mode')">FILTER</button>
+      <button class="btn-sm btn-sm-ok" onclick="sendPrompt('Provision a new OBLIVRA tenant — start guided wizard')">+ PROVISION TENANT</button>
+    </div>
+  </div>
+  <div class="tenant-grid" id="tenant-grid"></div>
+</div>
+
+<div class="right">
+  <div class="ph">SELECTED TENANT</div>
+  <div class="detail-section">
+    <div class="ds-title">GOV-FIN-001 · DETAIL</div>
+    <div class="ds-row"><div class="dsr-key">Tenant ID</div><div class="dsr-val">GOV-FIN-001</div></div>
+    <div class="ds-row"><div class="dsr-key">Mode</div><div class="dsr-val" style="color:var(--pu2);">SOVEREIGN</div></div>
+    <div class="ds-row"><div class="dsr-key">Classification</div><div class="dsr-val">SECRET</div></div>
+    <div class="ds-row"><div class="dsr-key">Region</div><div class="dsr-val">EU-GOV-DC-01</div></div>
+    <div class="ds-row"><div class="dsr-key">Provisioned</div><div class="dsr-val">2024-01-15</div></div>
+    <div class="ds-row"><div class="dsr-key">Contract</div><div class="dsr-val">Enterprise · 5yr</div></div>
+    <div class="ds-row"><div class="dsr-key">Active incidents</div><div class="dsr-val" style="color:var(--cr2);">2 CRITICAL</div></div>
+  </div>
+  <div class="detail-section">
+    <div class="ds-title">USERS &amp; ROLES</div>
+    <div id="user-list"></div>
+    <button style="font-family:var(--mn);font-size:9px;padding:3px 10px;border-radius:2px;border:1px solid var(--b2);background:none;color:var(--tx2);cursor:pointer;width:100%;margin-top:4px;" onclick="sendPrompt('Manage users and RBAC roles for tenant GOV-FIN-001')">MANAGE ALL USERS →</button>
+  </div>
+  <div class="detail-section">
+    <div class="ds-title">RESOURCE QUOTAS</div>
+    <div class="quota-bar"><div class="qb-label"><span class="qb-key">Agents</span><span class="qb-val">4,900 / 8,000</span></div><div class="qb-bg"><div class="qb-fill" style="width:61%;background:#5aaef0;"></div></div></div>
+    <div class="quota-bar"><div class="qb-label"><span class="qb-key">Storage</span><span class="qb-val">18.4 TB / 50 TB</span></div><div class="qb-bg"><div class="qb-fill" style="width:37%;background:var(--ok2);"></div></div></div>
+    <div class="quota-bar"><div class="qb-label"><span class="qb-key">EPS</span><span class="qb-val">148K / 250K</span></div><div class="qb-bg"><div class="qb-fill" style="width:59%;background:var(--ok2);"></div></div></div>
+    <div class="quota-bar"><div class="qb-label"><span class="qb-key">SOAR runs/day</span><span class="qb-val">84 / 500</span></div><div class="qb-bg"><div class="qb-fill" style="width:17%;background:var(--ok2);"></div></div></div>
+  </div>
+  <div class="isolation-panel">
+    <div class="ip-title"><span class="ip-ok">⊠</span> TENANT ISOLATION SEALS</div>
+    <div class="ip-item"><div class="ip-dot" style="background:var(--ok2);"></div><div class="ip-text">Data namespace isolated</div><div class="ip-val">VERIFIED</div></div>
+    <div class="ip-item"><div class="ip-dot" style="background:var(--ok2);"></div><div class="ip-text">Network segment isolated</div><div class="ip-val">VERIFIED</div></div>
+    <div class="ip-item"><div class="ip-dot" style="background:var(--ok2);"></div><div class="ip-text">Encryption keys isolated</div><div class="ip-val">VERIFIED</div></div>
+    <div class="ip-item"><div class="ip-dot" style="background:var(--ok2);"></div><div class="ip-text">Audit log isolated</div><div class="ip-val">VERIFIED</div></div>
+    <div class="ip-item"><div class="ip-dot" style="background:var(--ok2);"></div><div class="ip-text">No cross-tenant data leak</div><div class="ip-val">VERIFIED</div></div>
+  </div>
+</div>
+
+</div>
+<div class="statusbar">
+  <span>CLUSTER: <span style="color:var(--ok2);">HEALTHY</span></span>
+  <span>|</span><span>NODES: <span style="color:var(--ok2);">12/12 ONLINE</span></span>
+  <span>|</span><span>TOTAL EPS: <span style="color:var(--ok2);">441K</span></span>
+  <span style="margin-left:auto;color:var(--pu2);">SOVEREIGN CLUSTER · v2.14.1</span>
+</div>
+</div>
+<script>
+const tenants=[
+  {id:'GOV-FIN-001',name:'GovFin Authority',abbr:'GF',color:'#5aaef0',mode:'sovereign',tier:'T1',agents:4900,eps:148,incidents:2,sev:'cr',storage:37,health:98},
+  {id:'GOV-DEF-002',name:'Defence Ops CERT',abbr:'DO',color:'#9878e0',mode:'sovereign',tier:'T1',agents:3800,eps:180,incidents:1,sev:'hi',storage:52,health:99},
+];
+
+function selectTenant(t) {
+  document.querySelector('.ds-title').textContent = `${t.id} · DETAIL`;
+  document.querySelector('.dsr-val').textContent = t.id;
+}
+
+const tg=document.getElementById('tenant-grid');
+tenants.forEach((t,i)=>{
+  const card=document.createElement('div');
+  card.className='tenant-card'+(i===0?' active':'');
+  card.innerHTML=`<div class="tc-header"><div class="tc-avatar" style="background:${t.color}18;color:${t.color};">${t.abbr}</div><div><div class="tc-name">${t.name}</div><div class="tc-id">${t.id}</div></div></div>`;
+  card.onclick=()=>{
+    document.querySelectorAll('.tenant-card').forEach(c=>c.classList.remove('active'));
+    card.classList.add('active');
+    selectTenant(t);
+  };
+  tg.appendChild(card);
+});
+</script>

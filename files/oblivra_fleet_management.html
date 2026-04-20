@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--ac:#1878c8;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--md3:rgba(154,128,0,0.1);--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{display:flex;flex-direction:column;min-height:820px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;height:28px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-family:var(--mn);font-size:11px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:#e05050;font-style:normal;}
+.ctx{font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid #5aaef0;border-radius:2px;color:#5aaef0;background:rgba(90,174,240,0.06);letter-spacing:0.12em;}
+.pl{font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.1em;}
+.dv{width:1px;height:14px;background:var(--b1);}
+.ml{margin-left:auto;}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--b1);border-bottom:1px solid var(--b1);flex-shrink:0;}
+.mc{background:var(--s2);padding:7px 12px;}
+.mc-l{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:3px;}
+.mc-v{font-family:var(--mn);font-size:18px;font-weight:500;line-height:1;}
+.mc-s{font-family:var(--mn);font-size:9px;color:var(--tx2);margin-top:2px;}
+.toolbar{padding:6px 12px;border-bottom:1px solid var(--b1);background:var(--s1);display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.tabs{display:flex;gap:0;}
+.tab{padding:4px 12px;font-family:var(--mn);font-size:9px;letter-spacing:0.1em;color:var(--tx2);cursor:pointer;border:1px solid var(--b1);border-right:none;transition:all 0.1s;}
+.tab:first-child{border-radius:2px 0 0 2px;}
+.tab:last-child{border-radius:0 2px 2px 0;border-right:1px solid var(--b1);}
+.tab:hover{color:var(--tx);background:var(--s3);}
+.tab.active{background:var(--s3);color:#5aaef0;border-color:rgba(24,120,200,0.4);}
+.search-in{background:var(--s3);border:1px solid var(--b2);border-radius:2px;color:var(--tx);font-family:var(--mn);font-size:9px;padding:3px 8px;width:200px;outline:none;margin-left:8px;}
+.search-in:focus{border-color:var(--ac);}
+.deploy-btn{font-family:var(--mn);font-size:9px;padding:3px 10px;border-radius:2px;border:1px solid rgba(20,120,72,0.3);background:var(--ok3);color:var(--ok2);cursor:pointer;margin-left:auto;}
+.deploy-btn:hover{background:rgba(20,120,72,0.2);}
+.body{display:grid;grid-template-columns:1fr 280px;flex:1;min-height:0;}
+.table-area{overflow-y:auto;}
+.ft{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed;}
+.ft th{padding:4px 10px;text-align:left;font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;border-bottom:1px solid var(--b1);background:var(--s2);font-weight:400;position:sticky;top:0;z-index:2;cursor:pointer;}
+.ft th:hover{color:var(--tx);}
+.ft td{padding:5px 10px;border-bottom:1px solid rgba(26,37,53,0.4);vertical-align:middle;}
+.fr{cursor:pointer;transition:background 0.08s;}
+.fr:hover{background:var(--s3);}
+.fr.sel{background:rgba(24,120,200,0.07);border-left:2px solid var(--ac);}
+.fr.iso{opacity:0.6;background:rgba(192,40,40,0.04);}
+.host-name{font-family:var(--mn);font-size:10px;color:var(--tx);}
+.host-ip{font-family:var(--mn);font-size:9px;color:var(--tx3);margin-top:1px;}
+.os-badge{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;display:inline-block;}
+.os-win{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.os-lin{background:var(--ok3);color:var(--ok2);}
+.os-mac{background:var(--pu3);color:var(--pu2);}
+.agent-state{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;display:inline-block;}
+.as-ok{background:var(--ok3);color:var(--ok2);}
+.as-off{background:var(--cr3);color:#e05050;}
+.as-iso{background:var(--cr3);color:#e05050;border:1px solid rgba(192,40,40,0.2);}
+.as-pend{background:var(--md3);color:var(--md2);}
+.risk-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;}
+.rd-cr{background:#e05050;}
+.rd-hi{background:var(--hi2);}
+.rd-md{background:var(--md2);}
+.rd-ok{background:var(--ok2);}
+.ver-ok{font-family:var(--mn);font-size:9px;color:var(--ok2);}
+.ver-old{font-family:var(--mn);font-size:9px;color:var(--md2);}
+.row-actions{display:flex;gap:3px;opacity:0;transition:opacity 0.1s;}
+.fr:hover .row-actions{opacity:1;}
+.ra{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;border:1px solid;cursor:pointer;}
+.ra-ghost{border-color:var(--b2);color:var(--tx2);background:none;}
+.ra-danger{border-color:rgba(192,40,40,0.3);color:#e05050;background:var(--cr3);}
+.sidebar{background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;overflow-y:auto;}
+.sh{padding:5px 10px;border-bottom:1px solid var(--b1);background:var(--s2);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.13em;}
+.sb-section{padding:8px 10px;border-bottom:1px solid var(--b1);}
+.ss-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:5px;}
+.ss-row{display:flex;justify-content:space-between;margin-bottom:3px;font-size:9px;}
+.ss-k{color:var(--tx2);}
+.ss-v{font-family:var(--mn);color:var(--tx);}
+.health-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.hg{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:5px 7px;text-align:center;}
+.hg-v{font-family:var(--mn);font-size:14px;font-weight:500;}
+.hg-l{font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:1px;}
+.deploy-queue{padding:6px 10px;}
+.dq-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:4px;}
+.dq-item{display:flex;align-items:center;gap:6px;padding:3px 5px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;margin-bottom:3px;cursor:pointer;transition:background 0.1s;}
+.dq-item:hover{background:var(--s3);}
+.dq-name{font-family:var(--mn);font-size:9px;color:var(--tx);flex:1;}
+.dq-prog{font-family:var(--mn);font-size:8px;color:var(--ok2);}
+.prog-bar{height:2px;background:var(--b2);border-radius:1px;margin-top:2px;overflow:hidden;}
+.prog-fill{height:100%;background:var(--ok2);border-radius:1px;}
+.statusbar{background:var(--s2);border-top:1px solid var(--b1);padding:3px 12px;display:flex;gap:12px;font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;}
+::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:#2a3d55;border-radius:2px;}::-webkit-scrollbar-thumb:hover{background:#3a5570;}
+</style>
+
+<style id="oblivra-design-system-patch">
+/* ═══════════════════════════════════════════════════════
+   OBLIVRA DESIGN SYSTEM — Global Patch v1.1
+   Applied uniformly across all 14 screens
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. SCROLLBAR — 4px, visible thumb */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3d55; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3a5570; }
+
+/* 2. SCROLL FADE — signal hidden content */
+.ev-table-wrap, .table-area, .log-wrap, .log-scroll,
+.activity-feed, .feed-area, .detail, .sidebar, .left-rail,
+.entity-detail, .node-palette, .pb-list, .col {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+}
+
+/* 3. ISOLATED ROWS — draw eye TOWARD danger, not away */
+.fr.iso {
+  opacity: 1 !important;
+  background: rgba(192, 40, 40, 0.07) !important;
+  border-left: 2px solid rgba(224, 80, 80, 0.6) !important;
+}
+.fr.iso .host-name { color: #e05050 !important; }
+
+/* 4. ROW ACTIONS — persistent ⋯ menu button alongside hover-only actions */
+.row-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ra-more {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--b2, #22304a);
+  color: var(--tx3, #3a5570);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ra-more:hover { color: var(--tx, #bfd0e0); border-color: var(--b3, #2a3d55); }
+
+/* 5. FOCUS OUTLINES — keyboard accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 1.5px solid rgba(90, 174, 240, 0.6);
+  outline-offset: 1px;
+}
+
+/* 6. CRITICAL BANNER PULSE — War Room distinction */
+.isolated-banner, .crit-banner {
+  animation: banner-pulse 3s ease-in-out infinite;
+}
+@keyframes banner-pulse {
+  0%, 100% { border-bottom-color: rgba(192, 40, 40, 0.3); }
+  50% { border-bottom-color: rgba(224, 80, 80, 0.55); }
+}
+
+/* 7. WAR ROOM topbar glow */
+.wr-topbar {
+  box-shadow: 0 2px 12px rgba(200, 40, 40, 0.25);
+}
+
+/* 8. SLA BREACH blink is already present — add glow */
+.sla-breach {
+  animation: sla-blink 1s step-end infinite, sla-glow 1s ease-in-out infinite !important;
+}
+@keyframes sla-glow {
+  0%, 100% { text-shadow: none; }
+  50% { text-shadow: 0 0 6px rgba(224, 80, 80, 0.5); }
+}
+
+/* 9. SETUP WIZARD — firewall warning blocker state */
+.prereq-item.blocking {
+  background: rgba(192, 40, 40, 0.08) !important;
+  border: 1px solid rgba(192, 40, 40, 0.3) !important;
+  border-left: 3px solid #e05050 !important;
+}
+.prereq-item.blocking .pi-name { color: #e05050 !important; }
+.prereq-item.blocking .pi-status { color: #e05050 !important; animation: blink 1.2s step-end infinite; }
+
+/* 10. CONTINUE button disabled state for wizard */
+.btn-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--s3, #161c24) !important;
+  border-color: var(--b1, #1a2535) !important;
+  color: var(--tx3, #3a5570) !important;
+}
+.wizard-block-notice {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #e05050;
+  padding: 4px 8px;
+  background: rgba(192, 40, 40, 0.08);
+  border: 1px solid rgba(192, 40, 40, 0.25);
+  border-radius: 2px;
+  margin-top: 6px;
+}
+
+/* 11. METRIC CARDS — subtle bottom accent bar */
+.mc::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin-top: 6px;
+  background: var(--b1, #1a2535);
+  border-radius: 1px;
+}
+
+/* 12. Panel hover elevation */
+.panel:hover {
+  border-color: var(--b2, #22304a);
+  transition: border-color 0.15s;
+}
+
+/* 13. Nav item active indicator glow */
+.nav-item.active, .tab.active {
+  box-shadow: inset 2px 0 6px rgba(26, 127, 212, 0.15), 0 0 8px rgba(26, 127, 212, 0.1);
+  border-bottom: 2px solid var(--ac, #1878c8) !important;
+}
+
+/* 13b. Tab Badge styling */
+.tab .badge {
+  font-family: var(--mn);
+  font-size: 8px;
+  background: var(--b2);
+  color: var(--tx3);
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-left: 5px;
+  transition: all 0.1s;
+}
+.tab.active .badge {
+  background: var(--ac);
+  color: #fff;
+}
+
+/* 14. Alert row critical glow */
+
+/* 14. Alert row critical glow */
+.ar.hl, .alert-row:first-child td {
+  position: relative;
+}
+.ar.hl::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: #e05050;
+  box-shadow: 0 0 6px rgba(224, 80, 80, 0.4);
+}
+
+/* 15. Token-style query bar improvements */
+.qb-token {
+  transition: opacity 0.1s;
+  user-select: none;
+}
+.qb-token:hover { opacity: 0.75; }
+
+/* 16. Evidence seal pending — subtle pulse */
+.sb-pending {
+  animation: pending-pulse 2.5s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* 17. Canvas nodes — cursor pointer */
+canvas { cursor: crosshair; }
+
+/* 18. Trust badge shimmer on SEALED */
+.tb-sealed, .vi-seal, .sb-sealed {
+  position: relative;
+  overflow: hidden;
+}
+.tb-sealed::after, .vi-seal::after, .sb-sealed::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60px; width: 40px; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(26,170,96,0.15), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { left: -60px; }
+  60%, 100% { left: calc(100% + 20px); }
+}
+
+/* 19. Compliance score bar tick marks */
+.fw-bar { position: relative; }
+
+/* 20. Deployment mode card selected ring */
+.dm-card.selected {
+  box-shadow: 0 0 0 1px rgba(24, 120, 200, 0.4), inset 0 0 12px rgba(24, 120, 200, 0.04);
+}
+
+/* 21. Step connector line */
+.step-item + .step-item {
+  border-top: none;
+}
+
+/* 22. Status bar separator style */
+.statusbar span:not(:first-child):not([style*="margin-left"]) {
+  padding-left: 0;
+}
+
+/* 23. SIEM histogram bar hover tooltip */
+.hbar { position: relative; }
+
+/* 24. Log row expand animation */
+.expand-row td { animation: expand-in 0.15s ease-out; }
+@keyframes expand-in {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 400px; }
+}
+
+/* 25. Improved metric value coloring for zero-values */
+.mc-v[data-zero="true"] { color: var(--tx3, #3a5570) !important; }
+
+</style>
+
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div><div class="ctx">WEB</div><div class="dv"></div>
+  <div class="pl">FLEET MANAGEMENT · AGENT CONTROL</div>
+  <div class="ml" style="font-family:var(--mn);font-size:9px;color:var(--tx3);">
+    <span style="color:var(--ok2);">4,817</span> / 4,900 ONLINE &nbsp;·&nbsp; <span style="color:var(--cr2);">3 ISOLATED</span>
+  </div>
+</div>
+<div class="metrics">
+  <div class="mc"><div class="mc-l">TOTAL AGENTS</div><div class="mc-v">4,900</div><div class="mc-s">managed fleet</div></div>
+  <div class="mc"><div class="mc-l">ONLINE</div><div class="mc-v" style="color:var(--ok2);">4,817</div><div class="mc-s" style="color:var(--ok2);">98.3%</div></div>
+  <div class="mc"><div class="mc-l">OFFLINE</div><div class="mc-v" style="color:var(--md2);">80</div><div class="mc-s">last seen &lt;24h</div></div>
+  <div class="mc"><div class="mc-l">ISOLATED</div><div class="mc-v" style="color:#e05050;">3</div><div class="mc-s">incident response</div></div>
+  <div class="mc"><div class="mc-l">UPDATE PENDING</div><div class="mc-v" style="color:var(--md2);">142</div><div class="mc-s">v3.3.x → v3.4.1</div></div>
+</div>
+<div class="toolbar">
+  <div class="tabs" id="main-tabs">
+    <div class="tab active" data-tab="all">ALL HOSTS <span class="badge">4,900</span></div>
+    <div class="tab" data-tab="win">WINDOWS <span class="badge">2,840</span></div>
+    <div class="tab" data-tab="lin">LINUX <span class="badge">1,760</span></div>
+    <div class="tab" data-tab="mac">MACOS <span class="badge">217</span></div>
+    <div class="tab" data-tab="iso">ISOLATED <span class="badge">3</span></div>
+  </div>
+  <input class="search-in" id="search-in" placeholder="Search host, IP, group..." />
+  <button class="deploy-btn" onclick="sendPrompt('Deploy OBLIVRA agent update v3.4.1 to all pending hosts')">DEPLOY UPDATE →</button>
+</div>
+<div class="body">
+<div class="table-area">
+<table class="ft">
+<thead><tr>
+  <th style="width:160px;">HOST</th>
+  <th style="width:80px;">OS</th>
+  <th style="width:70px;">AGENT</th>
+  <th style="width:80px;">STATUS</th>
+  <th style="width:70px;">RISK</th>
+  <th style="width:80px;">LAST SEEN</th>
+  <th style="width:60px;">GROUP</th>
+  <th style="width:110px;">ACTIONS</th>
+</tr></thead>
+<tbody id="fleet-body"></tbody>
+</table>
+</div>
+<div class="sidebar">
+  <div class="sh">FLEET HEALTH</div>
+  <div class="sb-section">
+    <div class="health-grid">
+      <div class="hg"><div class="hg-v" style="color:var(--ok2);">98.3%</div><div class="hg-l">ONLINE RATE</div></div>
+      <div class="hg"><div class="hg-v">3.4.1</div><div class="hg-l">LATEST VER</div></div>
+      <div class="hg"><div class="hg-v" style="color:var(--md2);">142</div><div class="hg-l">NEED UPDATE</div></div>
+      <div class="hg"><div class="hg-v" style="color:#e05050;">3</div><div class="hg-l">ISOLATED</div></div>
+    </div>
+  </div>
+  <div class="sb-section">
+    <div class="ss-title">OS DISTRIBUTION</div>
+    <div class="ss-row"><div class="ss-k">Windows Server</div><div class="ss-v">2,840 (58%)</div></div>
+    <div class="ss-row"><div class="ss-k">Linux (RHEL/Deb)</div><div class="ss-v">1,760 (36%)</div></div>
+    <div class="ss-row"><div class="ss-k">macOS</div><div class="ss-v">217 (4%)</div></div>
+    <div class="ss-row"><div class="ss-k">Windows Desktop</div><div class="ss-v">83 (2%)</div></div>
+  </div>
+  <div class="sb-section">
+    <div class="ss-title">GROUP BREAKDOWN</div>
+    <div class="ss-row"><div class="ss-k">Finance</div><div class="ss-v" style="color:#e05050;">412 (3 CRIT)</div></div>
+    <div class="ss-row"><div class="ss-k">Infrastructure</div><div class="ss-v">1,204</div></div>
+    <div class="ss-row"><div class="ss-k">Security / SOC</div><div class="ss-v">88</div></div>
+    <div class="ss-row"><div class="ss-k">HR / Legal</div><div class="ss-v">320</div></div>
+    <div class="ss-row"><div class="ss-k">Engineering</div><div class="ss-v">2,876</div></div>
+  </div>
+  <div class="deploy-queue">
+    <div class="dq-title">DEPLOYMENT QUEUE</div>
+    <div class="dq-item" onclick="sendPrompt('Show status of agent update deployment batch INFRA-01')">
+      <div style="flex:1;">
+        <div class="dq-name">Agent v3.4.1 · INFRA-01</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:82%;"></div></div>
+      </div>
+      <div class="dq-prog">82%</div>
+    </div>
+    <div class="dq-item" onclick="sendPrompt('Show status of policy push deployment batch FIN-GROUOP')">
+      <div style="flex:1;">
+        <div class="dq-name">Policy push · FIN-GROUP</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:44%;background:var(--md2);"></div></div>
+      </div>
+      <div class="dq-prog" style="color:var(--md2);">44%</div>
+    </div>
+    <div class="dq-item" onclick="sendPrompt('Show status of IOC blocklist deployment')">
+      <div style="flex:1;">
+        <div class="dq-name">IOC blocklist push</div>
+        <div class="prog-bar"><div class="prog-fill" style="width:100%;"></div></div>
+      </div>
+      <div class="dq-prog">DONE</div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="statusbar">
+  <span>FLEET: <span style="color:var(--ok2);">4,817 / 4,900 ONLINE</span></span>
+  <span>|</span><span>AGENT v3.4.1 LATEST</span>
+  <span style="margin-left:auto;">FLEET v2.14.1</span>
+</div>
+</div>
+<script>
+const hosts=[
+  {n:'HOST-FIN-044',ip:'10.18.44.44',os:'win',av:'3.4.1',st:'iso',risk:'cr',riskV:97,seen:'00:55Z',grp:'FINANCE'},
+  {n:'FIN-SRV-07',ip:'10.18.7.14',os:'win',av:'3.4.1',st:'iso',risk:'hi',riskV:72,seen:'00:51Z',grp:'FINANCE'},
+  {n:'ADM-WS-017',ip:'10.18.17.20',os:'win',av:'3.4.1',st:'ok',risk:'hi',riskV:68,seen:'00:54Z',grp:'INFRA'},
+  {n:'DC-CORE-01',ip:'10.0.1.5',os:'win',av:'3.4.1',st:'ok',risk:'md',riskV:44,seen:'00:55Z',grp:'INFRA'},
+  {n:'FIN-SRV-09',ip:'10.18.9.22',os:'lin',av:'3.4.1',st:'ok',risk:'md',riskV:44,seen:'00:50Z',grp:'FINANCE'},
+  {n:'SEC-WS-001',ip:'10.0.5.10',os:'lin',av:'3.4.1',st:'ok',risk:'ok',riskV:8,seen:'00:55Z',grp:'SOC'},
+  {n:'INFRA-DB-04',ip:'10.0.4.44',os:'lin',av:'3.3.9',st:'pend',risk:'ok',riskV:4,seen:'00:52Z',grp:'INFRA'},
+  {n:'HR-WS-022',ip:'10.20.22.4',os:'win',av:'3.3.8',st:'pend',risk:'ok',riskV:6,seen:'00:40Z',grp:'HR'},
+  {n:'ENG-MAC-088',ip:'10.30.88.1',os:'mac',av:'3.4.1',st:'ok',risk:'ok',riskV:3,seen:'00:54Z',grp:'ENG'},
+  {n:'ENG-LIN-204',ip:'10.30.204.5',os:'lin',av:'3.3.9',st:'pend',risk:'ok',riskV:5,seen:'00:48Z',grp:'ENG'},
+  {n:'LEGAL-WS-003',ip:'10.25.3.7',os:'win',av:'3.4.1',st:'ok',risk:'ok',riskV:2,seen:'00:53Z',grp:'LEGAL'},
+  {n:'BACKUP-SRV-01',ip:'10.0.2.1',os:'lin',av:'3.3.7',st:'off',risk:'ok',riskV:7,seen:'02:14Z',grp:'INFRA'},
+];
+const osBadge={win:'<span class="os-badge os-win">WIN</span>',lin:'<span class="os-badge os-lin">LIN</span>',mac:'<span class="os-badge os-mac">MAC</span>'};
+const stBadge={ok:'<span class="agent-state as-ok">ONLINE</span>',iso:'<span class="agent-state as-iso">ISOLATED</span>',pend:'<span class="agent-state as-pend">UPDATING</span>',off:'<span class="agent-state as-off">OFFLINE</span>'};
+const rdClass={cr:'rd-cr',hi:'rd-hi',md:'rd-md',ok:'rd-ok'};
+const tb=document.getElementById('fleet-body');
+let activeTab='all';
+let searchQuery='';
+
+function renderHosts(){
+  tb.innerHTML='';
+  const filtered = hosts.filter(h => {
+    const matchesTab = activeTab === 'all' || h.os === activeTab || (activeTab === 'iso' && h.st === 'iso');
+    const matchesSearch = h.n.toLowerCase().includes(searchQuery.toLowerCase()) || h.ip.toLowerCase().includes(searchQuery.toLowerCase()) || h.grp.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
+
+  filtered.forEach(h=>{
+    const tr=document.createElement('tr');
+    tr.className='fr'+(h.st==='iso'?' iso':'');
+    const verCl=h.av==='3.4.1'?'ver-ok':'ver-old';
+    tr.innerHTML=`
+      <td><div class="host-name">${h.n}</div><div class="host-ip">${h.ip}</div></td>
+      <td>${osBadge[h.os]}</td>
+      <td><span class="${verCl}">v${h.av}</span></td>
+      <td>${stBadge[h.st]}</td>
+      <td><span class="risk-dot ${rdClass[h.risk]}"></span><span style="font-family:var(--mn);font-size:9px;">${h.riskV}</span></td>
+      <td style="font-family:var(--mn);font-size:9px;color:var(--tx3);">${h.seen}</td>
+      <td style="font-family:var(--mn);font-size:8px;color:var(--tx3);">${h.grp}</td>
+      <td><div class="row-actions"></div></td>`;
+    
+    tr.onclick=()=>sendPrompt(`Show full host detail, agent telemetry, and risk profile for ${h.n}`);
+    tb.appendChild(tr);
+
+    const rowActions = tr.querySelector('.row-actions');
+    const sshBtn = document.createElement('button'); sshBtn.className='ra ra-ghost'; sshBtn.textContent='SSH'; sshBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Open SSH terminal to host ${h.n} in Operator Mode`);};
+    const siemBtn = document.createElement('button'); siemBtn.className='ra ra-ghost'; siemBtn.textContent='SIEM'; siemBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Show full SIEM events for host ${h.n}`);};
+    const isoBtn = document.createElement('button'); isoBtn.className='ra ra-danger'; isoBtn.textContent='ISO'; isoBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Isolate host ${h.n} from network immediately`);};
+    const moreBtn = document.createElement('button'); moreBtn.className='ra ra-more'; moreBtn.textContent='⋯'; moreBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Show all available actions for host ${h.n}`);};
+    rowActions.append(sshBtn, siemBtn, isoBtn, moreBtn);
+  });
+}
+
+document.querySelectorAll('#main-tabs .tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelector('#main-tabs .tab.active').classList.remove('active');
+    t.classList.add('active');
+    activeTab = t.dataset.tab;
+    renderHosts();
+  };
+});
+
+document.getElementById('search-in').oninput = (e) => {
+  searchQuery = e.target.value;
+  renderHosts();
+};
+
+renderHosts();
+</script>
+
+
+<script>
+/* Standalone preview stub — replaced by Wails/Claude runtime in production */
+if (typeof sendPrompt === 'undefined') {
+  window.sendPrompt = function(text) {
+    console.log('[OBLIVRA sendPrompt]', text);
+    const el = document.getElementById('_oblivra_prompt_preview');
+    if (el) { el.textContent = text; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 4000); }
+  };
+  // Preview toast element
+  const toast = document.createElement('div');
+  toast.id = '_oblivra_prompt_preview';
+  toast.style.cssText = 'display:none;position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#161c24;border:1px solid #2a3d55;color:#bfd0e0;font-family:"IBM Plex Mono",monospace;font-size:10px;padding:8px 16px;border-radius:3px;max-width:600px;text-align:center;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(toast));
+}
+</script>
+
+
+<script>
+/* FLEET: Replace isolated row opacity-dim with red border treatment */
+document.querySelectorAll('.fr.iso').forEach(row => {
+  row.style.opacity = '1';
+  row.style.background = 'rgba(192,40,40,0.06)';
+  row.style.borderLeft = '2px solid rgba(224,80,80,0.5)';
+  const hostName = row.querySelector('.host-name');
+  if (hostName) hostName.style.color = '#e05050';
+  
+  // Add persistent ⋯ action button
+  const rowActions = row.querySelector('.row-actions');
+  if (rowActions) {
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'ra ra-more';
+    moreBtn.textContent = '⋯';
+    moreBtn.title = 'More actions';
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      const hn = row.querySelector('.host-name')?.textContent || '';
+      sendPrompt('Show all available actions for host ' + hn);
+    };
+    rowActions.style.opacity = '1';
+    rowActions.appendChild(moreBtn);
+  }
+});
+
+/* Make ⋯ button always visible on all rows */
+document.querySelectorAll('.fr').forEach(row => {
+  const rowActions = row.querySelector('.row-actions');
+  if (rowActions && !row.querySelector('.ra-more')) {
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'ra ra-more';
+    moreBtn.textContent = '⋯';
+    moreBtn.style.opacity = '1';
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      const hn = row.querySelector('.host-name')?.textContent || '';
+      sendPrompt('Show all available actions for host ' + hn);
+    };
+    rowActions.appendChild(moreBtn);
+    rowActions.style.opacity = '0';
+    rowActions.style.transition = 'opacity 0.1s';
+    // Keep ⋯ visible always
+    const alwaysVisible = moreBtn.cloneNode(true);
+    alwaysVisible.style.opacity = '1';
+    row.querySelector('td:last-child').appendChild(alwaysVisible);
+  }
+});
+</script>
+
+</body>
+</html>

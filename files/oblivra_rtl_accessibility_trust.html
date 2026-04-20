@@ -1,0 +1,313 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=Noto+Sans+Arabic:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;--ar:'Noto Sans Arabic',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{min-height:2200px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 16px;height:32px;display:flex;align-items:center;gap:10px;}
+.logo{font-family:var(--mn);font-size:12px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:var(--cr2);font-style:normal;}
+.content{padding:20px 24px;display:flex;flex-direction:column;gap:28px;}
+.section-label{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.2em;padding-bottom:6px;border-bottom:1px solid var(--b1);margin-bottom:8px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+.card{background:var(--s2);border:1px solid var(--b1);border-radius:2px;overflow:hidden;}
+.card-hd{padding:6px 10px;background:var(--s3);border-bottom:1px solid var(--b1);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.12em;}
+.card-body{padding:10px;}
+.ltr-demo{background:var(--s2);border:1px solid var(--b1);border-radius:2px;overflow:hidden;}
+.rtl-demo{background:var(--s2);border:1px solid var(--b1);border-radius:2px;overflow:hidden;direction:rtl;}
+.demo-topbar{padding:6px 10px;background:var(--s3);border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;}
+.demo-topbar-rtl{padding:6px 10px;background:var(--s3);border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;flex-direction:row-reverse;}
+.demo-nav{padding:5px 10px;font-size:10px;display:flex;align-items:center;gap:6px;}
+.demo-nav-rtl{padding:5px 10px;font-size:10px;display:flex;align-items:center;gap:6px;flex-direction:row-reverse;}
+.demo-alert{padding:6px 10px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--b1);border-left:2px solid var(--cr2);}
+.demo-alert-rtl{padding:6px 10px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--b1);border-right:2px solid var(--cr2);flex-direction:row-reverse;direction:rtl;}
+.demo-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.ar-text{font-family:var(--ar);}
+.contrast-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.contrast-card{border-radius:2px;overflow:hidden;border:1px solid var(--b1);}
+.cc-bg{padding:10px;display:flex;flex-direction:column;gap:3px;}
+.cc-ratio{font-family:var(--mn);font-size:14px;font-weight:500;}
+.cc-label{font-family:var(--mn);font-size:8px;letter-spacing:0.1em;}
+.cc-sample{font-size:10px;margin-top:4px;}
+.cc-pass{font-family:var(--mn);font-size:8px;padding:1px 4px;border-radius:2px;display:inline-block;margin-top:2px;}
+.cp-aa{background:var(--ok3);color:var(--ok2);}
+.cp-aaa{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.cp-fail{background:var(--cr3);color:var(--cr2);}
+.focus-demo{display:flex;flex-direction:column;gap:6px;}
+.focus-item{padding:7px 10px;border-radius:2px;font-size:10px;}
+.fi-normal{background:var(--s2);border:1px solid var(--b1);color:var(--tx2);}
+.fi-hover{background:var(--s3);border:1px solid var(--b2);color:var(--tx);}
+.fi-focus{background:var(--s3);border:2px solid #5aaef0;color:var(--tx);outline:none;}
+.fi-active{background:rgba(24,120,200,0.1);border:2px solid #1878c8;color:#5aaef0;}
+.trust-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.trust-signal{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:10px;}
+.ts-icon-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.ts-icon{width:32px;height:32px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.ts-name{font-size:11px;font-weight:500;color:#d0e8f8;}
+.ts-sub{font-family:var(--mn);font-size:9px;color:var(--tx3);}
+.ts-indicator{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:2px;border:1px solid;margin-top:4px;}
+.ts-ind-text{font-family:var(--mn);font-size:9px;}
+.chain-visual{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:10px;overflow:hidden;}
+.cv-step{display:flex;align-items:center;gap:6px;padding:5px 0;position:relative;}
+.cv-line{position:absolute;left:10px;top:100%;width:1px;height:100%;background:var(--b2);}
+.cv-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:8px;font-weight:500;flex-shrink:0;z-index:1;}
+.cv-text{font-size:9px;color:var(--tx);}
+.cv-actor{font-family:var(--mn);font-size:8px;color:var(--tx3);}
+.cv-hash{font-family:var(--mn);font-size:8px;color:var(--tx3);word-break:break-all;}
+.sov-banner{background:rgba(112,80,192,0.1);border:1px solid rgba(152,120,224,0.25);border-radius:2px;padding:8px 12px;display:flex;align-items:center;gap:10px;}
+.sov-icon{font-size:16px;color:var(--pu2);}
+.sov-text{font-family:var(--mn);font-size:9px;color:var(--pu2);letter-spacing:0.06em;}
+.sov-sub{font-size:9px;color:var(--tx2);margin-top:2px;}
+.hwkey-demo{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:10px;display:flex;flex-direction:column;gap:6px;}
+.hk-step{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--s3);border:1px solid var(--b1);border-radius:2px;}
+.hk-num{font-family:var(--mn);font-size:10px;font-weight:500;color:var(--pu2);width:18px;flex-shrink:0;}
+.hk-text{font-size:9px;color:var(--tx);}
+.hk-status{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;margin-left:auto;}
+.hks-ok{background:var(--ok3);color:var(--ok2);}
+.hks-pend{background:var(--pu3);color:var(--pu2);}
+.hks-req{background:var(--md3);color:var(--md2);}
+.wcag-table{width:100%;border-collapse:collapse;}
+.wt th{padding:4px 8px;font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;border-bottom:1px solid var(--b1);background:var(--s2);font-weight:400;text-align:left;}
+.wt td{padding:4px 8px;border-bottom:1px solid rgba(26,37,53,0.4);font-size:9px;font-family:var(--mn);}
+</style>
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div>
+  <div style="width:1px;height:16px;background:var(--b1);"></div>
+  <div style="font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.15em;">RTL ADAPTATION · ACCESSIBILITY · TRUST SIGNAL LANGUAGE</div>
+</div>
+<div class="content">
+
+<div>
+  <div class="section-label">01 · LTR vs RTL LAYOUT MIRRORING</div>
+  <div class="grid2">
+    <div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:5px;">LTR · ENGLISH</div>
+      <div class="ltr-demo">
+        <div class="demo-topbar">
+          <span style="font-family:var(--mn);font-size:10px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;">OBL<em style="color:var(--cr2);">IV</em>RA</span>
+          <span style="font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid #5aaef0;border-radius:2px;color:#5aaef0;background:rgba(90,174,240,0.06);">WEB</span>
+          <span style="font-family:var(--mn);font-size:9px;color:var(--tx2);">SOC DASHBOARD</span>
+          <span style="margin-left:auto;font-family:var(--mn);font-size:9px;color:var(--cr2);">▲ CRIT 7</span>
+        </div>
+        <div class="demo-alert">
+          <div class="demo-dot" style="background:var(--cr2);"></div>
+          <span style="font-size:10px;color:var(--tx);">Credential dump · LSASS</span>
+          <span style="margin-left:auto;font-family:var(--mn);font-size:9px;color:var(--cr2);">97</span>
+        </div>
+        <div class="demo-alert" style="border-left-color:var(--hi2);">
+          <div class="demo-dot" style="background:var(--hi2);"></div>
+          <span style="font-size:10px;color:var(--tx);">Lateral movement · SMB</span>
+          <span style="margin-left:auto;font-family:var(--mn);font-size:9px;color:var(--hi2);">78</span>
+        </div>
+        <div style="padding:5px 10px;font-family:var(--mn);font-size:8px;color:var(--tx3);">Left rail · Left-to-right flow · Left accent borders</div>
+      </div>
+    </div>
+    <div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:5px;">RTL · ARABIC · <span class="ar-text">عربي</span></div>
+      <div class="rtl-demo">
+        <div class="demo-topbar-rtl">
+          <span style="font-family:var(--mn);font-size:10px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;">OBL<em style="color:var(--cr2);">IV</em>RA</span>
+          <span style="font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid #5aaef0;border-radius:2px;color:#5aaef0;background:rgba(90,174,240,0.06);">WEB</span>
+          <span style="font-family:var(--ar);font-size:9px;color:var(--tx2);">لوحة العمليات</span>
+          <span style="margin-right:auto;font-family:var(--mn);font-size:9px;color:var(--cr2);">▲ حرج 7</span>
+        </div>
+        <div class="demo-alert-rtl">
+          <div class="demo-dot" style="background:var(--cr2);"></div>
+          <span style="font-family:var(--ar);font-size:10px;color:var(--tx);">تسريب بيانات اعتماد · LSASS</span>
+          <span style="margin-right:auto;font-family:var(--mn);font-size:9px;color:var(--cr2);">97</span>
+        </div>
+        <div class="demo-alert-rtl" style="border-right-color:var(--hi2);border-left:none;">
+          <div class="demo-dot" style="background:var(--hi2);"></div>
+          <span style="font-family:var(--ar);font-size:10px;color:var(--tx);">الحركة الجانبية · SMB</span>
+          <span style="margin-right:auto;font-family:var(--mn);font-size:9px;color:var(--hi2);">78</span>
+        </div>
+        <div style="padding:5px 10px;font-family:var(--ar);font-size:8px;color:var(--tx3);direction:rtl;">الريل الأيمن · تدفق من اليمين إلى اليسار · حدود تمييز يمينية</div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:8px;font-family:var(--mn);font-size:9px;color:var(--tx2);line-height:1.8;">
+    RTL rules: CSS <code style="background:var(--s3);padding:1px 4px;border-radius:2px;">dir="rtl"</code> on root · All margins/paddings use logical properties (inline-start, inline-end) · Icons that imply direction (arrows, chevrons) flip with <code style="background:var(--s3);padding:1px 4px;border-radius:2px;">transform: scaleX(-1)</code> · Severity accent border: border-right replaces border-left · Monospace data (IDs, hashes, IPs) stays LTR inside RTL context using <code style="background:var(--s3);padding:1px 4px;border-radius:2px;">unicode-bidi: embed; direction: ltr</code> · Noto Sans Arabic for UI labels, IBM Plex Mono unchanged for data fields
+  </div>
+</div>
+
+<div>
+  <div class="section-label">02 · WCAG AA CONTRAST RATIOS</div>
+  <div class="contrast-grid">
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:#080a0c;">
+        <div class="cc-ratio" style="color:#bfd0e0;">9.4:1</div>
+        <div class="cc-label" style="color:#bfd0e0;">TEXT PRIMARY</div>
+        <div class="cc-sample" style="color:#bfd0e0;">#bfd0e0 on #080a0c</div>
+        <span class="cc-pass cp-aaa">AAA</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:#0c0f12;">
+        <div class="cc-ratio" style="color:#6a8aa8;">4.6:1</div>
+        <div class="cc-label" style="color:#6a8aa8;">TEXT SECONDARY</div>
+        <div class="cc-sample" style="color:#6a8aa8;">#6a8aa8 on #0c0f12</div>
+        <span class="cc-pass cp-aa">AA</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:rgba(192,40,40,0.12);border:1px solid rgba(192,40,40,0.3);">
+        <div class="cc-ratio" style="color:#e05050;">5.2:1</div>
+        <div class="cc-label" style="color:#e05050;">CRITICAL TEXT</div>
+        <div class="cc-sample" style="color:#e05050;">#e05050 on crit bg</div>
+        <span class="cc-pass cp-aa">AA</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:rgba(20,120,72,0.12);border:1px solid rgba(20,120,72,0.25);">
+        <div class="cc-ratio" style="color:#1aaa60;">4.8:1</div>
+        <div class="cc-label" style="color:#1aaa60;">SUCCESS TEXT</div>
+        <div class="cc-sample" style="color:#1aaa60;">#1aaa60 on ok bg</div>
+        <span class="cc-pass cp-aa">AA</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:#101418;">
+        <div class="cc-ratio" style="color:#5aaef0;">5.8:1</div>
+        <div class="cc-label" style="color:#5aaef0;">LINK / ACCENT</div>
+        <div class="cc-sample" style="color:#5aaef0;">#5aaef0 on #101418</div>
+        <span class="cc-pass cp-aa">AA</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:#101418;">
+        <div class="cc-ratio" style="color:#c8a800;">4.5:1</div>
+        <div class="cc-label" style="color:#c8a800;">WARNING TEXT</div>
+        <div class="cc-sample" style="color:#c8a800;">#c8a800 on #101418</div>
+        <span class="cc-pass cp-aa">AA ·min</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:#101418;">
+        <div class="cc-ratio" style="color:#9878e0;">4.7:1</div>
+        <div class="cc-label" style="color:#9878e0;">DESKTOP CTX</div>
+        <div class="cc-sample" style="color:#9878e0;">#9878e0 on #101418</div>
+        <span class="cc-pass cp-aa">AA</span>
+      </div>
+    </div>
+    <div class="contrast-card">
+      <div class="cc-bg" style="background:#0c0f12;">
+        <div class="cc-ratio" style="color:#3a5570;">2.1:1</div>
+        <div class="cc-label" style="color:#3a5570;">TEXT TERTIARY</div>
+        <div class="cc-sample" style="color:#3a5570;">Decorative only</div>
+        <span class="cc-pass cp-fail">NON-TEXT</span>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:6px;font-family:var(--mn);font-size:9px;color:var(--tx2);">text-tertiary (#3a5570) is only used for decorative elements (placeholder bars, disabled states) — never for readable text. WCAG AA requires 4.5:1 for normal text, 3:1 for large text (≥18px/14px bold).</div>
+</div>
+
+<div>
+  <div class="section-label">03 · KEYBOARD FOCUS STATES</div>
+  <div class="focus-demo">
+    <div class="focus-item fi-normal">Normal state — no focus</div>
+    <div class="focus-item fi-hover">Hover state — background lift</div>
+    <div class="focus-item fi-focus">Focus state — 2px solid #5aaef0 border (visible to keyboard users)</div>
+    <div class="focus-item fi-active">Active / selected — accent blue fill + border</div>
+  </div>
+  <div style="margin-top:6px;font-family:var(--mn);font-size:9px;color:var(--tx2);">Rule: <code style="background:var(--s3);padding:1px 4px;border-radius:2px;">outline: none</code> is NEVER used without a visible replacement. All interactive elements must have a 2px focus ring. Tab order follows visual reading order. Skip-to-main-content link hidden but focusable for screen readers.</div>
+</div>
+
+<div>
+  <div class="section-label">04 · TRUST SIGNAL VISUAL LANGUAGE</div>
+  <div class="trust-grid">
+    <div class="trust-signal">
+      <div class="ts-icon-row">
+        <div class="ts-icon" style="background:var(--ok3);color:var(--ok2);">⊠</div>
+        <div><div class="ts-name">Evidence Sealed</div><div class="ts-sub">VAULT · CHAIN OF CUSTODY</div></div>
+      </div>
+      <div class="ts-indicator" style="border-color:rgba(20,120,72,0.25);background:var(--ok3);"><span style="color:var(--ok2);font-size:10px;">⊠</span><span class="ts-ind-text" style="color:var(--ok2);">EVD-2026-0419-044 · SEALED</span></div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:6px;">Green ⊠ icon + hash confirmation. Broken seal → red ▲ + immediate alert to L3.</div>
+    </div>
+    <div class="trust-signal">
+      <div class="ts-icon-row">
+        <div class="ts-icon" style="background:var(--pu3);color:var(--pu2);">⊘</div>
+        <div><div class="ts-name">Sovereign Mode</div><div class="ts-sub">AIR-GAPPED · NO EGRESS</div></div>
+      </div>
+      <div class="ts-indicator" style="border-color:rgba(152,120,224,0.25);background:var(--pu3);"><span style="color:var(--pu2);font-size:10px;">⊘</span><span class="ts-ind-text" style="color:var(--pu2);">AIR-GAPPED · SOVEREIGN</span></div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:6px;">Purple ⊘ badge persistent in topbar when deployed air-gapped. Disappears if unexpected egress detected → incident fires.</div>
+    </div>
+    <div class="trust-signal">
+      <div class="ts-icon-row">
+        <div class="ts-icon" style="background:var(--ok3);color:var(--ok2);">◎</div>
+        <div><div class="ts-name">Crypto Integrity</div><div class="ts-sub">HASH VERIFIED · TAMPER EVIDENT</div></div>
+      </div>
+      <div class="ts-indicator" style="border-color:rgba(20,120,72,0.25);background:var(--ok3);"><span style="color:var(--ok2);font-size:10px;">◎</span><span class="ts-ind-text" style="color:var(--ok2);">SHA-256 MATCH · VERIFIED 00:54Z</span></div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:6px;">Green ◎ when hash matches at last verification. Red ▲ TAMPERED if mismatch. Re-verified on every access.</div>
+    </div>
+    <div class="trust-signal">
+      <div class="ts-icon-row">
+        <div class="ts-icon" style="background:var(--pu3);color:var(--pu2);">⬡</div>
+        <div><div class="ts-name">Hardware Key</div><div class="ts-sub">YUBIKEY / HSM PRESENT</div></div>
+      </div>
+      <div class="ts-indicator" style="border-color:rgba(152,120,224,0.25);background:var(--pu3);"><span style="color:var(--pu2);font-size:10px;">⬡</span><span class="ts-ind-text" style="color:var(--pu2);">YK5-NFC · ENROLLED · PRESENT</span></div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:6px;">Purple ⬡ when HW key detected. Gray ⬡ when absent. Vault access requires HW key present — otherwise blocked with modal prompt.</div>
+    </div>
+    <div class="trust-signal">
+      <div class="ts-icon-row">
+        <div class="ts-icon" style="background:rgba(24,120,200,0.1);color:#5aaef0;">⊞</div>
+        <div><div class="ts-name">Tenant Isolation</div><div class="ts-sub">DATA NAMESPACE BOUNDARY</div></div>
+      </div>
+      <div class="ts-indicator" style="border-color:rgba(24,120,200,0.2);background:rgba(24,120,200,0.08);"><span style="color:#5aaef0;font-size:10px;">⊞</span><span class="ts-ind-text" style="color:#5aaef0;">GOV-FIN-001 · ISOLATED</span></div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:6px;">Blue ⊞ with tenant ID always visible. Any cross-tenant data access attempt fires a CRITICAL alert and is blocked.</div>
+    </div>
+    <div class="trust-signal">
+      <div class="ts-icon-row">
+        <div class="ts-icon" style="background:var(--ok3);color:var(--ok2);">≡</div>
+        <div><div class="ts-name">Chain of Custody</div><div class="ts-sub">AUDIT LOG · IMMUTABLE</div></div>
+      </div>
+      <div class="ts-indicator" style="border-color:rgba(20,120,72,0.25);background:var(--ok3);"><span style="color:var(--ok2);font-size:10px;">≡</span><span class="ts-ind-text" style="color:var(--ok2);">CoC HASH 8a4f2c...d9e1 · INTACT</span></div>
+      <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:6px;">Every access appended to append-only log. CoC hash shown in statusbar. Export for legal proceedings with one click.</div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">05 · CHAIN OF CUSTODY VISUAL</div>
+  <div class="chain-visual">
+    <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:8px;">EVD-2026-0419-044 · MEMORY DUMP · FULL CUSTODY LOG</div>
+    <div id="coc-chain"></div>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">06 · SOVEREIGN MODE BANNER</div>
+  <div class="sov-banner">
+    <div class="sov-icon">⊘</div>
+    <div>
+      <div class="sov-text">SOVEREIGN MODE ACTIVE · AIR-GAPPED DEPLOYMENT · NO EXTERNAL CONNECTIVITY</div>
+      <div class="sov-sub">Tenant: GOV-FIN-001 · Classification: SECRET · Vault: AES-256-GCM · HW Key: YK5-NFC-44A8 · Last verified: 00:55Z</div>
+    </div>
+    <div style="margin-left:auto;font-family:var(--mn);font-size:8px;padding:2px 8px;border-radius:2px;border:1px solid rgba(152,120,224,0.3);color:var(--pu2);background:var(--pu3);cursor:pointer;" onclick="sendPrompt('Show sovereign mode verification details and air-gap integrity check')">VERIFY</div>
+  </div>
+  <div style="margin-top:6px;font-family:var(--mn);font-size:9px;color:var(--tx2);">Sovereign banner appears in every page header when air-gapped. If network egress is unexpectedly detected, banner turns red and fires a P1 alert.</div>
+</div>
+
+<div>
+  <div class="section-label">07 · HARDWARE KEY VERIFICATION FLOW</div>
+  <div class="hwkey-demo">
+    <div class="hk-step"><div class="hk-num">1</div><div class="hk-text">User attempts to access Evidence Vault or execute isolation</div><div class="hk-status hks-req">REQUIRES HW KEY</div></div>
+    <div class="hk-step"><div class="hk-num">2</div><div class="hk-text">System checks for enrolled hardware key presence (YubiKey / HSM)</div><div class="hk-status hks-pend">DETECTING</div></div>
+    <div class="hk-step"><div class="hk-num">3</div><div class="hk-text">User touches hardware key to confirm presence + PIN if required</div><div class="hk-status hks-pend">TOUCH KEY</div></div>
+    <div class="hk-step"><div class="hk-num">4</div><div class="hk-text">FIDO2/WebAuthn assertion verified against enrolled credential</div><div class="hk-status hks-ok">VERIFIED</div></div>
+    <div class="hk-step"><div class="hk-num">5</div><div class="hk-text">Action proceeds — access logged to immutable CoC chain</div><div class="hk-status hks-ok">LOGGED</div></div>
+  </div>
+</div>
+
+</div>
+</div>
+<script>
+function toggleRTL() {
+  const isRTL = document.body.dir === 'rtl';
+  document.body.dir = isRTL ? 'ltr' : 'rtl';
+}
+
+document.querySelector('.sov-banner').onclick = toggleRTL;
+</script>

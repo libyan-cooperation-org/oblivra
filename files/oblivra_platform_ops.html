@@ -1,0 +1,260 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--md3:rgba(154,128,0,0.1);--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{display:flex;flex-direction:column;min-height:820px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;height:28px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-family:var(--mn);font-size:11px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:#e05050;font-style:normal;}
+.ctx-admin{font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid var(--cr2);border-radius:2px;color:var(--cr2);background:var(--cr3);letter-spacing:0.12em;}
+.dv{width:1px;height:14px;background:var(--b1);}
+.ml{margin-left:auto;}
+.pl{font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.1em;}
+.content{flex:1;padding:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-content:start;overflow-y:auto;}
+.panel{background:var(--s1);border:1px solid var(--b1);border-radius:2px;overflow:hidden;}
+.ph{padding:5px 10px;background:var(--s2);border-bottom:1px solid var(--b1);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.13em;display:flex;align-items:center;justify-content:space-between;}
+.ph-ok{color:var(--ok2);}
+.ph-warn{color:var(--md2);}
+.ph-crit{color:var(--cr2);}
+.node-grid{padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.node-card{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:6px 8px;cursor:pointer;transition:background 0.1s;}
+.node-card:hover{background:var(--s3);}
+.nc-header{display:flex;align-items:center;gap:5px;margin-bottom:4px;}
+.nc-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.nc-name{font-family:var(--mn);font-size:9px;font-weight:500;color:var(--tx);}
+.nc-role{font-family:var(--mn);font-size:8px;color:var(--tx3);margin-left:auto;}
+.nc-metrics{display:grid;grid-template-columns:1fr 1fr;gap:2px;}
+.ncm{font-family:var(--mn);font-size:8px;}
+.ncm-key{color:var(--tx3);}
+.ncm-val{color:var(--tx);}
+.metric-bar{height:2px;border-radius:1px;overflow:hidden;background:var(--b2);margin-top:3px;}
+.mb-fill{height:100%;border-radius:1px;}
+.pipeline-rows{padding:8px;display:flex;flex-direction:column;gap:4px;}
+.pipe-row{display:flex;align-items:center;gap:8px;padding:5px 7px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;cursor:pointer;transition:background 0.1s;}
+.pipe-row:hover{background:var(--s3);}
+.pr-name{font-size:10px;color:var(--tx);flex:1;}
+.pr-eps{font-family:var(--mn);font-size:9px;font-weight:500;}
+.pr-status{font-family:var(--mn);font-size:8px;padding:1px 4px;border-radius:2px;}
+.prs-ok{background:var(--ok3);color:var(--ok2);}
+.prs-warn{background:var(--md3);color:var(--md2);}
+.prs-err{background:var(--cr3);color:var(--cr2);}
+.spark-wrap{padding:4px 8px 8px;}
+.spark-label{font-family:var(--mn);font-size:8px;color:var(--tx3);margin-bottom:3px;}
+.spark-bars{display:flex;align-items:flex-end;gap:1px;height:30px;}
+.sb{flex:1;border-radius:1px 1px 0 0;min-width:2px;}
+.alert-log{padding:6px 8px;display:flex;flex-direction:column;gap:3px;max-height:180px;overflow-y:auto;}
+.al-item{display:flex;gap:6px;padding:3px 5px;border-radius:2px;cursor:pointer;transition:background 0.1s;}
+.al-item:hover{background:var(--s3);}
+.al-ts{font-family:var(--mn);font-size:8px;color:var(--tx3);width:38px;flex-shrink:0;}
+.al-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.al-text{font-size:9px;color:var(--tx);}
+.index-table{width:100%;border-collapse:collapse;}
+.it th{padding:3px 8px;font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;border-bottom:1px solid var(--b1);background:var(--s2);font-weight:400;text-align:left;}
+.it td{padding:4px 8px;border-bottom:1px solid rgba(26,37,53,0.4);font-family:var(--mn);font-size:9px;}
+.it-row{cursor:pointer;transition:background 0.1s;}
+.it-row:hover{background:var(--s3);}
+.health-gauge{padding:10px;text-align:center;}
+.hg-val{font-family:var(--mn);font-size:32px;font-weight:500;color:var(--ok2);line-height:1;}
+.hg-label{font-family:var(--mn);font-size:8px;color:var(--tx3);margin-top:3px;letter-spacing:0.1em;}
+.hg-sub{font-size:9px;color:var(--tx2);margin-top:2px;}
+.update-rows{padding:8px;display:flex;flex-direction:column;gap:3px;}
+.ur-item{display:flex;align-items:center;gap:7px;padding:5px 7px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;cursor:pointer;transition:background 0.1s;}
+.ur-item:hover{background:var(--s3);}
+.uri-name{font-size:10px;color:var(--tx);flex:1;}
+.uri-ver{font-family:var(--mn);font-size:9px;color:var(--tx3);}
+.uri-status{font-family:var(--mn);font-size:8px;padding:1px 4px;border-radius:2px;}
+.us-ok{background:var(--ok3);color:var(--ok2);}
+.us-avail{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.us-crit{background:var(--cr3);color:var(--cr2);}
+.statusbar{background:var(--s2);border-top:1px solid var(--b1);padding:3px 12px;display:flex;gap:12px;font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;}
+::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+</style>
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div>
+  <div class="ctx-admin">SUPER ADMIN</div>
+  <div class="dv"></div>
+  <div class="pl">PLATFORM OPERATIONS · CLUSTER HEALTH</div>
+  <div class="ml" style="font-family:var(--mn);font-size:9px;color:var(--ok2);">ALL SYSTEMS NOMINAL · v2.14.1-sovereign</div>
+</div>
+<div class="content">
+
+<div class="panel">
+  <div class="ph">CLUSTER NODES <span class="ph-ok">12/12 ONLINE</span></div>
+  <div class="node-grid" id="node-grid"></div>
+</div>
+
+<div class="panel">
+  <div class="ph">INGESTION PIPELINE <span class="ph-ok">441K EPS</span></div>
+  <div class="spark-wrap">
+    <div class="spark-label">EPS LAST 30 MIN</div>
+    <div class="spark-bars" id="spark-eps"></div>
+  </div>
+  <div class="pipeline-rows">
+    <div class="pipe-row" onclick="sendPrompt('Show Windows Event Log ingestion pipeline detail and health')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--ok2);flex-shrink:0;"></div>
+      <div class="pr-name">Windows Event Log</div>
+      <div class="pr-eps" style="color:var(--ok2);">148K</div>
+      <div class="pr-status prs-ok">OK</div>
+    </div>
+    <div class="pipe-row" onclick="sendPrompt('Show NDR NetFlow ingestion pipeline health')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--ok2);flex-shrink:0;"></div>
+      <div class="pr-name">NDR / NetFlow</div>
+      <div class="pr-eps" style="color:var(--ok2);">180K</div>
+      <div class="pr-status prs-ok">OK</div>
+    </div>
+    <div class="pipe-row" onclick="sendPrompt('Show EDR telemetry pipeline health')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--ok2);flex-shrink:0;"></div>
+      <div class="pr-name">EDR Telemetry</div>
+      <div class="pr-eps" style="color:var(--ok2);">88K</div>
+      <div class="pr-status prs-ok">OK</div>
+    </div>
+    <div class="pipe-row" onclick="sendPrompt('Investigate Linux Audit Log pipeline lag — 4 second delay')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--md2);flex-shrink:0;"></div>
+      <div class="pr-name">Linux Audit Log</div>
+      <div class="pr-eps" style="color:var(--md2);">22K</div>
+      <div class="pr-status prs-warn">4s LAG</div>
+    </div>
+    <div class="pipe-row" onclick="sendPrompt('Show Syslog CEF ingestion health')">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--ok2);flex-shrink:0;"></div>
+      <div class="pr-name">Syslog / CEF</div>
+      <div class="pr-eps" style="color:var(--ok2);">3K</div>
+      <div class="pr-status prs-ok">OK</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="ph">OVERALL HEALTH</div>
+  <div class="health-gauge">
+    <div class="hg-val">99.7%</div>
+    <div class="hg-label">PLATFORM UPTIME · 30 DAYS</div>
+    <div class="hg-sub">SLA target: 99.5% · Exceeded</div>
+  </div>
+  <div style="padding:0 10px 10px;display:flex;flex-direction:column;gap:4px;" id="health-checks"></div>
+</div>
+
+<div class="panel">
+  <div class="ph">SIEM INDEX HEALTH</div>
+  <table class="index-table it">
+    <thead><tr><th>INDEX</th><th>SIZE</th><th>SHARDS</th><th>STATUS</th></tr></thead>
+    <tbody id="index-table"></tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <div class="ph">PLATFORM ALERTS <span class="ph-warn">1 WARNING</span></div>
+  <div class="alert-log" id="alert-log"></div>
+</div>
+
+<div class="panel">
+  <div class="ph">UPDATE STATUS</div>
+  <div class="update-rows">
+    <div class="ur-item" onclick="sendPrompt('Show OBLIVRA platform core update details from v2.14.0 to v2.14.1')">
+      <div style="font-size:10px;color:var(--ok2);">✓</div>
+      <div class="uri-name">Platform Core</div>
+      <div class="uri-ver">v2.14.1</div>
+      <div class="uri-status us-ok">CURRENT</div>
+    </div>
+    <div class="ur-item" onclick="sendPrompt('Show ML engine update available v2.14.2-ml')">
+      <div style="font-size:10px;color:#5aaef0;">↓</div>
+      <div class="uri-name">ML Engine</div>
+      <div class="uri-ver">v2.14.1 → v2.14.2</div>
+      <div class="uri-status us-avail">UPDATE AVAIL</div>
+    </div>
+    <div class="ur-item" onclick="sendPrompt('Show threat intelligence feed signature update status')">
+      <div style="font-size:10px;color:var(--ok2);">✓</div>
+      <div class="uri-name">TI Signatures</div>
+      <div class="uri-ver">2026-04-19</div>
+      <div class="uri-status us-ok">CURRENT</div>
+    </div>
+    <div class="ur-item" onclick="sendPrompt('Show EDR detection rule update status — critical update available')">
+      <div style="font-size:10px;color:var(--cr2);">!</div>
+      <div class="uri-name">EDR Rules</div>
+      <div class="uri-ver">v441 → v444</div>
+      <div class="uri-status us-crit">CRITICAL UPD</div>
+    </div>
+    <div class="ur-item" onclick="sendPrompt('Show agent binary update deployment status')">
+      <div style="font-size:10px;color:#5aaef0;">↓</div>
+      <div class="uri-name">Agent Binary</div>
+      <div class="uri-ver">v3.3.x → v3.4.1</div>
+      <div class="uri-status us-avail">DEPLOYING</div>
+    </div>
+  </div>
+</div>
+
+</div>
+<div class="statusbar">
+  <span>CLUSTER: <span style="color:var(--ok2);">12/12 NODES ONLINE</span></span>
+  <span>|</span><span>UPTIME: <span style="color:var(--ok2);">99.7%</span></span>
+  <span>|</span><span>EPS: <span style="color:var(--ok2);">441K TOTAL</span></span>
+  <span style="margin-left:auto;color:var(--pu2);">SOVEREIGN CLUSTER · v2.14.1</span>
+</div>
+</div>
+<script>
+const nodes=[
+  {n:'SIEM-01',role:'SIEM',cpu:44,mem:62,ok:true},
+  {n:'SIEM-02',role:'SIEM',cpu:41,mem:58,ok:true},
+  {n:'CORR-01',role:'CORREL',cpu:78,mem:72,ok:true},
+  {n:'CORR-02',role:'CORREL',cpu:71,mem:68,ok:true},
+  {n:'ML-01',role:'ML',cpu:91,mem:84,ok:true,warn:true},
+  {n:'ML-02',role:'ML',cpu:88,mem:81,ok:true,warn:true},
+  {n:'SOAR-01',role:'SOAR',cpu:22,mem:34,ok:true},
+  {n:'VAULT-01',role:'VAULT',cpu:14,mem:28,ok:true},
+  {n:'NDR-01',role:'NDR',cpu:54,mem:44,ok:true},
+  {n:'NDR-02',role:'NDR',cpu:51,mem:42,ok:true},
+  {n:'GW-01',role:'GATEWAY',cpu:28,mem:32,ok:true},
+  {n:'GW-02',role:'GATEWAY',cpu:24,mem:30,ok:true},
+];
+
+function renderNodes() {
+  const ng=document.getElementById('node-grid');
+  ng.innerHTML = '';
+  nodes.forEach(n=>{
+    const d=document.createElement('div');
+    d.className='node-card';
+    const cpuColor=n.cpu>85?'var(--cr2)':n.cpu>70?'var(--md2)':'var(--ok2)';
+    d.innerHTML=`<div class="nc-header"><div class="nc-dot" style="background:${n.warn?'var(--md2)':'var(--ok2)'}"></div><div class="nc-name">${n.n}</div><div class="nc-role">${n.role}</div></div>
+    <div class="nc-metrics"><div class="ncm"><span class="ncm-key">CPU </span><span class="ncm-val" style="color:${cpuColor};">${n.cpu}%</span></div><div class="ncm"><span class="ncm-key">MEM </span><span class="ncm-val">${n.mem}%</span></div></div>
+    <div class="metric-bar"><div class="mb-fill" style="width:${n.cpu}%;background:${cpuColor};"></div></div>`;
+    ng.appendChild(d);
+  });
+}
+renderNodes();
+
+// Simulate live CPU jitter
+setInterval(() => {
+  nodes.forEach(n => { n.cpu = Math.max(10, Math.min(95, n.cpu + (Math.random() - 0.5) * 4)); });
+  renderNodes();
+}, 3000);
+
+const sparkData=[380,392,408,415,428,441,438,444,440,436,441,448,441,438,444,441,438,441,444,448,441,436,441,444,448,441,438,441,444,441];
+const sparkEl=document.getElementById('spark-eps');
+function renderSpark() {
+  sparkEl.innerHTML = '';
+  const mx=Math.max(...sparkData);
+  sparkData.forEach(v=>{
+    const d=document.createElement('div');
+    const h=Math.max(3,Math.round((v/mx)*30));
+    d.className='sb';
+    d.style.cssText=`height:${h}px;background:var(--ok2);opacity:0.7;`;
+    sparkEl.appendChild(d);
+  });
+}
+renderSpark();
+
+const indexItems=[
+  {name:'siem-hot-2026',size:'488 GB',shards:'12'},
+  {name:'siem-warm-2026',size:'1.4 TB',shards:'8'},
+  {name:'siem-cold',size:'18.2 TB',shards:'4'},
+];
+const itb=document.getElementById('index-table');
+indexItems.forEach(idx=>{
+  const tr=document.createElement('tr');
+  tr.className='it-row';
+  tr.innerHTML=`<td style="color:var(--pu2);">${idx.name}</td><td>${idx.size}</td><td>${idx.shards}</td><td><span class="status-pill sp-pass">GREEN</span></td>`;
+  itb.appendChild(tr);
+});
+</script>

@@ -3,7 +3,7 @@
   Detection rule orchestration and signal filtering.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, Spinner, Input } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs } from '@components/ui';
   import { Zap, ShieldAlert, MoreHorizontal } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
@@ -18,13 +18,33 @@
     critical: alertStore.alerts.filter(a => a.severity === 'critical').length,
     unassigned: alertStore.alerts.filter(a => !a.action).length,
     mttr: '14.2m',
-    fpRate: '8.4%'
+    fpRate: '8.4%',
+    open: alertStore.alerts.filter(a => a.status === 'open').length,
+    ack: alertStore.alerts.filter(a => a.status === 'acknowledged').length,
+    investigating: alertStore.alerts.filter(a => a.status === 'investigating').length,
+    closed: alertStore.alerts.filter(a => a.status === 'closed').length,
+    suppressed: alertStore.alerts.filter(a => a.status === 'suppressed').length
   });
+
+  const tabItems = $derived([
+    { id: 'OPEN', label: 'OPEN', badge: stats.open },
+    { id: 'ACK', label: 'ACK', badge: stats.ack },
+    { id: 'INVESTIGATING', label: 'INVESTIGATING', badge: stats.investigating },
+    { id: 'CLOSED', label: 'CLOSED', badge: stats.closed },
+    { id: 'SUPPRESSED', label: 'SUPPRESSED', badge: stats.suppressed }
+  ]);
 
   const filteredAlerts = $derived(alertStore.alerts.filter(a => {
     const matchesSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase()) || a.host.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSeverity = selectedSeverities.includes(a.severity.toUpperCase());
-    const matchesTab = activeTab === 'OPEN' ? a.status === 'open' : true; 
+    
+    let matchesTab = false;
+    if (activeTab === 'OPEN') matchesTab = a.status === 'open';
+    else if (activeTab === 'ACK') matchesTab = a.status === 'acknowledged';
+    else if (activeTab === 'INVESTIGATING') matchesTab = a.status === 'investigating';
+    else if (activeTab === 'CLOSED') matchesTab = a.status === 'closed';
+    else if (activeTab === 'SUPPRESSED') matchesTab = a.status === 'suppressed';
+
     return matchesSearch && matchesSeverity && matchesTab;
   }));
 
@@ -58,7 +78,7 @@
     <div class="grid grid-cols-5 gap-px bg-border-primary border-b border-border-primary shrink-0">
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Total Open</div>
-            <div class="text-xl font-mono font-bold text-text-heading">{stats.total}</div>
+            <div class="text-xl font-mono font-bold text-text-heading">{stats.open}</div>
             <div class="text-[9px] text-text-muted mt-1">+31 vs prev 4h</div>
         </div>
         <div class="bg-surface-2 p-3">
@@ -85,16 +105,7 @@
 
     <!-- TOOLBAR & TABS -->
     <div class="bg-surface-1 border-b border-border-primary p-2 flex items-center gap-4 shrink-0">
-        <div class="flex bg-surface-2 border border-border-primary rounded-sm overflow-hidden">
-            {#each ['OPEN', 'ACK', 'INVESTIGATING', 'CLOSED'] as tab}
-                <button 
-                    class="px-3 py-1 text-[9px] font-mono font-bold transition-colors {activeTab === tab ? 'bg-surface-3 text-accent border-b-2 border-accent' : 'text-text-muted hover:text-text-secondary'}"
-                    onclick={() => activeTab = tab}
-                >
-                    {tab} ({tab === 'OPEN' ? stats.total : 0})
-                </button>
-            {/each}
-        </div>
+        <Tabs tabs={tabItems} bind:active={activeTab} />
 
         <div class="flex items-center gap-1">
             {#each ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as sev}
@@ -164,7 +175,11 @@
                             <span class="text-[8px] font-mono text-error animate-pulse">08:12</span>
                         </div>
                     {:else if col.label === 'STATUS'}
-                        <Badge variant={row.status === 'open' ? 'accent' : 'warning'} size="xs" class="text-[8px] px-1.5">
+                        <Badge 
+                            variant={row.status === 'open' ? 'accent' : row.status === 'acknowledged' ? 'warning' : row.status === 'investigating' ? 'info' : row.status === 'closed' ? 'success' : 'muted'} 
+                            size="xs" 
+                            class="text-[8px] px-1.5"
+                        >
                             {row.status.toUpperCase()}
                         </Badge>
                     {:else if col.label === ''}

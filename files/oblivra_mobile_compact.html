@@ -1,0 +1,232 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--md3:rgba(154,128,0,0.1);--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{min-height:1800px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 16px;height:32px;display:flex;align-items:center;gap:10px;}
+.logo{font-family:var(--mn);font-size:12px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:var(--cr2);font-style:normal;}
+.content{padding:20px 24px;display:flex;flex-direction:column;gap:28px;}
+.section-label{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.2em;padding-bottom:6px;border-bottom:1px solid var(--b1);margin-bottom:8px;}
+.breakpoint-grid{display:grid;grid-template-columns:280px 380px 1fr;gap:16px;align-items:start;}
+.bp-label{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:6px;}
+.device-frame{border:2px solid var(--b2);border-radius:8px;overflow:hidden;background:var(--bg);}
+.phone-frame{width:280px;}
+.tablet-frame{width:380px;}
+.desktop-mini{width:100%;}
+.frame-topbar{height:24px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 8px;gap:6px;}
+.frame-logo{font-family:var(--mn);font-size:9px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.frame-logo em{color:var(--cr2);font-style:normal;}
+.frame-sev{font-family:var(--mn);font-size:8px;padding:1px 4px;border-radius:2px;margin-left:auto;}
+.fs-cr{background:var(--cr3);color:var(--cr2);animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(192,40,40,0);}50%{box-shadow:0 0 0 3px rgba(192,40,40,0.15);}}
+.phone-nav{height:44px;background:var(--s1);border-top:1px solid var(--b1);display:flex;justify-content:space-around;align-items:center;}
+.pn-item{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 8px;border-radius:3px;transition:background 0.1s;}
+.pn-item:hover,.pn-item.active{background:var(--s3);}
+.pn-icon{font-size:14px;}
+.pn-label{font-family:var(--mn);font-size:7px;color:var(--tx3);}
+.pn-item.active .pn-label{color:#5aaef0;}
+.phone-content{padding:8px;}
+.pc-banner{background:var(--cr3);border:1px solid rgba(192,40,40,0.25);border-radius:2px;padding:5px 8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.pcb-text{font-family:var(--mn);font-size:8px;color:var(--cr2);flex:1;}
+.pcb-btn{font-family:var(--mn);font-size:8px;padding:2px 6px;border-radius:2px;border:1px solid rgba(192,40,40,0.3);background:var(--cr3);color:var(--cr2);cursor:pointer;}
+.phone-metric-row{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;}
+.pm{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:5px 7px;}
+.pm-val{font-family:var(--mn);font-size:16px;font-weight:500;line-height:1;}
+.pm-label{font-family:var(--mn);font-size:7px;color:var(--tx3);margin-top:1px;}
+.phone-alert{display:flex;align-items:center;gap:6px;padding:6px 7px;border-bottom:1px solid var(--b1);border-left:2px solid;cursor:pointer;background:var(--s2);border-radius:2px;margin-bottom:3px;transition:background 0.1s;}
+.phone-alert:hover{background:var(--s3);}
+.pa-title{font-size:9px;color:var(--tx);}
+.pa-meta{font-family:var(--mn);font-size:7px;color:var(--tx3);}
+.pa-score{font-family:var(--mn);font-size:10px;font-weight:500;margin-left:auto;flex-shrink:0;}
+.touch-target{min-height:44px;min-width:44px;}
+.tablet-frame .frame-topbar{height:28px;padding:0 10px;}
+.tablet-body{display:grid;grid-template-columns:160px 1fr;}
+.tb-nav{background:var(--s1);border-right:1px solid var(--b1);height:360px;padding:6px 0;}
+.tb-nav-item{padding:5px 10px;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:10px;color:var(--tx2);transition:all 0.1s;border-left:2px solid transparent;}
+.tb-nav-item:hover{color:var(--tx);background:var(--s3);}
+.tb-nav-item.active{color:var(--tx);background:var(--s3);border-left-color:#5aaef0;}
+.tb-icon{font-size:10px;width:14px;text-align:center;flex-shrink:0;}
+.tb-main{padding:8px;}
+.tb-metrics{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;}
+.tbm{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:5px 7px;}
+.tbm-val{font-family:var(--mn);font-size:14px;font-weight:500;line-height:1;}
+.tbm-label{font-family:var(--mn);font-size:7px;color:var(--tx3);margin-top:1px;}
+.tb-alert{display:flex;align-items:center;gap:5px;padding:5px 7px;border-bottom:1px solid var(--b1);border-left:2px solid;cursor:pointer;transition:background 0.1s;}
+.tb-alert:hover{background:var(--s3);}
+.tba-title{font-size:9px;color:var(--tx);flex:1;}
+.tba-meta{font-family:var(--mn);font-size:7px;color:var(--tx3);}
+.bp-rules{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:10px;display:flex;flex-direction:column;gap:6px;}
+.bpr-row{display:flex;align-items:flex-start;gap:8px;padding:5px 7px;background:var(--s3);border-radius:2px;}
+.bpr-bp{font-family:var(--mn);font-size:9px;color:#5aaef0;width:80px;flex-shrink:0;}
+.bpr-rules{font-size:9px;color:var(--tx2);line-height:1.6;}
+.touch-spec{background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:10px;display:flex;flex-direction:column;gap:5px;}
+.ts-row{display:flex;align-items:center;gap:8px;font-size:9px;}
+.ts-target{border-radius:2px;background:var(--s3);border:1px solid var(--b2);display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:9px;color:var(--tx2);flex-shrink:0;}
+.ts-label{color:var(--tx2);}
+.ts-ok{color:var(--ok2);}
+.ts-fail{color:var(--cr2);}
+</style>
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div>
+  <div style="width:1px;height:16px;background:var(--b1);"></div>
+  <div style="font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.15em;">MOBILE &amp; COMPACT BREAKPOINT SYSTEM</div>
+</div>
+<div class="content">
+
+<div>
+  <div class="section-label">01 · THREE-BREAKPOINT SYSTEM</div>
+  <div class="breakpoint-grid">
+    <div>
+      <div class="bp-label">MOBILE · &lt;640px · PHONE / FIELD OPS</div>
+      <div class="device-frame phone-frame">
+        <div class="frame-topbar">
+          <div class="frame-logo">OBL<em>IV</em>RA</div>
+          <div style="font-family:var(--mn);font-size:7px;color:var(--tx3);">GOV-FIN-001</div>
+          <div class="frame-sev fs-cr">CRIT 7</div>
+        </div>
+        <div class="phone-content">
+          <div class="pc-banner">
+            <div style="color:var(--cr2);font-size:10px;">▲</div>
+            <div class="pcb-text">INC-007 · ACTIVE</div>
+            <button class="pcb-btn touch-target" onclick="sendPrompt('Open incident INC-007 on mobile view')">OPEN</button>
+          </div>
+          <div class="phone-metric-row">
+            <div class="pm"><div class="pm-val" style="color:var(--cr2);">7</div><div class="pm-label">CRIT</div></div>
+            <div class="pm"><div class="pm-val" style="color:var(--hi2);">23</div><div class="pm-label">HIGH</div></div>
+            <div class="pm"><div class="pm-val" style="color:var(--ok2);">4,817</div><div class="pm-label">AGENTS</div></div>
+            <div class="pm"><div class="pm-val">14m</div><div class="pm-label">MTTR</div></div>
+          </div>
+          <div class="phone-alert" style="border-left-color:var(--cr2);" onclick="sendPrompt('Open LSASS credential dump alert on mobile')">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--cr2);flex-shrink:0;"></div>
+            <div><div class="pa-title">Cred dump · LSASS</div><div class="pa-meta">HOST-FIN-044 · 00:55Z</div></div>
+            <div class="pa-score" style="color:var(--cr2);">97</div>
+          </div>
+          <div class="phone-alert" style="border-left-color:var(--cr2);" onclick="sendPrompt('Open SMB lateral movement alert on mobile')">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--cr2);flex-shrink:0;"></div>
+            <div><div class="pa-title">Lateral mvmt · SMB</div><div class="pa-meta">HOST-FIN-044 · 00:54Z</div></div>
+            <div class="pa-score" style="color:var(--cr2);">94</div>
+          </div>
+          <div class="phone-alert" style="border-left-color:var(--hi2);" onclick="sendPrompt('Open Kerberoasting alert on mobile')">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--hi2);flex-shrink:0;"></div>
+            <div><div class="pa-title">Kerberoasting · SPN</div><div class="pa-meta">ADM-WS-017 · 00:53Z</div></div>
+            <div class="pa-score" style="color:var(--hi2);">78</div>
+          </div>
+          <div style="height:6px;"></div>
+        </div>
+        <div class="phone-nav">
+          <div class="pn-item active touch-target" onclick="sendPrompt('Navigate to SOC dashboard on mobile')"><div class="pn-icon">⬡</div><div class="pn-label" style="color:#5aaef0;">DASH</div></div>
+          <div class="pn-item touch-target" onclick="sendPrompt('Navigate to alerts on mobile')"><div class="pn-icon">⚑</div><div class="pn-label">ALERTS</div></div>
+          <div class="pn-item touch-target" onclick="sendPrompt('Navigate to SIEM on mobile')"><div class="pn-icon">⊞</div><div class="pn-label">SIEM</div></div>
+          <div class="pn-item touch-target" onclick="sendPrompt('Navigate to fleet on mobile')"><div class="pn-icon">◻</div><div class="pn-label">FLEET</div></div>
+          <div class="pn-item touch-target" onclick="sendPrompt('Open more menu on mobile')"><div class="pn-icon">≡</div><div class="pn-label">MORE</div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="bp-label">TABLET · 640–1024px · FIELD / SECONDARY MONITOR</div>
+      <div class="device-frame tablet-frame">
+        <div class="frame-topbar">
+          <div class="frame-logo">OBL<em>IV</em>RA</div>
+          <div style="font-family:var(--mn);font-size:7px;padding:1px 5px;border:1px solid #5aaef0;border-radius:2px;color:#5aaef0;background:rgba(90,174,240,0.06);">WEB</div>
+          <div style="font-family:var(--mn);font-size:8px;color:var(--tx2);margin-left:4px;">SOC DASHBOARD</div>
+          <div class="frame-sev fs-cr" style="margin-left:auto;">CRIT 7</div>
+        </div>
+        <div class="tablet-body">
+          <div class="tb-nav">
+            <div style="padding:5px 10px;font-family:var(--mn);font-size:7px;color:var(--tx3);letter-spacing:0.12em;border-bottom:1px solid var(--b1);margin-bottom:3px;">NAVIGATE</div>
+            <div class="tb-nav-item active"><div class="tb-icon">⬡</div>Dashboard</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to alerts on tablet')"><div class="tb-icon">⚑</div>Alerts</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to SIEM on tablet')"><div class="tb-icon">⊞</div>SIEM</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to SOAR on tablet')"><div class="tb-icon">▷</div>SOAR</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to UEBA on tablet')"><div class="tb-icon">◈</div>UEBA</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to fleet on tablet')"><div class="tb-icon">◻</div>Fleet</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to TI on tablet')"><div class="tb-icon">◎</div>Threat Intel</div>
+            <div class="tb-nav-item" onclick="sendPrompt('Navigate to vault on tablet')"><div class="tb-icon">⊠</div>Evidence</div>
+          </div>
+          <div class="tb-main">
+            <div class="tb-metrics">
+              <div class="tbm"><div class="tbm-val" style="color:var(--cr2);">7</div><div class="tbm-label">CRITICAL</div></div>
+              <div class="tbm"><div class="tbm-val" style="color:var(--hi2);">23</div><div class="tbm-label">HIGH</div></div>
+              <div class="tbm"><div class="tbm-val" style="color:var(--ok2);">4,817</div><div class="tbm-label">AGENTS ONLINE</div></div>
+              <div class="tbm"><div class="tbm-val">14.2m</div><div class="tbm-label">MTTR</div></div>
+            </div>
+            <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:4px;">ACTIVE ALERTS</div>
+            <div class="tb-alert" style="border-left-color:var(--cr2);" onclick="sendPrompt('Open LSASS alert detail on tablet')">
+              <div style="width:5px;height:5px;border-radius:50%;background:var(--cr2);flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="tba-title">Cred dump · LSASS · HOST-FIN-044</div><div class="tba-meta">T1003.001 · 00:55Z · SLA 08:12</div></div>
+              <div style="font-family:var(--mn);font-size:10px;font-weight:500;color:var(--cr2);">97</div>
+            </div>
+            <div class="tb-alert" style="border-left-color:var(--cr2);" onclick="sendPrompt('Open lateral movement alert detail on tablet')">
+              <div style="width:5px;height:5px;border-radius:50%;background:var(--cr2);flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="tba-title">Lateral mvmt · SMB · HOST-FIN-044</div><div class="tba-meta">T1021.002 · 00:54Z · SLA 04:30</div></div>
+              <div style="font-family:var(--mn);font-size:10px;font-weight:500;color:var(--cr2);">94</div>
+            </div>
+            <div class="tb-alert" style="border-left-color:var(--hi2);" onclick="sendPrompt('Open Kerberoasting alert detail on tablet')">
+              <div style="width:5px;height:5px;border-radius:50%;background:var(--hi2);flex-shrink:0;"></div>
+              <div style="flex:1;"><div class="tba-title">Kerberoasting · ADM-WS-017</div><div class="tba-meta">T1558.003 · 00:53Z · SLA 41:18</div></div>
+              <div style="font-family:var(--mn);font-size:10px;font-weight:500;color:var(--hi2);">78</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="bp-label">DESKTOP · &gt;1024px · PRIMARY SOC WORKSTATION</div>
+      <div style="background:var(--s2);border:1px solid var(--b1);border-radius:2px;padding:10px;font-family:var(--mn);font-size:9px;color:var(--tx2);display:flex;flex-direction:column;gap:6px;">
+        <div style="color:var(--tx);font-size:10px;margin-bottom:4px;">Full 3-column shell active</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> Icon rail (44px) + Navigation rail (200px) + Main canvas (1fr)</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> All keyboard shortcuts active</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> Multi-panel War Room layout available</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> Inline enrichment panels + drill-down overlays</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> Dense data tables with frozen columns</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> Full SIEM query builder with token pills</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> SSH Operator terminal (Desktop app only)</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> Multi-monitor SOC layout (detachable panels)</div>
+        <div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ok2);">✓</span> All density modes: Comfortable / Compact / War Room</div>
+        <div style="margin-top:4px;font-size:9px;color:var(--tx3);">Optimal: 1440px+ · Wide: 1920px+ (War Room panel expansion)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">02 · BREAKPOINT RULES TABLE</div>
+  <div class="bp-rules">
+    <div class="bpr-row"><div class="bpr-bp">&lt;640px · Mobile</div><div class="bpr-rules">Bottom tab nav (5 items) · No icon rail · No left nav rail · Single-column layout · Cards stack vertically · Swipe gestures for drawers · Min touch target 44×44px · Condensed metric cards (2-col grid) · Alerts as swipeable cards · No SIEM query builder (read-only search) · No inline enrichment (tap → full screen detail) · No War Room mode</div></div>
+    <div class="bpr-row"><div class="bpr-bp">640–1024px · Tablet</div><div class="bpr-rules">Collapsed left nav (icons + labels, 160px) · No icon rail · 2-column content layouts · Metric grid 2×2 · Alert table shows 5 cols (no inline enrichment) · Tap row → side drawer detail · Keyboard shortcuts active · Compact density default · SIEM search: simplified (no token pills) · War Room: single-panel only</div></div>
+    <div class="bpr-row"><div class="bpr-bp">1024–1440px · Desktop-S</div><div class="bpr-rules">Full 3-column shell · Icon rail (44px) + nav (200px) · Comfortable density default · All features active · War Room: 2-column (no 3-column) · Multi-panel limit: 4 panels</div></div>
+    <div class="bpr-row"><div class="bpr-bp">&gt;1440px · Desktop-L</div><div class="bpr-rules">Full platform, all layouts · War Room: 3-column · Multi-panel: unlimited · Detail drawers: side-by-side with table · Nav rail optionally expanded to 240px with section headers</div></div>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">03 · TOUCH TARGET SPECIFICATIONS</div>
+  <div class="touch-spec">
+    <div style="font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:4px;">MINIMUM TOUCH TARGET SIZES (MOBILE/TABLET)</div>
+    <div class="ts-row"><div class="ts-target touch-target" style="width:44px;height:44px;">44</div><div class="ts-label">Primary actions (Isolate, Capture, Approve) · 44×44px minimum</div><div class="ts-ok">✓ WCAG 2.5.5</div></div>
+    <div class="ts-row"><div class="ts-target touch-target" style="width:44px;height:36px;">44×36</div><div class="ts-label">Table row tap targets · 44px wide, 36px tall minimum</div><div class="ts-ok">✓ OK</div></div>
+    <div class="ts-row"><div class="ts-target" style="width:32px;height:32px;">32</div><div class="ts-label">Secondary actions (Edit, View) · 32×32px — larger on mobile</div><div class="ts-fail">✗ Too small on mobile — use 44px</div></div>
+    <div class="ts-row"><div class="ts-target" style="width:24px;height:24px;">24</div><div class="ts-label">Icon-only buttons (desktop only) · Not used on mobile</div><div class="ts-fail">✗ Mobile forbidden</div></div>
+    <div style="margin-top:6px;font-family:var(--mn);font-size:8px;color:var(--tx3);">Mobile-specific: destructive actions (Isolate, Delete) require 2-step confirmation. Single tap → confirmation bottom sheet → confirm. No accidental isolations on touch devices.</div>
+  </div>
+</div>
+
+<div>
+  <div class="section-label">04 · MOBILE-SPECIFIC UX RULES</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="mobile-rules"></div>
+</div>
+
+</div>
+</div>
+<script>
+document.querySelectorAll('.pn-item').forEach(item => {
+  item.onclick = () => {
+    document.querySelectorAll('.pn-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+  };
+});
+</script>

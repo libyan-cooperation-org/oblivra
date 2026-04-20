@@ -139,4 +139,54 @@
     background: linear-gradient(90deg, transparent, rgba(26,170,96,0.15), transparent);
     animation: shimmer 3s ease-in-out infinite;
   }
+
+  /* 23. TABS & BADGES */
+  .tab-group {
+    display: flex;
+    gap: 0;
+  }
+
+  .tab {
+    padding: 4px 12px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    border: 1px solid var(--color-border-primary);
+    border-right: none;
+    transition: all 0.1s;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tab:first-child { border-radius: 2px 0 0 2px; }
+  .tab:last-child { border-radius: 0 2px 2px 0; border-right: 1px solid var(--color-border-primary); }
+  .tab:hover { color: var(--color-text-primary); background: var(--color-surface-3); }
+  
+  .tab.active {
+    background: var(--color-surface-3);
+    color: var(--color-accent-hover);
+    border-color: var(--color-accent);
+    box-shadow: inset 0 0 6px rgba(24, 120, 200, 0.15), 0 0 8px rgba(24, 120, 200, 0.1);
+    border-bottom: 2px solid var(--color-accent) !important;
+    z-index: 10;
+  }
+
+  .tab .badge {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    background: var(--color-border-secondary);
+    color: var(--color-text-muted);
+    padding: 1px 4px;
+    border-radius: 2px;
+    transition: all 0.1s;
+  }
+
+  .tab.active .badge {
+    background: var(--color-accent);
+    color: #fff;
+  }
 }

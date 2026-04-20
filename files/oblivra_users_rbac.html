@@ -1,0 +1,207 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--ac:#1878c8;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--md3:rgba(154,128,0,0.1);--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{display:flex;flex-direction:column;min-height:840px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;height:28px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-family:var(--mn);font-size:11px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:#e05050;font-style:normal;}
+.ctx{font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid #5aaef0;border-radius:2px;color:#5aaef0;background:rgba(90,174,240,0.06);letter-spacing:0.12em;}
+.dv{width:1px;height:14px;background:var(--b1);}
+.ml{margin-left:auto;}
+.pl{font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.1em;}
+.body{display:grid;grid-template-columns:1fr 300px;flex:1;min-height:0;}
+.main{display:flex;flex-direction:column;border-right:1px solid var(--b1);}
+.toolbar{padding:6px 12px;border-bottom:1px solid var(--b1);background:var(--s1);display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.tabs{display:flex;gap:0;}
+.tab{padding:4px 12px;font-family:var(--mn);font-size:9px;letter-spacing:0.1em;color:var(--tx2);cursor:pointer;border:1px solid var(--b1);border-right:none;}
+.tab:first-child{border-radius:2px 0 0 2px;}
+.tab:last-child{border-radius:0 2px 2px 0;border-right:1px solid var(--b1);}
+.tab.active{background:var(--s3);color:#5aaef0;border-color:rgba(24,120,200,0.4);}
+.search-in{background:var(--s3);border:1px solid var(--b2);border-radius:2px;color:var(--tx);font-family:var(--mn);font-size:9px;padding:3px 8px;width:180px;outline:none;margin-left:8px;}
+.add-btn{font-family:var(--mn);font-size:9px;padding:3px 10px;border-radius:2px;border:1px solid rgba(20,120,72,0.3);background:var(--ok3);color:var(--ok2);cursor:pointer;margin-left:auto;}
+.table-wrap{flex:1;overflow-y:auto;}
+.ut{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed;}
+.ut th{padding:4px 10px;font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;border-bottom:1px solid var(--b1);background:var(--s2);font-weight:400;position:sticky;top:0;text-align:left;}
+.ut td{padding:6px 10px;border-bottom:1px solid rgba(26,37,53,0.4);vertical-align:middle;}
+.ur-row{cursor:pointer;transition:background 0.08s;}
+.ur-row:hover{background:var(--s3);}
+.ur-row.sel{background:rgba(24,120,200,0.07);border-left:2px solid var(--ac);}
+.u-avatar{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:9px;font-weight:500;flex-shrink:0;}
+.u-name{font-size:10px;color:var(--tx);}
+.u-email{font-family:var(--mn);font-size:9px;color:var(--tx3);}
+.role-badge{font-family:var(--mn);font-size:8px;padding:2px 6px;border-radius:2px;display:inline-block;}
+.rb-l1{background:var(--ok3);color:var(--ok2);}
+.rb-l2{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.rb-l3{background:var(--pu3);color:var(--pu2);}
+.rb-admin{background:var(--cr3);color:var(--cr2);}
+.rb-ro{background:var(--s3);color:var(--tx2);}
+.online-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px;}
+.od-on{background:var(--ok2);}
+.od-off{background:var(--tx3);}
+.od-mfa{background:var(--md2);}
+.row-actions{display:flex;gap:3px;opacity:0;transition:opacity 0.1s;}
+.ur-row:hover .row-actions{opacity:1;}
+.ra{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;border:1px solid var(--b2);cursor:pointer;background:none;color:var(--tx2);}
+.ra:hover{border-color:var(--b3);color:var(--tx);}
+.ra-danger{border-color:rgba(192,40,40,0.3);color:var(--cr2);background:var(--cr3);}
+.sidebar{background:var(--s1);display:flex;flex-direction:column;overflow-y:auto;}
+.ph{padding:5px 10px;background:var(--s2);border-bottom:1px solid var(--b1);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.13em;}
+.user-profile{padding:12px 10px;}
+.up-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.up-avatar-lg{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mn);font-size:14px;font-weight:500;}
+.up-name{font-size:13px;font-weight:500;color:#d0e8f8;}
+.up-role-badge{font-family:var(--mn);font-size:9px;margin-top:2px;}
+.up-field{margin-bottom:5px;}
+.upf-key{font-family:var(--mn);font-size:8px;color:var(--tx3);}
+.upf-val{font-family:var(--mn);font-size:9px;color:var(--tx);margin-top:1px;}
+.perms-section{border-top:1px solid var(--b1);padding:8px 10px;}
+.ps-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:5px;}
+.perm-row{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:9px;border-bottom:1px solid rgba(26,37,53,0.3);}
+.perm-row:last-child{border-bottom:none;}
+.pr-module{color:var(--tx2);flex:1;}
+.pr-access{font-family:var(--mn);font-size:8px;padding:1px 4px;border-radius:2px;}
+.pa-rw{background:var(--ok3);color:var(--ok2);}
+.pa-ro{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.pa-none{background:var(--s3);color:var(--tx3);}
+.activity-section{border-top:1px solid var(--b1);padding:8px 10px;}
+.as-title{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:5px;}
+.act-item{display:flex;gap:6px;margin-bottom:4px;font-size:9px;}
+.ai-ts{font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;width:42px;}
+.ai-txt{color:var(--tx);}
+.up-actions{padding:8px 10px;border-top:1px solid var(--b1);display:flex;flex-direction:column;gap:4px;}
+.ua-btn{font-family:var(--mn);font-size:9px;padding:4px 10px;border-radius:2px;border:1px solid;cursor:pointer;text-align:left;}
+.ua-info{background:rgba(24,120,200,0.08);border-color:rgba(24,120,200,0.2);color:#5aaef0;}
+.ua-warn{background:var(--hi3);border-color:rgba(184,96,0,0.25);color:var(--hi2);}
+.ua-danger{background:var(--cr3);border-color:rgba(192,40,40,0.3);color:var(--cr2);}
+.ua-ghost{background:none;border-color:var(--b2);color:var(--tx2);}
+.mfa-section{border-top:1px solid var(--b1);padding:8px 10px;}
+.mfa-row{display:flex;align-items:center;gap:6px;font-size:9px;margin-bottom:4px;}
+.mfa-icon{font-size:10px;}
+.mfa-label{color:var(--tx2);}
+.mfa-status{font-family:var(--mn);font-size:8px;margin-left:auto;}
+.statusbar{background:var(--s2);border-top:1px solid var(--b1);padding:3px 12px;display:flex;gap:12px;font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;}
+::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px;}
+</style>
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div><div class="ctx">WEB</div><div class="dv"></div>
+  <div class="pl">USERS &amp; RBAC · GOV-FIN-001</div>
+  <div class="ml" style="font-family:var(--mn);font-size:9px;color:var(--tx3);">12 USERS · 4 ONLINE · MFA: 11/12</div>
+</div>
+<div class="body">
+<div class="main">
+  <div class="toolbar">
+    <div class="tabs">
+      <div class="tab active">USERS (12)</div>
+      <div class="tab">ROLES (6)</div>
+      <div class="tab">SESSIONS (4)</div>
+      <div class="tab">AUDIT LOG</div>
+    </div>
+    <input class="search-in" placeholder="Search users..." />
+    <button class="add-btn" onclick="sendPrompt('Invite a new user to OBLIVRA tenant GOV-FIN-001 and assign a role')">+ INVITE USER</button>
+  </div>
+  <div class="table-wrap">
+    <table class="ut">
+      <thead><tr>
+        <th style="width:28px;"></th>
+        <th style="width:160px;">USER</th>
+        <th style="width:90px;">ROLE</th>
+        <th style="width:80px;">STATUS</th>
+        <th style="width:70px;">MFA</th>
+        <th style="width:80px;">LAST ACTIVE</th>
+        <th style="width:100px;">ACTIONS</th>
+      </tr></thead>
+      <tbody id="user-table"></tbody>
+    </table>
+  </div>
+</div>
+<div class="sidebar">
+  <div class="ph">USER PROFILE</div>
+  <div class="user-profile">
+    <div class="up-header">
+      <div class="up-avatar-lg" style="background:rgba(90,174,240,0.12);color:#5aaef0;">MC</div>
+      <div>
+        <div class="up-name">CHEN, M.</div>
+        <div class="role-badge rb-l2">L2 ANALYST</div>
+      </div>
+    </div>
+    <div class="up-field"><div class="upf-key">EMAIL</div><div class="upf-val">m.chen@govfin-001.sec</div></div>
+    <div class="up-field"><div class="upf-key">EMPLOYEE ID</div><div class="upf-val">EMP-4412</div></div>
+    <div class="up-field"><div class="upf-key">DEPARTMENT</div><div class="upf-val">SOC Operations</div></div>
+    <div class="up-field"><div class="upf-key">SHIFT</div><div class="upf-val">SHIFT-A · 06:00–14:00 UTC</div></div>
+    <div class="up-field"><div class="upf-key">ACTIVE SESSION</div><div class="upf-val" style="color:var(--ok2);">00:38Z · ANA-3 · WEB</div></div>
+  </div>
+  <div class="mfa-section">
+    <div class="as-title">AUTHENTICATION</div>
+    <div class="mfa-row"><div class="mfa-icon" style="color:var(--ok2);">⊠</div><div class="mfa-label">TOTP (Authenticator app)</div><div class="mfa-status" style="color:var(--ok2);">ENABLED</div></div>
+    <div class="mfa-row"><div class="mfa-icon" style="color:var(--pu2);">◎</div><div class="mfa-label">Hardware key (YubiKey)</div><div class="mfa-status" style="color:var(--pu2);">ENROLLED</div></div>
+    <div class="mfa-row"><div class="mfa-icon" style="color:var(--tx3);">⊕</div><div class="mfa-label">SMS fallback</div><div class="mfa-status" style="color:var(--tx3);">DISABLED</div></div>
+  </div>
+  <div class="perms-section">
+    <div class="ps-title">MODULE PERMISSIONS</div>
+    <div class="perm-row"><div class="pr-module">SIEM Search</div><div class="pr-access pa-rw">READ/WRITE</div></div>
+    <div class="perm-row"><div class="pr-module">Alert Management</div><div class="pr-access pa-rw">READ/WRITE</div></div>
+    <div class="perm-row"><div class="pr-module">SOAR Playbooks</div><div class="pr-access pa-ro">READ ONLY</div></div>
+    <div class="perm-row"><div class="pr-module">Evidence Vault</div><div class="pr-access pa-rw">READ/WRITE</div></div>
+    <div class="perm-row"><div class="pr-module">Fleet Management</div><div class="pr-access pa-ro">READ ONLY</div></div>
+    <div class="perm-row"><div class="pr-module">Host Isolation</div><div class="pr-access pa-rw">APPROVE REQ.</div></div>
+    <div class="perm-row"><div class="pr-module">Threat Intel</div><div class="pr-access pa-rw">READ/WRITE</div></div>
+    <div class="perm-row"><div class="pr-module">Admin / Tenant</div><div class="pr-access pa-none">NO ACCESS</div></div>
+  </div>
+  <div class="activity-section">
+    <div class="as-title">RECENT ACTIVITY</div>
+    <div class="act-item"><div class="ai-ts">00:54</div><div class="ai-txt">Evidence sealed EVD-044</div></div>
+    <div class="act-item"><div class="ai-ts">00:52</div><div class="ai-txt">SIEM query — HOST-FIN-044</div></div>
+    <div class="act-item"><div class="ai-ts">00:48</div><div class="ai-txt">Alert ACK — EDR-3847</div></div>
+    <div class="act-item"><div class="ai-ts">00:38</div><div class="ai-txt">Session started · ANA-3</div></div>
+  </div>
+  <div class="up-actions">
+    <button class="ua-btn ua-info" onclick="sendPrompt('Edit RBAC role and permissions for analyst CHEN M in GOV-FIN-001')">EDIT PERMISSIONS</button>
+    <button class="ua-btn ua-warn" onclick="sendPrompt('Force MFA re-enrollment for CHEN M')">FORCE MFA RE-ENROLL</button>
+    <button class="ua-btn ua-danger" onclick="sendPrompt('Terminate all active sessions for CHEN M immediately')">TERMINATE SESSIONS</button>
+    <button class="ua-btn ua-ghost" onclick="sendPrompt('Export full audit trail for user CHEN M as PDF')">EXPORT AUDIT TRAIL</button>
+  </div>
+</div>
+</div>
+<div class="statusbar">
+  <span>USERS: <span style="color:var(--ok2);">12 TOTAL · 4 ONLINE</span></span>
+  <span>|</span><span>MFA: <span style="color:var(--ok2);">11/12 ENROLLED</span></span>
+  <span>|</span><span>SSO: <span style="color:var(--ok2);">ACTIVE</span></span>
+  <span style="margin-left:auto;">IAM v2.14.1</span>
+</div>
+</div>
+<script>
+const users=[
+  {init:'MC',name:'CHEN, M.',email:'m.chen@',role:'l2',roleLabel:'L2 ANALYST',color:'#5aaef0',online:true,mfa:'HW+TOTP',last:'00:38Z',dept:'SOC Operations'},
+  {init:'RP',name:'PATEL, R.',email:'r.patel@',role:'l2',roleLabel:'L2 ANALYST',color:'#9878e0',online:true,mfa:'TOTP',last:'00:41Z',dept:'Detection Eng.'},
+  {init:'TJ',name:'JONES, T.',email:'t.jones@',role:'l3',roleLabel:'L3 SOC LEAD',color:'#1aaa60',online:true,mfa:'HW+TOTP',last:'00:44Z',dept:'Incident Response'},
+];
+
+function selectUser(u) {
+  document.querySelector('.up-name').textContent = u.name;
+  document.querySelector('.up-avatar-lg').textContent = u.init;
+  document.querySelector('.up-avatar-lg').style.color = u.color;
+  document.querySelector('.up-avatar-lg').style.background = u.color + '18';
+  document.querySelector('.upf-val').textContent = u.email + 'govfin-001.sec';
+}
+
+function renderUsers(filter = '') {
+  const roleClass={l1:'rb-l1',l2:'rb-l2',l3:'rb-l3',admin:'rb-admin',ro:'rb-ro'};
+  const tb=document.getElementById('user-table');
+  tb.innerHTML = '';
+  users.forEach(u=>{
+    if (filter && !u.name.toLowerCase().includes(filter.toLowerCase())) return;
+    const tr=document.createElement('tr');
+    tr.className='ur-row';
+    const mfaColor=u.mfa==='NONE'?'color:var(--cr2);':u.mfa.includes('HW')?'color:var(--pu2);':'color:var(--ok2);';
+    tr.innerHTML=`<td><div class="u-avatar" style="background:${u.color}18;color:${u.color};">${u.init}</div></td><td><div class="u-name">${u.name}</div><div class="u-email">${u.email}govfin-001.sec</div></td><td><span class="role-badge ${roleClass[u.role]}">${u.roleLabel}</span></td><td><span class="online-dot ${u.online?'od-on':'od-off'}"></span><span style="color:${u.online?'var(--ok2)':'var(--tx3)'};">${u.online?'ONLINE':'OFFLINE'}</span></td><td><span style="${mfaColor}">${u.mfa}</span></td><td>${u.last}</td><td><button class="ra">EDIT</button></td>`;
+    tr.onclick=()=>selectUser(u);
+    tb.appendChild(tr);
+  });
+}
+renderUsers();
+document.querySelector('.search-in').oninput = (e) => renderUsers(e.target.value);
+</script>

@@ -92,6 +92,8 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     { path: '/team',                   availability: 'both' },
     { path: '/hosts',                  availability: 'both' },
     { path: '/plugins',                availability: 'both' },
+    { path: '/shortcuts',              availability: 'both' },
+    { path: '/admin',                  availability: 'both' },
 
     // ── Desktop-only ──────────────────────────────────────────────────────
     {
@@ -128,6 +130,11 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
         path: '/offline-update',
         availability: 'desktop',
         unavailableReason: 'Offline update bundles are applied to the local binary only.',
+    },
+    {
+        path: '/operator',
+        availability: 'desktop',
+        unavailableReason: 'Operator Mode requires a direct PTY connection to the host via the desktop binary.',
     },
 
     // ── Browser/Server-only ───────────────────────────────────────────────

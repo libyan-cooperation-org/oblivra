@@ -32,26 +32,18 @@
   }
 </script>
 
-<div class="flex items-center gap-0 border-b border-border-primary shrink-0"
-  class:gap-1={variant === 'pills'}
-  class:border-b-0={variant === 'pills'}
-  class:p-1={variant === 'pills'}
->
+<div class="tab-group {variant === 'pills' ? 'gap-1' : ''}" class:border-b={variant === 'default'}>
   {#each tabs as tab}
     <button
-      class="relative flex items-center gap-1.5 bg-transparent border-none cursor-pointer font-[var(--font-ui)] font-medium whitespace-nowrap transition-all duration-fast
-        {variant === 'default'
-          ? `px-3.5 h-8 text-[11px] border-b-2 ${active === tab.id ? 'text-accent border-accent-cta' : 'text-text-muted border-transparent hover:text-text-secondary hover:bg-surface-3/30'}`
-          : `px-2.5 py-1 text-[10px] rounded-sm ${active === tab.id ? 'bg-accent/15 text-accent font-semibold' : 'text-text-muted hover:text-text-secondary hover:bg-surface-3'}`
-        }"
+      class="tab {active === tab.id ? 'active' : ''}"
       onclick={() => select(tab.id)}
     >
       {#if tab.icon}
         <span class="text-[1.1em]">{tab.icon}</span>
       {/if}
       {tab.label}
-      {#if tab.badge && tab.badge > 0}
-        <span class="text-[7px] font-extrabold bg-accent text-surface-0 rounded-full px-1 py-px font-mono min-w-[14px] text-center">
+      {#if tab.badge !== undefined}
+        <span class="badge">
           {tab.badge > 99 ? '99+' : tab.badge}
         </span>
       {/if}

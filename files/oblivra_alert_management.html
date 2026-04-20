@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--ac:#1878c8;--cr:#c02828;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--cr4:rgba(192,40,40,0.22);--hi:#b86000;--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md:#9a8000;--md2:#c8a800;--md3:rgba(154,128,0,0.1);--ok:#147848;--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{display:flex;flex-direction:column;min-height:800px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;height:28px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-family:var(--mn);font-size:11px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:#e05050;font-style:normal;}
+.ctx{font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid #5aaef0;border-radius:2px;color:#5aaef0;background:rgba(90,174,240,0.06);letter-spacing:0.12em;}
+.pl{font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.1em;}
+.ml{margin-left:auto;}
+.kbd{font-family:var(--mn);font-size:8px;background:var(--s3);border:1px solid var(--b2);border-radius:2px;padding:1px 4px;color:var(--tx2);}
+.dv{width:1px;height:14px;background:var(--b1);}
+.st{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;display:inline-block;}
+.st-cr{background:var(--cr3);color:#e05050;}
+.st-hi{background:var(--hi3);color:var(--hi2);}
+.st-md{background:var(--md3);color:var(--md2);}
+.st-op{background:rgba(24,120,200,0.1);color:#5aaef0;}
+.st-ack{background:var(--md3);color:var(--md2);}
+.st-inv{background:var(--pu3);color:var(--pu2);}
+.st-cls{background:var(--ok3);color:var(--ok2);}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--b1);border-bottom:1px solid var(--b1);flex-shrink:0;}
+.mc{background:var(--s2);padding:8px 12px;}
+.mc-lbl{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;margin-bottom:4px;}
+.mc-val{font-family:var(--mn);font-size:20px;font-weight:500;line-height:1;}
+.mc-sub{font-family:var(--mn);font-size:9px;color:var(--tx2);margin-top:2px;}
+.toolbar{padding:6px 12px;border-bottom:1px solid var(--b1);background:var(--s1);display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.tabs{display:flex;gap:0;}
+.tab{padding:4px 12px;font-family:var(--mn);font-size:9px;letter-spacing:0.1em;color:var(--tx2);cursor:pointer;border:1px solid var(--b1);border-right:none;transition:all 0.1s;}
+.tab:first-child{border-radius:2px 0 0 2px;}
+.tab:last-child{border-radius:0 2px 2px 0;border-right:1px solid var(--b1);}
+.tab:hover{color:var(--tx);background:var(--s3);}
+.tab.active{background:var(--s3);color:#5aaef0;border-color:var(--ac);}
+.filter-group{display:flex;gap:4px;align-items:center;margin-left:8px;}
+.fl{font-family:var(--mn);font-size:9px;padding:3px 8px;border-radius:2px;border:1px solid var(--b2);background:none;color:var(--tx2);cursor:pointer;}
+.fl:hover,.fl.on{border-color:var(--ac);color:#5aaef0;background:rgba(24,120,200,0.08);}
+.search-in{background:var(--s3);border:1px solid var(--b2);border-radius:2px;color:var(--tx);font-family:var(--mn);font-size:9px;padding:3px 8px;width:180px;outline:none;}
+.search-in:focus{border-color:var(--ac);}
+.bulk-actions{display:flex;gap:4px;margin-left:auto;}
+.ba{font-family:var(--mn);font-size:9px;padding:3px 9px;border-radius:2px;border:1px solid var(--b2);background:none;color:var(--tx2);cursor:pointer;}
+.ba:hover{border-color:var(--b3);color:var(--tx);}
+.ba-danger{border-color:rgba(192,40,40,0.3);color:#e05050;background:var(--cr3);}
+.ba-danger:hover{background:var(--cr4);}
+.table-wrap{flex:1;overflow-y:auto;min-height:0;}
+.at{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed;}
+.at th{padding:4px 10px;text-align:left;font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;border-bottom:1px solid var(--b1);background:var(--s2);font-weight:400;position:sticky;top:0;z-index:2;cursor:pointer;}
+.at th:hover{color:var(--tx);}
+.at td{padding:5px 10px;border-bottom:1px solid rgba(26,37,53,0.4);vertical-align:middle;}
+.ar{cursor:pointer;transition:background 0.08s;}
+.ar:hover{background:var(--s3);}
+.ar.sel{background:rgba(24,120,200,0.07);border-left:2px solid var(--ac);}
+.ar.hl{background:rgba(192,40,40,0.05);}
+.chk{width:12px;height:12px;border:1px solid var(--b2);border-radius:2px;cursor:pointer;flex-shrink:0;}
+.sev-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;flex-shrink:0;}
+.sd-cr{background:#e05050;box-shadow:0 0 5px rgba(224,80,80,0.4);}
+.sd-hi{background:var(--hi2);}
+.sd-md{background:var(--md2);}
+.sd-lo{background:var(--ok2);}
+.alert-title{font-size:11px;color:var(--tx);display:flex;align-items:center;}
+.alert-sub{font-family:var(--mn);font-size:9px;color:var(--tx3);margin-top:1px;}
+.risk{font-family:var(--mn);font-size:10px;font-weight:500;text-align:center;padding:2px 5px;border-radius:2px;min-width:32px;display:inline-block;}
+.rk-cr{background:var(--cr3);color:#e05050;}
+.rk-hi{background:var(--hi3);color:var(--hi2);}
+.rk-md{background:var(--md3);color:var(--md2);}
+.sla-wrap{width:72px;}
+.sla-bg{height:3px;background:var(--b2);border-radius:1px;overflow:hidden;margin-bottom:2px;}
+.sla-fill{height:100%;border-radius:1px;}
+.sf-cr{background:var(--cr);}
+.sf-hi{background:var(--hi);}
+.sf-md{background:var(--md);}
+.sla-time{font-family:var(--mn);font-size:9px;color:var(--tx2);}
+.sla-breach{color:#e05050;animation:blink 1s step-end infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.assign{font-family:var(--mn);font-size:9px;color:var(--tx2);}
+.assign-btn{font-family:var(--mn);font-size:8px;padding:1px 6px;border-radius:2px;border:1px solid var(--b2);background:none;color:var(--tx3);cursor:pointer;}
+.assign-btn:hover{border-color:var(--ac);color:#5aaef0;}
+.row-actions{display:flex;gap:4px;opacity:0;transition:opacity 0.1s;}
+.ar:hover .row-actions{opacity:1;}
+.ra{font-family:var(--mn);font-size:8px;padding:1px 5px;border-radius:2px;border:1px solid;cursor:pointer;}
+.ra-danger{border-color:rgba(192,40,40,0.3);color:#e05050;background:var(--cr3);}
+.ra-warn{border-color:rgba(184,96,0,0.25);color:var(--hi2);background:var(--hi3);}
+.ra-ghost{border-color:var(--b2);color:var(--tx2);background:none;}
+.detail-drawer{background:var(--s2);border-top:1px solid var(--b1);padding:12px;display:none;}
+.detail-drawer.open{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;flex-shrink:0;}
+.dd-section{border:1px solid var(--b1);border-radius:2px;overflow:hidden;}
+.dd-hd{padding:5px 8px;background:var(--s3);border-bottom:1px solid var(--b1);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.1em;}
+.dd-body{padding:8px;}
+.dd-row{display:flex;gap:6px;margin-bottom:4px;font-size:9px;}
+.dd-key{color:var(--tx3);font-family:var(--mn);width:90px;flex-shrink:0;}
+.dd-val{color:var(--tx);font-family:var(--mn);}
+.dd-actions{display:flex;flex-direction:column;gap:4px;padding:8px;}
+.dda{font-family:var(--mn);font-size:9px;padding:4px 10px;border-radius:2px;border:1px solid;cursor:pointer;text-align:left;width:100%;}
+.dda-danger{background:var(--cr3);border-color:rgba(192,40,40,0.3);color:#e05050;}
+.dda-warn{background:var(--hi3);border-color:rgba(184,96,0,0.25);color:var(--hi2);}
+.dda-info{background:rgba(24,120,200,0.1);border-color:rgba(24,120,200,0.25);color:#5aaef0;}
+.dda-ghost{background:none;border-color:var(--b2);color:var(--tx2);}
+.statusbar{background:var(--s2);border-top:1px solid var(--b1);padding:3px 12px;display:flex;gap:12px;font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;}
+.sb-ok{color:var(--ok2);}
+::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:#2a3d55;border-radius:2px;}::-webkit-scrollbar-thumb:hover{background:#3a5570;}
+</style>
+
+<style id="oblivra-design-system-patch">
+/* ═══════════════════════════════════════════════════════
+   OBLIVRA DESIGN SYSTEM — Global Patch v1.1
+   Applied uniformly across all 14 screens
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. SCROLLBAR — 4px, visible thumb */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3d55; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3a5570; }
+
+/* 2. SCROLL FADE — signal hidden content */
+.ev-table-wrap, .table-area, .log-wrap, .log-scroll,
+.activity-feed, .feed-area, .detail, .sidebar, .left-rail,
+.entity-detail, .node-palette, .pb-list, .col {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+}
+
+/* 3. ISOLATED ROWS — draw eye TOWARD danger, not away */
+.fr.iso {
+  opacity: 1 !important;
+  background: rgba(192, 40, 40, 0.07) !important;
+  border-left: 2px solid rgba(224, 80, 80, 0.6) !important;
+}
+.fr.iso .host-name { color: #e05050 !important; }
+
+/* 4. ROW ACTIONS — persistent ⋯ menu button alongside hover-only actions */
+.row-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ra-more {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--b2, #22304a);
+  color: var(--tx3, #3a5570);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ra-more:hover { color: var(--tx, #bfd0e0); border-color: var(--b3, #2a3d55); }
+
+/* 5. FOCUS OUTLINES — keyboard accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 1.5px solid rgba(90, 174, 240, 0.6);
+  outline-offset: 1px;
+}
+
+/* 6. CRITICAL BANNER PULSE — War Room distinction */
+.isolated-banner, .crit-banner {
+  animation: banner-pulse 3s ease-in-out infinite;
+}
+@keyframes banner-pulse {
+  0%, 100% { border-bottom-color: rgba(192, 40, 40, 0.3); }
+  50% { border-bottom-color: rgba(224, 80, 80, 0.55); }
+}
+
+/* 7. WAR ROOM topbar glow */
+.wr-topbar {
+  box-shadow: 0 2px 12px rgba(200, 40, 40, 0.25);
+}
+
+/* 8. SLA BREACH blink is already present — add glow */
+.sla-breach {
+  animation: sla-blink 1s step-end infinite, sla-glow 1s ease-in-out infinite !important;
+}
+@keyframes sla-glow {
+  0%, 100% { text-shadow: none; }
+  50% { text-shadow: 0 0 6px rgba(224, 80, 80, 0.5); }
+}
+
+/* 9. SETUP WIZARD — firewall warning blocker state */
+.prereq-item.blocking {
+  background: rgba(192, 40, 40, 0.08) !important;
+  border: 1px solid rgba(192, 40, 40, 0.3) !important;
+  border-left: 3px solid #e05050 !important;
+}
+.prereq-item.blocking .pi-name { color: #e05050 !important; }
+.prereq-item.blocking .pi-status { color: #e05050 !important; animation: blink 1.2s step-end infinite; }
+
+/* 10. CONTINUE button disabled state for wizard */
+.btn-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--s3, #161c24) !important;
+  border-color: var(--b1, #1a2535) !important;
+  color: var(--tx3, #3a5570) !important;
+}
+.wizard-block-notice {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #e05050;
+  padding: 4px 8px;
+  background: rgba(192, 40, 40, 0.08);
+  border: 1px solid rgba(192, 40, 40, 0.25);
+  border-radius: 2px;
+  margin-top: 6px;
+}
+
+/* 11. METRIC CARDS — subtle bottom accent bar */
+.mc::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin-top: 6px;
+  background: var(--b1, #1a2535);
+  border-radius: 1px;
+}
+
+/* 12. Panel hover elevation */
+.panel:hover {
+  border-color: var(--b2, #22304a);
+  transition: border-color 0.15s;
+}
+
+/* 13. Nav item active indicator glow */
+.nav-item.active, .tab.active {
+  box-shadow: inset 2px 0 6px rgba(26, 127, 212, 0.15), 0 0 8px rgba(26, 127, 212, 0.1);
+  border-bottom: 2px solid var(--ac, #1878c8) !important;
+}
+
+/* 13b. Tab Badge styling */
+.tab .badge {
+  font-family: var(--mn);
+  font-size: 8px;
+  background: var(--b2);
+  color: var(--tx3);
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-left: 5px;
+  transition: all 0.1s;
+}
+.tab.active .badge {
+  background: var(--ac);
+  color: #fff;
+}
+
+/* 14. Alert row critical glow */
+
+/* 14. Alert row critical glow */
+.ar.hl, .alert-row:first-child td {
+  position: relative;
+}
+.ar.hl::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: #e05050;
+  box-shadow: 0 0 6px rgba(224, 80, 80, 0.4);
+}
+
+/* 15. Token-style query bar improvements */
+.qb-token {
+  transition: opacity 0.1s;
+  user-select: none;
+}
+.qb-token:hover { opacity: 0.75; }
+
+/* 16. Evidence seal pending — subtle pulse */
+.sb-pending {
+  animation: pending-pulse 2.5s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* 17. Canvas nodes — cursor pointer */
+canvas { cursor: crosshair; }
+
+/* 18. Trust badge shimmer on SEALED */
+.tb-sealed, .vi-seal, .sb-sealed {
+  position: relative;
+  overflow: hidden;
+}
+.tb-sealed::after, .vi-seal::after, .sb-sealed::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60px; width: 40px; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(26,170,96,0.15), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { left: -60px; }
+  60%, 100% { left: calc(100% + 20px); }
+}
+
+/* 19. Compliance score bar tick marks */
+.fw-bar { position: relative; }
+
+/* 20. Deployment mode card selected ring */
+.dm-card.selected {
+  box-shadow: 0 0 0 1px rgba(24, 120, 200, 0.4), inset 0 0 12px rgba(24, 120, 200, 0.04);
+}
+
+/* 21. Step connector line */
+.step-item + .step-item {
+  border-top: none;
+}
+
+/* 22. Status bar separator style */
+.statusbar span:not(:first-child):not([style*="margin-left"]) {
+  padding-left: 0;
+}
+
+/* 23. SIEM histogram bar hover tooltip */
+.hbar { position: relative; }
+
+/* 24. Log row expand animation */
+.expand-row td { animation: expand-in 0.15s ease-out; }
+@keyframes expand-in {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 400px; }
+}
+
+/* 25. Improved metric value coloring for zero-values */
+.mc-v[data-zero="true"] { color: var(--tx3, #3a5570) !important; }
+
+</style>
+
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div><div class="ctx">WEB</div><div class="dv"></div>
+  <div class="pl">ALERT MANAGEMENT</div><div class="dv"></div>
+  <div style="font-family:var(--mn);font-size:9px;color:var(--tx2);">TENANT: GOV-FIN-001</div>
+  <div class="ml" style="display:flex;gap:8px;"><span class="kbd">G A</span><span class="kbd">⌃⇧A</span></div>
+</div>
+<div class="metrics">
+  <div class="mc"><div class="mc-lbl">TOTAL OPEN</div><div class="mc-val" style="color:var(--tx);">111</div><div class="mc-sub">+31 vs prev 4h</div></div>
+  <div class="mc"><div class="mc-lbl">CRITICAL</div><div class="mc-val" style="color:#e05050;">7</div><div class="mc-sub" style="color:#e05050;">▲ SLA BREACH RISK</div></div>
+  <div class="mc"><div class="mc-lbl">UNASSIGNED</div><div class="mc-val" style="color:var(--hi2);">34</div><div class="mc-sub">needs triage</div></div>
+  <div class="mc"><div class="mc-lbl">AVG MTTR</div><div class="mc-val">14.2m</div><div class="mc-sub" style="color:var(--ok2);">▼ −2.1m vs SLA</div></div>
+  <div class="mc"><div class="mc-lbl">FALSE POSITIVE</div><div class="mc-val">8.4%</div><div class="mc-sub">last 7 days</div></div>
+</div>
+<div class="toolbar">
+  <div class="tabs" id="main-tabs">
+    <div class="tab active" data-tab="open">OPEN <span class="badge">111</span></div>
+    <div class="tab" data-tab="ack">ACK <span class="badge">28</span></div>
+    <div class="tab" data-tab="investigating">INVESTIGATING <span class="badge">7</span></div>
+    <div class="tab" data-tab="closed">CLOSED <span class="badge">904</span></div>
+    <div class="tab" data-tab="suppressed">SUPPRESSED <span class="badge">12</span></div>
+  </div>
+  <div class="filter-group" id="sev-filters">
+    <button class="fl on" data-sev="cr">CRIT</button>
+    <button class="fl on" data-sev="hi">HIGH</button>
+    <button class="fl" data-sev="md">MED</button>
+    <button class="fl" data-sev="lo">LOW</button>
+  </div>
+  <input class="search-in" id="search-in" placeholder="Search alerts..." />
+  <div class="bulk-actions">
+    <button class="ba" onclick="sendPrompt('Bulk acknowledge all unassigned HIGH alerts')">ACK SELECTED</button>
+    <button class="ba" onclick="sendPrompt('Bulk assign selected alerts to analyst CHEN M')">ASSIGN</button>
+    <button class="ba" onclick="sendPrompt('Suppress selected alerts with maintenance window reason')">SUPPRESS</button>
+    <button class="ba ba-danger" onclick="sendPrompt('Mark selected alerts as false positive and submit feedback')">FALSE POS.</button>
+  </div>
+</div>
+<div class="table-wrap">
+<table class="at">
+<thead><tr>
+  <th style="width:22px;"><input type="checkbox" class="chk" /></th>
+  <th style="width:44px;">SEV</th>
+  <th>ALERT</th>
+  <th style="width:90px;">HOST</th>
+  <th style="width:38px;">RISK</th>
+  <th style="width:80px;">SLA</th>
+  <th style="width:80px;">ASSIGNED</th>
+  <th style="width:70px;">STATUS</th>
+  <th style="width:100px;">ACTIONS</th>
+</tr></thead>
+<tbody id="alert-body"></tbody>
+</table>
+</div>
+<div class="detail-drawer" id="detail-drawer">
+  <div class="dd-section">
+    <div class="dd-hd">ALERT DETAIL</div>
+    <div class="dd-body" id="dd-detail"></div>
+  </div>
+  <div class="dd-section">
+    <div class="dd-hd">RELATED CONTEXT</div>
+    <div class="dd-body">
+      <div class="dd-row"><span class="dd-key">campaign</span><span class="dd-val" style="color:#e05050;">FIN-THREAT-22</span></div>
+      <div class="dd-row"><span class="dd-key">incident</span><span class="dd-val" style="color:#5aaef0;">INC-2026-0419-007</span></div>
+      <div class="dd-row"><span class="dd-key">related alerts</span><span class="dd-val">6 linked</span></div>
+      <div class="dd-row"><span class="dd-key">IOC matches</span><span class="dd-val" style="color:#e05050;">3 (TI feed)</span></div>
+      <div class="dd-row"><span class="dd-key">UEBA score</span><span class="dd-val" style="color:var(--hi2);">+4.2σ deviation</span></div>
+      <div class="dd-row"><span class="dd-key">playbook</span><span class="dd-val">PB-CRED-01 active</span></div>
+    </div>
+  </div>
+  <div class="dd-section">
+    <div class="dd-hd">QUICK ACTIONS</div>
+    <div class="dd-actions">
+      <button class="dda dda-danger" onclick="sendPrompt('Isolate host from alert detail panel')">ISOLATE HOST  ⌃⇧I</button>
+      <button class="dda dda-warn" onclick="sendPrompt('Capture forensic evidence from alert detail')">CAPTURE EVIDENCE  ⌃⇧E</button>
+      <button class="dda dda-info" onclick="sendPrompt('Run SOAR playbook PB-CRED-01 for this alert')">RUN PLAYBOOK</button>
+      <button class="dda dda-info" onclick="sendPrompt('Pivot SIEM search on this alert host and timeframe')">PIVOT IN SIEM</button>
+      <button class="dda dda-ghost" onclick="sendPrompt('Mark this alert as false positive and provide feedback')">MARK FALSE POS.</button>
+      <button class="dda dda-ghost" onclick="sendPrompt('Suppress similar alerts for 4-hour maintenance window')">SUPPRESS 4H</button>
+    </div>
+  </div>
+</div>
+<div class="statusbar">
+  <span>QUEUE: <span class="sb-ok">LIVE</span></span>
+  <span>|</span><span>AUTO-TRIAGE: <span class="sb-ok">ON</span></span>
+  <span>|</span><span>ML SCORING: <span class="sb-ok">ACTIVE</span></span>
+  <span style="margin-left:auto;">ALERT ENGINE v2.14.1</span>
+</div>
+</div>
+<script>
+const alerts=[
+  {id:'ALT-3847',s:'cr',title:'Credential dump · LSASS process access',sub:'EDR-3847 · MITRE T1003.001',host:'HOST-FIN-044',risk:97,sla:492,slaPct:88,status:'inv',assign:'CHEN, M.'},
+  {id:'ALT-3846',s:'cr',title:'Lateral movement · SMB auth flood',sub:'NDR-0122 · MITRE T1021.002',host:'HOST-FIN-044',risk:94,sla:270,slaPct:95,status:'inv',assign:'CHEN, M.'},
+  {id:'ALT-3845',s:'cr',title:'Domain account anomaly · DC-CORE-01',sub:'UEBA-4419 · MITRE T1078.002',host:'DC-CORE-01',risk:91,sla:1325,slaPct:45,status:'open',assign:null},
+  {id:'ALT-3844',s:'cr',title:'Kerberoasting · SPN enumeration',sub:'SIEM-7782 · MITRE T1558.003',host:'ADM-WS-017',risk:88,sla:2478,slaPct:30,status:'ack',assign:'PATEL, R.'},
+  {id:'ALT-3843',s:'cr',title:'Unusual egress · 14.2 GB exfil attempt',sub:'NDR-0117 · MITRE T1048',host:'FIN-SRV-09',risk:85,sla:3521,slaPct:20,status:'open',assign:null},
+  {id:'ALT-3840',s:'cr',title:'C2 beacon · 30s interval DNS tunnel',sub:'NDR-0099 · MITRE T1071.004',host:'HOST-FIN-044',risk:82,sla:4112,slaPct:15,status:'inv',assign:'CHEN, M.'},
+  {id:'ALT-3839',s:'cr',title:'Registry persistence · Run key',sub:'EDR-3801 · MITRE T1547.001',host:'HOST-FIN-044',risk:80,sla:4800,slaPct:10,status:'ack',assign:'JONES, T.'},
+  {id:'ALT-3820',s:'hi',title:'WMI remote execution detected',sub:'EDR-3780 · MITRE T1047',host:'FIN-SRV-07',risk:78,sla:5200,slaPct:8,status:'open',assign:null},
+  {id:'ALT-3818',s:'hi',title:'PowerShell encoded payload execution',sub:'SIEM-7701 · MITRE T1059.001',host:'HOST-FIN-044',risk:72,sla:6100,slaPct:5,status:'open',assign:null},
+  {id:'ALT-3810',s:'hi',title:'RDP lateral access outside hours',sub:'SIEM-7688 · MITRE T1021.001',host:'ADM-WS-017',risk:68,sla:7200,slaPct:3,status:'ack',assign:'PATEL, R.'},
+  {id:'ALT-3800',s:'hi',title:'Service installation — suspicious binary',sub:'EDR-3750 · MITRE T1543.003',host:'HOST-FIN-044',risk:65,sla:8400,slaPct:2,status:'open',assign:null},
+  {id:'ALT-3790',s:'md',title:'Multiple failed auth attempts',sub:'SIEM-7640 · MITRE T1110',host:'FIN-SRV-09',risk:42,sla:14400,slaPct:1,status:'open',assign:null},
+];
+const stLbl={cr:'CRIT',hi:'HIGH',md:'MED',lo:'LOW'};
+const stMap={cr:'st-cr',hi:'st-hi',md:'st-md',lo:'st-lo'};
+const sdMap={cr:'sd-cr',hi:'sd-hi',md:'sd-md',lo:'sd-lo'};
+const sfMap={cr:'sf-cr',hi:'sf-hi',md:'sf-md',lo:'sf-lo'};
+const statusBadge={open:'<span class="st st-op">OPEN</span>',ack:'<span class="st st-ack">ACK</span>',inv:'<span class="st st-inv">INVEST.</span>'};
+const tb=document.getElementById('alert-body');
+let selRow=null;
+let activeTab='open';
+let activeSevs=['cr','hi'];
+let searchQuery='';
+
+function renderAlerts(){
+  tb.innerHTML='';
+  const filtered = alerts.filter(a => {
+    const matchesTab = (activeTab === 'open' && (a.status === 'open' || a.status === 'ack' || a.status === 'inv')) || (a.status === activeTab);
+    const matchesSev = activeSevs.includes(a.s);
+    const matchesSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase()) || a.host.toLowerCase().includes(searchQuery.toLowerCase()) || a.id.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesTab && matchesSev && matchesSearch;
+  });
+
+  filtered.forEach((a,i)=>{
+    const mins=Math.floor(a.sla/60), secs=a.sla%60;
+    const slaStr=String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+    const breach=a.slaPct>80;
+    const tr=document.createElement('tr');
+    tr.className='ar'+(a.s==='cr'?' hl':'');
+    tr.innerHTML=`
+      <td><input type="checkbox" class="chk" onclick="event.stopPropagation()" /></td>
+      <td><span class="sev-dot ${sdMap[a.s]}"></span><span class="st ${stMap[a.s]}">${stLbl[a.s]}</span></td>
+      <td><div class="alert-title">${a.title}</div><div class="alert-sub">${a.id} · ${a.sub}</div></td>
+      <td style="font-family:var(--mn);font-size:9px;color:#5aaef0;">${a.host}</td>
+      <td><span class="risk rk-${a.s}">${a.risk}</span></td>
+      <td><div class="sla-wrap"><div class="sla-bg"><div class="sla-fill ${sfMap[a.s]}" style="width:${a.slaPct}%;"></div></div><div class="sla-time ${breach?'sla-breach':''}">${slaStr}</div></div></td>
+      <td>${a.assign?`<span class="assign">${a.assign}</span>`:`<button class="assign-btn" onclick="event.stopPropagation();sendPrompt('Assign alert ${a.id} to an available analyst')">ASSIGN</button>`}</td>
+      <td>${statusBadge[a.status]||''}</td>
+      <td><div class="row-actions"></div></td>`;
+    
+    // Add actions button (enhanced by script below)
+    tr.onclick=()=>{
+      const dd=document.getElementById('detail-drawer');
+      if(selRow===tr){tr.classList.remove('sel');dd.classList.remove('open');selRow=null;return;}
+      if(selRow)selRow.classList.remove('sel');
+      tr.classList.add('sel');selRow=tr;
+      document.getElementById('dd-detail').innerHTML=`
+        <div class="dd-row"><span class="dd-key">alert_id</span><span class="dd-val">${a.id}</span></div>
+        <div class="dd-row"><span class="dd-key">severity</span><span class="dd-val" style="${a.s==='cr'?'color:#e05050':''}">${stLbl[a.s]}</span></div>
+        <div class="dd-row"><span class="dd-key">host</span><span class="dd-val" style="color:#5aaef0;">${a.host}</span></div>
+        <div class="dd-row"><span class="dd-key">risk_score</span><span class="dd-val" style="${a.s==='cr'?'color:#e05050':''}">${a.risk}/100</span></div>
+        <div class="dd-row"><span class="dd-key">sla_remaining</span><span class="dd-val ${a.slaPct>80?'sla-breach':''}">${slaStr}</span></div>
+        <div class="dd-row"><span class="dd-key">status</span><span class="dd-val">${a.status.toUpperCase()}</span></div>
+        <div class="dd-row"><span class="dd-key">assigned_to</span><span class="dd-val">${a.assign||'UNASSIGNED'}</span></div>
+        <div class="dd-row"><span class="dd-key">rule</span><span class="dd-val">${a.sub.split(' · ')[0]}</span></div>`;
+      dd.classList.add('open');
+    };
+    tb.appendChild(tr);
+    
+    // Re-apply the row actions button logic
+    const rowActions = tr.querySelector('.row-actions');
+    const isoBtn = document.createElement('button'); isoBtn.className='ra ra-danger'; isoBtn.textContent='ISO'; isoBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Isolate host ${a.host} from alert ${a.id}`);};
+    const pbBtn = document.createElement('button'); pbBtn.className='ra ra-warn'; pbBtn.textContent='PB'; pbBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Open SOAR playbook for alert ${a.id}`);};
+    const siemBtn = document.createElement('button'); siemBtn.className='ra ra-ghost'; siemBtn.textContent='SIEM'; siemBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Pivot SIEM on alert ${a.id} host ${a.host}`);};
+    const moreBtn = document.createElement('button'); moreBtn.className='ra ra-more'; moreBtn.textContent='⋯'; moreBtn.onclick=(e)=>{e.stopPropagation();sendPrompt(`Show all available actions for alert: ${a.title}`);};
+    rowActions.append(isoBtn, pbBtn, siemBtn, moreBtn);
+  });
+}
+
+// Event Listeners
+document.querySelectorAll('#main-tabs .tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelector('#main-tabs .tab.active').classList.remove('active');
+    t.classList.add('active');
+    activeTab = t.dataset.tab;
+    renderAlerts();
+  };
+});
+
+document.querySelectorAll('#sev-filters .fl').forEach(f => {
+  f.onclick = () => {
+    const s = f.dataset.sev;
+    if(activeSevs.includes(s)){
+      activeSevs = activeSevs.filter(x => x !== s);
+      f.classList.remove('on');
+    } else {
+      activeSevs.push(s);
+      f.classList.add('on');
+    }
+    renderAlerts();
+  };
+});
+
+document.getElementById('search-in').oninput = (e) => {
+  searchQuery = e.target.value;
+  renderAlerts();
+};
+
+renderAlerts();
+</script>
+
+
+<script>
+/* Standalone preview stub — replaced by Wails/Claude runtime in production */
+if (typeof sendPrompt === 'undefined') {
+  window.sendPrompt = function(text) {
+    console.log('[OBLIVRA sendPrompt]', text);
+    const el = document.getElementById('_oblivra_prompt_preview');
+    if (el) { el.textContent = text; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 4000); }
+  };
+  // Preview toast element
+  const toast = document.createElement('div');
+  toast.id = '_oblivra_prompt_preview';
+  toast.style.cssText = 'display:none;position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#161c24;border:1px solid #2a3d55;color:#bfd0e0;font-family:"IBM Plex Mono",monospace;font-size:10px;padding:8px 16px;border-radius:3px;max-width:600px;text-align:center;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(toast));
+}
+</script>
+
+
+<script>
+/* ALERTS: Add persistent ⋯ button to row actions */
+document.querySelectorAll('.ar').forEach(row => {
+  const rowActions = row.querySelector('.row-actions');
+  if (rowActions) {
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'ra ra-more';
+    moreBtn.textContent = '⋯';
+    moreBtn.style.cssText = 'opacity:1;flex-shrink:0;';
+    moreBtn.onclick = (e) => {
+      e.stopPropagation();
+      const title = row.querySelector('.alert-title')?.textContent || '';
+      sendPrompt('Show all available actions for alert: ' + title);
+    };
+    rowActions.appendChild(moreBtn);
+  }
+});
+
+/* Visual left-border glow on critical rows */
+document.querySelectorAll('.ar.hl').forEach(row => {
+  row.style.borderLeft = '2px solid rgba(224,80,80,0.7)';
+  row.style.background = 'rgba(192,40,40,0.06)';
+  row.style.boxShadow = 'inset 2px 0 6px rgba(224,80,80,0.12)';
+});
+</script>
+
+</body>
+</html>

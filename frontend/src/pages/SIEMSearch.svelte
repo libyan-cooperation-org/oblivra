@@ -5,14 +5,15 @@
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable } from '@components/ui';
   import { Search, History, Download, Play, Save, Filter, ChevronRight, BarChart3 } from 'lucide-svelte';
-  import { alertStore } from '@lib/stores/alerts.svelte';
+  import { siemStore } from '@lib/stores/siem.svelte';
 
-  let query = $state('select * from events where severity = "critical" limit 100');
-  let isExecuting = $state(false);
+  let query = $state('select * from events limit 100');
+  const results = $derived(siemStore.results);
+  const isExecuting = $derived(siemStore.loading);
 
-  function executeQuery() {
-    isExecuting = true;
-    setTimeout(() => { isExecuting = false; }, 800);
+  async function executeQuery() {
+    if (!query.trim()) return;
+    await siemStore.executeQuery(query);
   }
 
   const queryHistory = [
@@ -97,29 +98,29 @@
             </div>
             <div class="flex-1 overflow-auto mask-fade-bottom">
                 <DataTable 
-                    data={alertStore.alerts} 
+                    data={results} 
                     columns={[
                         { key: 'timestamp', label: 'TIMESTAMP', width: '140px' },
                         { key: 'host', label: 'HOST', width: '120px' },
                         { key: 'severity', label: 'SEV', width: '80px' },
-                        { key: 'title', label: 'EVENT_DESCRIPTION' },
-                        { key: 'status', label: 'STATUS', width: '100px' }
+                        { key: 'message', label: 'EVENT_DESCRIPTION' },
+                        { key: 'source', label: 'SOURCE', width: '100px' }
                     ]} 
                     compact
                 >
                     {#snippet render({ col, row })}
                         {#if col.key === 'timestamp'}
-                            <span class="text-[9px] font-mono text-text-muted tabular-nums">{row.timestamp}</span>
+                            <span class="text-[9px] font-mono text-text-muted tabular-nums">{new Date(row.timestamp).toLocaleString()}</span>
                         {:else if col.key === 'host'}
                             <span class="text-[9px] font-mono text-accent font-bold">{row.host}</span>
                         {:else if col.key === 'severity'}
-                            <Badge variant={row.severity === 'critical' ? 'critical' : 'warning'} size="xs" class="w-full justify-center">
+                            <Badge variant={row.severity === 'critical' || row.severity === 'high' ? 'critical' : row.severity === 'medium' ? 'warning' : 'info'} size="xs" class="w-full justify-center">
                                 {row.severity}
                             </Badge>
-                        {:else if col.key === 'title'}
-                            <span class="text-[10px] font-bold text-text-secondary line-clamp-1">{row.title}</span>
-                        {:else if col.key === 'status'}
-                            <Badge variant="muted" size="xs" dot>{row.status}</Badge>
+                        {:else if col.key === 'message'}
+                            <span class="text-[10px] font-bold text-text-secondary line-clamp-1">{row.message}</span>
+                        {:else if col.key === 'source'}
+                            <Badge variant="muted" size="xs" dot>{row.source}</Badge>
                         {/if}
                     {/snippet}
                 </DataTable>

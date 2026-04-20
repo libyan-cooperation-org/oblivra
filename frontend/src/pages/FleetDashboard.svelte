@@ -3,7 +3,7 @@
   Real-time visibility into the sovereign agent fleet.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, Input } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, Input, Tabs } from '@components/ui';
   import { Activity, Terminal, ShieldAlert, MoreHorizontal, Monitor, Clock, ShieldCheck } from 'lucide-svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
 
@@ -22,7 +22,11 @@
                          a.remote_address?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab = activeTab === 'ALL HOSTS' || a.status?.toUpperCase() === activeTab;
     return matchesSearch && matchesTab;
-  }));
+  }));  const tabItems = [
+    { id: 'ALL HOSTS', label: 'ALL HOSTS' },
+    { id: 'ONLINE', label: 'ONLINE' },
+    { id: 'OFFLINE', label: 'OFFLINE' }
+  ];
 
   function handleAction(agentId: string, action: string) {
     console.log(`Executing ${action} on ${agentId}`);
@@ -66,17 +70,9 @@
     <!-- MAIN TABLE AREA -->
     <div class="flex-1 flex flex-col min-h-0 bg-surface-1">
         <div class="px-4 py-2 border-b border-border-primary flex items-center justify-between shrink-0">
-            <div class="flex gap-4">
-                {#each ['ALL HOSTS', 'ONLINE', 'OFFLINE'] as tab}
-                    <button 
-                        class="text-[9px] font-mono font-bold tracking-widest uppercase transition-colors {activeTab === tab ? 'text-accent' : 'text-text-muted hover:text-text-secondary'}"
-                        onclick={() => activeTab = tab}
-                    >
-                        {tab}
-                    </button>
-                {/each}
-            </div>
+            <Tabs tabs={tabItems} bind:active={activeTab} />
             <div class="flex items-center gap-4 text-[8px] font-mono text-text-muted">
+>
                 <span>Last Sync: 14s ago</span>
                 <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
             </div>

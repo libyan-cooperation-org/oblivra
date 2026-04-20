@@ -39,6 +39,9 @@
     timeline: '/timeline',
     secrets: '/secrets',
     suppression: '/suppression',
+    admin: '/admin',
+    operator: '/operator',
+    shortcuts: '/shortcuts',
   };
 
   type NavContext = 'both' | 'desktop' | 'browser';
@@ -134,6 +137,7 @@
     { id: 'ledger', icon: 'security', label: 'Ledger' },
     { id: 'timeline', icon: 'dashboard', label: 'Timeline' },
     { id: 'response', icon: 'response', label: 'SOAR' },
+    { id: 'operator', icon: 'terminal', label: 'Operator', context: 'desktop' },
   ];
 
   const intel: NavItem[] = [
@@ -162,6 +166,7 @@
     { id: 'war-mode', icon: 'war', label: 'WarMode' },
     { id: 'secrets', icon: 'security', label: 'Secrets' },
     { id: 'suppression', icon: 'shield-off', label: 'Silence' },
+    { id: 'admin', icon: 'identity', label: 'SuperAdmin' },
   ];
 
   const system: NavItem[] = [
@@ -170,6 +175,7 @@
     { id: 'sync', icon: 'sync', label: 'Sync', context: 'desktop' },
     { id: 'license', icon: 'vault', label: 'License' },
     { id: 'settings', icon: 'settings', label: 'Config' },
+    { id: 'shortcuts', icon: 'dashboard', label: 'Keys' },
   ];
 
   const auditItems = [

@@ -108,15 +108,27 @@ class AlertStore {
     await this.init();
   }
 
-  dismiss(id: string) {
-    this.alerts = this.alerts.map(a =>
-      a.id === id ? { ...a, status: 'dismissed' } : a
-    );
-  }
-
   acknowledge(id: string) {
     this.alerts = this.alerts.map(a =>
       a.id === id ? { ...a, status: 'acknowledged' } : a
+    );
+  }
+
+  investigate(id: string) {
+    this.alerts = this.alerts.map(a =>
+      a.id === id ? { ...a, status: 'investigating' } : a
+    );
+  }
+
+  close(id: string) {
+    this.alerts = this.alerts.map(a =>
+      a.id === id ? { ...a, status: 'closed' } : a
+    );
+  }
+
+  suppress(id: string) {
+    this.alerts = this.alerts.map(a =>
+      a.id === id ? { ...a, status: 'suppressed' } : a
     );
   }
 }

@@ -1,0 +1,919 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --obv-bg:#0a0c0e;
+  --obv-surface:#0f1215;
+  --obv-surface2:#141820;
+  --obv-surface3:#1a2030;
+  --obv-border:#1e2535;
+  --obv-border2:#253040;
+  --obv-text:#c8d4e0;
+  --obv-muted:#5a7090;
+  --obv-dim:#3a4f65;
+  --obv-accent:#1a7fd4;
+  --obv-accent2:#0e5a99;
+  --obv-crit:#c82c2c;
+  --obv-high:#d4600a;
+  --obv-med:#b89a00;
+  --obv-low:#1a8a5a;
+  --obv-info:#1a7fd4;
+  --obv-green:#1a8a5a;
+  --obv-mono:'IBM Plex Mono',monospace;
+  --obv-sans:'IBM Plex Sans',sans-serif;
+}
+body{background:var(--obv-bg);color:var(--obv-text);font-family:var(--obv-sans);font-size:12px;line-height:1.4;overflow-x:hidden;min-height:100vh;}
+
+/* LAYOUT */
+.shell{display:grid;grid-template-rows:32px 1fr;grid-template-columns:44px 200px 1fr;height:100vh;min-height:700px;}
+.topbar{grid-column:1/-1;background:var(--obv-surface);border-bottom:1px solid var(--obv-border);display:flex;align-items:center;padding:0 12px;gap:12px;z-index:100;}
+.icon-rail{background:var(--obv-surface);border-right:1px solid var(--obv-border);display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;}
+.left-rail{background:var(--obv-surface);border-right:1px solid var(--obv-border);display:flex;flex-direction:column;overflow:hidden;}
+.main{background:var(--obv-bg);overflow:auto;display:flex;flex-direction:column;}
+
+/* TOPBAR */
+.logo{font-family:var(--obv-mono);font-size:13px;font-weight:500;color:#e8f0f8;letter-spacing:0.12em;margin-right:4px;}
+.logo span{color:var(--obv-accent);}
+.ctx-badge{font-family:var(--obv-mono);font-size:9px;font-weight:500;letter-spacing:0.15em;padding:2px 6px;border:1px solid;border-radius:2px;}
+.ctx-web{color:#1a7fd4;border-color:#1a7fd4;background:rgba(26,127,212,0.08);}
+.ctx-desktop{color:#8060d0;border-color:#8060d0;background:rgba(128,96,208,0.08);}
+.sev-ticker{display:flex;gap:10px;margin-left:auto;align-items:center;}
+.sev-chip{font-family:var(--obv-mono);font-size:9px;font-weight:500;letter-spacing:0.08em;padding:2px 8px;border-radius:2px;cursor:pointer;}
+.sev-crit{background:rgba(200,44,44,0.15);color:#e06060;border:1px solid rgba(200,44,44,0.3);}
+.sev-high{background:rgba(212,96,10,0.12);color:#d4800a;border:1px solid rgba(212,96,10,0.25);}
+.sev-med{background:rgba(184,154,0,0.12);color:#c8a800;border:1px solid rgba(184,154,0,0.25);}
+.sev-crit.pulse{animation:sev-pulse 2s ease-in-out infinite;}
+@keyframes sev-pulse{0%,100%{box-shadow:0 0 0 0 rgba(200,44,44,0);}50%{box-shadow:0 0 0 3px rgba(200,44,44,0.18);}}
+.topbar-meta{display:flex;align-items:center;gap:10px;margin-left:12px;}
+.ts{font-family:var(--obv-mono);font-size:10px;color:var(--obv-muted);}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--obv-green);}
+.status-dot.warn{background:#c8a800;}
+.topbar-actions{display:flex;gap:4px;margin-left:8px;}
+.icon-btn{background:none;border:1px solid var(--obv-border);border-radius:2px;color:var(--obv-muted);padding:2px 8px;font-size:10px;font-family:var(--obv-mono);cursor:pointer;letter-spacing:0.05em;transition:all 0.15s;}
+.icon-btn:hover{border-color:var(--obv-accent);color:var(--obv-text);}
+
+/* ICON RAIL */
+.ir-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:3px;cursor:pointer;color:var(--obv-dim);transition:all 0.15s;font-size:14px;}
+.ir-btn:hover,.ir-btn.active{color:var(--obv-text);background:var(--obv-surface3);}
+.ir-btn.active{border-left:2px solid var(--obv-accent);border-radius:0 3px 3px 0;}
+.ir-sep{width:20px;height:1px;background:var(--obv-border);margin:4px 0;}
+
+/* LEFT RAIL */
+.lr-header{padding:8px 12px 6px;border-bottom:1px solid var(--obv-border);font-size:9px;font-family:var(--obv-mono);color:var(--obv-muted);letter-spacing:0.15em;display:flex;justify-content:space-between;align-items:center;}
+.nav-section{border-bottom:1px solid var(--obv-border);}
+.nav-section-label{padding:8px 12px 4px;font-size:9px;font-family:var(--obv-mono);color:var(--obv-dim);letter-spacing:0.12em;}
+.nav-item{padding:5px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--obv-muted);font-size:11px;transition:all 0.12s;border-left:2px solid transparent;}
+.nav-item:hover{color:var(--obv-text);background:var(--obv-surface2);}
+.nav-item.active{color:var(--obv-text);background:var(--obv-surface3);border-left-color:var(--obv-accent);}
+.nav-icon{width:14px;font-size:11px;text-align:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;font-family:var(--obv-mono);font-size:9px;padding:1px 5px;border-radius:2px;}
+.nb-crit{background:rgba(200,44,44,0.2);color:#e06060;}
+.nb-info{background:rgba(26,127,212,0.15);color:var(--obv-info);}
+.tenant-switcher{padding:8px 10px;border-bottom:1px solid var(--obv-border);display:flex;align-items:center;gap:6px;cursor:pointer;background:var(--obv-surface2);}
+.tenant-avatar{width:20px;height:20px;border-radius:2px;background:rgba(26,127,212,0.2);display:flex;align-items:center;justify-content:center;font-size:8px;font-family:var(--obv-mono);color:var(--obv-accent);font-weight:500;flex-shrink:0;}
+.tenant-name{font-size:11px;font-weight:500;color:var(--obv-text);}
+.tenant-tier{font-size:9px;font-family:var(--obv-mono);color:var(--obv-muted);}
+.tenant-arrow{margin-left:auto;color:var(--obv-dim);font-size:9px;}
+
+/* MAIN AREA */
+.main-header{padding:10px 16px 8px;border-bottom:1px solid var(--obv-border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--obv-surface);}
+.page-title{font-size:13px;font-weight:500;color:#e8f0f8;}
+.page-sub{font-size:10px;font-family:var(--obv-mono);color:var(--obv-muted);margin-top:1px;}
+.breadcrumb{font-family:var(--obv-mono);font-size:9px;color:var(--obv-muted);letter-spacing:0.1em;}
+.breadcrumb span{color:var(--obv-dim);}
+.header-actions{display:flex;gap:6px;margin-left:auto;align-items:center;}
+.btn-primary{background:rgba(26,127,212,0.15);border:1px solid rgba(26,127,212,0.35);color:#5aaef0;font-size:10px;font-family:var(--obv-mono);padding:3px 10px;border-radius:2px;cursor:pointer;letter-spacing:0.05em;transition:all 0.15s;}
+.btn-primary:hover{background:rgba(26,127,212,0.25);border-color:var(--obv-accent);}
+.btn-ghost{background:none;border:1px solid var(--obv-border);color:var(--obv-muted);font-size:10px;font-family:var(--obv-mono);padding:3px 10px;border-radius:2px;cursor:pointer;letter-spacing:0.05em;transition:all 0.15s;}
+.btn-ghost:hover{border-color:var(--obv-border2);color:var(--obv-text);}
+
+/* CRITICAL BANNER */
+.crit-banner{background:rgba(200,44,44,0.1);border-bottom:1px solid rgba(200,44,44,0.25);padding:5px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.crit-banner-label{font-family:var(--obv-mono);font-size:9px;font-weight:500;color:#e06060;letter-spacing:0.15em;}
+.crit-banner-text{font-size:11px;color:#d08080;}
+.crit-banner-actions{display:flex;gap:6px;margin-left:auto;}
+.btn-crit{background:rgba(200,44,44,0.2);border:1px solid rgba(200,44,44,0.4);color:#e06060;font-size:9px;font-family:var(--obv-mono);padding:2px 8px;border-radius:2px;cursor:pointer;letter-spacing:0.06em;transition:all 0.15s;}
+.btn-crit:hover{background:rgba(200,44,44,0.35);}
+.crit-timer{font-family:var(--obv-mono);font-size:10px;color:#e06060;margin-left:8px;}
+
+/* CONTENT GRID */
+.content{padding:12px;flex:1;display:flex;flex-direction:column;gap:10px;min-width:0;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.grid-3{display:grid;grid-template-columns:1.8fr 1fr 1fr;gap:10px;}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;}
+
+/* PANELS */
+.panel{background:var(--obv-surface);border:1px solid var(--obv-border);border-radius:2px;overflow:hidden;}
+.panel-header{padding:7px 10px;border-bottom:1px solid var(--obv-border);display:flex;align-items:center;gap:8px;background:var(--obv-surface2);}
+.panel-title{font-family:var(--obv-mono);font-size:9px;font-weight:500;letter-spacing:0.12em;color:var(--obv-text);}
+.panel-sub{font-family:var(--obv-mono);font-size:9px;color:var(--obv-muted);}
+.panel-actions{margin-left:auto;display:flex;gap:4px;}
+.panel-btn{background:none;border:none;color:var(--obv-dim);font-size:9px;font-family:var(--obv-mono);cursor:pointer;padding:2px 4px;transition:color 0.12s;}
+.panel-btn:hover{color:var(--obv-text);}
+
+/* METRIC CARDS */
+.metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px;}
+.metric{padding:8px 10px;background:var(--obv-surface2);border:1px solid var(--obv-border);border-radius:2px;position:relative;overflow:hidden;}
+.metric-label{font-family:var(--obv-mono);font-size:8px;color:var(--obv-muted);letter-spacing:0.12em;margin-bottom:4px;}
+.metric-value{font-family:var(--obv-mono);font-size:20px;font-weight:500;line-height:1;color:#e8f0f8;}
+.metric-delta{font-family:var(--obv-mono);font-size:9px;margin-top:3px;}
+.delta-up{color:#e06060;}
+.delta-dn{color:var(--obv-green);}
+.metric-bar{position:absolute;bottom:0;left:0;height:2px;}
+.mb-crit{background:var(--obv-crit);}
+.mb-high{background:var(--obv-high);}
+.mb-med{background:var(--obv-med);}
+.mb-ok{background:var(--obv-green);}
+
+/* ALERT TABLE */
+.alert-table{width:100%;border-collapse:collapse;font-size:11px;}
+.alert-table th{padding:4px 8px;text-align:left;font-family:var(--obv-mono);font-size:9px;color:var(--obv-muted);letter-spacing:0.1em;border-bottom:1px solid var(--obv-border);font-weight:400;background:var(--obv-surface2);}
+.alert-table td{padding:4px 8px;border-bottom:1px solid rgba(30,37,53,0.5);vertical-align:middle;}
+.alert-row{cursor:pointer;transition:background 0.1s;}
+.alert-row:hover{background:var(--obv-surface3);}
+.sev-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;flex-shrink:0;}
+.sev-dot.crit{background:var(--obv-crit);box-shadow:0 0 4px rgba(200,44,44,0.5);}
+.sev-dot.high{background:var(--obv-high);}
+.sev-dot.med{background:var(--obv-med);}
+.sev-dot.low{background:var(--obv-green);}
+.alert-title{color:var(--obv-text);font-size:11px;}
+.alert-meta{color:var(--obv-muted);font-family:var(--obv-mono);font-size:9px;}
+.risk-score{font-family:var(--obv-mono);font-size:10px;font-weight:500;text-align:center;width:36px;padding:1px 4px;border-radius:2px;}
+.rs-crit{background:rgba(200,44,44,0.15);color:#e06060;}
+.rs-high{background:rgba(212,96,10,0.12);color:#d4800a;}
+.rs-med{background:rgba(184,154,0,0.12);color:#c8a800;}
+.sla-bar-wrap{width:60px;}
+.sla-bar-bg{height:3px;background:var(--obv-border);border-radius:1px;overflow:hidden;}
+.sla-bar-fill{height:100%;border-radius:1px;}
+.sla-fill-crit{background:var(--obv-crit);}
+.sla-fill-high{background:var(--obv-high);}
+.sla-fill-med{background:var(--obv-med);}
+.sla-time{font-family:var(--obv-mono);font-size:9px;color:var(--obv-muted);margin-top:2px;}
+.status-pill{font-family:var(--obv-mono);font-size:9px;padding:1px 6px;border-radius:2px;}
+.sp-open{background:rgba(26,127,212,0.1);color:#5aaef0;border:1px solid rgba(26,127,212,0.2);}
+.sp-ack{background:rgba(184,154,0,0.1);color:#c8a800;border:1px solid rgba(184,154,0,0.2);}
+.sp-inv{background:rgba(128,96,208,0.1);color:#9080d0;border:1px solid rgba(128,96,208,0.2);}
+
+/* MINIMAP / ACTIVITY */
+.activity-feed{padding:8px;display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;}
+.activity-item{display:flex;gap:6px;align-items:flex-start;padding:3px 4px;border-radius:2px;cursor:pointer;transition:background 0.1s;}
+.activity-item:hover{background:var(--obv-surface3);}
+.ai-time{font-family:var(--obv-mono);font-size:9px;color:var(--obv-muted);flex-shrink:0;width:40px;}
+.ai-icon{font-size:9px;flex-shrink:0;width:14px;text-align:center;}
+.ai-text{font-size:10px;color:var(--obv-text);line-height:1.3;}
+.ai-src{color:var(--obv-muted);}
+
+/* SPARKLINE placeholder  */
+.sparkline{height:32px;padding:0 10px 6px;}
+svg.spark{overflow:visible;}
+
+/* SYSTEM STATUS */
+.sys-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px;}
+.sys-item{display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--obv-surface2);border:1px solid var(--obv-border);border-radius:2px;}
+.sys-name{font-size:10px;color:var(--obv-muted);}
+.sys-val{font-family:var(--obv-mono);font-size:10px;color:var(--obv-text);margin-left:auto;}
+.sys-ind{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.ind-ok{background:var(--obv-green);}
+.ind-warn{background:var(--obv-med);}
+.ind-err{background:var(--obv-crit);}
+
+/* OPERATOR PANEL */
+.op-ssh{background:var(--obv-bg);border:1px solid var(--obv-border);margin:8px;border-radius:2px;padding:8px;}
+.op-prompt{font-family:var(--obv-mono);font-size:10px;color:#5aaef0;}
+.op-line{font-family:var(--obv-mono);font-size:10px;color:var(--obv-text);}
+.op-warn{color:#e06060;}
+.op-cmd{color:#c8a800;}
+.cursor-blink{animation:blink 1s step-end infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
+/* TRUST BADGES */
+.trust-row{display:flex;gap:6px;padding:8px 10px 6px;}
+.trust-badge{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:2px;font-family:var(--obv-mono);font-size:9px;letter-spacing:0.08em;}
+.tb-sealed{background:rgba(26,138,90,0.1);border:1px solid rgba(26,138,90,0.25);color:var(--obv-green);}
+.tb-sovereign{background:rgba(128,96,208,0.1);border:1px solid rgba(128,96,208,0.25);color:#9080d0;}
+.tb-chain{background:rgba(26,127,212,0.1);border:1px solid rgba(26,127,212,0.2);color:#5aaef0;}
+.tb-icon{font-size:10px;}
+
+/* STATUS BAR */
+.statusbar{background:var(--obv-surface2);border-top:1px solid var(--obv-border);padding:3px 12px;display:flex;align-items:center;gap:14px;font-family:var(--obv-mono);font-size:9px;color:var(--obv-dim);flex-shrink:0;}
+.sb-item{display:flex;align-items:center;gap:4px;}
+.sb-ok{color:var(--obv-green);}
+.sb-warn{color:var(--obv-med);}
+.sb-sep{color:var(--obv-border2);}
+.sb-right{margin-left:auto;display:flex;gap:14px;}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--obv-border2);border-radius:2px;}
+
+/* hotkey hint */
+.hotkey{display:inline-block;font-family:var(--obv-mono);font-size:8px;background:var(--obv-surface3);border:1px solid var(--obv-border2);border-radius:2px;padding:0 3px;color:var(--obv-muted);line-height:1.6;}
+
+/* kbd shortcut bar */
+.kbd-bar{display:flex;gap:10px;padding:5px 10px;background:var(--obv-surface2);border-bottom:1px solid var(--obv-border);font-family:var(--obv-mono);font-size:9px;color:var(--obv-muted);}
+.kbd-item{display:flex;align-items:center;gap:4px;}
+
+/* Tabs */
+.tab-row{display:flex;border-bottom:1px solid var(--obv-border);background:var(--obv-surface2);}
+.tab{padding:5px 12px;font-family:var(--obv-mono);font-size:9px;letter-spacing:0.1em;color:var(--obv-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.12s;}
+.tab:hover{color:var(--obv-text);}
+.tab.active{color:#5aaef0;border-bottom-color:var(--obv-accent);}
+</style>
+
+<style id="oblivra-design-system-patch">
+/* ═══════════════════════════════════════════════════════
+   OBLIVRA DESIGN SYSTEM — Global Patch v1.1
+   Applied uniformly across all 14 screens
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. SCROLLBAR — 4px, visible thumb */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3d55; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3a5570; }
+
+/* 2. SCROLL FADE — signal hidden content */
+.ev-table-wrap, .table-area, .log-wrap, .log-scroll,
+.activity-feed, .feed-area, .detail, .sidebar, .left-rail,
+.entity-detail, .node-palette, .pb-list, .col {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+}
+
+/* 3. ISOLATED ROWS — draw eye TOWARD danger, not away */
+.fr.iso {
+  opacity: 1 !important;
+  background: rgba(192, 40, 40, 0.07) !important;
+  border-left: 2px solid rgba(224, 80, 80, 0.6) !important;
+}
+.fr.iso .host-name { color: #e05050 !important; }
+
+/* 4. ROW ACTIONS — persistent ⋯ menu button alongside hover-only actions */
+.row-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ra-more {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--b2, #22304a);
+  color: var(--tx3, #3a5570);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ra-more:hover { color: var(--tx, #bfd0e0); border-color: var(--b3, #2a3d55); }
+
+/* 5. FOCUS OUTLINES — keyboard accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 1.5px solid rgba(90, 174, 240, 0.6);
+  outline-offset: 1px;
+}
+
+/* 6. CRITICAL BANNER PULSE — War Room distinction */
+.isolated-banner, .crit-banner {
+  animation: banner-pulse 3s ease-in-out infinite;
+}
+@keyframes banner-pulse {
+  0%, 100% { border-bottom-color: rgba(192, 40, 40, 0.3); }
+  50% { border-bottom-color: rgba(224, 80, 80, 0.55); }
+}
+
+/* 7. WAR ROOM topbar glow */
+.wr-topbar {
+  box-shadow: 0 2px 12px rgba(200, 40, 40, 0.25);
+}
+
+/* 8. SLA BREACH blink is already present — add glow */
+.sla-breach {
+  animation: sla-blink 1s step-end infinite, sla-glow 1s ease-in-out infinite !important;
+}
+@keyframes sla-glow {
+  0%, 100% { text-shadow: none; }
+  50% { text-shadow: 0 0 6px rgba(224, 80, 80, 0.5); }
+}
+
+/* 9. SETUP WIZARD — firewall warning blocker state */
+.prereq-item.blocking {
+  background: rgba(192, 40, 40, 0.08) !important;
+  border: 1px solid rgba(192, 40, 40, 0.3) !important;
+  border-left: 3px solid #e05050 !important;
+}
+.prereq-item.blocking .pi-name { color: #e05050 !important; }
+.prereq-item.blocking .pi-status { color: #e05050 !important; animation: blink 1.2s step-end infinite; }
+
+/* 10. CONTINUE button disabled state for wizard */
+.btn-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--s3, #161c24) !important;
+  border-color: var(--b1, #1a2535) !important;
+  color: var(--tx3, #3a5570) !important;
+}
+.wizard-block-notice {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #e05050;
+  padding: 4px 8px;
+  background: rgba(192, 40, 40, 0.08);
+  border: 1px solid rgba(192, 40, 40, 0.25);
+  border-radius: 2px;
+  margin-top: 6px;
+}
+
+/* 11. METRIC CARDS — subtle bottom accent bar */
+.mc::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin-top: 6px;
+  background: var(--b1, #1a2535);
+  border-radius: 1px;
+}
+
+/* 12. Panel hover elevation */
+.panel:hover {
+  border-color: var(--b2, #22304a);
+  transition: border-color 0.15s;
+}
+
+/* 13. Nav item active indicator glow */
+.nav-item.active {
+  box-shadow: inset 2px 0 6px rgba(26, 127, 212, 0.15);
+}
+
+/* 14. Alert row critical glow */
+.ar.hl, .alert-row:first-child td {
+  position: relative;
+}
+.ar.hl::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: #e05050;
+  box-shadow: 0 0 6px rgba(224, 80, 80, 0.4);
+}
+
+/* 15. Token-style query bar improvements */
+.qb-token {
+  transition: opacity 0.1s;
+  user-select: none;
+}
+.qb-token:hover { opacity: 0.75; }
+
+/* 16. Evidence seal pending — subtle pulse */
+.sb-pending {
+  animation: pending-pulse 2.5s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* 17. Canvas nodes — cursor pointer */
+canvas { cursor: crosshair; }
+
+/* 18. Trust badge shimmer on SEALED */
+.tb-sealed, .vi-seal, .sb-sealed {
+  position: relative;
+  overflow: hidden;
+}
+.tb-sealed::after, .vi-seal::after, .sb-sealed::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60px; width: 40px; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(26,170,96,0.15), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { left: -60px; }
+  60%, 100% { left: calc(100% + 20px); }
+}
+
+/* 19. Compliance score bar tick marks */
+.fw-bar { position: relative; }
+
+/* 20. Deployment mode card selected ring */
+.dm-card.selected {
+  box-shadow: 0 0 0 1px rgba(24, 120, 200, 0.4), inset 0 0 12px rgba(24, 120, 200, 0.04);
+}
+
+/* 21. Step connector line */
+.step-item + .step-item {
+  border-top: none;
+}
+
+/* 22. Status bar separator style */
+.statusbar span:not(:first-child):not([style*="margin-left"]) {
+  padding-left: 0;
+}
+
+/* 23. SIEM histogram bar hover tooltip */
+.hbar { position: relative; }
+
+/* 24. Log row expand animation */
+.expand-row td { animation: expand-in 0.15s ease-out; }
+@keyframes expand-in {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 400px; }
+}
+
+/* 25. Improved metric value coloring for zero-values */
+.mc-v[data-zero="true"] { color: var(--tx3, #3a5570) !important; }
+
+</style>
+
+
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">OBL<span>IV</span>RA</div>
+    <div class="ctx-badge ctx-web">WEB</div>
+    <div class="topbar-meta">
+      <div class="status-dot"></div>
+      <div class="ts" id="clock">2026-04-19 &nbsp;00:55:04Z</div>
+    </div>
+    <div style="width:1px;height:16px;background:var(--obv-border);margin:0 4px;"></div>
+    <div class="ts">TENANT: GOV-FIN-001</div>
+    <div style="width:1px;height:16px;background:var(--obv-border);margin:0 4px;"></div>
+    <div class="ts">SESSION: ANA-3 · <span style="color:var(--obv-green);">ACTIVE</span></div>
+    <div class="sev-ticker">
+      <div class="sev-chip sev-crit pulse">CRIT <strong>7</strong></div>
+      <div class="sev-chip sev-high">HIGH <strong>23</strong></div>
+      <div class="sev-chip sev-med">MED <strong>81</strong></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" onclick="sendPrompt('Open the OBLIVRA command palette')">⌘K</button>
+      <button class="icon-btn">⚙</button>
+    </div>
+  </div>
+
+  <!-- ICON RAIL -->
+  <div class="icon-rail">
+    <div class="ir-btn active" title="SOC Overview">⬡</div>
+    <div class="ir-btn" title="SIEM Search">⊞</div>
+    <div class="ir-btn" title="Alerts">⚑</div>
+    <div class="ir-sep"></div>
+    <div class="ir-btn" title="SOAR">▷</div>
+    <div class="ir-btn" title="UEBA">◈</div>
+    <div class="ir-btn" title="NDR">⊕</div>
+    <div class="ir-sep"></div>
+    <div class="ir-btn" title="Fleet">◻</div>
+    <div class="ir-btn" title="Threat Intel">◎</div>
+    <div class="ir-btn" title="Evidence Vault">⊠</div>
+    <div class="ir-sep"></div>
+    <div class="ir-btn" title="Reports">≡</div>
+    <div style="margin-top:auto;"></div>
+    <div class="ir-btn" title="Settings">⚙</div>
+    <div class="ir-btn" title="Operator Mode" style="color:#9080d0;">⌥</div>
+  </div>
+
+  <!-- LEFT RAIL -->
+  <div class="left-rail">
+    <div class="tenant-switcher">
+      <div class="tenant-avatar">GF</div>
+      <div>
+        <div class="tenant-name">GovFin-001</div>
+        <div class="tenant-tier">SOVEREIGN · TIER-1</div>
+      </div>
+      <div class="tenant-arrow">▾</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">OVERVIEW</div>
+      <div class="nav-item active"><div class="nav-icon">⬡</div>SOC Dashboard</div>
+      <div class="nav-item"><div class="nav-icon">⊠</div>Incident Timeline</div>
+      <div class="nav-item"><div class="nav-icon">◎</div>Fusion / Campaigns<div class="nav-badge nb-crit">2 ACTIVE</div></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">DETECTION</div>
+      <div class="nav-item"><div class="nav-icon">⊞</div>SIEM Search</div>
+      <div class="nav-item"><div class="nav-icon">⚑</div>Alert Management<div class="nav-badge nb-crit">7</div></div>
+      <div class="nav-item"><div class="nav-icon">◈</div>UEBA Anomalies<div class="nav-badge nb-info">12</div></div>
+      <div class="nav-item"><div class="nav-icon">⊕</div>NDR · Network</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">RESPONSE</div>
+      <div class="nav-item"><div class="nav-icon">▷</div>SOAR Playbooks</div>
+      <div class="nav-item"><div class="nav-icon">⚙</div>Host Isolation</div>
+      <div class="nav-item"><div class="nav-icon">⊠</div>Evidence Vault</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-label">INFRASTRUCTURE</div>
+      <div class="nav-item"><div class="nav-icon">◻</div>Agent Fleet</div>
+      <div class="nav-item"><div class="nav-icon">≡</div>Compliance</div>
+      <div class="nav-item"><div class="nav-icon">◎</div>Threat Intel</div>
+    </div>
+    <div style="margin-top:auto;border-top:1px solid var(--obv-border);padding:8px 10px;">
+      <div style="font-size:9px;font-family:var(--obv-mono);color:var(--obv-muted);">ANA · CHEN, M.</div>
+      <div style="font-size:8px;font-family:var(--obv-mono);color:var(--obv-dim);margin-top:2px;">L2 · SHIFT-A · 06:55 UTC</div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <!-- PAGE HEADER -->
+    <div class="main-header">
+      <div>
+        <div class="breadcrumb">OBLIVRA <span>/</span> SOC OVERVIEW</div>
+        <div class="page-title">Security Operations Center — Live</div>
+      </div>
+      <div class="header-actions">
+        <div class="ts">WINDOW: <strong>Last 4h</strong></div>
+        <button class="btn-ghost">1h</button>
+        <button class="btn-ghost">4h</button>
+        <button class="btn-primary">24h</button>
+        <button class="btn-ghost" onclick="sendPrompt('Enable OBLIVRA War Room Mode for the current incident')">WAR ROOM ⚑</button>
+      </div>
+    </div>
+
+    <!-- CRITICAL BANNER -->
+    <div class="crit-banner">
+      <div style="font-size:10px;color:var(--obv-crit);">▲</div>
+      <div class="crit-banner-label">ACTIVE INCIDENT</div>
+      <div class="crit-banner-text">INC-2024-0419-007 · Lateral movement + credential dumping — HOST-FIN-044 · Assigned: CHEN, M.</div>
+      <div class="crit-timer" id="inc-timer">00:47:23</div>
+      <div class="crit-banner-actions">
+        <button class="btn-crit" onclick="sendPrompt('Show the full OBLIVRA Operator Mode workflow for incident INC-2024-0419-007')">OPEN INC</button>
+        <button class="btn-crit" onclick="sendPrompt('Trigger SOAR playbook for lateral movement isolation on HOST-FIN-044')">ISOLATE ⌃⇧I</button>
+      </div>
+    </div>
+
+    <!-- KBD BAR -->
+    <div class="kbd-bar">
+      <div class="kbd-item"><span class="hotkey">⌘K</span> Command palette</div>
+      <div class="kbd-item"><span class="hotkey">⌃⇧I</span> Isolate host</div>
+      <div class="kbd-item"><span class="hotkey">⌃⇧E</span> Evidence capture</div>
+      <div class="kbd-item"><span class="hotkey">⌃⇧F</span> SIEM filtered view</div>
+      <div class="kbd-item"><span class="hotkey">⌃⇧T</span> Timeline</div>
+      <div class="kbd-item"><span class="hotkey">G A</span> Go to alerts</div>
+    </div>
+
+    <div class="content">
+      <!-- METRIC CARDS -->
+      <div class="panel">
+        <div class="metric-row">
+          <div class="metric">
+            <div class="metric-bar mb-crit" style="width:100%;"></div>
+            <div class="metric-label">CRIT ALERTS / 4H</div>
+            <div class="metric-value" style="color:#e06060;">7</div>
+            <div class="metric-delta delta-up">▲ +3 vs prev</div>
+          </div>
+          <div class="metric">
+            <div class="metric-bar mb-high" style="width:75%;"></div>
+            <div class="metric-label">HIGH ALERTS / 4H</div>
+            <div class="metric-value" style="color:#d4800a;">23</div>
+            <div class="metric-delta delta-up">▲ +8 vs prev</div>
+          </div>
+          <div class="metric">
+            <div class="metric-bar mb-ok" style="width:60%;"></div>
+            <div class="metric-label">MTTR (MIN)</div>
+            <div class="metric-value" style="color:#e8f0f8;">14.2</div>
+            <div class="metric-delta delta-dn">▼ −2.1 vs prev</div>
+          </div>
+          <div class="metric">
+            <div class="metric-bar mb-ok" style="width:90%;"></div>
+            <div class="metric-label">AGENT FLEET</div>
+            <div class="metric-value" style="color:#e8f0f8;">4,817</div>
+            <div class="metric-delta" style="color:var(--obv-green);">● 98.4% ONLINE</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALERTS + ACTIVITY -->
+      <div class="grid-3">
+        <!-- ALERTS TABLE -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">ACTIVE ALERTS</div>
+            <div class="panel-sub" style="margin-left:6px;">CRIT + HIGH · UNACKNOWLEDGED</div>
+            <div class="panel-actions">
+              <button class="panel-btn" onclick="sendPrompt('Show all active alerts in OBLIVRA Alert Management view')">ALL →</button>
+            </div>
+          </div>
+          <div class="tab-row">
+            <div class="tab active">OPEN</div>
+            <div class="tab">ACK</div>
+            <div class="tab">SUPPRESSED</div>
+          </div>
+          <table class="alert-table">
+            <thead>
+              <tr>
+                <th style="width:16px;"></th>
+                <th>ALERT</th>
+                <th>HOST / ASSET</th>
+                <th>RISK</th>
+                <th>SLA</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="alert-row" onclick="sendPrompt('Investigate alert: Credential dumping via LSASS on HOST-FIN-044')">
+                <td><div class="sev-dot crit"></div></td>
+                <td>
+                  <div class="alert-title">Credential dump · LSASS</div>
+                  <div class="alert-meta">EDR-3847 · MITRE T1003.001</div>
+                </td>
+                <td><div class="alert-meta">HOST-FIN-044</div><div class="alert-meta" style="color:var(--obv-dim);">10.18.44.44</div></td>
+                <td><div class="risk-score rs-crit">97</div></td>
+                <td>
+                  <div class="sla-bar-wrap">
+                    <div class="sla-bar-bg"><div class="sla-bar-fill sla-fill-crit" style="width:85%;"></div></div>
+                    <div class="sla-time">08m 12s</div>
+                  </div>
+                </td>
+                <td><div class="status-pill sp-inv">INVEST.</div></td>
+              </tr>
+              <tr class="alert-row" onclick="sendPrompt('Investigate alert: Lateral movement SMB brute-force from HOST-FIN-044')">
+                <td><div class="sev-dot crit"></div></td>
+                <td>
+                  <div class="alert-title">Lateral mvmt · SMB BF</div>
+                  <div class="alert-meta">NDR-0122 · MITRE T1021.002</div>
+                </td>
+                <td><div class="alert-meta">HOST-FIN-044</div><div class="alert-meta" style="color:var(--obv-dim);">→ /16 subnet</div></td>
+                <td><div class="risk-score rs-crit">94</div></td>
+                <td>
+                  <div class="sla-bar-wrap">
+                    <div class="sla-bar-bg"><div class="sla-bar-fill sla-fill-crit" style="width:92%;"></div></div>
+                    <div class="sla-time">04m 30s</div>
+                  </div>
+                </td>
+                <td><div class="status-pill sp-inv">INVEST.</div></td>
+              </tr>
+              <tr class="alert-row" onclick="sendPrompt('Investigate alert: Anomalous service account activity on DC-CORE-01')">
+                <td><div class="sev-dot crit"></div></td>
+                <td>
+                  <div class="alert-title">Svc acct anomaly · DC</div>
+                  <div class="alert-meta">UEBA-4419 · MITRE T1078.002</div>
+                </td>
+                <td><div class="alert-meta">DC-CORE-01</div><div class="alert-meta" style="color:var(--obv-dim);">10.0.1.5</div></td>
+                <td><div class="risk-score rs-crit">91</div></td>
+                <td>
+                  <div class="sla-bar-wrap">
+                    <div class="sla-bar-bg"><div class="sla-bar-fill sla-fill-crit" style="width:45%;"></div></div>
+                    <div class="sla-time">22m 05s</div>
+                  </div>
+                </td>
+                <td><div class="status-pill sp-open">OPEN</div></td>
+              </tr>
+              <tr class="alert-row" onclick="sendPrompt('Investigate alert: Suspicious Kerberoasting activity')">
+                <td><div class="sev-dot high"></div></td>
+                <td>
+                  <div class="alert-title">Kerberoasting attempt</div>
+                  <div class="alert-meta">SIEM-7782 · MITRE T1558.003</div>
+                </td>
+                <td><div class="alert-meta">ADM-WS-017</div><div class="alert-meta" style="color:var(--obv-dim);">10.18.17.20</div></td>
+                <td><div class="risk-score rs-high">78</div></td>
+                <td>
+                  <div class="sla-bar-wrap">
+                    <div class="sla-bar-bg"><div class="sla-bar-fill sla-fill-high" style="width:30%;"></div></div>
+                    <div class="sla-time">41m 18s</div>
+                  </div>
+                </td>
+                <td><div class="status-pill sp-ack">ACK</div></td>
+              </tr>
+              <tr class="alert-row" onclick="sendPrompt('Investigate: Unusual outbound data transfer from FIN-SRV-09')">
+                <td><div class="sev-dot high"></div></td>
+                <td>
+                  <div class="alert-title">Unusual egress · 14.2 GB</div>
+                  <div class="alert-meta">NDR-0117 · MITRE T1048</div>
+                </td>
+                <td><div class="alert-meta">FIN-SRV-09</div><div class="alert-meta" style="color:var(--obv-dim);">→ AS9009</div></td>
+                <td><div class="risk-score rs-high">72</div></td>
+                <td>
+                  <div class="sla-bar-wrap">
+                    <div class="sla-bar-bg"><div class="sla-bar-fill sla-fill-high" style="width:20%;"></div></div>
+                    <div class="sla-time">58m 41s</div>
+                  </div>
+                </td>
+                <td><div class="status-pill sp-open">OPEN</div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ACTIVITY FEED -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">EVENT STREAM</div>
+            <div class="panel-sub" style="margin-left:6px;">LIVE</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:4px;"><div class="status-dot" style="animation:sev-pulse 1.5s ease-in-out infinite;"></div></div>
+          </div>
+          <div class="activity-feed" id="evt-feed">
+            <div class="activity-item">
+              <div class="ai-time">00:55</div>
+              <div class="ai-icon" style="color:#e06060;">▲</div>
+              <div class="ai-text"><span style="color:#e06060;">CRIT</span> LSASS dump blocked — EDR agent HOST-FIN-044</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:54</div>
+              <div class="ai-icon" style="color:#d4800a;">▲</div>
+              <div class="ai-text"><span style="color:#d4800a;">HIGH</span> SMB auth flood <span class="ai-src">→ 10.18.44.x/24</span></div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:53</div>
+              <div class="ai-icon" style="color:#9080d0;">◈</div>
+              <div class="ai-text"><span style="color:#9080d0;">UEBA</span> Baseline deviation +4.2σ — svc_finrpt</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:52</div>
+              <div class="ai-icon" style="color:#5aaef0;">▷</div>
+              <div class="ai-text"><span style="color:#5aaef0;">SOAR</span> Playbook PB-CRED-01 triggered auto</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:51</div>
+              <div class="ai-icon" style="color:#c8a800;">●</div>
+              <div class="ai-text"><span style="color:#c8a800;">INTEL</span> IOC match — SHA256 known RAT — 3 hosts</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:50</div>
+              <div class="ai-icon" style="color:#5aaef0;">⊕</div>
+              <div class="ai-text"><span style="color:#5aaef0;">NDR</span> Beaconing detected — 30s interval C2</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:48</div>
+              <div class="ai-icon" style="color:var(--obv-muted);">≡</div>
+              <div class="ai-text ai-src">Log ingestion: 148,220 eps nominal</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:47</div>
+              <div class="ai-icon" style="color:var(--obv-green);">◻</div>
+              <div class="ai-text ai-src">Agent checkin: 4,817/4,900 online</div>
+            </div>
+            <div class="activity-item">
+              <div class="ai-time">00:46</div>
+              <div class="ai-icon" style="color:#e06060;">▲</div>
+              <div class="ai-text"><span style="color:#e06060;">CRIT</span> Kerberoast SPN enumeration — ADM-WS-017</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SYSTEM STATUS -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">PLATFORM STATUS</div>
+          </div>
+          <div class="sys-grid">
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">Ingestion</div><div class="sys-val">148K eps</div></div>
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">SIEM Index</div><div class="sys-val">OK</div></div>
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">Correlation</div><div class="sys-val">22ms avg</div></div>
+            <div class="sys-item"><div class="sys-ind ind-warn"></div><div class="sys-name">ML Engine</div><div class="sys-val" style="color:#c8a800;">HIGH CPU</div></div>
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">SOAR</div><div class="sys-val">3 running</div></div>
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">Vault</div><div class="sys-val">SEALED ⊠</div></div>
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">Agents</div><div class="sys-val">98.4%</div></div>
+            <div class="sys-item"><div class="sys-ind ind-ok"></div><div class="sys-name">Air-Gap</div><div class="sys-val" style="color:#9080d0;">SOVEREIGN</div></div>
+          </div>
+
+          <div class="panel-header" style="margin-top:6px;">
+            <div class="panel-title">TRUST SEALS</div>
+          </div>
+          <div class="trust-row">
+            <div class="trust-badge tb-sealed"><div class="tb-icon">⊠</div>VAULT SEALED</div>
+            <div class="trust-badge tb-sovereign"><div class="tb-icon">◎</div>AIR-GAPPED</div>
+          </div>
+          <div class="trust-row" style="padding-top:0;">
+            <div class="trust-badge tb-chain"><div class="tb-icon">⊞</div>COC INTACT</div>
+          </div>
+
+          <div class="panel-header" style="margin-top:6px;">
+            <div class="panel-title">OPERATOR TERMINAL</div>
+            <div class="panel-actions"><button class="panel-btn" onclick="sendPrompt('Open OBLIVRA desktop operator mode for SSH and forensics on HOST-FIN-044')">OPEN DESKTOP →</button></div>
+          </div>
+          <div class="op-ssh">
+            <div class="op-line op-prompt">oblivra@HOST-FIN-044:~$ <span class="cursor-blink">▌</span></div>
+            <div class="op-line" style="color:var(--obv-muted);font-size:9px;margin-top:4px;">[ANOMALY DETECTED] ⌃⇧F to filter SIEM</div>
+            <div class="op-line op-cmd" style="margin-top:2px;font-size:9px;">⌃⇧I → ISOLATE HOST &nbsp; ⌃⇧E → CAPTURE EVIDENCE</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+
+    <!-- STATUS BAR -->
+    <div class="statusbar">
+      <div class="sb-item"><div class="status-dot"></div><span class="sb-ok">PLATFORM NOMINAL</span></div>
+      <div class="sb-sep">|</div>
+      <div class="sb-item">SIEM: <span class="sb-ok">148,220 EPS</span></div>
+      <div class="sb-item">ML: <span class="sb-warn">HIGH LOAD</span></div>
+      <div class="sb-item">VAULT: <span class="sb-ok">SEALED</span></div>
+      <div class="sb-item">TENANTS: <span>4 ACTIVE</span></div>
+      <div class="sb-right">
+        <div class="sb-item">BUILD: 2.14.1-sovereign</div>
+        <div class="sb-item sb-ok">⊠ EVIDENCE: 3 SEALED</div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script>
+// Clock
+function updateClock(){
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const s = `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())} \u00a0${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}Z`;
+  const el = document.getElementById('clock');
+  if(el) el.textContent = s;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Incident timer
+let incSecs = 47*60+23;
+function updateIncTimer(){
+  incSecs++;
+  const m = Math.floor(incSecs/60), s = incSecs%60;
+  const el = document.getElementById('inc-timer');
+  if(el) el.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+setInterval(updateIncTimer,1000);
+
+// Event stream — simulate new entries
+const events = [
+  {t:'--:--',c:'#e06060',i:'▲',tx:'<span style="color:#e06060;">CRIT</span> New auth from svc_finrpt @ 03:12 UTC'},
+  {t:'--:--',c:'#5aaef0',i:'⊕',tx:'<span style="color:#5aaef0;">NDR</span> Encrypted tunnel opened → 185.200.x.x'},
+  {t:'--:--',c:'#9080d0',i:'◈',tx:'<span style="color:#9080d0;">UEBA</span> Peer-group anomaly — finance cluster'},
+  {t:'--:--',c:'#d4800a',i:'▲',tx:'<span style="color:#d4800a;">HIGH</span> WMI remote exec detected FIN-SRV-07'},
+  {t:'--:--',c:'#5aaef0',i:'▷',tx:'<span style="color:#5aaef0;">SOAR</span> PB-ISOLATION-02 awaiting approval'},
+];
+let evtIdx=0;
+setInterval(()=>{
+  const feed = document.getElementById('evt-feed');
+  const n=new Date();
+  const el=document.getElementById('clock');
+  if(el) el.innerHTML=n.toISOString().replace('T',' ').split('.')[0]+'Z';
+}
+setInterval(updateClock,1000);
+updateClock();
+
+let incTime=2843;
+setInterval(()=>{
+  incTime++;
+  const h=Math.floor(incTime/3600).toString().padStart(2,'0');
+  const m=Math.floor((incTime%3600)/60).toString().padStart(2,'0');
+  const s=(incTime%60).toString().padStart(2,'0');
+  const el=document.getElementById('inc-timer');
+  if(el) el.textContent=`${h}:${m}:${s}`;
+},1000);
+
+const feed=document.getElementById('evt-feed');
+function addEvent(text,type){
+  if(!feed) return;
+  const d=document.createElement('div');
+  d.className='activity-item';
+  const t=new Date().toISOString().slice(11,16);
+  const icon=type==='crit'?'▲':type==='high'?'▲':type==='ueba'?'◈':'●';
+  const col=type==='crit'?'#e06060':type==='high'?'#d4800a':type==='ueba'?'#9080d0':'#5aaef0';
+  d.innerHTML=`<div class="ai-time">${t}</div><div class="ai-icon" style="color:${col};">${icon}</div><div class="ai-text">${text}</div>`;
+  feed.prepend(d);
+  if(feed.children.length>20)feed.lastElementChild.remove();
+}
+
+setInterval(()=>{
+  if(Math.random()>0.8){
+    addEvent('<span style="color:#5aaef0;">INFO</span> Agent checkin: FIN-SRV-0'+Math.floor(Math.random()*9),'info');
+  }
+},5000);
+    const el = document.getElementById('_oblivra_prompt_preview');
+    if (el) { el.textContent = text; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 4000); }
+  };
+  // Preview toast element
+  const toast = document.createElement('div');
+  toast.id = '_oblivra_prompt_preview';
+  toast.style.cssText = 'display:none;position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#161c24;border:1px solid #2a3d55;color:#bfd0e0;font-family:"IBM Plex Mono",monospace;font-size:10px;padding:8px 16px;border-radius:3px;max-width:600px;text-align:center;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(toast));
+}
+</script>
+
+
+<script>
+/* SOC DASHBOARD: Upgrade alert rows */
+document.querySelectorAll('.alert-row').forEach((row, i) => {
+  const riskEl = row.querySelector('.risk-score');
+  if (riskEl) {
+    const risk = parseInt(riskEl.textContent);
+    if (risk >= 90) {
+      row.style.borderLeft = '2px solid rgba(224,80,80,0.7)';
+      row.style.background = 'rgba(192,40,40,0.05)';
+    }
+  }
+});
+
+/* War Room button pulse */
+const warBtn = document.querySelector('button[onclick*="War Room"]');
+if (warBtn) {
+  warBtn.style.animation = 'chip-pulse 2.5s ease-in-out infinite';
+}
+</script>

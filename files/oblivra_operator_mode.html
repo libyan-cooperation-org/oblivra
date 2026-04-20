@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#080a0c;--s1:#0c0f12;--s2:#101418;--s3:#161c24;--b1:#1a2535;--b2:#22304a;--b3:#2a3d55;--tx:#bfd0e0;--tx2:#6a8aa8;--tx3:#3a5570;--ac:#1878c8;--cr2:#e05050;--cr3:rgba(192,40,40,0.12);--cr4:rgba(192,40,40,0.22);--hi2:#e08020;--hi3:rgba(184,96,0,0.12);--md2:#c8a800;--ok2:#1aaa60;--ok3:rgba(20,120,72,0.12);--pu2:#9878e0;--pu3:rgba(112,80,192,0.12);--mn:'IBM Plex Mono',monospace;--sn:'IBM Plex Sans',sans-serif;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sn);font-size:11px;}
+.shell{display:flex;flex-direction:column;min-height:820px;}
+.topbar{background:var(--s1);border-bottom:1px solid var(--b1);padding:0 12px;height:28px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.logo{font-family:var(--mn);font-size:11px;font-weight:500;color:#d0e8f8;letter-spacing:0.1em;}
+.logo em{color:#e05050;font-style:normal;}
+.ctx-d{font-family:var(--mn);font-size:8px;padding:1px 5px;border:1px solid var(--pu2);border-radius:2px;color:var(--pu2);background:var(--pu3);letter-spacing:0.12em;}
+.pl{font-family:var(--mn);font-size:9px;color:var(--tx2);letter-spacing:0.1em;}
+.dv{width:1px;height:14px;background:var(--b1);}
+.kbd{font-family:var(--mn);font-size:8px;background:var(--s3);border:1px solid var(--b2);border-radius:2px;padding:1px 4px;color:var(--tx2);}
+.ml{margin-left:auto;}
+.ctx-badge{font-family:var(--mn);font-size:9px;color:var(--tx2);}
+.isolated-banner{background:var(--cr4);border-bottom:1px solid rgba(192,40,40,0.3);padding:4px 12px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.ib-icon{color:#e05050;font-size:11px;}
+.ib-text{font-family:var(--mn);font-size:9px;color:#e05050;font-weight:500;letter-spacing:0.05em;}
+.ib-sub{font-family:var(--mn);font-size:9px;color:rgba(224,80,80,0.7);}
+.ib-act{font-family:var(--mn);font-size:9px;padding:2px 8px;border-radius:2px;border:1px solid rgba(192,40,40,0.4);background:var(--cr3);color:#e05050;cursor:pointer;margin-left:auto;}
+.body{display:grid;grid-template-columns:1fr 340px;flex:1;gap:0;min-height:0;}
+.left{display:flex;flex-direction:column;}
+.panel-hd{padding:5px 10px;border-bottom:1px solid var(--b1);background:var(--s2);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.phd{font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.13em;}
+.phd-val{font-family:var(--mn);font-size:9px;color:var(--tx);margin-left:4px;}
+.dot{width:5px;height:5px;border-radius:50%;display:inline-block;}
+.dot-ok{background:var(--ok2);}
+.dot-cr{background:#e05050;animation:blink-d 1s ease-in-out infinite;}
+@keyframes blink-d{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.terminal{flex:1;background:#030608;font-family:var(--mn);font-size:10px;padding:10px;overflow-y:auto;min-height:0;border-right:1px solid var(--b1);}
+.t-line{line-height:1.6;white-space:pre-wrap;word-break:break-all;}
+.t-prompt{color:#5aaef0;}
+.t-cmd{color:var(--md2);}
+.t-out{color:var(--tx2);}
+.t-warn{color:#e05050;}
+.t-ok{color:var(--ok2);}
+.t-info{color:var(--pu2);}
+.t-input-row{display:flex;align-items:center;gap:4px;padding:6px 10px;background:#030608;border-top:1px solid var(--b1);flex-shrink:0;}
+.t-inp{flex:1;background:transparent;border:none;color:var(--md2);font-family:var(--mn);font-size:10px;outline:none;}
+.t-send{font-family:var(--mn);font-size:9px;padding:2px 8px;border-radius:2px;border:1px solid var(--b2);background:none;color:var(--tx2);cursor:pointer;}
+.t-send:hover{border-color:var(--ac);color:#5aaef0;}
+.cursor{display:inline-block;width:7px;height:12px;background:var(--tx2);animation:curs 1s step-end infinite;vertical-align:text-bottom;}
+@keyframes curs{0%,100%{opacity:1;}50%{opacity:0;}}
+.right{background:var(--s1);border-left:1px solid var(--b1);display:flex;flex-direction:column;overflow-y:auto;}
+.section{border-bottom:1px solid var(--b1);}
+.s-hd{padding:5px 10px;background:var(--s2);border-bottom:1px solid var(--b1);font-family:var(--mn);font-size:8px;color:var(--tx3);letter-spacing:0.13em;display:flex;align-items:center;justify-content:space-between;}
+.s-body{padding:8px 10px;}
+.host-info{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;}
+.hi-row{display:flex;flex-direction:column;}
+.hi-key{font-family:var(--mn);font-size:8px;color:var(--tx3);}
+.hi-val{font-family:var(--mn);font-size:10px;color:var(--tx);margin-top:1px;}
+.hi-val.cr{color:#e05050;}
+.hi-val.ok{color:var(--ok2);}
+.hi-val.pu{color:var(--pu2);}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px 10px;}
+.ag-btn{font-family:var(--mn);font-size:9px;padding:6px 8px;border-radius:2px;border:1px solid;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px;transition:all 0.12s;}
+.ag-label{font-weight:500;letter-spacing:0.05em;}
+.ag-sub{font-size:8px;opacity:0.7;}
+.ag-danger{background:var(--cr3);border-color:rgba(192,40,40,0.3);color:#e05050;}
+.ag-danger:hover{background:var(--cr4);}
+.ag-warn{background:var(--hi3);border-color:rgba(184,96,0,0.25);color:var(--hi2);}
+.ag-warn:hover{background:rgba(184,96,0,0.2);}
+.ag-info{background:rgba(24,120,200,0.08);border-color:rgba(24,120,200,0.2);color:#5aaef0;}
+.ag-info:hover{background:rgba(24,120,200,0.15);}
+.ag-ghost{background:none;border-color:var(--b2);color:var(--tx2);}
+.ag-ghost:hover{border-color:var(--b3);color:var(--tx);}
+.ev-list{padding:6px 10px;display:flex;flex-direction:column;gap:3px;}
+.ev-item{display:flex;gap:6px;padding:3px 5px;cursor:pointer;border-radius:2px;transition:background 0.1s;}
+.ev-item:hover{background:var(--s3);}
+.ev-ts{font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;width:36px;}
+.ev-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:2px;}
+.ev-txt{font-size:9px;color:var(--tx);line-height:1.3;}
+.vault-items{padding:6px 10px;display:flex;flex-direction:column;gap:3px;}
+.vi{display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--s2);border:1px solid var(--b1);border-radius:2px;cursor:pointer;transition:background 0.1s;}
+.vi:hover{background:var(--s3);}
+.vi-icon{font-size:10px;flex-shrink:0;}
+.vi-name{font-family:var(--mn);font-size:9px;color:var(--tx);}
+.vi-meta{font-family:var(--mn);font-size:8px;color:var(--tx3);margin-left:auto;}
+.vi-seal{font-family:var(--mn);font-size:8px;padding:1px 4px;border-radius:2px;background:var(--ok3);color:var(--ok2);border:1px solid rgba(20,120,72,0.2);}
+.statusbar{background:var(--s2);border-top:1px solid var(--b1);padding:3px 12px;display:flex;gap:12px;font-family:var(--mn);font-size:8px;color:var(--tx3);flex-shrink:0;}
+::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:#2a3d55;border-radius:2px;}::-webkit-scrollbar-thumb:hover{background:#3a5570;}
+</style>
+
+<style id="oblivra-design-system-patch">
+/* ═══════════════════════════════════════════════════════
+   OBLIVRA DESIGN SYSTEM — Global Patch v1.1
+   Applied uniformly across all 14 screens
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. SCROLLBAR — 4px, visible thumb */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3d55; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3a5570; }
+
+/* 2. SCROLL FADE — signal hidden content */
+.ev-table-wrap, .table-area, .log-wrap, .log-scroll,
+.activity-feed, .feed-area, .detail, .sidebar, .left-rail,
+.entity-detail, .node-palette, .pb-list, .col {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
+}
+
+/* 3. ISOLATED ROWS — draw eye TOWARD danger, not away */
+.fr.iso {
+  opacity: 1 !important;
+  background: rgba(192, 40, 40, 0.07) !important;
+  border-left: 2px solid rgba(224, 80, 80, 0.6) !important;
+}
+.fr.iso .host-name { color: #e05050 !important; }
+
+/* 4. ROW ACTIONS — persistent ⋯ menu button alongside hover-only actions */
+.row-actions-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.ra-more {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--b2, #22304a);
+  color: var(--tx3, #3a5570);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ra-more:hover { color: var(--tx, #bfd0e0); border-color: var(--b3, #2a3d55); }
+
+/* 5. FOCUS OUTLINES — keyboard accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 1.5px solid rgba(90, 174, 240, 0.6);
+  outline-offset: 1px;
+}
+
+/* 6. CRITICAL BANNER PULSE — War Room distinction */
+.isolated-banner, .crit-banner {
+  animation: banner-pulse 3s ease-in-out infinite;
+}
+@keyframes banner-pulse {
+  0%, 100% { border-bottom-color: rgba(192, 40, 40, 0.3); }
+  50% { border-bottom-color: rgba(224, 80, 80, 0.55); }
+}
+
+/* 7. WAR ROOM topbar glow */
+.wr-topbar {
+  box-shadow: 0 2px 12px rgba(200, 40, 40, 0.25);
+}
+
+/* 8. SLA BREACH blink is already present — add glow */
+.sla-breach {
+  animation: sla-blink 1s step-end infinite, sla-glow 1s ease-in-out infinite !important;
+}
+@keyframes sla-glow {
+  0%, 100% { text-shadow: none; }
+  50% { text-shadow: 0 0 6px rgba(224, 80, 80, 0.5); }
+}
+
+/* 9. SETUP WIZARD — firewall warning blocker state */
+.prereq-item.blocking {
+  background: rgba(192, 40, 40, 0.08) !important;
+  border: 1px solid rgba(192, 40, 40, 0.3) !important;
+  border-left: 3px solid #e05050 !important;
+}
+.prereq-item.blocking .pi-name { color: #e05050 !important; }
+.prereq-item.blocking .pi-status { color: #e05050 !important; animation: blink 1.2s step-end infinite; }
+
+/* 10. CONTINUE button disabled state for wizard */
+.btn-next:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--s3, #161c24) !important;
+  border-color: var(--b1, #1a2535) !important;
+  color: var(--tx3, #3a5570) !important;
+}
+.wizard-block-notice {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #e05050;
+  padding: 4px 8px;
+  background: rgba(192, 40, 40, 0.08);
+  border: 1px solid rgba(192, 40, 40, 0.25);
+  border-radius: 2px;
+  margin-top: 6px;
+}
+
+/* 11. METRIC CARDS — subtle bottom accent bar */
+.mc::after {
+  content: '';
+  display: block;
+  height: 1px;
+  margin-top: 6px;
+  background: var(--b1, #1a2535);
+  border-radius: 1px;
+}
+
+/* 12. Panel hover elevation */
+.panel:hover {
+  border-color: var(--b2, #22304a);
+  transition: border-color 0.15s;
+}
+
+/* 13. Nav item active indicator glow */
+.nav-item.active {
+  box-shadow: inset 2px 0 6px rgba(26, 127, 212, 0.15);
+}
+
+/* 14. Alert row critical glow */
+.ar.hl, .alert-row:first-child td {
+  position: relative;
+}
+.ar.hl::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: #e05050;
+  box-shadow: 0 0 6px rgba(224, 80, 80, 0.4);
+}
+
+/* 15. Token-style query bar improvements */
+.qb-token {
+  transition: opacity 0.1s;
+  user-select: none;
+}
+.qb-token:hover { opacity: 0.75; }
+
+/* 16. Evidence seal pending — subtle pulse */
+.sb-pending {
+  animation: pending-pulse 2.5s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* 17. Canvas nodes — cursor pointer */
+canvas { cursor: crosshair; }
+
+/* 18. Trust badge shimmer on SEALED */
+.tb-sealed, .vi-seal, .sb-sealed {
+  position: relative;
+  overflow: hidden;
+}
+.tb-sealed::after, .vi-seal::after, .sb-sealed::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60px; width: 40px; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(26,170,96,0.15), transparent);
+  animation: shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { left: -60px; }
+  60%, 100% { left: calc(100% + 20px); }
+}
+
+/* 19. Compliance score bar tick marks */
+.fw-bar { position: relative; }
+
+/* 20. Deployment mode card selected ring */
+.dm-card.selected {
+  box-shadow: 0 0 0 1px rgba(24, 120, 200, 0.4), inset 0 0 12px rgba(24, 120, 200, 0.04);
+}
+
+/* 21. Step connector line */
+.step-item + .step-item {
+  border-top: none;
+}
+
+/* 22. Status bar separator style */
+.statusbar span:not(:first-child):not([style*="margin-left"]) {
+  padding-left: 0;
+}
+
+/* 23. SIEM histogram bar hover tooltip */
+.hbar { position: relative; }
+
+/* 24. Log row expand animation */
+.expand-row td { animation: expand-in 0.15s ease-out; }
+@keyframes expand-in {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 400px; }
+}
+
+/* 25. Improved metric value coloring for zero-values */
+.mc-v[data-zero="true"] { color: var(--tx3, #3a5570) !important; }
+
+</style>
+
+<div class="shell">
+<div class="topbar">
+  <div class="logo">OBL<em>IV</em>RA</div>
+  <div class="ctx-d">DESKTOP</div>
+  <div class="dv"></div>
+  <div class="pl">OPERATOR MODE</div>
+  <div class="dv"></div>
+  <div class="ctx-badge"><span class="dot dot-cr"></span> SSH · HOST-FIN-044 · ACTIVE</div>
+  <div class="ml" style="display:flex;gap:6px;align-items:center;">
+    <span class="kbd">⌃⇧I</span>
+    <span class="kbd">⌃⇧E</span>
+    <span class="kbd">⌃⇧F</span>
+    <span class="kbd">⌃⇧T</span>
+  </div>
+</div>
+
+<div class="isolated-banner">
+  <div class="ib-icon">▲</div>
+  <div>
+    <div class="ib-text">ANOMALY DETECTED — INC-2026-0419-007 ACTIVE ON THIS HOST</div>
+    <div class="ib-sub">Credential dump + lateral movement · Risk 97 · SLA breach in &lt;10 min</div>
+  </div>
+  <div style="display:flex;gap:6px;margin-left:auto;">
+    <button class="ib-act" onclick="sendPrompt('Open filtered SIEM view for HOST-FIN-044 in this incident — Ctrl+Shift+F')">SIEM FILTER ⌃⇧F</button>
+    <button class="ib-act" onclick="sendPrompt('Isolate HOST-FIN-044 immediately via SOAR — Ctrl+Shift+I')">ISOLATE NOW ⌃⇧I</button>
+  </div>
+</div>
+
+<div class="body">
+<div class="left">
+  <div class="panel-hd">
+    <div class="dot dot-ok"></div>
+    <div class="phd">TERMINAL</div>
+    <div class="phd-val">oblivra@HOST-FIN-044</div>
+    <div style="margin-left:auto;display:flex;gap:6px;">
+      <span class="kbd">⌃C</span><span class="kbd">⌃D</span>
+    </div>
+  </div>
+  <div class="terminal" id="term">
+    <div class="t-line"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="t-cmd">ps aux --sort=-%cpu | head -20</span></div>
+    <div class="t-line t-out">USER       PID  %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND</div>
+    <div class="t-line t-warn">root      4412  88.2  4.1 2204884 83884 ?       Rs   00:44   0:47 powershell.exe -nop -w hidden -enc SQBFAFgA...</div>
+    <div class="t-line t-warn">root      4488  12.4  2.2  884112 44208 ?       Ss   00:48   0:12 mimikatz_x64.exe [BLOCKED by EDR]</div>
+    <div class="t-line t-out">SYSTEM    1204   1.2  0.8  441208 16880 ?       Ss   boot    1:04 lsass.exe</div>
+    <div class="t-line t-out">SYSTEM     880   0.8  0.4  220104  8812 ?       Ss   boot    0:32 services.exe</div>
+    <div class="t-line" style="margin-top:4px;"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="t-cmd">netstat -antp | grep ESTABLISHED</span></div>
+    <div class="t-line t-out">tcp  0  0  10.18.44.44:49812  185.200.12.44:443  ESTABLISHED  4412/powershell.exe</div>
+    <div class="t-line t-warn">tcp  0  0  10.18.44.44:49820  185.200.12.44:53   ESTABLISHED  4412/powershell.exe  [C2 IOC]</div>
+    <div class="t-line t-out">tcp  0  0  10.18.44.44:49780  10.18.17.20:445    ESTABLISHED  4488/mimikatz        [LATERAL]</div>
+    <div class="t-line t-out">tcp  0  0  10.18.44.44:49790  10.0.1.5:389       ESTABLISHED  4412/powershell.exe</div>
+    <div class="t-line" style="margin-top:4px;"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="t-cmd">oblivra-collect --pid 4412 --mem --disk --hash</span></div>
+    <div class="t-line t-info">[OBLIVRA] Starting evidence collection for PID 4412...</div>
+    <div class="t-line t-info">[OBLIVRA] Memory dump: /evidence/HOST-FIN-044_4412_mem.raw (2.1 GB)</div>
+    <div class="t-line t-info">[OBLIVRA] Process tree: /evidence/HOST-FIN-044_proc_tree.json</div>
+    <div class="t-line t-info">[OBLIVRA] Network connections: /evidence/HOST-FIN-044_netconn.json</div>
+    <div class="t-line t-info">[OBLIVRA] SHA256: a3f8b2c1...d441  ← <span class="t-warn">IOC MATCH (TI-FEED-22)</span></div>
+    <div class="t-line t-ok">[OBLIVRA] Evidence sealed → Vault EVD-2026-0419-044 · CoC hash: 8a4f...</div>
+    <div class="t-line" style="margin-top:4px;"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="t-cmd">oblivra-isolate --host HOST-FIN-044 --confirm</span></div>
+    <div class="t-line t-warn">[OBLIVRA] WARNING: This will cut all network access to HOST-FIN-044</div>
+    <div class="t-line t-warn">[OBLIVRA] Pending approval from L3 — CHEN, M. [AWAITING...]</div>
+    <div class="t-line" style="margin-top:6px;"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="cursor"></span></div>
+  </div>
+  <div class="t-input-row">
+    <span style="font-family:var(--mn);font-size:10px;color:var(--tx3);">$</span>
+    <input class="t-inp" placeholder="Enter command..." id="t-inp" onkeydown="handleCmd(event)" />
+    <button class="t-send" onclick="sendPrompt('Show available OBLIVRA operator commands for forensic collection and host isolation')">HELP</button>
+  </div>
+</div>
+<div class="right">
+  <div class="section">
+    <div class="s-hd">HOST CONTEXT <span style="color:var(--cr2);">RISK 97</span></div>
+    <div class="s-body">
+      <div class="host-info">
+        <div class="hi-row"><div class="hi-key">HOSTNAME</div><div class="hi-val">HOST-FIN-044</div></div>
+        <div class="hi-row"><div class="hi-key">IP ADDRESS</div><div class="hi-val" style="color:#5aaef0;">10.18.44.44</div></div>
+        <div class="hi-row"><div class="hi-key">OS</div><div class="hi-val">WIN-SERVER-2022</div></div>
+        <div class="hi-row"><div class="hi-key">OWNER</div><div class="hi-val">FINANCE / TIER-1</div></div>
+        <div class="hi-row"><div class="hi-key">AGENT</div><div class="hi-val ok">v3.4.1 ONLINE</div></div>
+        <div class="hi-row"><div class="hi-key">STATUS</div><div class="hi-val cr">COMPROMISED</div></div>
+        <div class="hi-row"><div class="hi-key">SSH SESSION</div><div class="hi-val ok">ACTIVE · 52m</div></div>
+        <div class="hi-row"><div class="hi-key">VAULT</div><div class="hi-val pu">1 SEALED</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="s-hd">OPERATOR ACTIONS</div>
+    <div class="action-grid">
+      <button class="ag-btn ag-danger" onclick="sendPrompt('Execute immediate host isolation on HOST-FIN-044 — confirm and proceed')">
+        <span class="ag-label">ISOLATE HOST</span>
+        <span class="ag-sub">⌃⇧I · cut network</span>
+      </button>
+      <button class="ag-btn ag-warn" onclick="sendPrompt('Capture full forensic evidence from HOST-FIN-044 and seal to Evidence Vault')">
+        <span class="ag-label">CAPTURE EVIDENCE</span>
+        <span class="ag-sub">⌃⇧E · mem + disk</span>
+      </button>
+      <button class="ag-btn ag-info" onclick="sendPrompt('Kill process PID 4412 powershell.exe on HOST-FIN-044')">
+        <span class="ag-label">KILL PROCESS</span>
+        <span class="ag-sub">PID 4412 · C2</span>
+      </button>
+      <button class="ag-btn ag-info" onclick="sendPrompt('Open filtered SIEM view for HOST-FIN-044 incident context')">
+        <span class="ag-label">SIEM FILTER</span>
+        <span class="ag-sub">⌃⇧F · pivot host</span>
+      </button>
+      <button class="ag-btn ag-ghost" onclick="sendPrompt('Assemble full incident timeline for HOST-FIN-044')">
+        <span class="ag-label">TIMELINE</span>
+        <span class="ag-sub">auto-assemble</span>
+      </button>
+      <button class="ag-btn ag-ghost" onclick="sendPrompt('Run SOAR playbook PB-CRED-01 credential response for HOST-FIN-044')">
+        <span class="ag-label">RUN PLAYBOOK</span>
+        <span class="ag-sub">PB-CRED-01</span>
+      </button>
+    </div>
+  </div>
+  <div class="section">
+    <div class="s-hd">RECENT EVENTS</div>
+    <div class="ev-list">
+      <div class="ev-item" onclick="sendPrompt('Detail on LSASS dump event at 00:55 on HOST-FIN-044')">
+        <div class="ev-ts">00:55</div>
+        <div class="ev-dot" style="background:#e05050;"></div>
+        <div class="ev-txt" style="color:#e05050;">LSASS dump blocked · EDR</div>
+      </div>
+      <div class="ev-item" onclick="sendPrompt('Detail on C2 connection from HOST-FIN-044')">
+        <div class="ev-ts">00:50</div>
+        <div class="ev-dot" style="background:var(--hi2);"></div>
+        <div class="ev-txt">C2 beacon → 185.200.12.44</div>
+      </div>
+      <div class="ev-item" onclick="sendPrompt('Detail on registry persistence event')">
+        <div class="ev-ts">00:49</div>
+        <div class="ev-dot" style="background:var(--hi2);"></div>
+        <div class="ev-txt">Registry Run key persistence</div>
+      </div>
+      <div class="ev-item" onclick="sendPrompt('Detail on PowerShell encoded execution')">
+        <div class="ev-ts">00:48</div>
+        <div class="ev-dot" style="background:var(--md2);"></div>
+        <div class="ev-txt">PowerShell -enc payload exec</div>
+      </div>
+      <div class="ev-item" onclick="sendPrompt('Detail on WMI lateral movement from HOST-FIN-044')">
+        <div class="ev-ts">00:47</div>
+        <div class="ev-dot" style="background:var(--md2);"></div>
+        <div class="ev-txt">WMI exec → FIN-SRV-07</div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="s-hd">EVIDENCE VAULT <span style="color:var(--ok2);">1 SEALED</span></div>
+    <div class="vault-items">
+      <div class="vi" onclick="sendPrompt('Open sealed evidence item EVD-2026-0419-044 memory dump details')">
+        <div class="vi-icon" style="color:var(--pu2);">⊠</div>
+        <div>
+          <div class="vi-name">HOST-FIN-044 · mem dump</div>
+          <div class="vi-meta">2.1 GB · 00:54Z</div>
+        </div>
+        <div class="vi-seal">SEALED</div>
+      </div>
+      <div class="vi" onclick="sendPrompt('Open evidence item: process tree JSON')">
+        <div class="vi-icon" style="color:#5aaef0;">≡</div>
+        <div>
+          <div class="vi-name">proc_tree.json</div>
+          <div class="vi-meta">44 KB · 00:54Z</div>
+        </div>
+        <div class="vi-seal">SEALED</div>
+      </div>
+      <div class="vi" onclick="sendPrompt('Open evidence item: network connections capture')">
+        <div class="vi-icon" style="color:#5aaef0;">⊕</div>
+        <div>
+          <div class="vi-name">netconn_capture.pcap</div>
+          <div class="vi-meta">18 MB · 00:54Z</div>
+        </div>
+        <div class="vi-seal">SEALED</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="statusbar">
+  <span>SSH: <span style="color:var(--ok2);">CONNECTED</span></span>
+  <span>|</span><span>VAULT: <span style="color:var(--ok2);">3 ITEMS SEALED</span></span>
+  <span>|</span><span>DESKTOP APP v2.14.1-sovereign</span>
+  <span style="margin-left:auto;font-family:var(--mn);font-size:8px;color:var(--pu2);">AIR-GAPPED MODE · SOVEREIGN</span>
+</div>
+</div>
+<script>
+function handleCmd(e){
+  if(e.key==='Enter'){
+    const v=e.target.value.trim();
+    if(!v)return;
+    const term=document.getElementById('term');
+    const cur=term.querySelector('.cursor');
+    if(cur)cur.closest('.t-line').remove();
+    
+    term.insertAdjacentHTML('beforeend', `<div class="t-line"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="t-cmd">${v}</span></div>`);
+    
+    setTimeout(() => {
+      term.insertAdjacentHTML('beforeend', `<div class="t-line t-info">[OBLIVRA] Command executed: ${v}</div>`);
+      term.insertAdjacentHTML('beforeend', `<div class="t-line"><span class="t-prompt">oblivra@HOST-FIN-044:~$</span> <span class="cursor"></span></div>`);
+      term.scrollTop=term.scrollHeight;
+    }, 400);
+    
+    e.target.value='';
+  }
+}
+
+let secs = 9 * 60 + 30;
+setInterval(() => {
+  secs--;
+  const m = Math.floor(secs / 60), s = secs % 60;
+  const timeStr = m + ':' + String(s).padStart(2, '0');
+  const subEl = document.querySelector('.ib-sub');
+  if (subEl) subEl.innerHTML = `Credential dump + lateral movement · Risk 97 · SLA breach in <strong style="color:#e05050;">${timeStr}</strong>`;
+}, 1000);
+</script>
+
+</body>
+</html>

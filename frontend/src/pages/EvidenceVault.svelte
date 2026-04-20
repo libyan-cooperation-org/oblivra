@@ -5,13 +5,14 @@
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable } from '@components/ui';
   import { Lock, FileText, Download, History, Search, Filter, HardDrive } from 'lucide-svelte';
+  import { forensicsStore } from '@lib/stores/forensics.svelte.ts';
+  import { onMount } from 'svelte';
 
-  const evidenceItems = [
-    { id: 'EV-2026-001', case: 'INC-4421', type: 'Memory Dump', hash: 'sha256:a4c5..89e1', status: 'sealed', time: '10:42:15' },
-    { id: 'EV-2026-002', case: 'INC-4421', type: 'Disk Image', hash: 'sha256:b12d..42c1', status: 'sealed', time: '10:45:10' },
-    { id: 'EV-2026-003', case: 'INC-4418', type: 'Network PCAP', hash: 'sha256:f42a..11e9', status: 'accessed', time: '09:12:00' },
-    { id: 'EV-2026-004', case: 'INC-4402', type: 'Process Tree', hash: 'sha256:e901..bc42', status: 'sealed', time: '1 day ago' }
-  ];
+  const evidenceItems = $derived(forensicsStore.items);
+
+  onMount(() => {
+    forensicsStore.loadIncidentEvidence('GLOBAL'); // Load all for the vault view
+  });
 </script>
 
 <PageLayout title="Evidence Vault" subtitle="Immutable forensic storage shards with hardware-backed chain of custody">
@@ -69,13 +70,14 @@
                 data={evidenceItems} 
                 columns={[
                     { key: 'id', label: 'EVIDENCE_ID', width: '120px' },
-                    { key: 'case', label: 'CASE_REF', width: '100px' },
-                    { key: 'type', label: 'ARTIFACT_TYPE', width: '120px' },
+                    { key: 'name', label: 'ARTIFACT_NAME', width: '200px' },
+                    { key: 'type', label: 'TYPE', width: '120px' },
                     { key: 'hash', label: 'INTEGRITY_HASH' },
-                    { key: 'status', label: 'STATUS', width: '100px' },
-                    { key: 'time', label: 'INGESTED', width: '100px' }
+                    { key: 'sealed', label: 'STATUS', width: '100px' },
+                    { key: 'timestamp', label: 'INGESTED', width: '100px' }
                 ]} 
                 compact
+                onRowClick={(row) => forensicsStore.loadChain(row.id)}
             >
                 {#snippet render({ col, row })}
                     {#if col.key === 'id'}
@@ -83,16 +85,16 @@
                             <FileText size={12} class="text-accent opacity-60" />
                             <span class="text-[10px] font-mono font-bold text-text-heading">{row.id}</span>
                         </div>
-                    {:else if col.key === 'case'}
-                        <span class="text-[9px] font-mono text-accent">{row.case}</span>
+                    {:else if col.key === 'name'}
+                        <span class="text-[9px] font-mono text-accent">{row.name}</span>
                     {:else if col.key === 'type'}
                         <span class="text-[9px] font-mono text-text-muted uppercase">{row.type}</span>
                     {:else if col.key === 'hash'}
-                        <code class="text-[9px] font-mono text-text-muted opacity-60">{row.hash}</code>
-                    {:else if col.key === 'status'}
-                        <Badge variant={row.status === 'sealed' ? 'success' : 'info'} size="xs" dot>{row.status}</Badge>
-                    {:else if col.key === 'time'}
-                        <span class="text-[9px] font-mono text-text-muted">{row.time}</span>
+                        <code class="text-[9px] font-mono text-text-muted opacity-60">{row.hash?.substring(0, 16)}...</code>
+                    {:else if col.key === 'sealed'}
+                        <Badge variant={row.sealed ? 'success' : 'info'} size="xs" dot>{row.sealed ? 'SEALED' : 'OPEN'}</Badge>
+                    {:else if col.key === 'timestamp'}
+                        <span class="text-[9px] font-mono text-text-muted">{new Date(row.timestamp).toLocaleTimeString()}</span>
                     {/if}
                 {/snippet}
             </DataTable>
@@ -106,21 +108,17 @@
             <span class="text-[8px] font-mono font-bold text-text-muted uppercase tracking-widest">Vault Access Audit</span>
         </div>
         <div class="flex-1 overflow-auto space-y-1 font-mono text-[9px]">
-            <div class="flex gap-2 text-text-muted">
-                <span class="opacity-40">[10:45:10]</span>
-                <span class="text-accent font-bold">[ACCESS]</span>
-                <span>Operator K. MAVERICK accessed EV-2026-003 for Case INC-4418</span>
-            </div>
-            <div class="flex gap-2 text-text-muted">
-                <span class="opacity-40">[10:42:15]</span>
-                <span class="text-success font-bold">[SEAL]</span>
-                <span>Evidence EV-2026-001 finalized and sealed with Root Key #14A</span>
-            </div>
-            <div class="flex gap-2 text-text-muted">
-                <span class="opacity-40">[09:12:00]</span>
-                <span class="text-info font-bold">[SYNC]</span>
-                <span>Shard #04 synchronized with secondary vault node</span>
-            </div>
+            {#each forensicsStore.activeChain as entry}
+                <div class="flex gap-2 text-text-muted">
+                    <span class="opacity-40">[{new Date(entry.timestamp).toLocaleTimeString()}]</span>
+                    <span class="text-accent font-bold uppercase">[{entry.action}]</span>
+                    <span>{entry.actor}: {entry.notes}</span>
+                </div>
+            {:else}
+                <div class="h-full flex items-center justify-center text-[9px] text-text-muted uppercase tracking-[0.2em] opacity-30">
+                    Select an item to view chain of custody
+                </div>
+            {/each}
         </div>
     </div>
   </div>

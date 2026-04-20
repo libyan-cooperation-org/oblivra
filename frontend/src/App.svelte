@@ -10,8 +10,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
+  import BottomNav from '@components/layout/BottomNav.svelte';
   import LoadingScreen from '@components/ui/LoadingScreen.svelte';
   import ErrorScreen from '@components/ui/ErrorScreen.svelte';
+  import { siemStore } from '@lib/stores/siem.svelte';
 
   // ── Pages
   import Dashboard from '@pages/Dashboard.svelte';
@@ -84,6 +86,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
   import SetupWizard from '@pages/SetupWizard.svelte';
   import EvidenceVault from '@pages/EvidenceVault.svelte';
+  import OperatorMode from '@pages/OperatorMode.svelte';
+  import MultiTenantAdmin from '@pages/MultiTenantAdmin.svelte';
+  import KeyboardMap from '@pages/KeyboardMap.svelte';
 
   // ── Types
   interface RouteDefinition {
@@ -94,6 +99,13 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   let ready = $state(false);
   let error = $state<string | null>(null);
   let mainEl = $state<HTMLElement | null>(null);
+  let screenWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  const isMobile = $derived(screenWidth < 640);
+
+  function handleResize() {
+    screenWidth = window.innerWidth;
+  }
 
   $effect(() => {
     if (!mainEl) return;
@@ -141,6 +153,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/snippets',         component: SnippetsPage },
     { path: '/notes',            component: NotesPage },
     { path: '/agent-console',    component: AgentConsole },
+    { path: '/operator',         component: OperatorMode },
 
     // Fleet & Workspace
     { path: '/investigation',   component: InvestigationDashboard },
@@ -197,6 +210,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/trust',          component: RuntimeTrust },
     { path: '/runtime-trust',  component: RuntimeTrust },
     { path: '/identity-admin', component: IdentityAdmin },
+    { path: '/admin',          component: MultiTenantAdmin },
+    { path: '/shortcuts',      component: KeyboardMap },
     { path: '/secrets',        component: SecretManager },
     { path: '/suppression',    component: SuppressionManager },
     { path: '/secret-manager', component: SecretManager },
@@ -234,6 +249,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
       await appStore.init();
       crisisStore.init();
+      siemStore.refreshStats();
       ready = true;
     } catch (e: any) {
       console.error('App init failed:', e);
@@ -242,14 +258,58 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   });
 
   function onKeyDown(e: KeyboardEvent) {
+    // ── Command Palette (⌘K)
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       appStore.toggleCommandPalette();
     }
+
+    // ── Global Search (⌘P)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      e.preventDefault();
+      appStore.showCommandPalette = true;
+    }
+
+    // ── Help / Shortcuts (⌘/)
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      appStore.navigate('/shortcuts');
+    }
+
+    // ── Escape to clear
+    if (e.key === 'Escape') {
+      appStore.showCommandPalette = false;
+    }
+
+    // ── Global Navigation (G + key)
+    if (e.key.toLowerCase() === 'g') {
+        const nextKeyHandler = (ne: KeyboardEvent) => {
+            const key = ne.key.toLowerCase();
+            if (key === 'd') appStore.navigate('/dashboard');
+            if (key === 'a') appStore.navigate('/alerts');
+            if (key === 's') appStore.navigate('/siem');
+            if (key === 'f') appStore.navigate('/fleet');
+            if (key === 'v') appStore.navigate('/evidence');
+            window.removeEventListener('keydown', nextKeyHandler);
+        };
+        window.addEventListener('keydown', nextKeyHandler, { once: true });
+    }
+
+    // ── Operator Shortcuts (⌃⇧ + key)
+    if (e.ctrlKey && e.shiftKey) {
+        if (e.key === 'I') {
+            e.preventDefault();
+            appStore.notify('Isolation directive triggered via hotkey', 'warning');
+        }
+        if (e.key === 'E') {
+            e.preventDefault();
+            appStore.notify('Evidence capture triggered via hotkey', 'info');
+        }
+    }
   }
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} onresize={handleResize} />
 
 <main
   bind:this={mainEl}
@@ -257,7 +317,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 >
   {#if ready}
     <div class="flex h-full w-full">
-      <Sidebar />
+      {#if !isMobile}
+        <Sidebar />
+      {/if}
 
       <div class="relative flex flex-1 flex-col overflow-hidden">
         <TopBar />
@@ -286,6 +348,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
         <div class="flex-1 overflow-auto relative">
           <RouterView {routes} />
         </div>
+        
+        {#if isMobile}
+          <BottomNav />
+        {/if}
       </div>
 
       {#if appStore.showCommandPalette}
