@@ -381,7 +381,7 @@ var migrations = []migration{
 			ALTER TABLE tenants ADD COLUMN tier TEXT DEFAULT 'free';
 			ALTER TABLE tenants ADD COLUMN status TEXT DEFAULT 'Active';
 			ALTER TABLE tenants ADD COLUMN crypto_salt TEXT DEFAULT '';
-			ALTER TABLE tenants ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+			ALTER TABLE tenants ADD COLUMN updated_at DATETIME DEFAULT '2026-04-20 00:00:00';
 		`,
 	},
 	{

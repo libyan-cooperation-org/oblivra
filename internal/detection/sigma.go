@@ -74,8 +74,9 @@ func TranspileSigma(data []byte) (*Rule, error) {
 		var native struct {
 			Name string `yaml:"name"`
 		}
-		_ = yaml.Unmarshal(data, &native)
-		sigma.Title = native.Name
+		if err := yaml.Unmarshal(data, &native); err == nil {
+			sigma.Title = native.Name
+		}
 	}
 
 	if sigma.Title == "" {
@@ -86,7 +87,7 @@ func TranspileSigma(data []byte) (*Rule, error) {
 	var typeCheck struct {
 		Type string `yaml:"type"`
 	}
-	_ = yaml.Unmarshal(data, &typeCheck)
+	_ = yaml.Unmarshal(data, &typeCheck) // Best effort to detect native format
 	if typeCheck.Type != "" {
 		// It's already a native rule, just unmarshal it fully and return
 		var rule Rule

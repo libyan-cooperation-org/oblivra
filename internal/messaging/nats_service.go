@@ -51,6 +51,10 @@ func (s *NATSService) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.server != nil {
+		return nil // Already started
+	}
+
 	opts := &server.Options{
 		Port:    s.config.Port,
 		StoreDir: s.config.DataDir,
@@ -115,10 +119,12 @@ func (s *NATSService) Stop(ctx context.Context) error {
 
 	if s.conn != nil {
 		s.conn.Close()
+		s.conn = nil
 	}
 	if s.server != nil {
 		s.server.Shutdown()
 		s.server.WaitForShutdown()
+		s.server = nil
 	}
 	return nil
 }

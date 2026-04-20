@@ -49,9 +49,11 @@ func (n *SIEMNode) Process(ctx context.Context, evt *Event) ([]*Event, error) {
 	insertCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	n.log.Debug("[DAG] Indexing SIEM event: host=%s, type=%s, user=%s", hostEvent.HostID, hostEvent.EventType, hostEvent.User)
 	if err := n.siem.InsertHostEvent(insertCtx, hostEvent); err != nil {
 		n.log.Error("[DAG] Failed to index SIEM event: %v", err)
 	} else if n.bus != nil {
+		n.log.Debug("[DAG] Event indexed successfully")
 		n.bus.Publish("siem.event_indexed", *hostEvent)
 	}
 

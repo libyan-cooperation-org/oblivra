@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/events"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
@@ -23,6 +24,7 @@ type SyslogServer struct {
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 	port     int
+	mu       sync.Mutex
 }
 
 // NewSyslogServer initializes but does not start the listener
@@ -39,6 +41,13 @@ func NewSyslogServer(pipeline IngestionPipeline, port int, log *logger.Logger) *
 
 // Start binds the TCP and UDP ports and begins accepting external logs
 func (s *SyslogServer) Start() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.udpConn != nil || s.tcpList != nil {
+		return nil // Already started
+	}
+
 	addr := fmt.Sprintf(":%d", s.port)
 
 	// 1. Start UDP Listener
@@ -76,9 +85,11 @@ func (s *SyslogServer) Stop() {
 	s.cancel()
 	if s.udpConn != nil {
 		s.udpConn.Close()
+		s.udpConn = nil
 	}
 	if s.tcpList != nil {
 		s.tcpList.Close()
+		s.tcpList = nil
 	}
 	s.wg.Wait()
 }
@@ -110,9 +121,10 @@ func (s *SyslogServer) serveUDP() {
 		}
 
 		rawLine := string(buf[:n])
+		s.log.Info("[SYSLOG-UDP] Received %d bytes from %s: %s", n, addr.String(), rawLine)
 		pCtx := events.EventProcessingContext{
 			EventID:  fmt.Sprintf("evt-udp-%d", time.Now().UnixNano()),
-			TenantID: "GLOBAL",
+			TenantID: database.DefaultTenantID,
 			Now:      time.Now().UTC(),
 		}
 		evt := AutoParse(rawLine, pCtx)
@@ -165,13 +177,14 @@ func (s *SyslogServer) handleTCPConnection(conn net.Conn) {
 
 	for scanner.Scan() {
 		rawLine := scanner.Text()
+		s.log.Info("[SYSLOG-TCP] Received line from %s: %s", remoteHost, rawLine)
 		if strings.TrimSpace(rawLine) == "" {
 			continue
 		}
 
 		pCtx := events.EventProcessingContext{
 			EventID:  fmt.Sprintf("evt-tcp-%d", time.Now().UnixNano()),
-			TenantID: "GLOBAL",
+			TenantID: database.DefaultTenantID,
 			Now:      time.Now().UTC(),
 		}
 		evt := AutoParse(rawLine, pCtx)

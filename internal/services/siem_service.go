@@ -177,6 +177,9 @@ func (s *SIEMService) Store() database.SIEMStore {
 }
 
 func (s *SIEMService) Stop(ctx context.Context) error {
+	if s.correlation != nil {
+		s.correlation.Stop()
+	}
 	return nil
 }
 

@@ -46,6 +46,7 @@ type AgentServer struct {
 	activeAgents   map[string]AgentInfo
 	desiredConfig  FleetConfig
 	pendingActions map[string][]PendingAction // agentID -> actions
+	done           chan struct{}
 }
 
 // FleetConfig is the subset of agent configuration that can be pushed from the server.
@@ -113,11 +114,18 @@ func NewAgentServer(pipeline IngestionPipeline, port int, certFile, keyFile, caF
 			EnableMetrics:  true,
 			EnableEventLog: true,
 		},
+		done: make(chan struct{}),
 	}
 }
 
-// Start spins up the HTTP listener
 func (s *AgentServer) Start() error {
+	s.mu.Lock()
+	if s.server != nil && s.server.Addr != "" {
+		// Already started
+		s.mu.Unlock()
+		return nil
+	}
+
 	addr := fmt.Sprintf(":%d", s.port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/agent/ingest", s.handleIngest)
@@ -146,15 +154,33 @@ func (s *AgentServer) Start() error {
 		Handler:   mux,
 		TLSConfig: tlsConfig,
 	}
+	s.mu.Unlock()
 
 	s.log.Info("Starting Agent Ingest Server on %s (mTLS: %v)", addr, s.caFile != "")
 
 	go func() {
+		defer s.log.Debug("Agent Server goroutine exiting")
 		err := s.server.ListenAndServeTLS(s.certFile, s.keyFile)
 		// If certs aren't available yet or user wants HTTP for dev, fallback
 		if err != nil && err != http.ErrServerClosed {
 			s.log.Warn("TLS setup failed (%v), falling back to unencrypted HTTP on %s", err, addr)
+			// Create a NEW server for the fallback because ListenAndServeTLS might have 
+			// put the server in an inconsistent state or partially closed it.
+			// Actually, better to just modify the existing one if it's not closed.
+			s.mu.Lock()
+			if s.server == nil { 
+				s.mu.Unlock()
+				return 
+			}
 			s.server.TLSConfig = nil
+			s.mu.Unlock()
+
+			select {
+			case <-s.done:
+				return
+			default:
+			}
+
 			if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				s.log.Error("Agent Server listener failed: %v", err)
 			}
@@ -167,10 +193,14 @@ func (s *AgentServer) Start() error {
 // Stop halts the HTTP server gracefully
 func (s *AgentServer) Stop() {
 	s.log.Info("Stopping Agent Ingest Server...")
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.server != nil {
+		close(s.done)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		s.server.Shutdown(ctx)
+		s.server = nil
 	}
 }
 

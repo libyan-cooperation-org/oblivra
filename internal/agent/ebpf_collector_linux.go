@@ -190,7 +190,9 @@ func (c *EBPFLinuxCollector) cleanup() {
 		}
 	}
 	if len(c.rbMmap) > 0 {
-		_ = syscall.Munmap(c.rbMmap)
+		if err := syscall.Munmap(c.rbMmap); err != nil {
+			c.log.Warn("[eBPF] munmap failed: %v", err)
+		}
 		c.rbMmap = nil
 	}
 	if c.ringBufFD >= 0 {

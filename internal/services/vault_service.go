@@ -88,17 +88,34 @@ func (s *VaultService) HasKeychainEntry() bool {
 }
 
 func (s *VaultService) Stop(ctx context.Context) error {
-	s.log.Info("Shutting down VaultService and closing databases...")
+	defer func() {
+		if r := recover(); r != nil {
+			if s.log != nil {
+				s.log.Error("VaultService.Stop PANIC: %v", r)
+			} else {
+				fmt.Printf("VaultService.Stop PANIC (no log): %v\n", r)
+			}
+		}
+	}()
+
+	if s.log != nil {
+		s.log.Info("Shutting down VaultService and closing databases...")
+	}
 	if s.analytics != nil {
 		s.analytics.Close()
 	}
-	if s.searchEngine != nil && *s.searchEngine != nil {
-		(*s.searchEngine).Close()
+	if s.searchEngine != nil {
+		se := *s.searchEngine
+		if se != nil {
+			if s.log != nil {
+				s.log.Debug("Closing search engine...")
+			}
+			se.Close()
+		}
 	}
 	if s.db != nil {
 		s.db.Close()
 	}
-	s.log.Info("VaultService shutdown complete.")
 	return nil
 }
 

@@ -20,8 +20,14 @@ func (d *Database) Upsert(ctx context.Context, incident *Incident) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	tacticsJSON, _ := json.Marshal(incident.MitreTactics)
-	techniquesJSON, _ := json.Marshal(incident.MitreTechniques)
+	tacticsJSON, err := json.Marshal(incident.MitreTactics)
+	if err != nil {
+		tacticsJSON = []byte("[]")
+	}
+	techniquesJSON, err := json.Marshal(incident.MitreTechniques)
+	if err != nil {
+		techniquesJSON = []byte("[]")
+	}
 
 	query := `
 		INSERT INTO incidents (
@@ -166,8 +172,12 @@ func scanIncident(row rowScanner) (*Incident, error) {
 
 	i.FirstSeenAt = firstSeen.Format(time.RFC3339)
 	i.LastSeenAt = lastSeen.Format(time.RFC3339)
-	_ = json.Unmarshal([]byte(tacticsStr), &i.MitreTactics)
-	_ = json.Unmarshal([]byte(techniquesStr), &i.MitreTechniques)
+	if err := json.Unmarshal([]byte(tacticsStr), &i.MitreTactics); err != nil {
+		i.MitreTactics = []string{}
+	}
+	if err := json.Unmarshal([]byte(techniquesStr), &i.MitreTechniques); err != nil {
+		i.MitreTechniques = []string{}
+	}
 
 	if i.MitreTactics == nil {
 		i.MitreTactics = []string{}

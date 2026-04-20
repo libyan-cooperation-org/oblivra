@@ -48,6 +48,7 @@ type AnalyticsEngine struct {
 	opened        bool
 	cancelWorkers context.CancelFunc
 	workerWg      sync.WaitGroup
+	closeOnce     sync.Once
 }
 
 const (
@@ -314,13 +315,18 @@ func (e *AnalyticsEngine) SetSearchEngine(se *search.SearchEngine) {
 
 // Close flushes pending writes and closes the database
 func (e *AnalyticsEngine) Close() error {
-	close(e.done)
-	if e.cancelWorkers != nil {
-		e.cancelWorkers()
-		e.workerWg.Wait()
-	}
+	e.closeOnce.Do(func() {
+		close(e.done)
+		if e.cancelWorkers != nil {
+			e.cancelWorkers()
+			e.workerWg.Wait()
+		}
+	})
 	if e.archiver != nil {
 		e.archiver.Stop()
+	}
+	if e.searchEngine != nil {
+		e.searchEngine.Close()
 	}
 	if e.db != nil {
 		return e.db.Close()

@@ -49,6 +49,7 @@ func (s *NDRService) Start(ctx context.Context) error {
 	if err := s.collector.Start(ctx); err != nil {
 		s.log.Error("Failed to start NDR collector: %v", err)
 	}
+	s.lateralEngine.Start(ctx)
 
 	// Subscribe to internal flows for multi-hop analysis and sub-analyzers
 	s.bus.Subscribe("ndr.flow_captured", func(event eventbus.Event) {

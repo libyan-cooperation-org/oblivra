@@ -277,11 +277,15 @@ func (a *App) Startup(ctx context.Context) {
 	// Only attempt keychain auto-unlock if the vault was previously set up with
 	// remember=true AND has a stored keychain entry. Attempting it unconditionally
 	// races with the user typing their password in the UI and produces a spurious
-	// "incorrect password" error on every startup.
+	// "incorrect password" error on every startup
 	if a.VaultService != nil {
 		go func() {
 			// Short pause so the vault UI can render before any backend activity
-			time.Sleep(500 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(500 * time.Millisecond):
+			}
 
 			// Bail immediately if already unlocked (e.g. fast user who typed password)
 			if a.VaultService.IsUnlocked() {

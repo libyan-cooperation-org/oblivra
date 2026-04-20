@@ -292,10 +292,28 @@ func (s *MultiExecService) executeOnHost(
 	if host.CredentialID != "" && s.vault != nil && s.vault.IsUnlocked() {
 		switch host.AuthMethod {
 		case "password":
-			password, _ = s.vault.GetPassword(host.CredentialID)
+			var err error
+			password, err = s.vault.GetPassword(host.CredentialID)
+			if err != nil {
+				job.mu.Lock()
+				job.Results[index].Status = "error"
+				job.Results[index].Error = fmt.Sprintf("get password: %v", err)
+				job.Results[index].Duration = time.Since(start).String()
+				job.mu.Unlock()
+				return
+			}
 		case "key":
 			var passphraseStr string
-			privateKey, passphraseStr, _ = s.vault.GetPrivateKey(host.CredentialID)
+			var err error
+			privateKey, passphraseStr, err = s.vault.GetPrivateKey(host.CredentialID)
+			if err != nil {
+				job.mu.Lock()
+				job.Results[index].Status = "error"
+				job.Results[index].Error = fmt.Sprintf("get private key: %v", err)
+				job.Results[index].Duration = time.Since(start).String()
+				job.mu.Unlock()
+				return
+			}
 			passphrase = []byte(passphraseStr)
 		}
 	} else if host.HasPassword {

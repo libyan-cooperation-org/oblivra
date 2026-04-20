@@ -279,7 +279,9 @@ func (s *IdentityService) LoginLocal(email, password string) (*database.User, er
 	}
 
 	// Record the login
-	_ = s.userRepo.RecordLogin(s.ctx, user.ID)
+	if err := s.userRepo.RecordLogin(s.ctx, user.ID); err != nil {
+		s.log.Warn("Failed to record login for user %s: %v", user.ID, err)
+	}
 	s.bus.Publish("identity.login", user.Email)
 	s.log.Info("User logged in: %s", user.Email)
 
@@ -303,7 +305,9 @@ func (s *IdentityService) LoginHardwareBound(ctx context.Context, email string, 
 		return nil, fmt.Errorf("invalid hardware signature")
 	}
 
-	_ = s.userRepo.RecordLogin(ctx, user.ID)
+	if err := s.userRepo.RecordLogin(ctx, user.ID); err != nil {
+		s.log.Warn("Failed to record login for user %s (SAML): %v", user.ID, err)
+	}
 	s.bus.Publish("identity.login.hardware", user.Email)
 	s.log.Info("User logged in via Hardware: %s", user.Email)
 

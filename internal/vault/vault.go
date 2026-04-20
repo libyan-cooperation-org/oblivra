@@ -225,7 +225,9 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 		meta.CanaryHash = hasher.Sum(nil)
 		meta.Canary = newCanary
 		if newData, err := json.Marshal(meta); err == nil {
-			_ = os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), newData, 0600)
+			if err := os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), newData, 0600); err != nil {
+				v.log.Error("[SECURITY] Failed to persist migrated vault metadata: %v", err)
+			}
 		}
 	}
 
@@ -234,7 +236,9 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 
 	if rememberMe && v.keychain.Available() {
 		// Store the key in the keychain for future auto-unlock
-		_ = v.keychain.Set("master-key", key)
+		if err := v.keychain.Set("master-key", key); err != nil {
+			v.log.Warn("[VAULT] Failed to store master-key in keychain: %v", err)
+		}
 	}
 
 	return nil
@@ -317,7 +321,9 @@ func (v *Vault) UnlockWithKeychain() error {
 		meta.CanaryHash = hasher.Sum(nil)
 		meta.Canary = newCanary
 		if newData, err := json.Marshal(meta); err == nil {
-			_ = os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), newData, 0600)
+			if err := os.WriteFile(filepath.Join(v.config.StorePath, "vault.json"), newData, 0600); err != nil {
+				v.log.Error("[SECURITY] Failed to persist migrated vault metadata (keychain flow): %v", err)
+			}
 		}
 	}
 
@@ -427,7 +433,9 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 
 	// 6. Update keychain if active
 	if v.keychain.Available() {
-		_ = v.keychain.Set("master-key", newKey)
+		if err := v.keychain.Set("master-key", newKey); err != nil {
+			v.log.Warn("[VAULT] Failed to update master-key in keychain after rotation: %v", err)
+		}
 	}
 
 	return nil
@@ -457,7 +465,9 @@ func (v *Vault) NuclearDestruction() error {
 
 	// 2. Clear keychain
 	if v.keychain.Available() {
-		_ = v.keychain.Delete("master-key")
+		if err := v.keychain.Delete("master-key"); err != nil {
+			v.log.Warn("[VAULT] Failed to clear keychain during nuclear destruction: %v", err)
+		}
 	}
 
 	// 3. Purge memory

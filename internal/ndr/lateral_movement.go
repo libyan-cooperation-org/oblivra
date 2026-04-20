@@ -1,6 +1,7 @@
 package ndr
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -53,17 +54,20 @@ type LateralMovementEngine struct {
 	log          *logger.Logger
 }
 
-// NewLateralMovementEngine returns a ready-to-use engine with GC goroutine started.
+// NewLateralMovementEngine returns a ready-to-use engine.
 func NewLateralMovementEngine(bus *eventbus.Bus, log *logger.Logger) *LateralMovementEngine {
-	e := &LateralMovementEngine{
+	return &LateralMovementEngine{
 		connections:  make(map[connectionKey]*flowRecord),
 		window:       2 * time.Minute,
 		hopThreshold: 5,
 		bus:          bus,
 		log:          log,
 	}
-	go e.runGC()
-	return e
+}
+
+// Start begins the background GC loop.
+func (e *LateralMovementEngine) Start(ctx context.Context) {
+	go e.runGC(ctx)
 }
 
 // ProcessFlow ingests a network flow and checks for lateral movement patterns.
@@ -196,18 +200,23 @@ func (e *LateralMovementEngine) evaluate(sourceIP string) {
 }
 
 // runGC periodically evicts stale connection records outside the correlation window.
-func (e *LateralMovementEngine) runGC() {
+func (e *LateralMovementEngine) runGC(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	for range ticker.C {
-		cutoff := time.Now().Add(-e.window)
-		e.mu.Lock()
-		for k, rec := range e.connections {
-			if parseTime(rec.seen).Before(cutoff) {
-				delete(e.connections, k)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cutoff := time.Now().Add(-e.window)
+			e.mu.Lock()
+			for k, rec := range e.connections {
+				if parseTime(rec.seen).Before(cutoff) {
+					delete(e.connections, k)
+				}
 			}
+			e.mu.Unlock()
 		}
-		e.mu.Unlock()
 	}
 }
 

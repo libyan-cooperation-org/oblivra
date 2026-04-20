@@ -89,6 +89,21 @@ func NewCorrelationEngine(bus *eventbus.Bus, log *logger.Logger) *CorrelationEng
 	return e
 }
 
+// Stop shuts down the engine and its internal caches.
+func (e *CorrelationEngine) Stop() {
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+
+	for _, lru := range e.state {
+		lru.Purge()
+	}
+	for _, lru := range e.dedup {
+		lru.Purge()
+	}
+	e.state = make(map[string]*expirable.LRU[string, *correlationState])
+	e.dedup = make(map[string]*expirable.LRU[string, time.Time])
+}
+
 // WithStore attaches a BadgerDB-backed CorrelationStore for restart-safe state.
 // Must be called before the engine starts receiving events.
 func (e *CorrelationEngine) WithStore(hot *storage.HotStore) *CorrelationEngine {

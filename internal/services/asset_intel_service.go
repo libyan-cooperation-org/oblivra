@@ -33,8 +33,13 @@ func (s *AssetIntelService) Start(ctx context.Context) error {
 	
 	// Initial refresh
 	go func() {
-		// Wait for DB to be ready
-		time.Sleep(5 * time.Second)
+		// Wait for DB to be ready, but respect context cancellation
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+
 		if err := s.RefreshAll(ctx); err != nil {
 			s.log.Error("Initial criticality refresh failed: %v", err)
 		}

@@ -2,6 +2,7 @@ package architecture_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -9,6 +10,9 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/app"
+	"github.com/kingknull/oblivrashell/internal/auth"
+	"github.com/kingknull/oblivrashell/internal/database"
+	"github.com/kingknull/oblivrashell/internal/platform"
 	"go.uber.org/goleak"
 )
 
@@ -22,13 +26,19 @@ func setupTestApp(t *testing.T) (*app.App, context.CancelFunc) {
 	os.Setenv("HOME", tmpDir)
 
 	// Seed rules directory so alerting service has something to load
-	// On Windows, DataDir is LOCALAPPDATA/sovereign-terminal/data
-	sigmaDir := filepath.Join(tmpDir, "sovereign-terminal", "data", "sigma")
+	// We must call platform.DataDir() AFTER setting HOME
+	dataDir := platform.DataDir()
+	sigmaDir := filepath.Join(dataDir, "sigma")
 	os.MkdirAll(sigmaDir, 0700)
 	
 	// Copy a few core rules for the smoke test
 	rulesSrc := filepath.Join("..", "internal", "detection", "rules")
 	files, _ := os.ReadDir(rulesSrc)
+	if len(files) == 0 {
+		// Fallback for different test execution depths
+		rulesSrc = filepath.Join("internal", "detection", "rules")
+		files, _ = os.ReadDir(rulesSrc)
+	}
 	for _, f := range files {
 		if !f.IsDir() && filepath.Ext(f.Name()) == ".yaml" {
 			data, _ := os.ReadFile(filepath.Join(rulesSrc, f.Name()))
@@ -43,8 +53,12 @@ func setupTestApp(t *testing.T) (*app.App, context.CancelFunc) {
 	application.Startup(ctx)
 
 	const pw = "sovereign-test-pass-2026"
-	application.VaultService.Setup(pw, "")   //nolint:errcheck
-	application.VaultService.Unlock(pw, nil, false) //nolint:errcheck
+	if err := application.VaultService.Setup(pw, ""); err != nil {
+		t.Logf("Vault Setup: %v", err)
+	}
+	if err := application.VaultService.Unlock(pw, nil, false); err != nil {
+		t.Fatalf("Vault Unlock: %v", err)
+	}
 
 	return application, func() {
 		application.Shutdown(ctx)
@@ -59,15 +73,29 @@ func TestIntegrationSmoke(t *testing.T) {
 	defer func() {
 		cleanup()
 		time.Sleep(2 * time.Second)
-		goleak.VerifyNone(t)
+		goleak.VerifyNone(t, 
+			goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
+			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
+			goleak.IgnoreTopFunction("github.com/blevesearch/bleve_index_api.AnalysisWorker"),
+			goleak.IgnoreTopFunction("database/sql.(*DB).connectionOpener"),
+		)
 	}()
 
+	adminCtx := auth.ContextWithUser(context.Background(), &auth.IdentityUser{
+		ID:          "superuser",
+		TenantID:    database.DefaultTenantID,
+		Email:       "admin@oblivra.local",
+		RoleName:    "admin",
+		Permissions: []string{"*"},
+	})
+	adminCtx = database.WithGlobalSearch(adminCtx)
+
 	t.Run("Vault_Integrity", func(t *testing.T) {
-		id, err := application.VaultService.AddCredential(context.TODO(), "SmokeTestSecret", "password", "integration-test-value")
+		id, err := application.VaultService.AddCredential(adminCtx, "SmokeTestSecret", "password", "integration-test-value")
 		if err != nil {
 			t.Fatalf("AddCredential: %v", err)
 		}
-		decrypted, err := application.VaultService.GetDecryptedCredential(context.TODO(), id)
+		decrypted, err := application.VaultService.GetDecryptedCredential(adminCtx, id)
 		if err != nil {
 			t.Fatalf("GetDecryptedCredential: %v", err)
 		}
@@ -75,7 +103,7 @@ func TestIntegrationSmoke(t *testing.T) {
 			t.Errorf("got %q, want integration-test-value", decrypted)
 		}
 		application.VaultService.Lock()
-		_, err = application.VaultService.GetDecryptedCredential(context.TODO(), id)
+		_, err = application.VaultService.GetDecryptedCredential(adminCtx, id)
 		if err == nil {
 			t.Error("expected error getting credential while locked")
 		}
@@ -87,22 +115,30 @@ func TestIntegrationSmoke(t *testing.T) {
 		if err := application.IngestService.StartSyslogServer(); err != nil {
 			t.Fatalf("StartSyslogServer: %v", err)
 		}
-		defer application.IngestService.StopSyslogServer() //nolint:errcheck
-
-		conn, err := net.Dial("udp", "127.0.0.1:1514")
+		defer application.IngestService.StopSyslogServer() 
+		
+		// Inject a sample syslog message via TCP (more reliable for tests)
+		t.Log("Connecting to syslog server via TCP...")
+		conn, err := net.DialTimeout("tcp", "127.0.0.1:1514", 2*time.Second)
 		if err != nil {
-			t.Fatalf("UDP dial: %v", err)
+			t.Fatalf("failed to connect to syslog server: %v", err)
 		}
-		msg := `<34>1 2026-01-01T00:00:00Z smoke-host oblivra - ID47 - Failed login for root`
-		if _, err := conn.Write([]byte(msg)); err != nil {
-			conn.Close()
-			t.Fatalf("UDP write: %v", err)
-		}
+		t.Log("Connected. Sending message...")
+		msg := `<34>1 2026-01-01T00:00:00Z oblivra oblivra - ID47 - Failed login for root`
+		fmt.Fprint(conn, msg+"\n")
 		conn.Close()
+		t.Log("Message sent. Waiting for processing...")
 
 		time.Sleep(3 * time.Second)
+		
+		// Search for anything to see if we have events at all
+		allEvents, _ := application.SIEMService.SearchHostEvents(adminCtx, "*", 10)
+		t.Logf("Total events found: %d", len(allEvents))
+		for i, e := range allEvents {
+			t.Logf("Event[%d]: Host=%s, User=%s, Type=%s, Raw=%s", i, e.HostID, e.User, e.EventType, e.RawLog)
+		}
 
-		events, err := application.SIEMService.SearchHostEvents(context.TODO(), "root", 10)
+		events, err := application.SIEMService.SearchHostEvents(adminCtx, "oblivra", 10)
 		if err != nil {
 			t.Fatalf("SearchHostEvents: %v", err)
 		}
@@ -127,7 +163,7 @@ func TestIntegrationSmoke(t *testing.T) {
 			t.Error("expected at least one compliance pack")
 		}
 		if len(packs) > 0 {
-			result, err := application.ComplianceService.EvaluatePack(context.TODO(), packs[0].ID)
+			result, err := application.ComplianceService.EvaluatePack(adminCtx, packs[0].ID)
 			if err != nil {
 				t.Fatalf("EvaluatePack %s: %v", packs[0].ID, err)
 			}

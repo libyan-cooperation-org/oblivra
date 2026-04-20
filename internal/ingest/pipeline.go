@@ -470,6 +470,14 @@ func (p *Pipeline) workerLoop(restartCount, maxRestarts int, backoff time.Durati
 }
 
 func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent) {
+	// Scope the context to the tenant for downstream repository writes
+	if evt.TenantID != "" {
+		ctx = database.WithTenant(ctx, evt.TenantID)
+	} else {
+		// If no tenant is provided (e.g. legacy syslogs), fallback to default
+		ctx = database.WithTenant(ctx, database.DefaultTenantID)
+	}
+
 	_, span := tracer.Start(ctx, "pipeline.WALWrite")
 	rawBytes := []byte(evt.RawLine)
 
@@ -508,6 +516,7 @@ func (p *Pipeline) SetEventChain(ec *EventChain) {
 }
 
 func (p *Pipeline) indexEvent(ctx context.Context, evt *events.SovereignEvent) {
+	p.log.Info("[INGEST] Indexing event: host=%s type=%s raw=%s", evt.Host, evt.EventType, evt.RawLine)
 	ctx, span := tracer.Start(ctx, "pipeline.dagExecution")
 	defer span.End()
 	if p.dag != nil {

@@ -322,11 +322,9 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// Platform endpoints
 	mux.HandleFunc("/api/v1/platform/metrics", s.handlePlatformMetrics)
 
-	// Forensics endpoints
-	mux.HandleFunc("/api/v1/forensics/evidence", s.handleEvidenceList)
-
 	// Fusion endpoints
 	mux.HandleFunc("/api/v1/fusion/campaigns", s.handleCampaignList)
+	mux.HandleFunc("/api/v1/fusion/campaigns/", s.stubHandler(s.handleFusionCampaignDetail))
 	mux.HandleFunc("/api/v1/fusion/timeline", s.handleCampaignTimeline)
 
 	// Events endpoint
@@ -451,10 +449,6 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// Agent endpoints (fleet management)
 	mux.HandleFunc("/api/v1/agents", s.stubHandler(s.handleAgentsList))
 
-	// Fusion Engine endpoints (Phase 10.6)
-	mux.HandleFunc("/api/v1/fusion/campaigns", s.stubHandler(s.handleFusionCampaigns))
-	mux.HandleFunc("/api/v1/fusion/campaigns/", s.stubHandler(s.handleFusionCampaignDetail))
-
 	// Peer Analytics endpoints (Phase 10.5)
 	mux.HandleFunc("/api/v1/ueba/peer-groups", s.stubHandler(s.handlePeerGroups))
 	mux.HandleFunc("/api/v1/ueba/peer-deviations", s.stubHandler(s.handlePeerDeviations))
@@ -550,6 +544,9 @@ func (s *RESTServer) Start() {
 // Stop gracefully shuts down the HTTP server
 func (s *RESTServer) Stop(ctx context.Context) error {
 	s.log.Info("[REST] Shutting down headless API server...")
+	if s.enrichLimiter != nil {
+		s.enrichLimiter.Stop()
+	}
 	return s.server.Shutdown(ctx)
 }
 

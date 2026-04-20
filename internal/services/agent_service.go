@@ -30,6 +30,9 @@ func (s *AgentService) Start(ctx context.Context) error {
 }
 
 func (s *AgentService) Stop(ctx context.Context) error {
+	if s.server != nil {
+		s.server.Stop()
+	}
 	return nil
 }
 

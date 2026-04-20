@@ -45,12 +45,10 @@ func (r *SnippetRepository) List(ctx context.Context) ([]Snippet, error) {
 			return nil, fmt.Errorf("scan snippet: %w", err)
 		}
 
-		_ = json.Unmarshal([]byte(tagsJSON), &s.Tags)
-		_ = json.Unmarshal([]byte(variablesJSON), &s.Variables)
-		if s.Tags == nil {
+		if err := json.Unmarshal([]byte(tagsJSON), &s.Tags); err != nil {
 			s.Tags = []string{}
 		}
-		if s.Variables == nil {
+		if err := json.Unmarshal([]byte(variablesJSON), &s.Variables); err != nil {
 			s.Variables = []string{}
 		}
 
@@ -84,21 +82,31 @@ func (r *SnippetRepository) Get(ctx context.Context, id string) (Snippet, error)
 		return s, fmt.Errorf("get snippet: %w", err)
 	}
 
-	_ = json.Unmarshal([]byte(tagsJSON), &s.Tags)
-	_ = json.Unmarshal([]byte(variablesJSON), &s.Variables)
+	if err := json.Unmarshal([]byte(tagsJSON), &s.Tags); err != nil {
+		s.Tags = []string{}
+	}
+	if err := json.Unmarshal([]byte(variablesJSON), &s.Variables); err != nil {
+		s.Variables = []string{}
+	}
 	return s, nil
 }
 
 // Create inserts a new snippet
 func (r *SnippetRepository) Create(ctx context.Context, s *Snippet) error {
-	tagsJSON, _ := json.Marshal(s.Tags)
-	variablesJSON, _ := json.Marshal(s.Variables)
+	tagsJSON, err := json.Marshal(s.Tags)
+	if err != nil {
+		tagsJSON = []byte("[]")
+	}
+	variablesJSON, err := json.Marshal(s.Variables)
+	if err != nil {
+		variablesJSON = []byte("[]")
+	}
 	now := time.Now().Format(time.RFC3339)
 	s.CreatedAt = now
 	s.UpdatedAt = now
 	s.TenantID = MustTenantFromContext(ctx)
 
-	_, err := r.db.ReplicatedExecContext(ctx, `
+	_, err = r.db.ReplicatedExecContext(ctx, `
 		INSERT INTO snippets (id, tenant_id, title, command, description, tags, variables, use_count, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, s.ID, s.TenantID, s.Title, s.Command, s.Description, string(tagsJSON), string(variablesJSON), s.UseCount, now, now)
@@ -112,8 +120,14 @@ func (r *SnippetRepository) Create(ctx context.Context, s *Snippet) error {
 // Update saves snippet changes
 func (r *SnippetRepository) Update(ctx context.Context, s *Snippet) error {
 
-	tagsJSON, _ := json.Marshal(s.Tags)
-	variablesJSON, _ := json.Marshal(s.Variables)
+	tagsJSON, err := json.Marshal(s.Tags)
+	if err != nil {
+		tagsJSON = []byte("[]")
+	}
+	variablesJSON, err := json.Marshal(s.Variables)
+	if err != nil {
+		variablesJSON = []byte("[]")
+	}
 	now := time.Now().Format(time.RFC3339)
 	s.UpdatedAt = now
 	tenantID := MustTenantFromContext(ctx)
