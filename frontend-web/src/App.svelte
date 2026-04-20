@@ -70,24 +70,34 @@
   });
 
   import { fade } from 'svelte/transition';
+  import TacticalSidebar from './components/ui/TacticalSidebar.svelte';
 
   const loader = $derived(ROUTES[router.path] ?? Dashboard);
+  const showShell = $derived(!PUBLIC_PATHS.includes(router.path));
 </script>
 
 {#if ready}
-  {#await loader()}
-    <div transition:fade={{ duration: 150 }}>
-      <LoadingScreen />
-    </div>
-  {:then module}
-    <div transition:fade={{ duration: 200 }}>
-      <module.default />
-    </div>
-  {:catch error}
-    <div class="h-screen w-screen flex items-center justify-center bg-surface-0 text-error font-mono" transition:fade>
-      TACTICAL_LOAD_FAILURE: {error.message}
-    </div>
-  {/await}
+  <div class="flex h-screen w-screen overflow-hidden bg-surface-0">
+    {#if showShell}
+      <TacticalSidebar />
+    {/if}
+
+    <main class="flex-1 relative overflow-hidden">
+      {#await loader()}
+        <div class="absolute inset-0 z-50 bg-surface-0 flex items-center justify-center" transition:fade={{ duration: 150 }}>
+          <LoadingScreen />
+        </div>
+      {:then module}
+        <div class="h-full w-full" transition:fade={{ duration: 200 }}>
+          <module.default />
+        </div>
+      {:catch error}
+        <div class="h-full w-full flex items-center justify-center bg-surface-0 text-error font-mono" transition:fade>
+          TACTICAL_LOAD_FAILURE: {error.message}
+        </div>
+      {/await}
+    </main>
+  </div>
 {:else}
   <LoadingScreen />
 {/if}

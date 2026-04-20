@@ -1,8 +1,8 @@
 <!-- OBLIVRA Web — EvidenceVault (Svelte 5) -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { KPI, Badge, PageLayout, Button, DataTable, Spinner, ProgressBar } from '@components/ui';
-  import { Lock, Unlock, FileText, Download, History, Search, Filter, ShieldCheck, ShieldAlert, HardDrive } from 'lucide-svelte';
+  import { KPI, Badge, PageLayout, Button, DataTable, Spinner } from '@components/ui';
+  import { Lock, Unlock, FileText, Download, History, Search, ShieldCheck } from 'lucide-svelte';
   import { request } from '../services/api';
 
   // -- Types --
@@ -124,10 +124,10 @@
   <div class="flex flex-col h-full gap-6">
     <!-- Pulse Stats -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI title="Total Artifacts" value={items.length.toString()} trend="Global" variant="accent" />
-      <KPI title="Sealed Evidence" value={items.filter(i => i.sealed).length.toString()} trend="Locked" variant="success" />
-      <KPI title="Active Forensics" value={items.filter(i => !i.sealed).length.toString()} trend="In Triage" variant="warning" />
-      <KPI title="Root Trust" value="VERIFIED" trend="TPM 2.0" variant="success" />
+      <KPI title="Total Artifacts" value={items.length.toString()} trend="stable" variant="accent" />
+      <KPI title="Sealed Evidence" value={items.filter(i => i.sealed).length.toString()} trend="stable" variant="success" />
+      <KPI title="Active Forensics" value={items.filter(i => !i.sealed).length.toString()} trend="stable" variant="warning" />
+      <KPI title="Root Trust" value="VERIFIED" trend="stable" variant="success" />
     </div>
 
     <!-- Main View -->
@@ -250,15 +250,15 @@
                 </div>
                 <div class="flex flex-col gap-1">
                   <span class="text-[9px] font-mono text-text-muted">SHA-256 HASH</span>
-                  <code class="text-[9px] font-mono text-accent-primary break-all bg-surface-1 p-1 rounded-xs border border-border-subtle">{selected.sha256}</code>
+                  <code class="text-[9px] font-mono text-accent-primary break-all bg-surface-1 p-1 rounded-xs border border-border-subtle {verifying === selected.id ? 'hash-pulse' : ''}">{selected.sha256}</code>
                 </div>
               </div>
             </div>
 
-            <div class="flex-1 flex flex-col min-h-0">
+            <div class="flex-1 flex flex-col min-h-0 {selected.sealed ? 'sb-sealed' : ''}">
                <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-3">Custody Timeline</div>
                <div class="relative space-y-0 pl-4 border-l border-border-primary ml-1">
-                 {#each selected.chain_of_custody as entry, i}
+                 {#each selected.chain_of_custody as entry}
                     <div class="relative pb-6 last:pb-0">
                       <!-- Dot -->
                       <div class="absolute -left-[20.5px] top-1.5 w-2 h-2 rounded-full border border-surface-1" style="background: {actionColor[entry.action] ?? 'var(--text-muted)'}"></div>
@@ -295,5 +295,30 @@
 <style>
   :global(.mask-fade-bottom) {
     mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
+  }
+
+  /* Seal Shimmer & Hash Animation */
+  :global(.sb-sealed) {
+    position: relative;
+    overflow: hidden;
+  }
+  :global(.sb-sealed::after) {
+    content: '';
+    position: absolute;
+    top: 0; left: -60px; width: 40px; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(26,170,96,0.15), transparent);
+    animation: sb-shimmer 3s ease-in-out infinite;
+  }
+  @keyframes sb-shimmer {
+    0% { left: -60px; }
+    60%, 100% { left: calc(100% + 20px); }
+  }
+
+  :global(.hash-pulse) {
+    animation: hash-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes hash-pulse {
+    0%, 100% { color: var(--accent-primary); }
+    50% { color: var(--text-muted); opacity: 0.7; }
   }
 </style>

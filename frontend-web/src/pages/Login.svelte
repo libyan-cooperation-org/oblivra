@@ -34,14 +34,27 @@
 
   <div class="w-full max-w-md bg-surface-1 border border-border-primary p-10 shadow-premium relative z-10 backdrop-blur-sm">
     <div class="text-center mb-10">
-      <div class="inline-flex p-4 bg-surface-2 border border-border-primary rounded-sm mb-6 relative group">
-        <Shield size={32} class="text-accent-primary group-hover:scale-110 transition-transform duration-500" />
-        <div class="absolute inset-0 bg-accent-primary/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div class="inline-flex p-4 bg-surface-2 border border-border-primary rounded-sm mb-6 relative group cursor-pointer overflow-hidden">
+        <div class="absolute inset-0 bg-accent-primary/5 group-hover:bg-accent-primary/10 transition-colors"></div>
+        <Shield size={32} class="text-accent-primary group-hover:scale-110 transition-transform duration-500 relative z-10" />
+        <div class="absolute -inset-2 bg-accent-primary/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 animate-pulse"></div>
+        
+        <!-- Scanning line effect -->
+        <div class="absolute top-0 left-0 w-full h-[1px] bg-accent-primary/40 -translate-y-4 group-hover:animate-scan"></div>
       </div>
       <h1 class="text-3xl font-black italic uppercase tracking-tighter text-text-heading">
-        OBLIVRA <span class="bg-accent-primary text-black px-2 not-italic">ORBIT</span>
+        OBL<em>IV</em>RA <span class="bg-accent-primary text-black px-2 not-italic">ORBIT</span>
       </h1>
-      <p class="text-[10px] font-mono text-text-muted uppercase tracking-[0.3em] mt-2">Sovereign Access Substrate v1.2.0</p>
+      <div class="flex items-center justify-center gap-4 mt-3">
+         <div class="flex items-center gap-1.5">
+            <div class="w-1.5 h-1.5 rounded-full bg-status-online animate-pulse"></div>
+            <span class="text-[8px] font-mono text-text-muted uppercase tracking-widest">Auth_Mesh: LIVE</span>
+         </div>
+         <div class="flex items-center gap-1.5">
+            <div class="w-1.5 h-1.5 rounded-full bg-status-online"></div>
+            <span class="text-[8px] font-mono text-text-muted uppercase tracking-widest">Substrate: NOMINAL</span>
+         </div>
+      </div>
     </div>
 
     <form onsubmit={handleSubmit} class="space-y-6">
@@ -127,3 +140,13 @@
     </div>
   </div>
 </div>
+
+<style>
+  :global(.animate-scan) {
+    animation: scan 2s linear infinite;
+  }
+  @keyframes scan {
+    0% { transform: translateY(-10px); }
+    100% { transform: translateY(80px); }
+  }
+</style>

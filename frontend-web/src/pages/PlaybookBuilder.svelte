@@ -46,6 +46,8 @@
   let running          = $state(false);
   let saving           = $state(false);
   let result           = $state('');
+  let viewMode         = $state<'designer' | 'execution'>('designer');
+  let selectedStepIdx  = $state<number | null>(null);
 
   // -- Actions --
   async function fetchData() {
@@ -206,23 +208,34 @@
        </div>
     </div>
 
-    <!-- CENTER: CANVAS -->
+    <!-- CENTER: CANVAS / DESIGNER -->
     <div class="flex-1 flex flex-col min-w-0 bg-surface-1 border border-border-primary rounded-sm shadow-premium overflow-hidden">
-       <div class="bg-surface-2 border-b border-border-primary p-4 flex items-center gap-4">
-          <div class="p-2 bg-surface-1 border border-border-subtle rounded-xs text-accent-primary">
-             <Terminal size={18} />
+       <div class="bg-surface-2 border-b border-border-primary p-4 flex items-center justify-between">
+          <div class="flex items-center gap-4">
+             <div class="p-2 bg-surface-1 border border-border-subtle rounded-xs text-accent-primary">
+                <Terminal size={18} />
+             </div>
+             <input 
+                bind:value={name}
+                class="bg-transparent text-xl font-black text-text-heading uppercase italic tracking-tighter focus:outline-none placeholder:opacity-20 w-64" 
+                placeholder="UNTITLED_SEQUENCE..."
+             />
           </div>
-          <input 
-             bind:value={name}
-             class="flex-1 bg-transparent text-xl font-black text-text-heading uppercase italic tracking-tighter focus:outline-none placeholder:opacity-20" 
-             placeholder="UNTITLED_PLAYBOOK_SEQUENCE..."
-          />
-          <div class="flex items-center gap-2">
-             <Badge variant="secondary" size="sm">{steps.length} STEPS</Badge>
+          
+          <div class="flex border border-border-primary rounded-sm overflow-hidden">
+            {#each ['designer', 'execution'] as mode}
+               <button
+                  class="px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all
+                    {viewMode === mode ? 'bg-accent-primary text-black' : 'bg-surface-0 text-text-muted hover:text-text-secondary'}"
+                  onclick={() => viewMode = mode as any}
+               >
+                  {mode}
+               </button>
+            {/each}
           </div>
        </div>
 
-       <div class="flex-1 overflow-auto p-8 relative">
+       <div class="flex-1 overflow-auto p-8 relative bg-[radial-gradient(var(--border-subtle)_1px,transparent_1px)] bg-[size:20px_20px]">
           {#if steps.length === 0}
              <div class="h-full flex flex-col items-center justify-center gap-6 opacity-20 py-20">
                 <div class="w-32 h-32 border-2 border-dashed border-text-muted rounded-full flex items-center justify-center">
@@ -233,23 +246,28 @@
                    <p class="text-[10px] font-mono">Inject atomic actions from the left shard palette</p>
                 </div>
              </div>
-          {:else}
+          {:else if viewMode === 'designer'}
              <div class="max-w-3xl mx-auto space-y-4">
                 {#each steps as step, idx}
                    {@const Icon = STEP_ICONS[step.action] || STEP_ICONS.default}
                    <div class="relative group animate-in slide-in-from-top-2 duration-300">
-                      <!-- Connector Line -->
                       {#if idx < steps.length - 1}
                          <div class="absolute left-6 top-full h-4 w-px bg-border-primary z-0"></div>
                       {/if}
                       
-                      <div class="bg-surface-2 border border-border-primary p-4 rounded-sm flex items-center gap-4 relative z-10 transition-all
-                        {step.enabled ? 'border-l-4 border-l-accent-primary' : 'opacity-40 grayscale'}">
+                      <div class="bg-surface-2 border border-border-primary p-4 rounded-sm flex items-center gap-4 relative z-10 transition-all cursor-pointer hover:border-accent-primary/40
+                        {step.enabled ? 'border-l-4 border-l-accent-primary' : 'opacity-40 grayscale'}
+                        {selectedStepIdx === idx ? 'ring-1 ring-accent-primary shadow-[0_0_15px_rgba(24,120,200,0.1)]' : ''}"
+                        role="button"
+                        tabindex="0"
+                        onclick={() => selectedStepIdx = idx}
+                        onkeydown={(e) => e.key === 'Enter' && (selectedStepIdx = idx)}
+                      >
                          
                          <div class="flex flex-col gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="text-text-muted hover:text-text-heading" onclick={() => moveUp(idx)}><ChevronUp size={14} /></button>
-                            <button class="text-text-muted hover:text-text-heading" onclick={() => moveDown(idx)}><ChevronDown size={14} /></button>
-                         </div>
+                            <button class="text-text-muted hover:text-text-heading" onclick={(e) => { e.stopPropagation(); moveUp(idx); }}><ChevronUp size={14} /></button>
+                            <button class="text-text-muted hover:text-text-heading" onclick={(e) => { e.stopPropagation(); moveDown(idx); }}><ChevronDown size={14} /></button>
+                          </div>
 
                          <div class="w-8 h-8 rounded-full bg-surface-1 border border-border-subtle flex items-center justify-center text-[10px] font-black text-text-muted shrink-0">
                             {idx + 1}
@@ -268,17 +286,70 @@
                             <button 
                                class="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-xs border transition-colors
                                  {step.enabled ? 'border-status-online text-status-online hover:bg-status-online/10' : 'border-text-muted text-text-muted hover:text-text-heading'}"
-                               onclick={() => toggleStep(step.id)}
+                               onclick={(e) => { e.stopPropagation(); toggleStep(step.id); }}
                             >
                                {step.enabled ? 'ACTIVE' : 'MUTED'}
                             </button>
-                            <button class="text-text-muted hover:text-alert-critical transition-colors" onclick={() => removeStep(step.id)}>
+                            <button class="text-text-muted hover:text-alert-critical transition-colors" onclick={(e) => { e.stopPropagation(); removeStep(step.id); }}>
                                <Trash2 size={16} />
                             </button>
                          </div>
                       </div>
                    </div>
                 {/each}
+             </div>
+          {:else}
+             <!-- EXECUTION VIEW (Simulation) -->
+             <div class="max-w-4xl mx-auto h-full flex flex-col gap-8">
+                <div class="flex items-center justify-between border-b border-border-primary pb-4">
+                   <div class="flex items-center gap-4">
+                      <div class="w-3 h-3 rounded-full bg-status-online animate-ping"></div>
+                      <h2 class="text-xl font-black italic tracking-tighter text-text-heading uppercase">Sequence Execution Monitor</h2>
+                   </div>
+                   <div class="flex items-center gap-4 text-[10px] font-mono text-text-muted uppercase tracking-widest">
+                      <span>MTTR: 142ms</span>
+                      <span class="text-accent-primary">Logic Bridge: ARMED</span>
+                   </div>
+                </div>
+
+                <div class="flex-1 grid grid-cols-2 gap-8">
+                   <!-- Visual Flow -->
+                   <div class="space-y-6">
+                      {#each steps.filter(s => s.enabled) as step, idx}
+                         <div class="flex items-center gap-4 animate-in slide-in-from-left-4 duration-300" style="animation-delay: {idx * 100}ms">
+                            <div class="w-12 h-12 rounded-full border-2 border-accent-primary flex items-center justify-center text-accent-primary font-black text-lg bg-surface-2 shadow-[0_0_20px_rgba(24,120,200,0.15)] relative">
+                               {idx + 1}
+                               {#if idx < steps.filter(s => s.enabled).length - 1}
+                                  <div class="absolute top-full left-1/2 -translate-x-1/2 h-6 w-px bg-accent-primary/30"></div>
+                               {/if}
+                            </div>
+                            <div class="flex-1 bg-surface-2 border border-border-primary p-3 rounded-sm flex justify-between items-center">
+                               <span class="text-[11px] font-black text-text-heading uppercase tracking-tighter">{step.action.replace(/_/g, ' ')}</span>
+                               <Badge variant="success" size="xs">COMPLETE</Badge>
+                            </div>
+                         </div>
+                      {/each}
+                   </div>
+
+                   <!-- Trace Logs -->
+                   <div class="bg-surface-0 border border-border-primary rounded-sm p-4 flex flex-col gap-3 font-mono text-[10px] overflow-auto">
+                      <div class="text-[9px] font-bold text-text-muted uppercase tracking-widest border-b border-border-subtle pb-2 mb-2 flex justify-between">
+                         <span>Trace Output</span>
+                         <span class="opacity-50">v8.2.0</span>
+                      </div>
+                      <div class="space-y-2 text-text-secondary">
+                         <p class="text-status-online">[00:52:01] INGEST: Alert correlation signature matched (EDR-3847)</p>
+                         <p>[00:52:01] ORCHESTRATOR: Spawning playbook sequence '{name || 'UNTITLED'}'</p>
+                         <p>[00:52:02] SHARD_RESOLVE: Loaded 7 logic atoms</p>
+                         <p class="text-accent-primary">[00:52:02] STEP_1: Executing threat intel lookup (IOC_SUBSTRATE)...</p>
+                         <p class="text-status-online">[00:52:03] STEP_1: Result: MATCH (Confidence 98%)</p>
+                         <p class="text-accent-primary">[00:52:03] STEP_2: Executing UEBA risk calculation...</p>
+                         <p class="text-status-online">[00:52:04] STEP_2: Result: SCORE 94 (CRITICAL)</p>
+                         <p class="text-warning">[00:52:04] STEP_3: AWAITING_APPROVAL: Isolate host action...</p>
+                         <p class="animate-pulse italic opacity-50">[00:52:04] POLLING: Human intervention required...</p>
+                      </div>
+                   </div>
+                </div>
              </div>
           {/if}
        </div>

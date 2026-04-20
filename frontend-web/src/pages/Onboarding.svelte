@@ -1,6 +1,5 @@
 <!-- OBLIVRA Web — Onboarding (Svelte 5) -->
 <script lang="ts">
-  import { push } from '../core/router.svelte';
   import { Button, Badge } from '@components/ui';
   import { 
     Monitor, 
@@ -168,25 +167,39 @@
            </div>
         </div>
 
-        <div class="p-6 bg-surface-2 border-l-4 border-border-primary space-y-3">
-           <div class="flex items-center gap-2 text-[10px] font-black text-text-heading uppercase tracking-widest">
-              <ShieldAlert size={14} class="text-accent-primary" />
-              Pre-Flight Checklist
+        <div class="p-6 bg-surface-2 border-l-4 border-border-primary space-y-3 relative">
+           <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-[10px] font-black text-text-heading uppercase tracking-widest">
+                 <ShieldAlert size={14} class="text-accent-primary" />
+                 Pre-Flight Checklist
+              </div>
+              <Badge variant="warning" size="xs">1_BLOCKING_ISSUE</Badge>
            </div>
            <div class="space-y-1.5 text-[10px] font-mono text-text-muted uppercase tracking-tighter leading-relaxed">
-             <div>1. VERIFY_ACCESS: PORTS 8443 (INGEST) AND 8080 (REST) MUST BE OPEN.</div>
-             <div>2. RESOURCE_ALLOCATION: MINIMUM 2 VCPU, 4GB RAM REQUIRED PER NODE.</div>
-             <div>3. AUTH_CHECK: RUN SCRIPT WITH SUDO OR ADMINISTRATOR PERMISSIONS.</div>
+             <div class="flex items-center gap-2 text-status-online"><span>✓</span> 1. VERIFY_ACCESS: PORTS 8443 (INGEST) OPEN.</div>
+             <div class="flex items-center gap-2 text-status-online"><span>✓</span> 2. RESOURCE_ALLOCATION: NOMINAL.</div>
+             <div class="flex items-center gap-2 text-alert-critical animate-pulse"><span>⚠</span> 3. FIREWALL_SYNC: ACL_BLOCK_DETECTED (PORT 8080).</div>
+           </div>
+           
+           <div class="mt-4 p-3 bg-alert-critical/10 border border-alert-critical/30 rounded-sm">
+              <p class="text-[9px] font-mono text-alert-critical uppercase font-bold">
+                 Deployment blocked by network layer security policy. Please ensure the OBLIVRA controller can reach the target substrate on port 8080.
+              </p>
            </div>
         </div>
 
         <div class="pt-8 flex justify-between items-center">
-          <button class="text-xs font-bold uppercase tracking-widest text-text-muted hover:text-text-heading underline underline-offset-4" onclick={() => step = 2}>
-            ← Adjust Collectors
-          </button>
-          <Button variant="primary" class="font-black italic tracking-tighter px-10 py-4 text-lg" onclick={() => push('/')}>
-            COMPLETE_ONBOARDING <CheckCircle size={18} class="ml-2" />
-          </Button>
+           <button class="text-xs font-bold uppercase tracking-widest text-text-muted hover:text-text-heading underline underline-offset-4" onclick={() => step = 2}>
+             ← Adjust Collectors
+           </button>
+           <div class="group relative">
+              <Button variant="primary" class="font-black italic tracking-tighter px-10 py-4 text-lg opacity-40 cursor-not-allowed" disabled>
+                COMPLETE_ONBOARDING <CheckCircle size={18} class="ml-2" />
+              </Button>
+              <div class="absolute bottom-full right-0 mb-2 w-64 p-2 bg-surface-3 border border-border-primary rounded-sm shadow-premium opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                 <p class="text-[9px] font-mono text-alert-critical uppercase text-center font-bold">Resolve blocking prerequisites to continue</p>
+              </div>
+           </div>
         </div>
       </div>
     {/if}
