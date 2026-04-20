@@ -94,7 +94,10 @@ func (w *WAL) Write(event Event) error {
 	n := w.count.Add(1)
 	// Periodic fsync every 100 events — balances durability vs. I/O overhead
 	if n%100 == 0 {
-		_ = w.file.Sync()
+		if err := w.file.Sync(); err != nil {
+			// Non-fatal but should be known
+			fmt.Fprintf(os.Stderr, "[wal] Sync error: %v\n", err)
+		}
 	}
 	return nil
 }
@@ -133,7 +136,9 @@ func (w *WAL) Truncate() error {
 	defer w.mu.Unlock()
 
 	if w.file != nil {
-		_ = w.file.Sync()
+		if err := w.file.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "[wal] Truncate sync error: %v\n", err)
+		}
 		w.file.Close()
 		w.file = nil
 	}
@@ -154,7 +159,9 @@ func (w *WAL) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.file != nil {
-		_ = w.file.Sync()
+		if err := w.file.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "[wal] Close sync error: %v\n", err)
+		}
 		err := w.file.Close()
 		w.file = nil
 		return err

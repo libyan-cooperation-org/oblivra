@@ -41,6 +41,11 @@ func (s *NATSService) Name() string {
 	return "NATSService"
 }
 
+// Dependencies returns an empty list as NATS has no internal service dependencies.
+func (s *NATSService) Dependencies() []string {
+	return nil
+}
+
 // Start launches the embedded NATS server and initializes JetStream.
 func (s *NATSService) Start(ctx context.Context) error {
 	s.mu.Lock()

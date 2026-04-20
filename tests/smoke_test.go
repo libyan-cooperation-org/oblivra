@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/app"
+	"go.uber.org/goleak"
 )
 
 // ── shared setup ──────────────────────────────────────────────────────────────
@@ -55,7 +56,11 @@ func setupTestApp(t *testing.T) (*app.App, context.CancelFunc) {
 
 func TestIntegrationSmoke(t *testing.T) {
 	application, cleanup := setupTestApp(t)
-	defer cleanup()
+	defer func() {
+		cleanup()
+		time.Sleep(2 * time.Second)
+		goleak.VerifyNone(t)
+	}()
 
 	t.Run("Vault_Integrity", func(t *testing.T) {
 		id, err := application.VaultService.AddCredential(context.TODO(), "SmokeTestSecret", "password", "integration-test-value")

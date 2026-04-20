@@ -22,6 +22,7 @@ type IdentityService struct {
 	hw       auth.HardwareRootedIdentity
 	bus      *eventbus.Bus
 	log      *logger.Logger
+	stopMFA  func()
 }
 
 func (s *IdentityService) Name() string { return "identity-service" }
@@ -53,10 +54,14 @@ func NewIdentityService(
 
 func (s *IdentityService) Start(ctx context.Context) error {
 	s.ctx = ctx
+	s.stopMFA = auth.StartCleanup()
 	return nil
 }
 
 func (s *IdentityService) Stop(ctx context.Context) error {
+	if s.stopMFA != nil {
+		s.stopMFA()
+	}
 	return nil
 }
 

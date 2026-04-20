@@ -18,19 +18,29 @@ var usedCodes sync.Map
 // cleanupInterval is how often the usedCodes cache is purged of expired entries.
 const cleanupInterval = 5 * time.Minute
 
-func init() {
+// StartCleanup initiates the background goroutine to purge expired TOTP codes.
+// Returns a function that stops the cleanup.
+func StartCleanup() func() {
+	stop := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(cleanupInterval)
-		for range ticker.C {
-			now := time.Now().Unix()
-			usedCodes.Range(func(key, value interface{}) bool {
-				if expiry, ok := value.(int64); ok && expiry < now {
-					usedCodes.Delete(key)
-				}
-				return true
-			})
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				now := time.Now().Unix()
+				usedCodes.Range(func(key, value interface{}) bool {
+					if expiry, ok := value.(int64); ok && expiry < now {
+						usedCodes.Delete(key)
+					}
+					return true
+				})
+			case <-stop:
+				return
+			}
 		}
 	}()
+	return func() { close(stop) }
 }
 
 // TOTPConfig holds options for TOTP generation

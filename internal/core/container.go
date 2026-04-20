@@ -86,8 +86,8 @@ func NewContainer(log *logger.Logger, v string) *Container {
 func (c *Container) Init(ctx context.Context) error {
 	c.Log.Info("Initializing application container...")
 
-	// 1. Infrastructure
-	if err := c.initInfra(); err != nil {
+	// 1. Core Infrastructure
+	if err := c.initInfra(ctx); err != nil {
 		return err
 	}
 
@@ -117,7 +117,7 @@ func (c *Container) Init(ctx context.Context) error {
 	}
 
 	// 7. Platform utility
-	if err := c.initPlatform(); err != nil {
+	if err := c.initPlatform(ctx); err != nil {
 		return err
 	}
 
@@ -127,7 +127,7 @@ func (c *Container) Init(ctx context.Context) error {
 	return nil
 }
 
-func (c *Container) initInfra() error {
+func (c *Container) initInfra(ctx context.Context) error {
 	c.Infra.Log = c.Log
 	c.Infra.Registry = c.Registry
 	c.Infra.Bus = eventbus.NewBus(c.Log)
@@ -168,11 +168,13 @@ func (c *Container) initInfra() error {
 			defer ticker.Stop()
 			for {
 				select {
+				case <-ctx.Done():
+					return
 				case <-ticker.C:
 					// Use a 5s timeout for health checks
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					err := v.Ping(ctx)
-					cancel()
+					pCtx, pCancel := context.WithTimeout(context.Background(), 5*time.Second)
+					err := v.Ping(pCtx)
+					pCancel()
 					
 					if err != nil {
 						c.Log.Warn("[VAULT] Isolated daemon heartbeat failed: %v. Attempting auto-recovery...", err)
@@ -432,7 +434,7 @@ func (c *Container) initProduct() error {
 	return nil
 }
 
-func (c *Container) initPlatform() error {
+func (c *Container) initPlatform(ctx context.Context) error {
 	c.Platform.HealthService = services.NewHealthService(c.Log, c.Infra.Bus, c.Infra.HealthChecker, c.Registry)
 	c.Platform.MetricsService = services.NewMetricsService(c.Log, c.Infra.MetricsCollector)
 	c.Platform.AIService = services.NewAIService(c.Infra.Vault, c.Infra.Bus, c.Log)
@@ -585,6 +587,11 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Platform.APIService)
 	c.mustRegister(c.Platform.LicensingService)
 	c.mustRegister(c.Platform.PlatformService)
+
+	// Infrastructure
+	if c.Infra.Messaging != nil {
+		c.mustRegister(c.Infra.Messaging)
+	}
 
 	// Intel
 	c.mustRegister(c.Intel.AnalyticsService)

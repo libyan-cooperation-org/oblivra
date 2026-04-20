@@ -51,6 +51,19 @@ func (s *RESTServer) handleSCIMUsers(w http.ResponseWriter, r *http.Request) {
 		}
 		identity.FromUserResource(&res, user)
 
+		// Quota Enforcement (Phase 25.5)
+		if s.license != nil {
+			max := s.license.MaxSeats()
+			if max > 0 {
+				users, err := s.identity.ListUsers(r.Context())
+				if err == nil && len(users) >= max {
+					s.log.Warn("[licensing] User provisioning DENIED for %s: seat quota exceeded (max=%d)", user.Email, max)
+					http.Error(w, "Payment Required: User seat quota exceeded", http.StatusPaymentRequired)
+					return
+				}
+			}
+		}
+
 		if err := s.identity.ProvisionSCIMUser(r.Context(), user); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

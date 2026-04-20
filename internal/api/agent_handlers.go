@@ -275,11 +275,29 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 	}
 
 	s.agentsMu.Lock()
+	defer s.agentsMu.Unlock()
+
+	// Quota Enforcement (Phase 25.5)
+	if s.license != nil {
+		max := s.license.MaxAgents()
+		if max > 0 {
+			// Count unique agents by ID
+			uniqueAgents := make(map[string]bool)
+			for _, a := range s.agents {
+				uniqueAgents[a.ID] = true
+			}
+			if !uniqueAgents[reg.ID] && len(uniqueAgents) >= max {
+				s.log.Warn("[licensing] Agent registration DENIED for %s: quota exceeded (max=%d)", reg.ID, max)
+				http.Error(w, "Payment Required: Agent quota exceeded", http.StatusPaymentRequired)
+				return
+			}
+		}
+	}
+
 	// Index by both AgentID (stable, authoritative) and hostname (display)
 	// so that lookups from either direction work.
 	s.agents[reg.ID] = info
 	s.agents[reg.Hostname] = info // pointer shared — updates via either key are visible
-	s.agentsMu.Unlock()
 
 	s.log.Info("[agent] Registered agent id=%s host=%s os=%s/%s v%s collectors=%v",
 		reg.ID, reg.Hostname, reg.OS, reg.Arch, reg.Version, reg.Collectors)

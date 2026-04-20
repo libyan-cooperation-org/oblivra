@@ -33,6 +33,10 @@ type Provider interface {
 	IsFeatureEnabled(f Feature) bool
 	RequireFeature(f Feature) error
 	CurrentTier() Tier
+	
+	// Quota Enforcement (Phase 25.5)
+	MaxSeats() int
+	MaxAgents() int
 }
 
 // ─── Tiers ───────────────────────────────────────────────────────────────────
@@ -286,6 +290,26 @@ func (m *Manager) CurrentTier() Tier {
 		return TierCommunity
 	}
 	return m.claims.Tier
+}
+
+// MaxSeats returns the maximum number of users allowed by the license.
+func (m *Manager) MaxSeats() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.claims == nil {
+		return 1 // Community default
+	}
+	return m.claims.MaxSeats
+}
+
+// MaxAgents returns the maximum number of agents allowed by the license.
+func (m *Manager) MaxAgents() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.claims == nil {
+		return 5 // Community default
+	}
+	return m.claims.MaxAgents
 }
 
 // CurrentClaims returns a copy of the active claims, or nil for the Community default.

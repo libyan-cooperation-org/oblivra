@@ -29,7 +29,10 @@ func resolveIdentityKey(dataDir string) (ed25519.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = os.WriteFile(path, priv, 0600)
+	if err := os.WriteFile(path, priv, 0600); err != nil {
+		// Log but don't fail boot; agent will use the key in memory but will regenerate next time
+		fmt.Fprintf(os.Stderr, "[agent] CRITICAL: failed to save identity key to %s: %v\n", path, err)
+	}
 	return priv, nil
 }
 
@@ -193,7 +196,11 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 		watchdog:  NewWatchdog(log),
 	}
 
-	a.hostname, _ = os.Hostname()
+	a.hostname, err = os.Hostname()
+	if err != nil {
+		a.hostname = "unknown-host"
+		a.log.Warn("failed to resolve hostname: %v (using 'unknown-host')", err)
+	}
 
 	if cfg.EnableMetrics {
 		a.collectors = append(a.collectors,
