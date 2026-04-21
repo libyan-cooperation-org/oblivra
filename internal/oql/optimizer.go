@@ -19,10 +19,83 @@ type OptimizerStats interface {
 
 func (o *Optimizer) Optimize(q *Query) *Query {
 	result := *q
+	result.Search = o.foldConstants(result.Search)
 	result.Search, result.Commands = o.pushDownPredicates(result.Search, result.Commands)
 	result.Commands = o.reorderFilters(result.Commands)
 	result.Commands = o.eliminateRedundantProjections(result.Commands)
+	result.Commands = o.pushDownLimits(result.Commands)
 	return &result
+}
+
+func (o *Optimizer) foldConstants(expr SearchExpr) SearchExpr {
+	if expr == nil {
+		return nil
+	}
+	switch e := expr.(type) {
+	case *AndExpr:
+		l := o.foldConstants(e.Left)
+		r := o.foldConstants(e.Right)
+		if lb, ok := l.(*ConstantSearchExpr); ok {
+			if !lb.Val {
+				return &ConstantSearchExpr{Val: false}
+			}
+			return r
+		}
+		if rb, ok := r.(*ConstantSearchExpr); ok {
+			if !rb.Val {
+				return &ConstantSearchExpr{Val: false}
+			}
+			return l
+		}
+		return &AndExpr{Left: l, Right: r}
+	case *OrExpr:
+		l := o.foldConstants(e.Left)
+		r := o.foldConstants(e.Right)
+		if lb, ok := l.(*ConstantSearchExpr); ok {
+			if lb.Val {
+				return &ConstantSearchExpr{Val: true}
+			}
+			return r
+		}
+		if rb, ok := r.(*ConstantSearchExpr); ok {
+			if rb.Val {
+				return &ConstantSearchExpr{Val: true}
+			}
+			return l
+		}
+		return &OrExpr{Left: l, Right: r}
+	case *NotExpr:
+		sub := o.foldConstants(e.Expr)
+		if b, ok := sub.(*ConstantSearchExpr); ok {
+			return &ConstantSearchExpr{Val: !b.Val}
+		}
+		return &NotExpr{Expr: sub}
+	}
+	return expr
+}
+
+func (o *Optimizer) pushDownLimits(cmds []Command) []Command {
+	if len(cmds) < 2 {
+		return cmds
+	}
+	// If we have a sort followed by head, we can't easily push it down past everything,
+	// but we can ensure they stay together.
+	// For now, let's just optimize consecutive heads.
+	result := make([]Command, 0, len(cmds))
+	for i := 0; i < len(cmds); i++ {
+		if h1, ok := cmds[i].(*HeadCommand); ok && i+1 < len(cmds) {
+			if h2, ok := cmds[i+1].(*HeadCommand); ok {
+				if h2.Count < h1.Count {
+					cmds[i+1] = h2 // keep smaller
+				} else {
+					cmds[i+1] = h1
+				}
+				continue
+			}
+		}
+		result = append(result, cmds[i])
+	}
+	return result
 }
 
 func (o *Optimizer) pushDownPredicates(search SearchExpr, cmds []Command) (SearchExpr, []Command) {

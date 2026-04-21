@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/kingknull/oblivrashell/internal/services"
 	"github.com/kingknull/oblivrashell/internal/auth"
+	"github.com/kingknull/oblivrashell/internal/incident"
 	"github.com/kingknull/oblivrashell/internal/cloud"
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/attestation"
@@ -74,6 +75,8 @@ type SecurityCluster struct {
 	RotationService     *services.RotationService
 	SuppressionService  *services.SuppressionService
 	ShellSanitizer      *security.ShellSanitizer
+	ReportFactory       *analytics.ReportFactory
+	ReportScheduler     *analytics.ReportScheduler
 }
 
 // SIEMCluster holds ingestion, detection, and alerting services.
@@ -120,6 +123,7 @@ type ResponseCluster struct {
 	DeterministicResponse  *services.DeterministicResponseService
 	LedgerService          *services.LedgerService
 	RansomwareService      *services.RansomwareService
+	TriageService          *incident.TriageService
 }
 
 // ProductCluster holds end-user logic services (SSH, Host, snippets, etc).

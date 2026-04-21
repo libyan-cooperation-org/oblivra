@@ -20,6 +20,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/ingest"
+	"github.com/kingknull/oblivrashell/internal/incident"
 	"github.com/kingknull/oblivrashell/internal/integrity"
 	"github.com/kingknull/oblivrashell/internal/lineage"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -28,6 +29,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/ndr"
 	"github.com/kingknull/oblivrashell/internal/notes"
 	"github.com/kingknull/oblivrashell/internal/notifications"
+	"github.com/kingknull/oblivrashell/internal/oql"
 	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/kingknull/oblivrashell/internal/policy"
 	"github.com/kingknull/oblivrashell/internal/risk"
@@ -248,6 +250,10 @@ func (c *Container) initSecurity(_ context.Context) error {
 	// So we proxy the repo here and finish wiring in initIntel
 	c.Security.ReportService = services.NewReportService(reportRepo, nil, c.Infra.TenantRepo, c.Log)
 	
+	// Report Factory and Scheduler (Phase 20.10)
+	c.Security.ReportFactory = analytics.NewReportFactory(reportRepo, oql.NewExecutor(), c.Infra.HotStore)
+	c.Security.ReportScheduler = analytics.NewReportScheduler(reportRepo, c.Security.ReportFactory, c.Log)
+	
 	c.Security.SecurityService = services.NewSecurityService(c.Security.FIDO2Manager, nil, nil, c.Security.QuorumManager, c.Infra.Bus, c.Log)
 
 	policyEngine := policy.NewEngine(policy.Config{ActiveTier: policy.TierEnterprise}, c.Log)
@@ -375,7 +381,11 @@ func (c *Container) initIntel(_ context.Context) error {
 }
 
 func (c *Container) initResponse() error {
-	c.Response.IncidentService = services.NewIncidentService(c.Infra.DB, nil, nil, c.Intel.RiskEngine, c.Infra.Bus, c.Log)
+	hostRepo := database.NewHostRepository(c.Infra.DB, c.Infra.Vault)
+	userRepo := database.NewUserRepository(c.Infra.DB)
+	c.Response.TriageService = incident.NewTriageService(hostRepo, userRepo, c.Log)
+
+	c.Response.IncidentService = services.NewIncidentService(c.Infra.DB, nil, nil, c.Response.TriageService, c.Infra.Bus, c.Log)
 	c.Response.PlaybookService = services.NewPlaybookService(nil)
 	c.Response.NetworkIsolatorService = services.NewNetworkIsolatorService(nil, nil, c.Infra.Bus, c.Log)
 	c.Response.RansomwareService = services.NewRansomwareService(nil, c.Infra.Bus, c.Log)
@@ -534,6 +544,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Security.Sentinel)
 	c.mustRegister(c.Security.RotationService)
 	c.mustRegister(c.Security.SuppressionService)
+	c.mustRegister(c.Security.ReportScheduler)
 
 	// SIEM
 	c.mustRegister(c.SIEM.SIEMService)

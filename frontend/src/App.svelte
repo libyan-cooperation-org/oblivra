@@ -89,6 +89,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import OperatorMode from '@pages/OperatorMode.svelte';
   import MultiTenantAdmin from '@pages/MultiTenantAdmin.svelte';
   import KeyboardMap from '@pages/KeyboardMap.svelte';
+  import DashboardStudio from '@pages/DashboardStudio.svelte';
 
   // ── Types
   interface RouteDefinition {
@@ -187,6 +188,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/lineage',            component: LineageExplorer },
     { path: '/decisions',          component: DecisionInspector },
     { path: '/oql',                component: OQLDashboard },
+    { path: '/dashboard-studio',   component: DashboardStudio },
     { path: '/evidence',           component: EvidenceLedger },
     { path: '/ledger',             component: EvidenceLedger },
     { path: '/chain-of-custody',   component: ChainOfCustody },

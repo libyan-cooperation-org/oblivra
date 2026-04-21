@@ -11,6 +11,8 @@ type EvalContext struct {
 	Now       time.Time
 	QueryID   string
 	User      string
+	Role      string
+	QueryType string
 	TimeRange TimeRange
 	rng       *mathrand.Rand
 	secure    bool

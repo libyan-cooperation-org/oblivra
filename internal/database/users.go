@@ -36,6 +36,8 @@ type User struct {
 	Department        string    `json:"department"`
 	Organization      string    `json:"organization"`
 	PreferredLanguage string    `json:"preferred_language"`
+	Phone             string    `json:"phone"`
+	Address           string    `json:"address"`
 	GroupsJSON        string    `json:"groups_json"`
 	SCIMAttributes    string    `json:"scim_attributes_json"`
 }
@@ -80,13 +82,13 @@ func (r *UserRepository) CreateUser(ctx context.Context, u *User) error {
 			id, tenant_id, email, name, password_hash, auth_provider,
 			is_mfa_enabled, mfa_secret, role_id, created_at, updated_at,
 			external_id, active, display_name, user_type, title,
-			department, organization, preferred_language, groups_json, scim_attributes_json,
+			department, organization, preferred_language, phone, address, groups_json, scim_attributes_json,
 			criticality_score, criticality_reason
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, u.ID, u.TenantID, u.Email, u.Name, u.PasswordHash, u.AuthProvider,
 		u.IsMFAEnabled, u.MFASecret, u.RoleID, u.CreatedAt, u.UpdatedAt,
 		u.ExternalID, u.Active, u.DisplayName, u.UserType, u.Title,
-		u.Department, u.Organization, u.PreferredLanguage, u.GroupsJSON, u.SCIMAttributes,
+		u.Department, u.Organization, u.PreferredLanguage, u.Phone, u.Address, u.GroupsJSON, u.SCIMAttributes,
 		u.CriticalityScore, u.CriticalityReason)
 
 	if err != nil {

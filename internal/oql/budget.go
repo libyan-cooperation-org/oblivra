@@ -57,7 +57,8 @@ type BudgetMonitor struct {
 	rowsScanned  atomic.Int64
 	rowsOutput   atomic.Int64
 	memoryUsed   atomic.Int64
-	groupKeys    atomic.Int64
+	groupKeys atomic.Int64
+	joinMaterialized atomic.Int64
 	violation    atomic.Value
 	done         chan struct{}
 }
@@ -132,6 +133,15 @@ func (bm *BudgetMonitor) TrackGroupKey() bool {
 	if k := bm.groupKeys.Add(1); k > int64(bm.budget.MaxGroupKeys) {
 		bm.violate("group_keys", k, int64(bm.budget.MaxGroupKeys),
 			fmt.Sprintf("Aggregation created %d groups (limit %d)", k, bm.budget.MaxGroupKeys))
+		return false
+	}
+	return true
+}
+
+func (bm *BudgetMonitor) TrackJoin(n int64) bool {
+	if j := bm.joinMaterialized.Add(n); j > bm.budget.MaxJoinMaterialize {
+		bm.violate("join_materialize", j, bm.budget.MaxJoinMaterialize,
+			fmt.Sprintf("Join materialized %d rows (limit %d)", j, bm.budget.MaxJoinMaterialize))
 		return false
 	}
 	return true

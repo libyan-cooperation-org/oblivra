@@ -61,6 +61,7 @@ type FieldExistsExpr struct {
 	Exists bool
 }
 type SubqueryExpr struct{ Query *Query }
+type ConstantSearchExpr struct{ Val bool }
 
 func (*AndExpr) searchExpr()         {}
 func (*OrExpr) searchExpr()          {}
@@ -69,6 +70,7 @@ func (*CompareExpr) searchExpr()     {}
 func (*FreeTextExpr) searchExpr()    {}
 func (*FieldExistsExpr) searchExpr() {}
 func (*SubqueryExpr) searchExpr() {}
+func (*ConstantSearchExpr) searchExpr() {}
 
 func (e *AndExpr) String() string         { return fmt.Sprintf("(%s AND %s)", e.Left, e.Right) }
 func (e *OrExpr) String() string          { return fmt.Sprintf("(%s OR %s)", e.Left, e.Right) }
@@ -77,6 +79,7 @@ func (e *CompareExpr) String() string     { return fmt.Sprintf("%s %s %s", e.Fie
 func (e *FreeTextExpr) String() string    { return fmt.Sprintf("%q", e.Text) }
 func (e *FieldExistsExpr) String() string { return fmt.Sprintf("%s EXISTS=%v", e.Field, e.Exists) }
 func (e *SubqueryExpr) String() string    { return fmt.Sprintf("[ %s ]", e.Query) }
+func (e *ConstantSearchExpr) String() string { return fmt.Sprint(e.Val) }
 
 type FieldRef struct {
 	Parts []string

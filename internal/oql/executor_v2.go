@@ -78,12 +78,23 @@ const defaultOQLTimeout = 30 * time.Second
 // Execute parses, type-checks, optimizes, and executes an OQL query.
 // A 30-second deadline is applied if the caller's context has no deadline yet.
 func (ex *Executor) Execute(ctx context.Context, input string, data []Row, ectx *EvalContext) (*QueryResult, error) {
-	// AUD-04: Enforce a hard query timeout to prevent runaway executions.
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, defaultOQLTimeout)
-		defer cancel()
+	// Select budget
+	role := "user"
+	qtype := "interactive"
+	if ectx != nil {
+		if ectx.Role != "" {
+			role = ectx.Role
+		}
+		if ectx.QueryType != "" {
+			qtype = ectx.QueryType
+		}
 	}
+	budget := BudgetForUser(role, qtype)
+
+	// AUD-04: Enforce a hard query timeout to prevent runaway executions.
+	// BudgetMonitor also handles this, but we keep the context timeout for safety.
+	ctx, bm := NewBudgetMonitor(ctx, budget)
+	defer bm.Stop()
 
 	start := time.Now()
 	prof := NewQueryProfile()
@@ -129,24 +140,31 @@ func (ex *Executor) Execute(ctx context.Context, input string, data []Row, ectx 
 			fetchProf.Finish()
 			return nil, fmt.Errorf("failed to fetch data: %w", err)
 		}
+		bm.TrackScan(0, int64(len(data))) // Tracking fetched rows as scanned
 		fetchProf.SetDetail("rows_fetched", len(data))
 		fetchProf.Finish()
 	}
 
-	rows, err := ex.executePipeline(ctx, optimized, data, prof, &meta)
+	rows, err := ex.executePipeline(ctx, optimized, data, prof, &meta, bm)
 	if err != nil {
+		if v := bm.Violation(); v != nil {
+			return nil, fmt.Errorf("query budget exceeded: %s", v.Message)
+		}
 		return nil, err
 	}
 	meta.ExecTime = time.Since(start)
 	meta.TotalRows = int64(len(data))
 	meta.OutputRows = int64(len(rows))
+	
+	snap := bm.Snapshot()
+	meta.Budget = &snap
 
 	ex.History.RecordProfile(prof)
 
 	return &QueryResult{Rows: rows, Meta: meta, Profile: prof, Warnings: warnings}, nil
 }
 
-func (ex *Executor) executePipeline(ctx context.Context, q *Query, data []Row, prof *QueryProfile, meta *QueryMeta) ([]Row, error) {
+func (ex *Executor) executePipeline(ctx context.Context, q *Query, data []Row, prof *QueryProfile, meta *QueryMeta, bm *BudgetMonitor) ([]Row, error) {
 	// Apply search filter
 	rows := data
 	if q.Search != nil {
@@ -175,21 +193,22 @@ func (ex *Executor) executePipeline(ctx context.Context, q *Query, data []Row, p
 		}
 		cp := prof.BeginStage(cmd.CommandName(), cmdIdx+10, "")
 		var err error
-		rows, err = ex.executeCommand(ctx, cmd, rows, cp, meta)
+		rows, err = ex.executeCommand(ctx, cmd, rows, cp, meta, bm)
 		cp.Finish()
 		if err != nil {
 			return nil, err
 		}
+		bm.TrackOutput(int64(len(rows)))
 	}
 	return rows, nil
 }
 
-func (ex *Executor) executeCommand(ctx context.Context, cmd Command, rows []Row, prof *StageProfiler, _ *QueryMeta) ([]Row, error) {
+func (ex *Executor) executeCommand(ctx context.Context, cmd Command, rows []Row, prof *StageProfiler, meta *QueryMeta, bm *BudgetMonitor) ([]Row, error) {
 	switch c := cmd.(type) {
 	case *WhereCommand:
 		return ex.execWhere(ctx, c, rows, prof)
 	case *StatsCommand:
-		return ex.execStats(ctx, c, rows, prof)
+		return ex.execStats(ctx, c, rows, prof, bm)
 	case *EvalCommand:
 		return ex.execEval(ctx, c, rows, prof)
 	case *TableCommand:
@@ -217,7 +236,7 @@ func (ex *Executor) executeCommand(ctx context.Context, cmd Command, rows []Row,
 	case *LookupCommand:
 		return ex.execLookup(ctx, c, rows, prof)
 	case *JoinCommand:
-		return ex.execJoin(ctx, c, rows, prof)
+		return ex.execJoin(ctx, c, rows, prof, bm)
 	case *AppendCommand:
 		return ex.execAppend(ctx, c, rows, prof)
 	case *TimeChartCommand:
@@ -255,6 +274,8 @@ func matchSearch(row Row, expr SearchExpr) bool {
 			return ok
 		}
 		return !ok
+	case *ConstantSearchExpr:
+		return e.Val
 	}
 	return false
 }
@@ -404,7 +425,7 @@ func (ex *Executor) execWhere(ctx context.Context, c *WhereCommand, rows []Row, 
 	return out, nil
 }
 
-func (ex *Executor) execStats(_ context.Context, c *StatsCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
+func (ex *Executor) execStats(_ context.Context, c *StatsCommand, rows []Row, prof *StageProfiler, bm *BudgetMonitor) ([]Row, error) {
 	groups := make(map[string]map[string]AggState)
 	groupByFields := c.GroupBy
 	for _, row := range rows {
@@ -412,6 +433,9 @@ func (ex *Executor) execStats(_ context.Context, c *StatsCommand, rows []Row, pr
 		key := buildGroupKey(row, groupByFields)
 		states, exists := groups[key]
 		if !exists {
+			if !bm.TrackGroupKey() {
+				return nil, fmt.Errorf("group limit exceeded")
+			}
 			states = make(map[string]AggState, len(c.Aggregations))
 			for _, a := range c.Aggregations {
 				states[a.Alias] = NewAggState(a.Func)
@@ -1092,7 +1116,7 @@ func (ex *Executor) execLookup(_ context.Context, c *LookupCommand, rows []Row, 
 	return rows, nil
 }
 
-func (ex *Executor) execJoin(ctx context.Context, c *JoinCommand, rows []Row, prof *StageProfiler) ([]Row, error) {
+func (ex *Executor) execJoin(ctx context.Context, c *JoinCommand, rows []Row, prof *StageProfiler, bm *BudgetMonitor) ([]Row, error) {
 	// Execute subquery
 	subRows, err := ex.Execute(ctx, c.Subquery.String(), nil, nil)
 	if err != nil {
@@ -1101,6 +1125,9 @@ func (ex *Executor) execJoin(ctx context.Context, c *JoinCommand, rows []Row, pr
 	
 	subMap := make(map[string]Row)
 	for _, sr := range subRows.Rows {
+		if !bm.TrackJoin(1) {
+			return nil, fmt.Errorf("join materialization limit exceeded")
+		}
 		if kv, ok := sr[c.Field.Canonical()]; ok {
 			subMap[fmt.Sprint(kv)] = sr
 		}
