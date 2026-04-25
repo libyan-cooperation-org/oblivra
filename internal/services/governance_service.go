@@ -75,6 +75,22 @@ func (s *GovernanceService) MarkFalsePositive(anomalyID string, reason string, e
 	// Publish event for Merkle audit trail integration
 	s.bus.Publish("governance.fp_marked", entry)
 
+	// Phase 26.9 feedback loop: turn the FP feedback into a suppression-rule
+	// suggestion derived from the evidence. We publish on the bus so the
+	// SuppressionService (or a UI listening over WebSocket) can present a
+	// one-click "create suppression rule" prompt to the operator. We never
+	// auto-create rules — that risks masking real attacks; an operator must
+	// always confirm.
+	if s.bus != nil {
+		s.bus.Publish("suppression:suggested", map[string]interface{}{
+			"anomaly_id": anomalyID,
+			"reason":     reason,
+			"evidence":   evidence,
+			"timestamp":  entry.Timestamp,
+			"user":       entry.User,
+		})
+	}
+
 	return nil
 }
 
