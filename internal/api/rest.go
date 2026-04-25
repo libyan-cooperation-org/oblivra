@@ -55,6 +55,10 @@ type IdentityProvider interface {
 	HandleOIDCCallback(code string) (*database.User, error)
 	HandleSAMLCallback(data string) (*database.User, error)
 
+	// BootstrapAdmin creates the very first admin account during initial setup.
+	// Refuses to run if any users already exist. Phase 22.5.
+	BootstrapAdmin(ctx context.Context, email, name, password string) (*database.User, error)
+
 	// Connector management (Phase 20.7)
 	ListConnectors(ctx context.Context) ([]database.IdentityConnector, error)
 	CreateConnector(ctx context.Context, c *database.IdentityConnector) error
@@ -2590,38 +2594,124 @@ func (s *RESTServer) handleComplianceStatus(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// POST /api/v1/setup/initialize
+// SetupRequest is the payload SetupWizard.svelte POSTs on completion.
+type SetupRequest struct {
+	Admin struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Name     string `json:"name"`
+	} `json:"admin"`
+	AlertChannel *struct {
+		Type   string `json:"type"`   // "email" | "webhook" | "slack"
+		Target string `json:"target"` // address / URL
+	} `json:"alert_channel,omitempty"`
+	DetectionPack string `json:"detection_pack"` // "essential" | "extended" | "paranoid"
+}
+
+// POST /api/v1/setup/initialize — first-run platform configuration.
+//
+// Idempotency: once an admin user exists, this endpoint refuses with 409.
+// That guards against an unauthenticated caller hijacking admin access on a
+// running system — the underlying IdentityService.BootstrapAdmin enforces
+// the same rule, but the API-layer pre-check produces a cleaner error.
 func (s *RESTServer) handleSetupInitialize(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req struct {
-		Step int `json:"step"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid body", http.StatusBadRequest)
+	if s.identity == nil {
+		http.Error(w, "Identity service not available", http.StatusServiceUnavailable)
 		return
 	}
 
-	logs := []string{}
-	switch req.Step {
-	case 0:
-		logs = append(logs, "[INIT] Starting Identity Initialization...", "[TASK] Accessing TPM 2.0 enclave...", "[OK] Root identity key generated and signed.")
-	case 1:
-		logs = append(logs, "[INIT] Provisioning Data Lake...", "[TASK] Initializing SQLCipher sharding...", "[OK] Storage shards provisioned and indexed.")
-	case 2:
-		logs = append(logs, "[INIT] Bootstrapping Fleet...", "[TASK] Generating agent mesh certificates...", "[OK] Agent binaries signed and ready for deployment.")
-	case 3:
-		logs = append(logs, "[INIT] Establishing Network Mesh...", "[TASK] Validating P2P orchestration layer...", "[OK] Sovereign mesh network online.")
-	default:
-		http.Error(w, "Invalid step", http.StatusBadRequest)
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024) // 16 KB is plenty
+	var req SetupRequest
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "Invalid setup payload", http.StatusBadRequest)
 		return
+	}
+
+	if req.Admin.Email == "" || req.Admin.Password == "" {
+		http.Error(w, "admin.email and admin.password are required", http.StatusBadRequest)
+		return
+	}
+
+	switch req.DetectionPack {
+	case "", "essential", "extended", "paranoid":
+		// allowed; "" defaults to "extended" below
+	default:
+		http.Error(w, "detection_pack must be essential, extended, or paranoid", http.StatusBadRequest)
+		return
+	}
+	pack := req.DetectionPack
+	if pack == "" {
+		pack = "extended"
+	}
+
+	if req.AlertChannel != nil {
+		switch req.AlertChannel.Type {
+		case "email", "webhook", "slack":
+			if req.AlertChannel.Target == "" {
+				http.Error(w, "alert_channel.target is required when alert_channel is set", http.StatusBadRequest)
+				return
+			}
+		default:
+			http.Error(w, "alert_channel.type must be email, webhook, or slack", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Bootstrap the admin user. The underlying service refuses to run if any
+	// user already exists, so this safely no-ops on a re-run attempt.
+	name := req.Admin.Name
+	if name == "" {
+		name = "Administrator"
+	}
+	user, err := s.identity.BootstrapAdmin(r.Context(), req.Admin.Email, name, req.Admin.Password)
+	if err != nil {
+		// Most likely cause: setup already run. Surface as 409 Conflict.
+		s.log.Warn("[SETUP] BootstrapAdmin refused: %v", err)
+		http.Error(w, "Setup already initialised or admin creation refused", http.StatusConflict)
+		return
+	}
+
+	// Record the configuration in the Merkle-chained audit log so first-run
+	// state is recoverable from the audit trail alone (useful for support
+	// debugging "why is my detection pack X").
+	if s.audit != nil {
+		details := map[string]interface{}{
+			"admin_user_id": user.ID,
+			"admin_email":   user.Email,
+			"detection_pack": pack,
+			"actor_ip":      getClientIP(r),
+		}
+		if req.AlertChannel != nil {
+			details["alert_channel_type"] = req.AlertChannel.Type
+			// Never log the target — it might be a webhook secret or an
+			// email distribution list that's privacy-sensitive.
+			details["alert_channel_target_len"] = len(req.AlertChannel.Target)
+		}
+		if logErr := s.audit.Log(r.Context(), "setup.initialized", "", "", details); logErr != nil {
+			s.log.Error("[SETUP] audit log failed: %v", logErr)
+		}
+	}
+
+	// Notify the rest of the platform so listeners can react: the alerting
+	// service can attach the channel; the rule loader can switch packs.
+	if s.bus != nil {
+		s.bus.Publish("setup:initialized", map[string]interface{}{
+			"admin_user_id":  user.ID,
+			"detection_pack": pack,
+			"alert_channel":  req.AlertChannel, // ok to publish: subscribers run in-process
+		})
 	}
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"status": "success",
-		"logs":   logs,
+		"status":         "initialised",
+		"admin_user_id":  user.ID,
+		"detection_pack": pack,
 	})
 }

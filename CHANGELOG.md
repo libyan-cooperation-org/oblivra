@@ -2,6 +2,20 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.1.5] - 2026-04-25
+
+### 🧙 Phase 22.5 — Setup Wizard backend wiring
+The frontend wizard shipped in 1.1.4 was POSTing to a stub. It now actually does work:
+
+- `IdentityService.BootstrapAdmin` creates the very first admin account, bypassing RBAC because no user exists yet. Refuses to run if any user is already present — that's the safety guard against an unauthenticated caller hijacking admin access on a running system.
+- `POST /api/v1/setup/initialize` rewritten end-to-end. Validates payload (DisallowUnknownFields, 16 KB body cap, email + password presence, detection_pack allowlist, alert channel enum), bootstraps the admin user, writes a `setup.initialized` entry to the Merkle-chained audit log, and publishes a `setup:initialized` event on the bus so the alerting service can attach the channel and the rule loader can switch detection packs. Re-attempts get HTTP 409 Conflict.
+- Audit detail captured: admin user_id + email, detection pack, actor IP, alert channel type. The alert channel target (webhook URL, email distribution list) is **never logged** — only its length, so debug telemetry stays useful without leaking the target.
+
+### 🧹 Cleanup
+- Stale `claude/hungry-shtern-83a01c` worktree branch removed (merged 12 commits ago).
+
+---
+
 ## [1.1.4] - 2026-04-25
 
 ### 🛡️ Supply chain — 5 reachable CVEs closed

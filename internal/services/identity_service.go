@@ -141,6 +141,49 @@ func (s *IdentityService) CreateUser(ctx context.Context, email, name, password,
 	return user, nil
 }
 
+// BootstrapAdmin creates the platform's first administrator account during
+// initial setup. It bypasses RBAC because no user exists yet (and therefore
+// nothing to authorize against), but it refuses to run if any user is
+// already present — preventing an unauthenticated caller from re-bootstrapping
+// admin access on a live system.
+//
+// Phase 22.5 first-run flow. Called from POST /api/v1/setup/initialize.
+func (s *IdentityService) BootstrapAdmin(ctx context.Context, email, name, password string) (*database.User, error) {
+	// Idempotency / safety: refuse if any users already exist.
+	existing, err := s.userRepo.ListUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap: failed to check existing users: %w", err)
+	}
+	if len(existing) > 0 {
+		return nil, fmt.Errorf("bootstrap: refusing to run, %d users already exist", len(existing))
+	}
+
+	if err := validatePassword(password); err != nil {
+		return nil, err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	user := &database.User{
+		Email:        email,
+		Name:         name,
+		PasswordHash: string(hash),
+		AuthProvider: "local",
+		RoleID:       "admin", // canonical admin role ID — matches the role list returned by handleRoles
+	}
+
+	if err := s.userRepo.CreateUser(ctx, user); err != nil {
+		return nil, fmt.Errorf("bootstrap: create user: %w", err)
+	}
+
+	s.log.Info("[BOOTSTRAP] Initial admin account created: %s", email)
+	s.bus.Publish("identity.admin_bootstrapped", user.ID)
+	return user, nil
+}
+
 // validatePassword enforces minimum password complexity requirements
 func validatePassword(password string) error {
 	if len(password) < 8 {
