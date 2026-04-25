@@ -2,6 +2,50 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.1.4] - 2026-04-25
+
+### 🛡️ Supply chain — 5 reachable CVEs closed
+`govulncheck` flagged 5 reachable vulnerabilities. All closed via patch/minor upgrades — no breaking changes:
+
+- `github.com/go-git/go-git/v5` v5.16.4 → v5.17.1 (covers GO-2026-4910, GO-2026-4909, GO-2026-4473)
+- `github.com/russellhaering/goxmldsig` v1.4.0 → v1.6.0 (GO-2026-4753)
+- `github.com/golang/glog` v1.0.0 → v1.2.4 (GO-2025-3372)
+
+`govulncheck ./...` now reports "No vulnerabilities found." Dependabot's count of 8 included unreachable advisories — those are tracked but lower priority.
+
+### 🚦 Phase 22.1 — Node failure simulation closes
+`cmd/chaos/main.go` Scenario 6 builds a 3-node Raft cluster over `hashicorp/raft`'s in-memory transport with a no-op FSM, kills the elected leader, and asserts a different node wins re-election within 5s. CGO-free so it runs in any build environment (the existing `internal/cluster/leader_failure_simulation_test.go` requires gcc to link the SQLite driver and is blocked from CGO_ENABLED=0 lanes).
+
+Together with the existing tests, this closes Phase 22.1's "node failure simulation" item:
+- Election under partition (existing `TestRaftSplitBrain`)
+- Idempotent retry after leader failure (existing `TestLeaderFailureIdempotency`)
+- Election convergence after leader kill (new chaos Scenario 6)
+
+### 🔒 Phase 26.5 / 25.10 — Hardware-rooted FIDO2 quorum verification
+Closes the gap that `quorum.go:111`'s comment flagged: "we assume the caller has already verified the FIDO2 auth." Now `QuorumManager.Approve` takes a challengeID + WebAuthn assertion outputs and drives `FIDO2Manager.CompleteAuthentication` to verify the ECDSA signature against the registered public key BEFORE counting the vote. Failed verification rejects with a WARN log naming user + request ID. Development-mode fallback (FIDO2Manager == nil) emits a clearly-marked WARN so operators can see when hardware-trust is bypassed in dev.
+
+`internal/services/security_service.go:QuorumApprove` plumbs the new parameters through to the bound API.
+
+### 🔕 Phase 26.9 — Alert suppression feedback loop
+`MarkFalsePositive` now publishes a `suppression:suggested` event on the bus with the evidence so a UI listener can present a one-click "create suppression rule" prompt. New helper `SuppressionService.SuggestFromEvidence(evidence)` extracts a draft rule by finding the most consistent field/value across evidence rows (host_id, user, src_ip, event_type, rule_id). Rules are returned with `IsActive: false` — operators must explicitly enable.
+
+In-memory `MatchCount(ruleID)` and `MatchCounts()` expose per-rule hit counts so operators can see which suppression rules are pulling weight (or which have gone stale). Counts reset on restart by design — durable counts need a schema column that's a Phase 26.9 follow-up.
+
+### 🧙 Phase 22.5 — Setup Wizard MVP
+`frontend-web/src/pages/SetupWizard.svelte` ships a 4-step first-run flow:
+
+1. **Administrator account** — email + 12+ char passphrase with confirm
+2. **Alert channel** — none / email / generic webhook / Slack incoming-webhook
+3. **Detection pack** — essential (~25 high-confidence rules) / extended (recommended, all built-ins) / paranoid (built-ins + SigmaHQ community)
+4. **Orientation tutorial** — quick lap of search, alerts, fleet, and the degraded banner
+
+Wired into `App.svelte` at `/setup` (public route). POSTs to the existing `/api/v1/setup/initialize` route. Steps deferred from the original 6-step claim (TLS cert, first log source) are operator-infra concerns covered by `cmd/certgen` and `Onboarding.svelte` respectively.
+
+### 📝 Documentation
+- `task.md` — Phase 22.1 node failure simulation now `[x]`; Phase 25.10 multi-party enforcement upgraded `[v]→[x]`; Phase 26.5 cryptographic quorum upgraded `[v]→[x]`; Phase 26.9 alert suppression now has full feedback-loop description (still `[v]` pending maintenance-window schema); Phase 22.5 Setup Wizard now `[v]` with MVP scope explained.
+
+---
+
 ## [1.1.3] - 2026-04-25
 
 ### 🚦 Phase 22.1 — Reliability Engineering (S2 close-out)
