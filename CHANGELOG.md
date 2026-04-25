@@ -2,6 +2,41 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.2.0] - 2026-04-25
+
+### 🖥️ SOC Multi-Monitor Pop-Out
+The flagship SOC workflow: drag the SIEM search to monitor 2, the alerts board to monitor 3, keep the terminal on monitor 1.
+
+- **New `WindowService`** (`internal/services/window_service.go`) — Wails-bound service with `PopOut(route, title)`, `ClosePopout(id)`, `CloseAllPopouts()`, `ListPopouts()`. Each pop-out is a real Wails window backed by the same Go process — zero IPC round trip between panel views. Server-build stub keeps headless mode compatible.
+- **Pop-out URL convention** — `/?popout=1&route=<route>`. `App.svelte` detects the param, navigates to the requested route, and skips the sidebar for a clean single-panel view.
+- **`PopOutButton.svelte`** drop-in toolbar component — opted in on SIEMSearch, AlertManagement, AlertDashboard, FleetDashboard. Browser mode falls back to `window.open` for web operators.
+- **TitleBar pop-out chip** — shows "N POP-OUTS" with click-to-close-all when pop-outs are open. Polls `WindowService.ListPopouts()` every 1.5s.
+
+### 🪟 Window Chrome (Phase 23.8)
+Frameless Wails windows leave the OS with no min/max/close; we render our own.
+
+- **Platform-aware controls in `TitleBar.svelte`** — macOS gets traffic-light dots on the left (hover-revealed glyph icons), Windows/Linux get explicit Min / Max / Close icon buttons on the right with the standard 40×30px hit-box and red close hover. Maximise icon flips to "Restore" when maximised. Detects platform via `navigator.userAgent`.
+- **Drag region wired** — entire header has `-webkit-app-region: drag`; every interactive element overrides with `no-drag`.
+
+### 🧰 Operator Mode (Phase 22.4 / 23.4)
+- **`OperatorBanner.svelte`** — alert count + crit/high severity chips overlay on the terminal page. Click-throughs for "View events" (drills to filtered SIEM search) and "Isolate" (fires the same global event Ctrl+Shift+I dispatches). Re-shows on severity escalation even if previously dismissed.
+- **`Ctrl+Shift+I` host isolation** — App.svelte dispatches `oblivra:isolate-host`; OperatorMode.svelte listens and calls `agentStore.toggleQuarantine`. Off-page invocation navigates to /operator with a hint toast. Same pattern for `Ctrl+Shift+E` (evidence capture).
+
+### ⌨️ Phase 23.2 — Session Restore Banner
+- **`SessionRestoreBanner.svelte`** wired into TerminalPage. On mount it queries the SessionPersistence binding (LoadState / GetSavedSessions / List — graceful fallback) and offers one-click restore for the operator's previous tabs. Silently no-ops in browser mode.
+
+### 📋 Phase 23.5 — Clipboard OSC 52
+- **`XTerm.svelte`** registers an OSC 52 handler so remote programs (vim, tmux) can push selections into the OS clipboard via `navigator.clipboard.writeText`. Plus auto-copy-on-selection (xterm `onSelectionChange` → clipboard) and right-click paste (`contextmenu` reads clipboard, sends through SSH/local SendInput as keystroke stream).
+
+### 🎨 UX State Primitives
+- **`LoadingSkeleton.svelte`** added to `@components/ui` barrel — three variants (`row` / `card` / `block`) with shimmer animation that respects `prefers-reduced-motion`. Pairs with the existing EmptyState / LoadingScreen / ErrorScreen / Spinner.
+
+### 📝 Documentation
+- `task.md` Phase 23: 23.2, 23.4, 23.5 all upgraded to ✅; new sections 23.7 (SOC Pop-Out), 23.8 (Window Chrome), 23.9 (UX State Primitives).
+- README badge bumped to 1.2.0.
+
+---
+
 ## [1.1.5] - 2026-04-25
 
 ### 🧙 Phase 22.5 — Setup Wizard backend wiring

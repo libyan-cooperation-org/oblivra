@@ -858,10 +858,10 @@
 - [x] **MITRE coverage gap report** — `GenerateMITREGapReport()` per-technique scoring (covered/partial/none); MITRE Navigator JSON layer export with colour coding (`internal/detection/rules.go`)
 - [x] **Rule test framework** — `RuleTestFixture`, `RuleTestResult`, `RuleTestSuiteResult`; `TestRule()` runs fixtures against conditions; `matchRuleConditions()` with `regex:` prefix support (`internal/detection/rules.go`)
 
-#### Operator Mode — The Killer Workflow (Partial)
-- [v] **SSH → anomaly banner** — `OperatorService.GetContext()` (`internal/services/operator_service.go:65-150`) retrieves SIEM host alerts and exposes them through `OperatorContext`. **UI gap**: status-bar surfacing + one-keypress event panel keybind not yet implemented in frontend. 🖥️
+#### Operator Mode — The Killer Workflow ✅
+- [x] **SSH → anomaly banner** — `OperatorBanner.svelte` (`frontend/src/components/terminal/`) wired into TerminalPage; renders SIEM alerts filtered to the active SSH host with crit/high severity chips, "View events" pivot to SIEM search, and "Isolate" button. 🖥️
 - [ ] **Event row → enrichment pivot** — click IP/host in SIEM results → inline enrichment card (GeoIP, ASN, TI match, open ports) 🏗️
-- [v] **Host isolation from terminal context** — `OperatorMode.svelte:44-52` → `agentStore.toggleQuarantine(agentID, true)` → `ToggleQuarantine()` (`agent.svelte.ts:117-127`). **UI gap**: no `Ctrl+Shift+I` keybind handler found, no confirmation modal, titlebar status indicator unverified. 🖥️
+- [x] **Host isolation from terminal context** — `Ctrl+Shift+I` keybind in App.svelte dispatches `oblivra:isolate-host` window event; OperatorMode.svelte listens and calls `agentStore.toggleQuarantine` for the active host. Off-page invocation navigates to /operator with a hint toast. Pop-out windows bind the same keybind so isolation works from a monitor-2 SIEM panel. 🖥️
 - [ ] **One-click memory/process capture** — trigger forensic snapshot, auto-seal SHA-256, auto-add to active incident evidence 🖥️
 - [ ] **Operator timeline** — unified chronological view: terminal commands + SIEM events + enrichment + playbook executions + evidence 🏗️
 - [ ] **Autonomous Hunt** — scheduled and automated threat hunting queries based on Threat Intel 🌐
@@ -955,12 +955,29 @@
 - [x] `OperatorBanner.svelte` (`frontend/src/components/terminal/OperatorBanner.svelte`) — alert count + crit/high severity chips overlay on the terminal page; click-throughs for "View events" (drills to filtered SIEM search) and "Isolate" (fires the same global event Ctrl+Shift+I dispatches). Re-shows itself on severity escalation even if previously dismissed. 🖥️
 - [x] `Ctrl+Shift+I` host isolation shortcut — wired in App.svelte's onKeyDown to dispatch `oblivra:isolate-host` window event; OperatorMode.svelte listens and calls `agentStore.toggleQuarantine`. Off-page invocation navigates to /operator with a hint toast. Same pattern for Ctrl+Shift+E (evidence capture). 🖥️
 
-### 23.5 — Clipboard OSC 52 (Not Started)
-- [ ] xterm.js clipboard integration — auto-copy-on-selection, right-click paste *(no OSC 52 handler in `frontend/src/components/terminal/XTerm.svelte`)* 🖥️
+### 23.5 — Clipboard OSC 52 ✅
+- [x] xterm.js clipboard integration in `XTerm.svelte`: registered an OSC 52 handler via `term.parser.registerOscHandler(52, ...)` so remote programs (vim, tmux) can push selections into the OS clipboard via `navigator.clipboard.writeText`. Plus auto-copy-on-selection (xterm `onSelectionChange` → clipboard) and right-click paste (`contextmenu` event reads clipboard, sends through SSH/local SendInput as keystroke stream). 🖥️
 
 ### 23.6 — AI Autocomplete Polish (Not Started)
 - [ ] Floating suggestion box wired to `CommandHistoryService` + per-host command history *(`CommandHistoryService` backend exists with `GetSuggestions()`; no floating UI overlay shipped)* 🖥️
 - [ ] Smart context: current input buffering + cursor coordinate anchoring 🖥️
+
+### 23.7 — SOC Multi-Monitor Pop-Out ✅ (new)
+> **Context**: SOC operators run 3-4 monitors. The flagship workflow is "drag the SIEM search to monitor 2, the alerts board to monitor 3, keep the terminal on monitor 1." Native windowing makes this real instead of forcing the operator to alt-tab inside one window.
+
+- [x] **`WindowService`** (`internal/services/window_service.go` + `_server.go` build-tagged stub) — Wails-bound service with `PopOut(route, title) → (id, error)`, `ClosePopout(id)`, `CloseAllPopouts()`, `ListPopouts()`. Each pop-out is a real Wails window backed by the same Go process — zero IPC round trip between panel views.
+- [x] **Pop-out URL convention** — `/?popout=1&route=<route>`. `App.svelte`'s onMount detects the param, navigates to the requested route, and skips rendering the sidebar so the spawned window is a clean single-panel view.
+- [x] **`PopOutButton.svelte`** (`frontend/src/components/ui/`) — drop-in toolbar component with route/title props. Currently opted in on SIEMSearch, AlertManagement, AlertDashboard, FleetDashboard. Browser mode falls back to `window.open(?popout=1&route=...)` so web-mode operators can still spawn extra tabs onto extra monitors.
+- [x] **TitleBar pop-out indicator** — when one or more pop-outs are open, TitleBar renders a "N POP-OUT(S)" chip in the chrome with click-to-close-all. Polls `WindowService.ListPopouts()` every 1.5s.
+
+### 23.8 — Window Chrome (Frameless) ✅ (new)
+> Wails frameless windows leave the OS without min/max/close, so we render our own.
+
+- [x] **Platform-aware controls in `TitleBar.svelte`** — macOS gets traffic-light dots on the left (with hover-revealed glyph icons), Windows/Linux get explicit Min / Max / Close icon buttons on the right with the standard 40×30px hit-box and red close hover. Maximise icon flips to "Restore" when window is maximised. Detects platform via `navigator.userAgent`.
+- [x] **Drag region** — entire title bar header has `-webkit-app-region: drag`; every interactive element overrides with `no-drag` so clicks pass through. Operators can drag the window between monitors freely.
+
+### 23.9 — UX State Primitives ✅ (new)
+- [x] **`LoadingSkeleton.svelte`** added to `@components/ui` barrel. Three variants (`row` / `card` / `block`) with shimmer animation that respects `prefers-reduced-motion`. Pairs with the existing `EmptyState`, `LoadingScreen`, `ErrorScreen`, and `Spinner` primitives — page authors now have the full set without rolling their own.
 
 ---
 
