@@ -122,7 +122,14 @@ type Collector interface {
 }
 
 // Event represents a collected data point sent to the server.
+//
+// Seq is a per-agent monotonically increasing sequence number assigned by
+// the WAL on Write. It enables idempotent replay: a server that restarts
+// mid-flush can deduplicate by tracking the highest Seq it has seen, and
+// the agent only truncates WAL records up to the server's acked_seq.
+// See internal/agent/cursor.go for the persistence model.
 type Event struct {
+	Seq       uint64                 `json:"seq"`
 	Timestamp string                 `json:"timestamp"`
 	Source    string                 `json:"source"`
 	Type      string                 `json:"type"`

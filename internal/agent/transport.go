@@ -120,16 +120,27 @@ func (t *Transport) Register(ctx context.Context, collectors []string) error {
 	return nil
 }
 
+// SendResult is the outcome of one Send call.
+type SendResult struct {
+	Config    FleetConfig
+	Actions   []PendingAction
+	// AckedSeq is the highest event sequence number the server confirms it
+	// has durably ingested. The agent uses this to drive WAL.TruncateUpTo
+	// so events that arrived during the flush race are not lost.
+	AckedSeq  uint64
+}
+
 // Send transmits a batch of events to the server.
-// Returns updated FleetConfig and PendingActions if the server sends them.
-func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) {
+// Returns updated FleetConfig, PendingActions, and the server's
+// acked-sequence watermark for partial-truncate.
+func (t *Transport) Send(events []Event) (*SendResult, error) {
 	if events == nil {
 		events = []Event{}
 	}
 
 	data, err := json.Marshal(events)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal events: %w", err)
+		return nil, fmt.Errorf("marshal events: %w", err)
 	}
 
 	// Zlib (deflate) compression — honest Content-Encoding header
@@ -146,36 +157,53 @@ func (t *Transport) Send(events []Event) (*FleetConfig, []PendingAction, error) 
 	url := fmt.Sprintf("%s/api/v1/agent/ingest", base)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 	t.setHeaders(req, contentEncoding, body)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("send: %w", err)
+		return nil, fmt.Errorf("send: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read up to 1 MB of response body (avoid surprises)
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, nil, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return nil, nil, fmt.Errorf("server returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("server returned %d", resp.StatusCode)
 	}
 
 	var response struct {
-		Config  FleetConfig     `json:"config"`
-		Actions []PendingAction `json:"actions"`
+		Config   FleetConfig     `json:"config"`
+		Actions  []PendingAction `json:"actions"`
+		AckedSeq uint64          `json:"acked_seq"`
 	}
 	if len(respBody) > 0 {
 		_ = json.Unmarshal(respBody, &response)
 	}
 
-	return &response.Config, response.Actions, nil
+	// Backward-compatibility: if the server doesn't return an ack (older
+	// builds), fall back to the highest seq we sent. This keeps fresh
+	// agents working against legacy servers but provides no idempotency.
+	acked := response.AckedSeq
+	if acked == 0 && len(events) > 0 {
+		for _, ev := range events {
+			if ev.Seq > acked {
+				acked = ev.Seq
+			}
+		}
+	}
+
+	return &SendResult{
+		Config:   response.Config,
+		Actions:  response.Actions,
+		AckedSeq: acked,
+	}, nil
 }
 
 // FlushLoop continuously drains the WAL and sends events to the server.

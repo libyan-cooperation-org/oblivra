@@ -71,6 +71,7 @@
 
   import { fade } from 'svelte/transition';
   import TacticalSidebar from './components/ui/TacticalSidebar.svelte';
+  import DegradedBanner from './components/DegradedBanner.svelte';
 
   const loader = $derived(ROUTES[router.path] ?? Dashboard);
   const showShell = $derived(!PUBLIC_PATHS.includes(router.path));
@@ -82,7 +83,10 @@
       <TacticalSidebar />
     {/if}
 
-    <main class="flex-1 relative overflow-hidden">
+    <main class="flex-1 relative overflow-hidden flex flex-col">
+      {#if showShell}
+        <DegradedBanner />
+      {/if}
       {#await loader()}
         <div class="absolute inset-0 z-50 bg-surface-0 flex items-center justify-center" transition:fade={{ duration: 150 }}>
           <LoadingScreen />

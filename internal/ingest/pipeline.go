@@ -45,6 +45,22 @@ const (
 	LoadCritical                   // Extreme EPS or critically full buffers
 )
 
+// String returns the lowercase wire-format name for the status. Kept stable
+// across releases — the frontend banner and the /api/v1/health/load endpoint
+// both consume this exact string.
+func (s LoadStatus) String() string {
+	switch s {
+	case LoadHealthy:
+		return "healthy"
+	case LoadDegraded:
+		return "degraded"
+	case LoadCritical:
+		return "critical"
+	default:
+		return "unknown"
+	}
+}
+
 // IngestionPipeline defines the contract for any event ingestion implementation (single or sharded).
 type IngestionPipeline interface {
 	Start()

@@ -129,6 +129,19 @@ func (ac *AdaptiveController) adjust() {
 		if ac.pipeline.diagnostics != nil {
 			ac.pipeline.diagnostics.UpdateLoadStatus(newStatus, msg)
 		}
+
+		// Publish a bus event on every transition so live consumers (websocket
+		// subscribers, the frontend DEGRADED banner via /api/v1/events) can
+		// react without polling /api/v1/health/load.
+		if bus := ac.pipeline.Bus(); bus != nil {
+			bus.Publish("pipeline:load_status_changed", map[string]interface{}{
+				"status":            newStatus.String(),
+				"events_per_second": eps,
+				"buffer_fill_pct":   bufUsage * 100,
+				"message":           msg,
+				"changed_at":        time.Now().UTC().Format(time.RFC3339),
+			})
+		}
 	}
 
 	// Export infrastructure metrics

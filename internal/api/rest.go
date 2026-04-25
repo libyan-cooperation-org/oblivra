@@ -337,6 +337,10 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// System endpoints
 	mux.HandleFunc("/api/v1/ingest/status", s.handleIngestStatus)
 	mux.HandleFunc("/api/v1/ingest/replay", s.handleIngestReplay)
+	// Lightweight pipeline-load probe for the frontend DEGRADED banner.
+	// Returns just status + the two numbers needed to render the banner —
+	// safe to poll every 10s without flooding the heavier /ingest/status path.
+	mux.HandleFunc("/api/v1/health/load", s.handleHealthLoad)
 	mux.HandleFunc("/healthz", s.handleHealthz)
 	mux.HandleFunc("/readyz", s.handleReadyz)
 	mux.HandleFunc("/metrics", s.handleMetrics)
@@ -881,6 +885,46 @@ func (s *RESTServer) handleIngestStatus(w http.ResponseWriter, r *http.Request) 
 	snap := s.pipeline.GetMetrics()
 	stats := ingest.CollectStats(snap, time.Since(snap.CollectedAt))
 	s.jsonResponse(w, http.StatusOK, stats)
+}
+
+// handleHealthLoad exposes the minimal payload a frontend banner needs to decide
+// whether to render a DEGRADED notice. It piggybacks on CollectStats so the
+// load classification stays in lock-step with /api/v1/ingest/status.
+//
+// Response shape:
+//
+//	{
+//	  "status": "healthy" | "degraded" | "critical",
+//	  "queue_fill_pct": 0..100,
+//	  "events_per_second": int64,
+//	  "dropped_events": int64,
+//	  "collected_at": RFC3339
+//	}
+//
+// When the pipeline is not yet initialised the endpoint returns
+// {"status":"unknown"} with HTTP 200 so the banner doesn't flash on cold boot.
+func (s *RESTServer) handleHealthLoad(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.pipeline == nil {
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"status": "unknown",
+		})
+		return
+	}
+
+	snap := s.pipeline.GetMetrics()
+	stats := ingest.CollectStats(snap, time.Since(snap.CollectedAt))
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"status":            stats.LoadStatus,
+		"queue_fill_pct":    stats.QueueFillPct,
+		"events_per_second": stats.EventsPerSecond,
+		"dropped_events":    stats.DroppedEvents,
+		"collected_at":      stats.CollectedAt.Format(time.RFC3339),
+	})
 }
 
 func (s *RESTServer) handleIngestReplay(w http.ResponseWriter, r *http.Request) {

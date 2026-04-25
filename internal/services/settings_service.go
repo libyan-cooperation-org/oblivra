@@ -47,6 +47,9 @@ func NewSettingsService(db database.DatabaseStore, v vault.Provider, bus *eventb
 }
 
 // isSensitiveKey returns true for settings that must be vault-encrypted at rest.
+// The explicit allowlist captures known sensitive keys; the substring fallback
+// catches new keys added without an isSensitiveKey update so future additions
+// fail closed (encrypted + redacted) rather than open (plaintext).
 func isSensitiveKey(key string) bool {
 	sensitiveKeys := map[string]bool{
 		"smtp_password":   true,
@@ -57,7 +60,19 @@ func isSensitiveKey(key string) bool {
 		"slack_webhook":   true,
 		"discord_webhook": true,
 	}
-	return sensitiveKeys[key]
+	if sensitiveKeys[key] {
+		return true
+	}
+	lower := strings.ToLower(key)
+	for _, fragment := range []string{
+		"password", "passphrase", "secret", "token", "webhook",
+		"credential", "private_key", "auth_key", "client_secret",
+	} {
+		if strings.Contains(lower, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *SettingsService) Get(key string) (string, error) {
@@ -87,9 +102,7 @@ func (s *SettingsService) Set(key string, value string) error {
 		return database.ErrLocked
 	}
 
-	displayValue := value
 	if isSensitiveKey(key) {
-		displayValue = "[REDACTED]"
 		// SEC-24: Encrypt sensitive values before persisting to SQLite
 		if s.vault != nil && s.vault.IsUnlocked() {
 			if ciphertext, err := s.vault.Encrypt([]byte(value)); err == nil {
@@ -98,7 +111,10 @@ func (s *SettingsService) Set(key string, value string) error {
 		}
 	}
 
-	s.log.Debug("Setting setting: %s=%s", key, displayValue)
+	// Never log the raw value — settings can hold credentials, tokens, integration
+	// URLs, or business-sensitive configuration. Log key + length only so debug
+	// output stays useful (was-it-empty?, did-it-change-size?) without leaking content.
+	s.log.Debug("setting key=%s value_bytes=%d", key, len(value))
 	_, err := s.db.DB().Exec("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)", key, value)
 	if err == nil {
 		s.bus.Publish(eventbus.EventSettingsChanged, key)
