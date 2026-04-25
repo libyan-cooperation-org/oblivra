@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/attestation"
+	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/isolation"
 	"github.com/kingknull/oblivrashell/internal/app"
 	"github.com/kingknull/oblivrashell/internal/ingest"
@@ -98,6 +99,7 @@ func (e *WorkerEnrichEngine) Enrich(args *EnrichArgs, reply *EnrichReply) error 
 }
 
 func serverCmd(args []string) {
+	database.EnforceStrictIsolation = true
 	fs := flag.NewFlagSet("server", flag.ExitOnError)
 	port := fs.Int("port", 8080, "Port for the headless API server")
 	fs.Parse(args)
