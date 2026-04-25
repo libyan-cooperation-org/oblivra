@@ -9,7 +9,7 @@
  * Also provides rpcGuard() — a per-method debounce that prevents
  * accidental double-fires and rate-limits destructive Wails RPC calls.
  */
-import { APP_CONTEXT, IS_BROWSER } from './context';
+import { APP_CONTEXT, IS_BROWSER, initContext } from './context';
 export { APP_CONTEXT };
 
 let ws: WebSocket | null = null;
@@ -60,7 +60,11 @@ const wailsUnsubs: Map<string, Map<EventCallback, () => void>> = new Map();
 export async function initBridge(): Promise<void> {
     if (typeof window === 'undefined') throw new Error('Window not available');
 
-    if (IS_BROWSER) {
+    // Wait for Wails v3 runtime injection (window._wails) before checking context.
+    // Wails injects its globals via WindowLoadFinished — after ES modules load.
+    await initContext();
+
+    if ((window as any).__oblivra_context === 'browser') {
         console.info('[bridge] Running in browser mode — starting WebSocket event stream');
         initBrowserBridge();
         return;

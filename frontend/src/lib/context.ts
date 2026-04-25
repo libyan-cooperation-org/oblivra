@@ -13,14 +13,31 @@
 
 export type AppContext = 'desktop' | 'browser' | 'hybrid';
 
+/**
+ * Detects if we are running inside a Wails v3 WebView.
+ *
+ * Wails v3 sets window._wails AFTER the page loads (WindowLoadFinished hook),
+ * so it cannot be relied upon for synchronous detection.
+ *
+ * However, WebKit2GTK (Linux/macOS) ALWAYS injects
+ * `window.webkit.messageHandlers.external` synchronously before any JS runs.
+ * Windows WebView2 injects `window.chrome.webview`.
+ * These are the actual IPC channels Wails uses — if they exist, we are inside
+ * a Wails (or other native) WebView.
+ *
+ * Fallbacks for older Wails v2 globals are also kept.
+ */
 function detectContext(): AppContext {
-    // Wails v3 injects window._wails (underscore prefix) when running inside WebView.
-    // Wails v2 used window.__WAILS__ / window.runtime / window.wails.
-    // Check v3 first, then fall back to v2 globals for compatibility.
-    const isWails = !!(window as any)._wails
+    const isWails =
+        // Wails v3 Linux/macOS: WebKit2GTK IPC (synchronous, always present)
+        !!(window as any).webkit?.messageHandlers?.external
+        // Wails v3 Windows: WebView2 IPC
+        || !!(window as any).chrome?.webview
+        // Wails v2 legacy globals
         || !!(window as any).__WAILS__
         || !!(window as any).runtime
         || !!(window as any).wails;
+
     if (!isWails) return 'browser';
     const remoteServer = localStorage.getItem('oblivra:remote_server');
     if (remoteServer && remoteServer.trim() !== '') return 'hybrid';
@@ -32,6 +49,13 @@ export const APP_CONTEXT: AppContext = detectContext();
 export const IS_DESKTOP = APP_CONTEXT === 'desktop';
 export const IS_BROWSER  = APP_CONTEXT === 'browser';
 export const IS_HYBRID   = APP_CONTEXT === 'hybrid';
+
+/** No-op shim — kept for compatibility with initBridge() call. */
+export async function initContext(): Promise<void> { /* detection is synchronous */ }
+
+/** Returns the current context. */
+export function getContext(): AppContext { return APP_CONTEXT; }
+
 
 // ── Route availability matrix ─────────────────────────────────────────────
 
