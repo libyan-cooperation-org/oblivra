@@ -1,4 +1,4 @@
-<script module>
+<script module lang="ts">
   export interface Node {
     id: string;
     type: 'user' | 'host' | 'process' | 'file' | 'ip';

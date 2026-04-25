@@ -64,7 +64,7 @@ export async function initBridge(): Promise<void> {
     // Wails injects its globals via WindowLoadFinished — after ES modules load.
     await initContext();
 
-    if ((window as any).__oblivra_context === 'browser') {
+    if (IS_BROWSER) {
         console.info('[bridge] Running in browser mode — starting WebSocket event stream');
         initBrowserBridge();
         return;
@@ -98,7 +98,7 @@ function initBrowserBridge(): void {
         // Flush queue
         while (messageQueue.length > 0) {
             const msg = messageQueue.shift();
-            ws.send(JSON.stringify(msg));
+            ws?.send(JSON.stringify(msg));
         }
     };
 

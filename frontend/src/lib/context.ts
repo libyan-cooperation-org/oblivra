@@ -44,7 +44,7 @@ function detectContext(): AppContext {
     return 'desktop';
 }
 
-export const APP_CONTEXT: AppContext = detectContext();
+export const APP_CONTEXT = detectContext() as AppContext;
 
 export const IS_DESKTOP = APP_CONTEXT === 'desktop';
 export const IS_BROWSER  = APP_CONTEXT === 'browser';
