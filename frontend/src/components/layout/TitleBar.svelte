@@ -17,7 +17,7 @@
   import { IS_BROWSER } from '@lib/context';
   import { appStore } from '@lib/stores/app.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
-  import { Minus, Square, X, Copy as Restore, Monitor } from 'lucide-svelte';
+  import { Minus, Square, X, Copy as Restore, Monitor, ExternalLink, Layout } from 'lucide-svelte';
 
   // Platform detection — userAgent is reliable enough for picking chrome style.
   // We default to "win" if uncertain because that's the dominant SOC operator
@@ -205,37 +205,57 @@
                 bg-accent/15 border border-accent/30 text-accent-hover">KM</div>
   </div>
 
-  <!-- Windows / Linux explicit window controls (right side) -->
-  {#if !IS_BROWSER && platform !== 'mac'}
-    <div class="flex items-center shrink-0 ml-2 -mr-2" style="-webkit-app-region: no-drag;">
+  <!-- Global Desktop Actions (Pop-out, etc) -->
+  {#if !IS_BROWSER}
+    <div class="flex items-center shrink-0 ml-auto" style="-webkit-app-region: no-drag;">
       <button
-        class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
-        onclick={windowMinimize}
-        aria-label="Minimize window"
-        title="Minimize"
+        class="h-8 px-2 flex items-center justify-center gap-1.5 text-text-muted hover:text-accent hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer group"
+        onclick={() => appStore.launchSOCExperience()}
+        title="Launch SOC Multi-Monitor Experience (3+ Windows)"
       >
-        <Minus class="w-3.5 h-3.5" />
+        <Layout class="w-3.5 h-3.5" />
+        <span class="text-[9px] font-mono font-bold tracking-widest hidden lg:block opacity-60 group-hover:opacity-100">SOC MODE</span>
       </button>
+
       <button
-        class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
-        onclick={windowToggleMax}
-        aria-label={isMaximised ? 'Restore window' : 'Maximize window'}
-        title={isMaximised ? 'Restore' : 'Maximize'}
+        class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-accent hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
+        onclick={() => appStore.popOut()}
+        aria-label="Pop out into new window"
+        title="Pop out into new window"
       >
-        {#if isMaximised}
-          <Restore class="w-3.5 h-3.5" />
-        {:else}
-          <Square class="w-3.5 h-3.5" />
-        {/if}
+        <ExternalLink class="w-3.5 h-3.5" />
       </button>
-      <button
-        class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-white hover:bg-error transition-colors border-none bg-transparent cursor-pointer"
-        onclick={windowClose}
-        aria-label="Close window"
-        title="Close"
-      >
-        <X class="w-3.5 h-3.5" />
-      </button>
+
+      {#if platform !== 'mac'}
+        <button
+          class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
+          onclick={windowMinimize}
+          aria-label="Minimize window"
+          title="Minimize"
+        >
+          <Minus class="w-3.5 h-3.5" />
+        </button>
+        <button
+          class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
+          onclick={windowToggleMax}
+          aria-label={isMaximised ? 'Restore window' : 'Maximize window'}
+          title={isMaximised ? 'Restore' : 'Maximize'}
+        >
+          {#if isMaximised}
+            <Restore class="w-3.5 h-3.5" />
+          {:else}
+            <Square class="w-3.5 h-3.5" />
+          {/if}
+        </button>
+        <button
+          class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-white hover:bg-error transition-colors border-none bg-transparent cursor-pointer"
+          onclick={windowClose}
+          aria-label="Close window"
+          title="Close"
+        >
+          <X class="w-3.5 h-3.5" />
+        </button>
+      {/if}
     </div>
   {/if}
 </header>

@@ -279,6 +279,52 @@ class AppStore {
             );
         }
     }
+
+    /**
+     * popOut — Spawns the current or specified route into a new native window.
+     * Perfect for multi-monitor setups where an operator wants to keep the 
+     * SIEM dashboard on one screen and the terminal on another.
+     */
+    async popOut(routeOrTab?: string, title?: string) {
+        if (IS_BROWSER) {
+            this.notify('Pop-out windows require the desktop app.', 'info');
+            return;
+        }
+
+        const path = routeOrTab || window.location.hash.replace('#', '') || '/';
+        const displayTitle = title || 'OBLIVRA ' + (routeOrTab || 'View');
+
+        try {
+            const { PopOut } = await import(
+                '@wailsjs/github.com/kingknull/oblivrashell/internal/services/windowservice'
+            );
+            await PopOut(path, displayTitle);
+        } catch (e) {
+            console.error('Failed to pop out window:', e);
+            this.notify('Failed to open new window', 'error');
+        }
+    }
+
+    /**
+     * launchSOCExperience — Orhcestrates a multi-window layout.
+     * Automatically spawns 3 specialized windows:
+     * 1. SIEM Operations (Full dashboard)
+     * 2. Live Terminal (For active response)
+     * 3. Threat Graph (For entity relationship hunting)
+     */
+    async launchSOCExperience() {
+        if (IS_BROWSER) return;
+        this.notify('Initializing SOC Multi-Monitor Experience...', 'success');
+        
+        // 1. SIEM Dashboard
+        await this.popOut('/siem', 'OBLIVRA | SIEM Operations');
+        
+        // 2. Terminal Console
+        setTimeout(() => this.popOut('/terminal', 'OBLIVRA | Command Console'), 500);
+        
+        // 3. Threat Graph
+        setTimeout(() => this.popOut('/graph', 'OBLIVRA | Threat Graph'), 1000);
+    }
 }
 
 export const appStore = new AppStore();
