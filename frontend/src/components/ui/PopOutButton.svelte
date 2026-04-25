@@ -44,7 +44,7 @@
       console.error('[PopOutButton] WindowService binding import failed:', err);
       toastStore.add({
         type: 'error',
-        title: 'Pop-out unavailable',
+        title: t('popout.unavailable.title'),
         message: 'WindowService binding could not be loaded — see console for details.',
       });
       return;
@@ -54,7 +54,7 @@
       console.warn('[PopOutButton] WindowService imported but PopOut not exported:', mod);
       toastStore.add({
         type: 'warning',
-        title: 'Pop-out unavailable',
+        title: t('popout.unavailable.title'),
         message: 'WindowService binding loaded without PopOut method (rebuild needed?).',
       });
       return;
@@ -62,13 +62,13 @@
 
     try {
       const r = route ?? window.location.pathname;
-      const t = title ?? '';
-      await mod.PopOut(r, t);
+      const winTitle = title ?? '';
+      await mod.PopOut(r, winTitle);
     } catch (err) {
       console.error('[PopOutButton] PopOut RPC failed:', err);
       toastStore.add({
         type: 'error',
-        title: 'Pop-out failed',
+        title: t('popout.failed.title'),
         message: err instanceof Error ? err.message : String(err),
       });
     }
@@ -81,9 +81,9 @@
          text-text-muted hover:text-text-heading hover:bg-surface-2 border border-border-primary
          hover:border-border-hover transition-colors rounded-sm cursor-pointer {cls}"
   onclick={popOut}
-  title="Pop out to a new window — drag to another monitor"
-  aria-label="Pop out this panel into a new window"
+  title={t('popout.button.tooltip')}
+  aria-label={t('popout.button.tooltip')}
 >
   <ExternalLink class="w-3 h-3" />
-  <span>Pop out</span>
+  <span>{t('popout.button')}</span>
 </button>

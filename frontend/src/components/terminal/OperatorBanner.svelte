@@ -15,6 +15,7 @@
   import { ChevronRight, ShieldAlert, X, Eye, ShieldOff } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte.ts';
   import { appStore } from '@lib/stores/app.svelte';
+  import { t } from '@lib/i18n';
 
   interface Props {
     /** Hostname of the active SSH session — used to filter alerts. */
@@ -63,7 +64,9 @@
   >
     <ShieldAlert class="w-3.5 h-3.5 shrink-0 {critCount > 0 ? 'text-error' : 'text-warning'}" />
     <span class="font-bold uppercase tracking-wider {critCount > 0 ? 'text-error' : 'text-warning'}">
-      {totalRecent} alert{totalRecent === 1 ? '' : 's'} on {host}
+      {totalRecent === 1
+        ? t('operator.alerts.label', totalRecent, host)
+        : t('operator.alerts.label.plural', totalRecent, host)}
     </span>
     {#if critCount > 0}
       <span class="px-1.5 py-px text-[8px] font-bold rounded-sm bg-error/20 text-error border border-error/40">
@@ -84,7 +87,7 @@
       title="View matching events in SIEM Search"
     >
       <Eye class="w-3 h-3" />
-      <span>View events</span>
+      <span>{t('operator.viewEvents')}</span>
       <ChevronRight class="w-3 h-3" />
     </button>
 
@@ -94,14 +97,14 @@
       title="Isolate host (Ctrl+Shift+I)"
     >
       <ShieldOff class="w-3 h-3" />
-      <span>Isolate</span>
+      <span>{t('operator.isolate')}</span>
     </button>
 
     <button
       class="text-text-muted hover:text-text-heading transition-colors bg-transparent border-none cursor-pointer p-0.5"
       onclick={() => (dismissed = true)}
-      aria-label="Dismiss"
-      title="Dismiss"
+      aria-label={t('common.dismiss')}
+      title={t('common.dismiss')}
     >
       <X class="w-3 h-3" />
     </button>

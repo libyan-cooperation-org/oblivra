@@ -19,6 +19,7 @@
   import { History, X, Check } from 'lucide-svelte';
   import { IS_BROWSER } from '@lib/context';
   import { appStore } from '@lib/stores/app.svelte';
+  import { t } from '@lib/i18n';
 
   interface PersistedSession {
     host_id: string;
@@ -89,7 +90,7 @@
   >
     <History class="w-3.5 h-3.5 shrink-0 text-accent" />
     <span class="text-text-heading">
-      Restore {candidates.length} previous session{candidates.length === 1 ? '' : 's'}?
+      {t('session.restore.prompt', candidates.length)}
     </span>
     <span class="text-text-muted truncate max-w-md">
       {candidates.map((s) => s.label).join(', ')}
@@ -104,14 +105,14 @@
       title="Reconnect all"
     >
       <Check class="w-3 h-3" />
-      <span>{restoring ? 'Restoring…' : 'Restore'}</span>
+      <span>{restoring ? t('session.restoring') : t('session.restore.action')}</span>
     </button>
 
     <button
       class="text-text-muted hover:text-text-heading transition-colors bg-transparent border-none cursor-pointer p-0.5"
       onclick={() => (dismissed = true)}
-      aria-label="Dismiss"
-      title="Dismiss"
+      aria-label={t('common.dismiss')}
+      title={t('common.dismiss')}
     >
       <X class="w-3 h-3" />
     </button>

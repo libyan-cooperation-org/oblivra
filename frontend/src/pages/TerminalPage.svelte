@@ -3,6 +3,7 @@
   Main interface for active shell sessions.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { PageLayout, Button, EmptyState } from '@components/ui';
   import XTerm from '@components/terminal/XTerm.svelte';
@@ -10,6 +11,20 @@
   import TerminalToolbar from '@components/terminal/TerminalToolbar.svelte';
   import OperatorBanner from '@components/terminal/OperatorBanner.svelte';
   import SessionRestoreBanner from '@components/terminal/SessionRestoreBanner.svelte';
+
+  // Tab tear-out support: if we were spawned with ?session=<id> (the
+  // route a torn-off tab opens), focus that session. The session itself
+  // already lives in the parent process's appStore — pop-out windows
+  // share the same in-process state, so no re-establishing of the PTY
+  // is needed.
+  onMount(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get('session');
+    if (requested && appStore.sessions.some((s) => s.id === requested)) {
+      appStore.setActiveSession?.(requested);
+    }
+  });
 
   const activeSession = $derived(
     appStore.sessions.find(s => s.id === appStore.activeSessionId) || appStore.sessions[0]
