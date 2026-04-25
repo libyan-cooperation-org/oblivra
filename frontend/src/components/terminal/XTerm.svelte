@@ -146,12 +146,17 @@
 
     term.onData(async (data) => {
       try {
+        // Backend expects base64 encoded input to safely handle control characters
+        // We use the btoa(unescape(encodeURIComponent(s))) pattern to ensure 
+        // safe binary-to-string conversion even for UTF-8/extended chars.
+        const encoded = btoa(unescape(encodeURIComponent(data)));
+        
         if (isLocal) {
           const { SendInput } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
-          await SendInput(sessionId, data);
+          await SendInput(sessionId, encoded);
         } else {
           const { SendInput } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
-          await SendInput(sessionId, data);
+          await SendInput(sessionId, encoded);
         }
       } catch (e) {
         console.warn('[xterm] SendInput failed:', e);

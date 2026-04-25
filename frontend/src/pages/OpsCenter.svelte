@@ -6,18 +6,8 @@
   import { PageLayout, Badge, Button } from '@components/ui';
   import { Terminal, Cpu, Zap } from 'lucide-svelte';
 
-  const commandQueue = [
-    { time: '10:42:15', target: 'SRV-FIN-01', cmd: 'ls -la /opt/secure', status: 'completed' },
-    { time: '10:42:18', target: 'WRK-HR-04', cmd: 'netstat -antp', status: 'running' },
-    { time: '10:42:20', target: 'SRV-SQL-09', cmd: 'ps aux | grep sql', status: 'queued' }
-  ];
-
-  const systemLogs = [
-    { time: '10:42:21', level: 'info', msg: 'Operator K. MAVERICK authenticated via hardware token' },
-    { time: '10:42:18', level: 'warn', msg: 'Inbound session from 104.1.2.4 throttled (Rate Limit)' },
-    { time: '10:42:15', level: 'info', msg: 'Fleet synchronization complete. 14 shards synchronized.' },
-    { time: '10:42:10', level: 'error', msg: 'Core: Failed to rotate ephemeral keys on SRV-FIN-01' }
-  ];
+  const commandQueue = [];
+  const systemLogs = [];
 </script>
 
 <PageLayout title="Operations Center" subtitle="Master command & control of all managed endpoints">
@@ -36,17 +26,17 @@
     <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Sessions</div>
-            <div class="text-xl font-mono font-bold text-accent">12</div>
+            <div class="text-xl font-mono font-bold text-accent">0</div>
             <div class="text-[9px] text-success mt-1">▲ Encrypted Tunnel active</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">CPU Load (Cluster)</div>
-            <div class="text-xl font-mono font-bold text-text-heading">24.2%</div>
+            <div class="text-xl font-mono font-bold text-text-heading">0%</div>
             <div class="text-[9px] text-text-muted mt-1">Mean across 14 nodes</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Vault Latency</div>
-            <div class="text-xl font-mono font-bold text-success">42ms</div>
+            <div class="text-xl font-mono font-bold text-success">0ms</div>
             <div class="text-[9px] text-success mt-1">Zero-lag sync</div>
         </div>
         <div class="bg-surface-2 p-3">
@@ -124,19 +114,19 @@
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-[8px] font-mono uppercase">
                             <span class="text-text-muted">CPU Cluster Mean</span>
-                            <span class="text-text-heading">24%</span>
+                            <span class="text-text-heading">0%</span>
                         </div>
                         <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                            <div class="h-full bg-success" style="width: 24%"></div>
+                            <div class="h-full bg-success" style="width: 0%"></div>
                         </div>
                     </div>
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-[8px] font-mono uppercase">
                             <span class="text-text-muted">Memory Allocation</span>
-                            <span class="text-text-heading">1.2 TB</span>
+                            <span class="text-text-heading">0 GB</span>
                         </div>
                         <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                            <div class="h-full bg-accent" style="width: 62%"></div>
+                            <div class="h-full bg-accent" style="width: 0%"></div>
                         </div>
                     </div>
                     <div class="space-y-1.5">
@@ -157,7 +147,7 @@
     <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0">
         <div class="flex items-center gap-1.5">
             <span>OPERATOR:</span>
-            <span class="text-accent font-black uppercase">K. MAVERICK</span>
+            <span class="text-accent font-black uppercase">UNAUTHENTICATED</span>
         </div>
         <span class="text-border-primary">|</span>
         <div class="flex items-center gap-1.5">

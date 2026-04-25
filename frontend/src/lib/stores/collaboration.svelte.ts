@@ -22,10 +22,7 @@ export interface TacticalMessage {
 export class CollaborationStore {
   analysts = $state<Analyst[]>([]);
 
-  messages = $state<TacticalMessage[]>([
-    { id: 'M1', analystId: 'A2', text: 'Analyzing memory dump for FIN-SRV-07', timestamp: new Date().toISOString(), type: 'action' },
-    { id: 'M2', analystId: 'A3', text: 'Egress traffic to 185.x.x.x blocked', timestamp: new Date().toISOString(), type: 'chat' }
-  ]);
+  messages = $state<TacticalMessage[]>([]);
 
   constructor() {
     this.init();

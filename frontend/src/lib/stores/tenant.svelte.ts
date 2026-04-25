@@ -20,12 +20,8 @@ export interface Tenant {
 }
 
 export class MultiTenantStore {
-  tenants = $state<Tenant[]>([
-    { id: 'GOV-FIN-001', name: 'GovFin Authority', abbr: 'GF', color: '#5aaef0', mode: 'SOVEREIGN', tier: 'T1', agents: 4900, eps: '148K', incidents: 2, storage: '37%', health: 98.4 },
-    { id: 'GOV-DEF-002', name: 'Defence Ops CERT', abbr: 'DO', color: '#9878e0', mode: 'SOVEREIGN', tier: 'T1', agents: 3800, eps: '180K', incidents: 1, storage: '52%', health: 99.1 },
-    { id: 'CORP-BANK-03', name: 'Global Finance S.A.', abbr: 'GF', color: '#1aaa60', mode: 'CLOUD', tier: 'T2', agents: 2100, eps: '64K', incidents: 0, storage: '12%', health: 99.8 },
-    { id: 'CORP-ENER-04', name: 'Grid Control Unit', abbr: 'GC', color: '#e08020', mode: 'SOVEREIGN', tier: 'T1', agents: 1640, eps: '49K', incidents: 0, storage: '28%', health: 97.2 }
-  ]);
+  tenants = $state<Tenant[]>([]);
+  messages = $state<TacticalMessage[]>([]);
   
   platformMetrics = $state({
     totalAgents: 0,

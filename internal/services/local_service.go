@@ -143,7 +143,12 @@ func (s *LocalService) StartLocalSession() (sessionID string, retErr error) {
 	})
 
 	// Pump stdout → frontend (single reader on unix PTY, merged on windows)
-	go s.pump(ctx, id, ps.stdout)
+	// Give the frontend a moment to mount the component and subscribe to the output channel
+	// before we start pumping the initial shell prompt.
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		s.pump(ctx, id, ps.stdout)
+	}()
 	// Wait for exit → cleanup
 	go s.waitExit(id, actualCmd)
 

@@ -23,7 +23,15 @@
   // We default to "win" if uncertain because that's the dominant SOC operator
   // platform and shows the more discoverable explicit icon controls.
   type Platform = 'mac' | 'win' | 'linux';
-  let platform: Platform = $state('win');
+  const platform = $derived(
+    typeof window !== 'undefined'
+      ? window.navigator.userAgent.toLowerCase().includes('mac')
+        ? 'mac'
+        : window.navigator.userAgent.toLowerCase().includes('linux')
+          ? 'linux'
+          : 'win'
+      : 'win'
+  );
   let isMaximised = $state(false);
   let popoutCount = $state(0);
 
@@ -37,12 +45,6 @@
   let pollInterval: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
-    // Platform detection
-    const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '').toLowerCase();
-    if (ua.includes('mac os') || ua.includes('macintosh')) platform = 'mac';
-    else if (ua.includes('linux') && !ua.includes('android')) platform = 'linux';
-    else platform = 'win';
-
     if (IS_BROWSER) return;
 
     const pollState = async () => {

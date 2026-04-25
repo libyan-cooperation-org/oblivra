@@ -14,10 +14,10 @@
     total: alertStore.alerts.length,
     critical: alertStore.alerts.filter(a => a.severity === 'critical').length,
     high: alertStore.alerts.filter(a => a.severity === 'high').length,
-    eps: diagnosticsStore.snapshot?.ingest.current_eps ?? 148220,
-    health: diagnosticsStore.snapshot?.health_grade ?? 'A+',
-    mttr: '14.2m',
-    uptime: '142:12:08'
+    eps: diagnosticsStore.snapshot?.ingest.current_eps ?? 0,
+    health: diagnosticsStore.snapshot?.health_grade ?? 'PENDING',
+    mttr: '0.0m',
+    uptime: '00:00:00'
   });
 
   onMount(() => {
