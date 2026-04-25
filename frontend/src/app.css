@@ -190,3 +190,30 @@
     color: #fff;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 24.2 — Arabic / RTL support.
+   Most layout uses Tailwind logical-property classes (start/end, *-rtl-*)
+   so the visual layout flips automatically. The rules below patch the
+   handful of places we still hardcode `left/right` margins or borders.
+   Always scope under `[dir="rtl"]` so LTR is unaffected.
+   ───────────────────────────────────────────────────────────────────── */
+[dir="rtl"] {
+  /* Mirror sidebar borders */
+  .cr-rail { border-right: 0; border-left: 1px solid var(--color-border-primary); }
+
+  /* Severity chips and badges that anchor to a side */
+  .ml-auto { margin-left: 0 !important; margin-right: auto !important; }
+  .mr-auto { margin-right: 0 !important; margin-left: auto !important; }
+
+  /* xterm.js terminal stays LTR even inside an RTL chrome. Forcing it
+     here prevents Arabic locale ops sessions from rendering shell output
+     visually mirrored, which would be unreadable. */
+  .xterm,
+  .xterm-screen,
+  .xterm-viewport {
+    direction: ltr !important;
+    text-align: start;
+    unicode-bidi: bidi-override;
+  }
+}

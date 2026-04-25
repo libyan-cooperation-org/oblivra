@@ -25,4 +25,5 @@ export { default as InvestigationCanvas } from './InvestigationCanvas.svelte';
 export { default as ProgressBar } from './ProgressBar.svelte';
 export { default as LoadingSkeleton } from './LoadingSkeleton.svelte';
 export { default as PopOutButton } from './PopOutButton.svelte';
+export { default as LanguageSwitcher } from './LanguageSwitcher.svelte';
 export * from './decision.types';

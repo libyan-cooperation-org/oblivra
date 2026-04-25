@@ -2,6 +2,49 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.4.0] - 2026-04-25
+
+### 🪟 Real Mouse Drag Fix (regression caught + closed)
+The title bar was using `-webkit-app-region: drag` (Electron-era API). Wails v3 silently ignores that property — it expects the custom `--wails-draggable: drag` instead. That's why operators reported the app couldn't be dragged at all.
+
+- `frontend/src/components/layout/TitleBar.svelte` — replaced all 13 `-webkit-app-region: drag/no-drag` values with `--wails-draggable: drag/no-drag`
+- Removed the dead `handleMousedown` fallback that called a non-existent `Window.Drag()`. Wails v3's runtime sends a `wails:drag` IPC message internally; no manual dispatch needed.
+
+### 🪟 Pop-Out Rollout (Phase 23.7 → 30 pages)
+PopOutButton wired into 18 more pages via a Python batch script. Total: **30 of ~60 pages** are now poppable.
+
+Added: SOARPanel · ThreatHunter · ThreatIntelPanel · PurpleTeam · PluginManager · EvidenceVault · Dashboard · ComplianceCenter · CompliancePage · LineageExplorer · DecisionInspector · IdentityAdmin · IncidentResponse · PlaybookBuilder · CaseManagement · TasksPage · RuntimeTrust · SimulationPanel.
+
+### 🌐 Phase 24.2 — i18n + Arabic RTL Scaffolding
+Phase 24.2 was tracked as 🔴 high-priority for the sovereign / government market. A minimal in-house i18n system shipped (no 80 KB i18next dependency added):
+
+- `frontend/src/lib/i18n/index.ts` — Svelte 5 `$state`-backed locale store with `t(key, ...args)` interpolation. Auto-detects browser locale, persists operator override to `localStorage`, applies `<html dir="rtl">` + `<html lang>` automatically, falls back to English with dev-mode console warning on missing keys.
+- `frontend/src/lib/i18n/en.ts` — 50+ translation keys covering common verbs, title bar, notifications, pop-out, setup wizard, status banners, operator banner, sessions, empty states, settings.
+- `frontend/src/lib/i18n/ar.ts` — Arabic translations (professional SOC terminology, not literal).
+- `frontend/src/components/ui/LanguageSwitcher.svelte` — segmented locale picker exported from `@components/ui` for the Settings page.
+- `frontend/src/app.css` — `[dir="rtl"]` scoped overrides for sidebar border mirroring, `ml-auto`/`mr-auto` swaps, and an explicit `direction: ltr` on `.xterm` so shell output isn't visually mirrored inside an Arabic chrome.
+
+Adding a third locale takes 3 steps documented in `i18n/index.ts`.
+
+### 🛡️ Phase 22.7 — SecureBuffer mlock on Linux / macOS
+The Windows `SecureBuffer` (VirtualAlloc + VirtualLock) was the only platform with real memory protection — Linux and macOS were running on a "stub" that allocated plain Go memory. Both platforms now use `golang.org/x/sys/unix.Mlock` to pin sensitive buffers into physical RAM:
+
+- `internal/memory/secure_stub.go` — drop-in upgrade. mlock with EPERM/ENOMEM fallback so containers without `CAP_IPC_LOCK` degrade gracefully instead of panicking. `runtime.SetFinalizer` ensures Wipe() runs even if the caller forgets.
+- Wipe path unchanged — crypto-noise → zero → munlock → release.
+- `go test ./internal/memory/...` passes.
+
+Closes part of Phase 22.7's "Secure Memory Allocation (memguard)" item; the remaining gap (porting all credential / vault hot-paths to actually use SecureBuffer) is its own audit.
+
+### 📝 Documentation
+- task.md and README badge bumped to 1.4.0.
+
+### 🔍 Build verification
+- `wails3 build` clean → `bin/oblivrashell.exe` produced
+- `go vet ./...` only the pre-existing `internal/memory/secure.go:71 unsafe.Pointer` warning remains (Windows-side; not changed by this release)
+- 11 of 11 prior tests still pass
+
+---
+
 ## [1.3.1] - 2026-04-25
 
 ### 🔍 Self-audit pass on v1.3.0 UX code

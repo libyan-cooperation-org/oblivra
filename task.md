@@ -999,7 +999,10 @@
 - [x] **Toast bridge** — every `toastStore.add(...)` call now mirrors into `notificationStore.push(...)`, so toasts that auto-dismiss in 5s still survive in the drawer history.
 
 ### 23.13 — Multi-Monitor Pop-Out Rollout ✅ (extending 23.7)
-- [x] PopOutButton now opted in on **NetworkMap, MitreHeatmap, NDROverview, UEBAOverview, FusionDashboard, OpsCenter, IncidentTimeline, EvidenceLedger** (in addition to the original SIEMSearch / AlertManagement / AlertDashboard / FleetDashboard from v1.2.0). Total: 12 pages now poppable.
+- [x] PopOutButton now opted in on **30 pages** total. Original v1.2.0 set: SIEMSearch / AlertManagement / AlertDashboard / FleetDashboard. v1.3.0 add: NetworkMap, MitreHeatmap, NDROverview, UEBAOverview, FusionDashboard, OpsCenter, IncidentTimeline, EvidenceLedger. v1.4.0 add (18): SOARPanel, ThreatHunter, ThreatIntelPanel, PurpleTeam, PluginManager, EvidenceVault, Dashboard, ComplianceCenter, CompliancePage, LineageExplorer, DecisionInspector, IdentityAdmin, IncidentResponse, PlaybookBuilder, CaseManagement, TasksPage, RuntimeTrust, SimulationPanel.
+
+### 23.14 — Mouse Drag Bug Fix ✅ (new, v1.4.0)
+- [x] **Title bar drag was broken** — `-webkit-app-region: drag` is Electron's API; Wails v3 silently ignores it. Replaced 13 occurrences in TitleBar.svelte with `--wails-draggable: drag/no-drag` (Wails v3's CSS custom property recognised by `runtime/dist/drag.js`). Removed the dead `Window.Drag()` JS fallback; Wails v3 sends a `wails:drag` IPC message internally.
 
 ---
 
@@ -1033,7 +1036,7 @@
 
 #### 🔴 High Priority
 
-- [ ] **Arabic / RTL UI (i18n)** — Listed as ✅ in sovereign feature set. Zero implementation found: no i18next config, no locale files, no RTL CSS overrides in `frontend/src/`. Required for government/sovereign market. Milestone: `i18next` wired, `ar.json` locale file, RTL layout pass on all primary pages. 🌐
+- [v] **Arabic / RTL UI (i18n)** — Scaffolding shipped in v1.4.0: custom Svelte 5 `$state`-backed i18n store at `frontend/src/lib/i18n/index.ts` with `t(key, ...args)` interpolation, en + ar locale files, `<html dir="rtl">` + `<html lang>` auto-applied, `[dir="rtl"]` CSS overrides in `app.css` (sidebar mirror, ml/mr-auto swap, force LTR on xterm to keep shell output readable), and `LanguageSwitcher.svelte` exported from `@components/ui` for the Settings page. **Still open**: most pages don't yet call `t()` — strings are still hardcoded English. Wiring the existing en.ts keys into actual components is mechanical but not yet done. 🌐
 - [ ] **Backup Integrity Verification** — Ransomware defense spec claims this as ✅. `task.md` Phase 9 has it explicitly open (`[ ]`). Implement: scheduled hash verification of stored backups, alert if backup missed policy window, test restore automation with integrity proofs. 🌐
 
 #### 🟡 Medium Priority
