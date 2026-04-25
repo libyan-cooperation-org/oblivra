@@ -2,6 +2,44 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.1.2] - 2026-04-25
+
+### 🚦 Phase 22.1 — Reliability Engineering (S2)
+
+#### Agent reconnect guarantee
+End-to-end durability across server restarts with >1000 events in flight, no data loss and no duplication. Closed the long-standing race where `flushOnce`'s blanket WAL truncate could destroy events written between `ReadAll` and `Truncate`.
+
+- **Per-event sequence numbers** — `Event.Seq` is monotonically assigned by the agent's WAL on Write. Persisted via `internal/agent/cursor.go` (atomic temp-file + rename) so a crash between cursor reserve and WAL encode at worst burns a sequence number, never reuses one.
+- **Server ack watermark** — `/api/v1/agent/ingest` response now returns `acked_seq` (highest Seq durably accepted). Per-agent state stored on `AgentInfo.LastAckedSeq`. Replays with `Seq <= LastAckedSeq` are silently skipped, so a retry after a partial-batch failure cannot double-ingest.
+- **`WAL.TruncateUpTo(ackedSeq)`** — rewrites the WAL keeping only events with Seq above the watermark. Atomic temp-file + rename. Preserves writes that arrived during the flush race; the deprecated `Truncate()` (which blasted the whole file) is kept for compatibility but no longer called by the transport.
+- **Chaos scenario 5** — `cmd/chaos/main.go --scenario=reconnect` drives 1500 events through the cursor + WAL + simulated server-restart, asserts the agent emits exactly Seq 751..1500 on cycle 2 (no reissue of 1..750, no missed events). Passes in ~40 ms.
+
+#### Graceful degradation banner
+Pipeline already self-classified at >3× rated EPS or >95% buffer fill — operators just had no surface to see it.
+
+- `LoadStatus.String()` exposes a stable wire format (`healthy` / `degraded` / `critical` / `unknown`).
+- `GET /api/v1/health/load` — lightweight endpoint returning `{status, queue_fill_pct, events_per_second, dropped_events, collected_at}`. Designed for 10s-cadence polling without the cost of `/ingest/status`.
+- `pipeline:load_status_changed` bus event published on every transition for WebSocket-based consumers.
+- `DegradedBanner.svelte` (`frontend-web/src/components/`) — top-of-page amber/red banner with dismiss-once-per-state semantics, wired into `App.svelte`. Hides on `healthy` / `unknown` so it never flashes during cold boot.
+
+### 🔒 Security Hardening
+
+#### GDPR-grade tenant deletion audit trail (Phase 22.2)
+Tenant cryptographic-wipe path now writes an immutable Merkle-chained audit record before/after the wipe so GDPR Art. 17 erasures leave regulator-grade evidence.
+
+- `handleAdminTenantWipe` reads tenant name/tier pre-wipe, accepts optional `reason` in the request body, captures actor user_id/email/IP, and emits a `tenant.deleted` (or `tenant.delete_failed` on error) audit entry via `AuditRepository.Log`. The audit table's Merkle chain is rebuilt from disk on every boot via `InitIntegrity` — any tampering with the deletion record is detectable.
+- `tenant:deleted` bus event published for live consumers (UI tenant-list refresh, etc.).
+
+#### Plaintext settings logging fix (Phase 25.12 #1)
+`internal/services/settings_service.go` no longer logs setting values at any level. The DEBUG line now emits only `setting key=%s value_bytes=%d` — length-only telemetry that's still useful for "did it change size?" diagnostics. The `isSensitiveKey()` allowlist was hardened with a substring fallback (`password`, `passphrase`, `secret`, `token`, `webhook`, `credential`, `private_key`, `auth_key`, `client_secret`) so newly-added sensitive keys fail closed (encrypted at rest + redacted) without requiring an explicit allowlist edit.
+
+### 📝 Documentation
+- `task.md` — Phase 22.1 chaos test harness, automated soak regression, **agent reconnect guarantee**, and **graceful degradation under overload** all now `[x]` with file:line evidence and chaos-scenario validation.
+- `task.md` — Phase 22.2 tenant deletion audit trail upgraded from `[v]` to `[x]`.
+- `task.md` — Phase 25.12 #1 plaintext settings logging now `[x]`.
+
+---
+
 ## [1.1.1] - 2026-04-25
 
 ### 🔍 Verification Audit Pass — Phase 28
