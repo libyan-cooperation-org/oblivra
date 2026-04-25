@@ -1415,6 +1415,10 @@ A non-exhaustive list of `[x]` claims that survived the re-audit unchanged:
 ### 🚨 Open critical items not yet addressed by this pass
 
 1. **`internal/services/settings_service.go:60`** still logs `Setting setting: %s=%s` at DEBUG with raw value — sensitive setting values (SMTP passwords, webhook secrets) leak to log files when DEBUG logging is on. (Phase 25.12)
-2. **`internal/security/fido2.go` and `internal/security/siem.go`** have pre-existing build errors (`time.Now().After(t, err)` — treating time.Now() as 2-return). Independent of this audit; surfaced when verifying the API package compiles.
-3. **Phase 6 / Phase 12 self-validated compliance claims** still need reclassification to `[ ]` until externally audited.
-4. **GDPR right-to-erasure** — tenant deletion path needs an immutable deletion record (Phase 22.2 partial item).
+2. **Phase 6 / Phase 12 self-validated compliance claims** still need reclassification to `[ ]` until externally audited.
+3. **GDPR right-to-erasure** — tenant deletion path needs an immutable deletion record (Phase 22.2 partial item).
+4. **`internal/isolation/manager.go`** non-constant format strings on logger calls (5 instances) and **`internal/memory/secure.go:71`** unsafe.Pointer warning — pre-existing `go vet` flags found during the audit; not security-critical but pollute the vet output and should be cleaned up before `go vet` becomes an enforcing CI gate.
+
+### 🛠️ Fix shipped post-audit-summary
+
+**`internal/security/fido2.go` and `internal/security/siem.go` parseTime misuse** — pre-existing build errors where callers treated `parseTime()` (returns `(time.Time, error)`) as a single value passed into `time.Now().After(...)` or `.Unix()`. Fixed in the same commit as the audit corrections (`fido2.go:95,167`, `siem.go:316`, plus `honeypot_service_test.go:38`). Unparseable challenge timestamps now fail closed (treated as expired); SIEM forwarder falls back to epoch on a malformed timestamp so the event still ingests instead of dropping. `go vet ./internal/api/... ./internal/security/...` exits clean.
