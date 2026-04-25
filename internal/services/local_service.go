@@ -94,7 +94,7 @@ func (s *LocalService) StartLocalSession() (sessionID string, retErr error) {
 		}
 	}()
 
-	id := uuid.New().String()
+	id := "local-" + uuid.New().String()
 	s.log.Info("Starting local session %s", id)
 
 	// Pick the right shell
