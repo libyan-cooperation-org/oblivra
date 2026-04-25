@@ -6,8 +6,21 @@
   import { PageLayout, Badge, Button } from '@components/ui';
   import { Terminal, Cpu, Zap } from 'lucide-svelte';
 
-  const commandQueue = [];
-  const systemLogs = [];
+  interface CommandEntry {
+    time: string;
+    target: string;
+    cmd: string;
+    status: string;
+  }
+
+  interface LogEntry {
+    time: string;
+    level: string;
+    msg: string;
+  }
+
+  const commandQueue: CommandEntry[] = [];
+  const systemLogs: LogEntry[] = [];
 </script>
 
 <PageLayout title="Operations Center" subtitle="Master command & control of all managed endpoints">
@@ -32,7 +45,7 @@
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">CPU Load (Cluster)</div>
             <div class="text-xl font-mono font-bold text-text-heading">0%</div>
-            <div class="text-[9px] text-text-muted mt-1">Mean across 14 nodes</div>
+            <div class="text-[9px] text-text-muted mt-1">Mean across 0 nodes</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Vault Latency</div>
@@ -107,6 +120,7 @@
             <!-- SYSTEM RESOURCES -->
             <div class="h-64 border-t border-border-primary bg-surface-3 p-4 flex flex-col gap-4">
                 <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-mono font-bold text-success">0/0</span>
                     <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Cluster Vital Signs</span>
                     <Cpu size={14} class="text-text-muted" />
                 </div>
@@ -132,10 +146,10 @@
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-[8px] font-mono uppercase">
                             <span class="text-text-muted">I/O Wait (Avg)</span>
-                            <span class="text-text-heading">0.4ms</span>
+                            <span class="text-text-heading">0.0ms</span>
                         </div>
                         <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                            <div class="h-full bg-success" style="width: 5%"></div>
+                            <div class="h-full bg-success" style="width: 0%"></div>
                         </div>
                     </div>
                 </div>

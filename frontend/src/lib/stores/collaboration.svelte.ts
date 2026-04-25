@@ -1,4 +1,4 @@
-import { subscribe, emitLocal, send } from '@lib/bridge';
+import { subscribe, send } from '@lib/bridge';
 import { appStore } from './app.svelte';
 
 export interface Analyst {

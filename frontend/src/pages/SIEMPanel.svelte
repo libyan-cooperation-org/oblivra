@@ -136,10 +136,10 @@
 
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Event Rate" value="{eps} EPS" trend={eps > 0 ? 'up' : 'stable'} trendValue="live" />
-      <KPI label="Storage Index" value="98.2%" trend="stable" trendValue="optimal" variant="success" />
-      <KPI label="Live Events" value="{liveCount}" trend={liveCount > 0 ? 'up' : 'stable'} trendValue="ingested" variant="critical" />
-      <KPI label="Data Hygiene" value="99.9%" trend="stable" trendValue="verified" variant="success" />
+      <KPI label="Event Rate" value={eps + " EPS"} trend={eps > 0 ? 'up' : 'stable'} trendValue="live" />
+      <KPI label="Storage Index" value="0%" trend="stable" trendValue="PENDING" variant="default" />
+      <KPI label="Live Events" value={liveCount} trend={liveCount > 0 ? 'up' : 'stable'} trendValue="ingested" variant="critical" />
+      <KPI label="Data Hygiene" value="0%" trend="stable" trendValue="PENDING" variant="default" />
     </div>
 
     <div class="flex-1 min-h-0 flex flex-col bg-surface-1 border border-border-primary rounded-md overflow-hidden shadow-card">
@@ -185,16 +185,8 @@
               </div>
               <div class="bg-surface-1 border border-border-secondary p-4 rounded-sm">
                 <div class="text-[10px] font-bold text-text-muted uppercase mb-4">Top Offensive Endpoints</div>
-                <div class="space-y-3">
-                  {#each Array(5) as _, i}
-                    <div class="flex items-center justify-between">
-                      <span class="text-[11px] font-mono text-text-secondary">192.168.1.{100 + i}</span>
-                      <div class="flex-1 mx-4 bg-surface-3 h-1.5 rounded-full overflow-hidden">
-                        <div class="bg-error h-full" style="width: {90 - i * 15}%"></div>
-                      </div>
-                      <span class="text-[10px] font-bold text-text-muted">{500 - i * 80} hits</span>
-                    </div>
-                  {/each}
+                <div class="space-y-3 opacity-20 italic text-[10px] text-center pt-8">
+                  No endpoint data synchronized
                 </div>
               </div>
             </div>

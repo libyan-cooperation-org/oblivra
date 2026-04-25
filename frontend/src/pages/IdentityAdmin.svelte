@@ -34,9 +34,9 @@
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
       <KPI label="Active Operators" value={identities.filter(i => i.status === 'active').length} trend="stable" trendValue="Nominal" variant="success" />
-      <KPI label="MFA Coverage" value="88%" trend="down" trendValue="-12%" variant="warning" />
-      <KPI label="Session Gravity" value="High" trend="stable" trendValue="4 Active" variant="accent" />
-      <KPI label="Logic Accuracy" value="99.2%" trend="stable" trendValue="Verified" variant="success" />
+      <KPI label="MFA Coverage" value="0%" trend="stable" trendValue="PENDING" variant="default" />
+      <KPI label="Session Gravity" value="Low" trend="stable" trendValue="0 Active" variant="accent" />
+      <KPI label="Logic Accuracy" value="100%" trend="stable" trendValue="Verified" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -84,7 +84,7 @@
        <div class="flex flex-col gap-6">
           <div class="bg-surface-1 border border-border-primary border-dashed rounded-md p-6 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group shadow-card hover:border-accent/40 transition-all">
              <div class="absolute inset-x-0 top-0 h-1 bg-accent/20">
-                <div class="h-full bg-accent" style="width: 88%"></div>
+                <div class="h-full bg-accent" style="width: 0%"></div>
              </div>
              <Lock size={48} class="text-accent opacity-40 group-hover:scale-110 transition-transform duration-500" />
              <div class="relative z-10">
@@ -98,13 +98,9 @@
                 <Activity size={12} />
                 Global Session Entropy
              </div>
-             <div class="flex-1 h-32 flex items-end justify-between px-2 gap-1">
-                {#each Array(10) as _, i}
-                   <div class="flex-1 bg-accent/20 rounded-t-sm border-x border-t border-accent/5"
-                     style="height: {30 + Math.sin(i * 0.9) * 25 + 35}%">
-                   </div>
-                {/each}
-             </div>
+              <div class="flex-1 h-32 flex items-center justify-center opacity-10 grayscale">
+                 <Activity size={32} />
+              </div>
              <div class="mt-2 flex justify-between text-[9px] font-bold text-text-muted uppercase tracking-widest opacity-60">
                 <span>Identity drift monitor active</span>
                 <Globe size={10} />

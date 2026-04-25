@@ -165,13 +165,8 @@
                         </div>
                     </div>
 
-                    <!-- MIN-GRAPH PLACEHOLDER -->
-                    <div class="mt-auto border border-border-primary rounded-sm bg-black/20 h-24 flex items-center justify-center">
-                        <div class="flex gap-1 items-end h-12">
-                            {#each [40, 60, 45, 90, 65, 30, 50, 80, 40, 60] as h}
-                                <div class="w-2 bg-accent/40 rounded-t-xs" style="height: {h}%"></div>
-                            {/each}
-                        </div>
+                    <div class="mt-auto border border-border-primary border-dashed rounded-sm h-24 flex items-center justify-center opacity-20">
+                        <Zap size={24} class="text-text-muted" />
                     </div>
                 </div>
             </div>

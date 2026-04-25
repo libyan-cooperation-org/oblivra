@@ -55,10 +55,7 @@ export class IdentityStore {
             }
         } else {
             // Desktop fallback or mock
-            this.identities = [
-                { id: 'U-01', name: 'maverick', role: 'Super Admin', mfa: 'enabled', status: 'active', lastLogin: '2m ago' },
-                { id: 'U-02', name: 'iceman', role: 'Security Analyst', mfa: 'enabled', status: 'active', lastLogin: '14m ago' }
-            ];
+            this.identities = [];
         }
     } catch (e) {
         console.error('[IdentityStore] Refresh failed:', e);
