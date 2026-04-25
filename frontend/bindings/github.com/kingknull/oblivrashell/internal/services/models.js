@@ -33,6 +33,13 @@ export class AIResponse {
              */
             this["raw_command"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {ActionProposal | null | undefined}
+             */
+            this["action_proposal"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -43,8 +50,57 @@ export class AIResponse {
      * @returns {AIResponse}
      */
     static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("action_proposal" in $$parsedSource) {
+            $$parsedSource["action_proposal"] = $$createField2_0($$parsedSource["action_proposal"]);
+        }
         return new AIResponse(/** @type {Partial<AIResponse>} */($$parsedSource));
+    }
+}
+
+/**
+ * ActionProposal represents a suggested action by the AI that requires human approval (CS-01)
+ */
+export class ActionProposal {
+    /**
+     * Creates a new ActionProposal instance.
+     * @param {Partial<ActionProposal>} [$$source = {}] - The source object to create the ActionProposal.
+     */
+    constructor($$source = {}) {
+        if (!("action" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["action"] = "";
+        }
+        if (!("target" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["target"] = "";
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["description"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ActionProposal instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ActionProposal}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ActionProposal(/** @type {Partial<ActionProposal>} */($$parsedSource));
     }
 }
 
@@ -153,7 +209,7 @@ export class AgentDTO {
      * @returns {AgentDTO}
      */
     static createFrom($$source = {}) {
-        const $$createField9_0 = $$createType0;
+        const $$createField9_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("collectors" in $$parsedSource) {
             $$parsedSource["collectors"] = $$createField9_0($$parsedSource["collectors"]);
@@ -340,7 +396,7 @@ export class BiasEntry {
      * @returns {BiasEntry}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType2;
+        const $$createField2_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("evidence" in $$parsedSource) {
             $$parsedSource["evidence"] = $$createField2_0($$parsedSource["evidence"]);
@@ -445,7 +501,7 @@ export class BookmarkCreateInput {
      * @returns {BookmarkCreateInput}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType0;
+        const $$createField6_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tags" in $$parsedSource) {
             $$parsedSource["tags"] = $$createField6_0($$parsedSource["tags"]);
@@ -585,7 +641,7 @@ export class BookmarkEntry {
      * @returns {BookmarkEntry}
      */
     static createFrom($$source = {}) {
-        const $$createField8_0 = $$createType0;
+        const $$createField8_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("tags" in $$parsedSource) {
             $$parsedSource["tags"] = $$createField8_0($$parsedSource["tags"]);
@@ -829,7 +885,7 @@ export class CredentialHealth {
      * @returns {CredentialHealth}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType0;
+        const $$createField4_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("issues" in $$parsedSource) {
             $$parsedSource["issues"] = $$createField4_0($$parsedSource["issues"]);
@@ -879,7 +935,7 @@ export class DestructiveCheckResult {
      * @returns {DestructiveCheckResult}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType0;
+        const $$createField1_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("threats" in $$parsedSource) {
             $$parsedSource["threats"] = $$createField1_0($$parsedSource["threats"]);
@@ -997,7 +1053,7 @@ export class DirectoryDiff {
      * @returns {DirectoryDiff}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType4;
+        const $$createField1_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("items" in $$parsedSource) {
             $$parsedSource["items"] = $$createField1_0($$parsedSource["items"]);
@@ -1332,8 +1388,8 @@ export class LifecycleStats {
      * @returns {LifecycleStats}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType5;
-        const $$createField5_0 = $$createType0;
+        const $$createField2_0 = $$createType7;
+        const $$createField5_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("categories_purged" in $$parsedSource) {
             $$parsedSource["categories_purged"] = $$createField2_0($$parsedSource["categories_purged"]);
@@ -1522,8 +1578,8 @@ export class MultiExecJob {
      * @returns {MultiExecJob}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType0;
-        const $$createField4_0 = $$createType7;
+        const $$createField3_0 = $$createType2;
+        const $$createField4_0 = $$createType9;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("host_ids" in $$parsedSource) {
             $$parsedSource["host_ids"] = $$createField3_0($$parsedSource["host_ids"]);
@@ -1713,8 +1769,8 @@ export class OperatorContext {
      * @returns {OperatorContext}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType9;
-        const $$createField7_0 = $$createType0;
+        const $$createField5_0 = $$createType11;
+        const $$createField7_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("recent_alerts" in $$parsedSource) {
             $$parsedSource["recent_alerts"] = $$createField5_0($$parsedSource["recent_alerts"]);
@@ -1825,7 +1881,7 @@ export class PersistedState {
      * @returns {PersistedState}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType11;
+        const $$createField0_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("sessions" in $$parsedSource) {
             $$parsedSource["sessions"] = $$createField0_0($$parsedSource["sessions"]);
@@ -2163,7 +2219,7 @@ export class Timeline {
      * @returns {Timeline}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType13;
+        const $$createField2_0 = $$createType15;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("steps" in $$parsedSource) {
             $$parsedSource["steps"] = $$createField2_0($$parsedSource["steps"]);
@@ -2237,7 +2293,7 @@ export class TimelineStep {
      * @returns {TimelineStep}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType14;
+        const $$createField5_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("meta" in $$parsedSource) {
             $$parsedSource["meta"] = $$createField5_0($$parsedSource["meta"]);
@@ -2445,7 +2501,7 @@ export class TrustDriftMetrics {
      * @returns {TrustDriftMetrics}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType16;
+        const $$createField4_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("pillar_trends" in $$parsedSource) {
             $$parsedSource["pillar_trends"] = $$createField4_0($$parsedSource["pillar_trends"]);
@@ -2593,20 +2649,22 @@ export class TunnelInfo {
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = $Create.Map($Create.Any, $Create.Any);
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = DiffItem.createFrom;
+const $$createType0 = ActionProposal.createFrom;
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = $Create.Map($Create.Any, $Create.Any);
 const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = $Create.Map($Create.Any, $Create.Any);
-const $$createType6 = MultiExecResult.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = HostAlert.createFrom;
+const $$createType5 = DiffItem.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = $Create.Map($Create.Any, $Create.Any);
+const $$createType8 = MultiExecResult.createFrom;
 const $$createType9 = $Create.Array($$createType8);
-const $$createType10 = PersistedSession.createFrom;
+const $$createType10 = HostAlert.createFrom;
 const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = TimelineStep.createFrom;
+const $$createType12 = PersistedSession.createFrom;
 const $$createType13 = $Create.Array($$createType12);
-const $$createType14 = $Create.Map($Create.Any, $Create.Any);
-const $$createType15 = PillarDrift.createFrom;
-const $$createType16 = $Create.Array($$createType15);
+const $$createType14 = TimelineStep.createFrom;
+const $$createType15 = $Create.Array($$createType14);
+const $$createType16 = $Create.Map($Create.Any, $Create.Any);
+const $$createType17 = PillarDrift.createFrom;
+const $$createType18 = $Create.Array($$createType17);

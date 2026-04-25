@@ -78,6 +78,13 @@ export function Stop() {
 }
 
 /**
+ * @returns {$CancellablePromise<database$0.HostStore>}
+ */
+export function Store() {
+    return $Call.ByID(3360925848);
+}
+
+/**
  * @param {string} id
  * @returns {$CancellablePromise<void>}
  */

@@ -45,6 +45,27 @@ export function ListRules() {
 }
 
 /**
+ * MatchCount returns the number of alerts a given rule has silenced since
+ * process start. Resets on restart by design — durable counts would require
+ * a schema column we don't have yet (Phase 26.9 follow-up).
+ * @param {string} ruleID
+ * @returns {$CancellablePromise<number>}
+ */
+export function MatchCount(ruleID) {
+    return $Call.ByID(1142585354, ruleID);
+}
+
+/**
+ * MatchCounts returns a snapshot map of all in-memory match counts.
+ * @returns {$CancellablePromise<{ [_ in string]?: number }>}
+ */
+export function MatchCounts() {
+    return $Call.ByID(2930484859).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<string>}
  */
 export function Name() {
@@ -76,6 +97,25 @@ export function Stop() {
 }
 
 /**
+ * SuggestFromEvidence builds a draft suppression rule from a false-positive
+ * evidence map. Looks at common fields (host_id, user_name, src_ip,
+ * rule_id, event_type) and prefers the most specific match.
+ * 
+ * The returned rule is a draft — ID/CreatedAt are unset so the caller can
+ * either present it to an operator for approval (preferred) or call
+ * CreateRule directly. Phase 26.9's "automated feedback loop" — feedback
+ * (mark-as-FP) generates a suggestion, which the operator can promote to
+ * a suppression rule with one click.
+ * @param {{ [_ in string]?: any }[]} evidence
+ * @returns {$CancellablePromise<database$0.SuppressionRule | null>}
+ */
+export function SuggestFromEvidence(evidence) {
+    return $Call.ByID(3469646581, evidence).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * @param {string} id
  * @param {boolean} active
  * @returns {$CancellablePromise<void>}
@@ -88,3 +128,5 @@ export function ToggleRule(id, active) {
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = database$0.SuppressionRule.createFrom;
 const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = $Create.Map($Create.Any, $Create.Any);
+const $$createType4 = $Create.Nullable($$createType1);

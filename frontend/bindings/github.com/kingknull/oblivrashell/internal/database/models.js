@@ -569,6 +569,11 @@ export class HostEvent {
 }
 
 /**
+ * HostStore defines the interface for host management.
+ * @typedef {any} HostStore
+ */
+
+/**
  * IdentityConnector represents an external identity provider configuration.
  */
 export class IdentityConnector {
@@ -1524,6 +1529,20 @@ export class User {
              * @type {string}
              */
             this["preferred_language"] = "";
+        }
+        if (!("phone" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["phone"] = "";
+        }
+        if (!("address" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["address"] = "";
         }
         if (!("groups_json" in $$source)) {
             /**

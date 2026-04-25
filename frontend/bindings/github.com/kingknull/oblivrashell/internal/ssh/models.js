@@ -9,6 +9,9 @@ import { Create as $Create } from "@wailsio/runtime";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as context$0 from "../../../../../context/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as time$0 from "../../../../../time/models.js";
 
 /**
  * CertificateInfo holds metadata about an SSH certificate
@@ -307,6 +310,13 @@ export class Session {
              * @type {string | null | undefined}
              */
             this["ended_at"] = undefined;
+        }
+        if (!("LastActivity" in $$source)) {
+            /**
+             * @member
+             * @type {time$0.Time}
+             */
+            this["LastActivity"] = null;
         }
         if (!("Ctx" in $$source)) {
             /**

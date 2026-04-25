@@ -14,7 +14,13 @@
 export type AppContext = 'desktop' | 'browser' | 'hybrid';
 
 function detectContext(): AppContext {
-    const isWails = !!(window as any).__WAILS__ || !!(window as any).runtime || !!(window as any).wails;
+    // Wails v3 injects window._wails (underscore prefix) when running inside WebView.
+    // Wails v2 used window.__WAILS__ / window.runtime / window.wails.
+    // Check v3 first, then fall back to v2 globals for compatibility.
+    const isWails = !!(window as any)._wails
+        || !!(window as any).__WAILS__
+        || !!(window as any).runtime
+        || !!(window as any).wails;
     if (!isWails) return 'browser';
     const remoteServer = localStorage.getItem('oblivra:remote_server');
     if (remoteServer && remoteServer.trim() !== '') return 'hybrid';

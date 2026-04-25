@@ -121,6 +121,18 @@ export function GetPrivateKey(id) {
 }
 
 /**
+ * GetSystemKey derives a 32-byte key for a specific system purpose (e.g. "forensic_hmac").
+ * Implements api.SystemKeyProvider.
+ * @param {string} purpose
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetSystemKey(purpose) {
+    return $Call.ByID(1462007309, purpose).then(/** @type {($result: any) => any} */(($result) => {
+        return $Create.ByteSlice($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<string>}
  */
 export function GetYubiKeySerial() {

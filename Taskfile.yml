@@ -12,21 +12,19 @@ vars:
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
 
 tasks:
-  build:
-    summary: Builds the application
-    cmds:
-      - task: "windows:build"
+  # The 'build' task is removed to avoid recursion. 
+  # Use 'wails3 build' directly for the main application.
 
   package:
     summary: Packages a production build of the application
     cmds:
-      - task: "windows:package"
+      - task: "windows:package" # Package remains windows focused for now as per original intent
 
   run:
     summary: Runs the application
     cmds:
       - task: clean:ports
-      - task: "windows:run"
+      - task: "{{OS}}:run"
 
   dev:
     summary: Runs the application in development mode

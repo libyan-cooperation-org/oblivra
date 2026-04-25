@@ -83,6 +83,16 @@ export function GetFullGraph() {
 }
 
 /**
+ * GetGraphMetrics returns summary statistics for the dashboard.
+ * @returns {$CancellablePromise<{ [_ in string]?: any }>}
+ */
+export function GetGraphMetrics() {
+    return $Call.ByID(2474643050).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * GetRichEdges returns all integrity-chained graph edges for audit export.
  * Each edge carries an EdgeHash = SHA-256(NodeA + NodeB + EdgeType + EventHash)
  * allowing forensic verification that graph data was not tampered with.
@@ -121,6 +131,14 @@ export function Name() {
  */
 export function SetCampaignBuilder(cb) {
     return $Call.ByID(3339788068, cb);
+}
+
+/**
+ * @param {string} path
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetSnapshotPath(path) {
+    return $Call.ByID(147937312, path);
 }
 
 /**

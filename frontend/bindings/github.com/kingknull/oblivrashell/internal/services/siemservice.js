@@ -115,6 +115,16 @@ export function GetFailedLoginsByHost(hostID) {
 }
 
 /**
+ * GetFederationStatus returns the current state of the search federation
+ * @returns {$CancellablePromise<{ [_ in string]?: any }>}
+ */
+export function GetFederationStatus() {
+    return $Call.ByID(919143634).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
  * GetGlobalThreatStats aggregates security data across all hosts for the Dashboard KPIs
  * @returns {$CancellablePromise<{ [_ in string]?: any }>}
  */
@@ -186,16 +196,6 @@ export function LoadOfflineIOCs(indicators) {
 }
 
 /**
- * GetFederationStatus returns the current state of the search federation
- * @returns {$CancellablePromise<{ [_ in string]?: any }>}
- */
-export function GetFederationStatus() {
-    return $Call.ByID(2457493262).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
-    }));
-}
-
-/**
  * @returns {$CancellablePromise<string>}
  */
 export function Name() {
@@ -216,7 +216,6 @@ export function ReconstructTimeline(principalID, principalType, targetTime) {
 }
 
 /**
- * SearchHostEvents performs a global search across all host anomaly events
  * @param {string} query
  * @param {number} limit
  * @returns {$CancellablePromise<database$0.HostEvent[]>}

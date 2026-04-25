@@ -23,6 +23,25 @@ import * as database$0 from "../database/models.js";
 import * as $models from "./models.js";
 
 /**
+ * BootstrapAdmin creates the platform's first administrator account during
+ * initial setup. It bypasses RBAC because no user exists yet (and therefore
+ * nothing to authorize against), but it refuses to run if any user is
+ * already present — preventing an unauthenticated caller from re-bootstrapping
+ * admin access on a live system.
+ * 
+ * Phase 22.5 first-run flow. Called from POST /api/v1/setup/initialize.
+ * @param {string} email
+ * @param {string} name
+ * @param {string} password
+ * @returns {$CancellablePromise<database$0.User | null>}
+ */
+export function BootstrapAdmin(email, name, password) {
+    return $Call.ByID(902351086, email, name, password).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * CheckPermission verifies if a user has the required permission
  * @param {string} userID
  * @param {string} permission
@@ -49,7 +68,7 @@ export function CreateConnector(c) {
  */
 export function CreateRole(name, description, permissions) {
     return $Call.ByID(1057707959, name, description, permissions).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType3($result);
     }));
 }
 
@@ -63,7 +82,7 @@ export function CreateRole(name, description, permissions) {
  */
 export function CreateUser(email, name, password, roleID) {
     return $Call.ByID(163746992, email, name, password, roleID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -137,7 +156,7 @@ export function GetSecurityStats() {
  */
 export function GetUser(id) {
     return $Call.ByID(2970862970, id).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -148,7 +167,7 @@ export function GetUser(id) {
  */
 export function GetUserByEmail(email) {
     return $Call.ByID(3872353825, email).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -159,7 +178,7 @@ export function GetUserByEmail(email) {
  */
 export function GetUserByExternalID(extID) {
     return $Call.ByID(571451101, extID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -170,7 +189,7 @@ export function GetUserByExternalID(extID) {
  */
 export function HandleOIDCCallback(code) {
     return $Call.ByID(4271440379, code).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -181,7 +200,7 @@ export function HandleOIDCCallback(code) {
  */
 export function HandleSAMLCallback(data) {
     return $Call.ByID(2594692747, data).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -223,7 +242,7 @@ export function ListUsers() {
  */
 export function LoginHardwareBound(email, nonce, signature) {
     return $Call.ByID(1083809856, email, nonce, signature).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -235,7 +254,7 @@ export function LoginHardwareBound(email, nonce, signature) {
  */
 export function LoginLocal(email, password) {
     return $Call.ByID(3633595211, email, password).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType1($result);
     }));
 }
 
@@ -256,13 +275,22 @@ export function ProvisionSCIMUser(u) {
 }
 
 /**
+ * @returns {$CancellablePromise<auth$0.RBACEngine | null>}
+ */
+export function RBAC() {
+    return $Call.ByID(469829583).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType12($result);
+    }));
+}
+
+/**
  * SetupTOTP generates a new TOTP secret and QR code for the user
  * @param {string} userID
  * @returns {$CancellablePromise<auth$0.TOTPSetupResult | null>}
  */
 export function SetupTOTP(userID) {
     return $Call.ByID(2045895057, userID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType14($result);
     }));
 }
 
@@ -339,16 +367,18 @@ export function VerifyAndEnableMFA(userID, code) {
 }
 
 // Private type creation functions
-const $$createType0 = database$0.Role.createFrom;
+const $$createType0 = database$0.User.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = database$0.User.createFrom;
+const $$createType2 = database$0.Role.createFrom;
 const $$createType3 = $Create.Nullable($$createType2);
 const $$createType4 = $Create.Array($Create.Any);
 const $$createType5 = database$0.IdentityConnector.createFrom;
 const $$createType6 = $Create.Nullable($$createType5);
 const $$createType7 = $models.SecurityStats.createFrom;
 const $$createType8 = $Create.Array($$createType5);
-const $$createType9 = $Create.Array($$createType0);
-const $$createType10 = $Create.Array($$createType2);
-const $$createType11 = auth$0.TOTPSetupResult.createFrom;
+const $$createType9 = $Create.Array($$createType2);
+const $$createType10 = $Create.Array($$createType0);
+const $$createType11 = auth$0.RBACEngine.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
+const $$createType13 = auth$0.TOTPSetupResult.createFrom;
+const $$createType14 = $Create.Nullable($$createType13);

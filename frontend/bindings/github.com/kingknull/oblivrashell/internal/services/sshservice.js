@@ -108,6 +108,17 @@ export function Exec(sessionID, cmd) {
 }
 
 /**
+ * ExecWithStdin runs a non-interactive command and pipes the given string to its stdin.
+ * @param {string} sessionID
+ * @param {string} cmd
+ * @param {string} stdin
+ * @returns {$CancellablePromise<string>}
+ */
+export function ExecWithStdin(sessionID, cmd, stdin) {
+    return $Call.ByID(827215744, sessionID, cmd, stdin);
+}
+
+/**
  * GetActiveSessionForHost returns the first active SSH session ID for a given hostID.
  * Implements isolation.HostSessionResolver so NetworkIsolator can execute remote commands.
  * @param {string} hostID

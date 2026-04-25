@@ -22,6 +22,11 @@ export {
 import * as $models from "./models.js";
 
 /**
+ * HostStore defines the interface for host management.
+ * @typedef {$models.HostStore} HostStore
+ */
+
+/**
  * SIEMStore defines the interface for security event monitoring and analytics.
  * @typedef {$models.SIEMStore} SIEMStore
  */

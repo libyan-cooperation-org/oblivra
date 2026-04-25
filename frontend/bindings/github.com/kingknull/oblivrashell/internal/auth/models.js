@@ -7,6 +7,30 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * RBACEngine evaluates permission checks against a user's role
+ */
+export class RBACEngine {
+    /**
+     * Creates a new RBACEngine instance.
+     * @param {Partial<RBACEngine>} [$$source = {}] - The source object to create the RBACEngine.
+     */
+    constructor($$source = {}) {
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RBACEngine instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RBACEngine}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RBACEngine(/** @type {Partial<RBACEngine>} */($$parsedSource));
+    }
+}
+
+/**
  * TOTPSetupResult contains the secret and QR code for enrollment
  */
 export class TOTPSetupResult {

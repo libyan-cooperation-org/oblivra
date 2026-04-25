@@ -65,6 +65,7 @@ import * as TunnelService from "./tunnelservice.js";
 import * as UEBAService from "./uebaservice.js";
 import * as UpdaterService from "./updaterservice.js";
 import * as VaultService from "./vaultservice.js";
+import * as WindowService from "./windowservice.js";
 import * as WorkspaceService from "./workspaceservice.js";
 export {
     AIService,
@@ -130,11 +131,13 @@ export {
     UEBAService,
     UpdaterService,
     VaultService,
+    WindowService,
     WorkspaceService
 };
 
 export {
     AIResponse,
+    ActionProposal,
     AgentDTO,
     AppConfig,
     BiasEntry,

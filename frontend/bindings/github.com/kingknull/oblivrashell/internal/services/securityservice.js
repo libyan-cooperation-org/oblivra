@@ -86,17 +86,22 @@ export function Name() {
 }
 
 /**
- * QuorumApprove records an approval
+ * QuorumApprove records an approval. challengeID is a FIDO2 challenge issued
+ * via FIDO2Manager.StartAuthentication before the user signed; the underlying
+ * QuorumManager.Approve drives FIDO2Manager.CompleteAuthentication so the
+ * hardware signature is verified before the approval is counted.
  * @param {string} id
  * @param {string} userID
+ * @param {string} challengeID
  * @param {string} credentialID
  * @param {string} signature
  * @param {string} authData
  * @param {string} clientData
+ * @param {number} newSignCount
  * @returns {$CancellablePromise<void>}
  */
-export function QuorumApprove(id, userID, credentialID, signature, authData, clientData) {
-    return $Call.ByID(2158832195, id, userID, credentialID, signature, authData, clientData);
+export function QuorumApprove(id, userID, challengeID, credentialID, signature, authData, clientData, newSignCount) {
+    return $Call.ByID(2158832195, id, userID, challengeID, credentialID, signature, authData, clientData, newSignCount);
 }
 
 /**

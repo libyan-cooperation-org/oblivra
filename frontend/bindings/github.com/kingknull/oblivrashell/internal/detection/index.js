@@ -14,5 +14,6 @@ export {
     RuleSequenceStep,
     RuleType,
     TimelineEvent,
-    ValidationResult
+    ValidationResult,
+    WindowType
 } from "./models.js";

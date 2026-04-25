@@ -631,6 +631,22 @@ export class Rule {
              */
             this["WindowSec"] = 0;
         }
+        if (!("Window" in $$source)) {
+            /**
+             * sliding (default) or tumbling
+             * @member
+             * @type {WindowType}
+             */
+            this["Window"] = WindowType.$zero;
+        }
+        if (!("Watermark" in $$source)) {
+            /**
+             * Late event tolerance
+             * @member
+             * @type {number}
+             */
+            this["Watermark"] = 0;
+        }
         if (!("Sequence" in $$source)) {
             /**
              * Sequence Specifics
@@ -678,8 +694,8 @@ export class Rule {
         const $$createField6_0 = $$createType11;
         const $$createField7_0 = $$createType5;
         const $$createField8_0 = $$createType5;
-        const $$createField11_0 = $$createType13;
-        const $$createField12_0 = $$createType5;
+        const $$createField13_0 = $$createType13;
+        const $$createField14_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("Conditions" in $$parsedSource) {
             $$parsedSource["Conditions"] = $$createField6_0($$parsedSource["Conditions"]);
@@ -691,10 +707,10 @@ export class Rule {
             $$parsedSource["MitreTechniques"] = $$createField8_0($$parsedSource["MitreTechniques"]);
         }
         if ("Sequence" in $$parsedSource) {
-            $$parsedSource["Sequence"] = $$createField11_0($$parsedSource["Sequence"]);
+            $$parsedSource["Sequence"] = $$createField13_0($$parsedSource["Sequence"]);
         }
         if ("GroupBy" in $$parsedSource) {
-            $$parsedSource["GroupBy"] = $$createField12_0($$parsedSource["GroupBy"]);
+            $$parsedSource["GroupBy"] = $$createField14_0($$parsedSource["GroupBy"]);
         }
         return new Rule(/** @type {Partial<Rule>} */($$parsedSource));
     }
@@ -934,6 +950,21 @@ export class ValidationResult {
         return new ValidationResult(/** @type {Partial<ValidationResult>} */($$parsedSource));
     }
 }
+
+/**
+ * WindowType defines the behavior of the time-based evaluation window.
+ * @readonly
+ * @enum {string}
+ */
+export const WindowType = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    WindowSliding: "sliding",
+    WindowTumbling: "tumbling",
+};
 
 // Private type creation functions
 const $$createType0 = $Create.Map($Create.Any, $Create.Any);
