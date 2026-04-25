@@ -5,7 +5,7 @@
 <script lang="ts">
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { KPI, Badge, DataTable, PageLayout, Button, Input } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, Input, PopOutButton } from '@components/ui';
 
   let searchQuery = $state('');
   
@@ -39,6 +39,7 @@
       <Input variant="search" placeholder="Filter incidents..." bind:value={searchQuery} class="w-64" />
       <Button variant="secondary" size="sm" onclick={() => alertStore.refresh()}>Refresh</Button>
       <Button variant="cta" size="sm">Bulk Resolve</Button>
+      <PopOutButton route="/alerts" title="Security Alerts" />
     </div>
   {/snippet}
 

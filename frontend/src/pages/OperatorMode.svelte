@@ -39,6 +39,31 @@
     if (appStore.sessions.length === 0) {
       appStore.connectToLocal();
     }
+
+    // Listen for global keybinds dispatched by App.svelte's Ctrl+Shift+I/E
+    // handlers. The keybind triggers the same flow as clicking the toolbar
+    // buttons, but no host context is required at the global level — we
+    // resolve the active host here.
+    const onIsolate = () => {
+      if (!agentID) {
+        appStore.notify('No host selected — pick a host to isolate', 'warning');
+        return;
+      }
+      void isolateHost();
+    };
+    const onCaptureEvent = () => {
+      if (!agentID) {
+        appStore.notify('No host selected — pick a host to capture evidence', 'warning');
+        return;
+      }
+      void captureEvidence();
+    };
+    window.addEventListener('oblivra:isolate-host', onIsolate);
+    window.addEventListener('oblivra:capture-evidence', onCaptureEvent);
+    return () => {
+      window.removeEventListener('oblivra:isolate-host', onIsolate);
+      window.removeEventListener('oblivra:capture-evidence', onCaptureEvent);
+    };
   });
 
   async function isolateHost() {

@@ -3,7 +3,7 @@
   OQL-driven query interface for sovereign telemetry ingestion.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, PopOutButton } from '@components/ui';
   import { Search, History, Download, Play, Save, Filter, ChevronRight, BarChart3 } from 'lucide-svelte';
   import { siemStore } from '@lib/stores/siem.svelte';
 
@@ -29,6 +29,7 @@
       <Button variant="secondary" size="sm" icon={History}>HISTORY</Button>
       <Button variant="secondary" size="sm" icon={Save}>SAVE QUERY</Button>
       <Button variant="primary" size="sm" icon={Download}>EXPORT RESULTS</Button>
+      <PopOutButton route="/siem-search" title="SIEM Search" />
     </div>
   {/snippet}
 

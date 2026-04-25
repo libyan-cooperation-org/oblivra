@@ -3,7 +3,7 @@
   Real-time visibility into the sovereign agent fleet.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, Input, Tabs } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, Input, Tabs, PopOutButton } from '@components/ui';
   import { Activity, Terminal, ShieldAlert, MoreHorizontal, Monitor, Clock, ShieldCheck } from 'lucide-svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
 
@@ -39,6 +39,7 @@
       <Input variant="search" placeholder="Filter agents..." bind:value={searchQuery} class="w-64" />
       <Button variant="secondary" size="sm">EXPORT LIST</Button>
       <Button variant="primary" size="sm">DEPLOY AGENT</Button>
+      <PopOutButton route="/fleet" title="Fleet Management" />
     </div>
   {/snippet}
 

@@ -23,4 +23,6 @@ export { default as Toggle } from './Toggle.svelte';
 export { default as DecisionCard } from './DecisionCard.svelte';
 export { default as InvestigationCanvas } from './InvestigationCanvas.svelte';
 export { default as ProgressBar } from './ProgressBar.svelte';
+export { default as LoadingSkeleton } from './LoadingSkeleton.svelte';
+export { default as PopOutButton } from './PopOutButton.svelte';
 export * from './decision.types';

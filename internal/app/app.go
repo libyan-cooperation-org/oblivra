@@ -100,6 +100,9 @@ type App struct {
 	CommandHistory     *services.CommandHistoryService
 	OperatorService    *services.OperatorService
 	SessionPersistence *services.SessionPersistence
+
+	// SOC multi-monitor pop-out
+	WindowService *services.WindowService
 }
 
 // New creates a new App instance with placeholder service structs.
@@ -176,6 +179,10 @@ func (a *App) wireServices() {
 	a.CommandHistory = p.CommandHistory
 	a.OperatorService = p.OperatorService
 	a.SessionPersistence = p.SessionPersistence
+
+	// WindowService doesn't depend on the container — instantiate inline.
+	// It only needs the logger and Wails' application.Get() at call time.
+	a.WindowService = services.NewWindowService(a.container.Log)
 	a.TransferManager = p.TransferManager
 	a.ComplianceService = p.ComplianceService
 	a.TailingService = p.TailingService

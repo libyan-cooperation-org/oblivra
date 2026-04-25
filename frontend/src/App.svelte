@@ -102,6 +102,14 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   let mainEl = $state<HTMLElement | null>(null);
   let screenWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1200);
 
+  // Pop-out mode: when WindowService.PopOut spawns a new window with
+  // ?popout=1&route=<r>, that window renders ONLY the requested route
+  // without the sidebar / global chrome. The operator gets a clean
+  // single-panel view they can drag onto a second monitor.
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const popoutMode = params?.get('popout') === '1';
+  const popoutRoute = params?.get('route') ?? '/';
+
   const isMobile = $derived(screenWidth < 640);
 
   function handleResize() {
@@ -252,6 +260,13 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       await appStore.init();
       crisisStore.init();
       siemStore.refreshStats();
+
+      // In pop-out mode the spawned window starts at "/?popout=1&route=X"
+      // — navigate to the requested route now that the router store is up.
+      if (popoutMode && popoutRoute) {
+        appStore.navigate(popoutRoute);
+      }
+
       ready = true;
     } catch (e: any) {
       console.error('App init failed:', e);
@@ -299,13 +314,30 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // ── Operator Shortcuts (⌃⇧ + key)
     if (e.ctrlKey && e.shiftKey) {
-        if (e.key === 'I') {
+        // Ctrl+Shift+I — Host isolation. Dispatches a window event so the
+        // OperatorMode page can pick it up and call agentStore.toggleQuarantine
+        // for the currently-active host. If the operator isn't on /operator
+        // yet, navigate there so they have a host context to isolate.
+        if (e.key === 'I' || e.key === 'i') {
             e.preventDefault();
-            appStore.notify('Isolation directive triggered via hotkey', 'warning');
+            const onOperator = window.location.pathname.startsWith('/operator');
+            if (!onOperator) {
+                appStore.notify('Open Operator Mode and select a host before isolating', 'warning');
+                appStore.navigate('/operator');
+                return;
+            }
+            window.dispatchEvent(new CustomEvent('oblivra:isolate-host'));
         }
-        if (e.key === 'E') {
+        // Ctrl+Shift+E — Evidence capture (same pattern).
+        if (e.key === 'E' || e.key === 'e') {
             e.preventDefault();
-            appStore.notify('Evidence capture triggered via hotkey', 'info');
+            const onOperator = window.location.pathname.startsWith('/operator');
+            if (!onOperator) {
+                appStore.notify('Open Operator Mode and select a host before capturing evidence', 'warning');
+                appStore.navigate('/operator');
+                return;
+            }
+            window.dispatchEvent(new CustomEvent('oblivra:capture-evidence'));
         }
     }
   }
@@ -319,7 +351,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 >
   {#if ready}
     <div class="flex h-full w-full">
-      {#if !isMobile}
+      {#if !isMobile && !popoutMode}
         <Sidebar />
       {/if}
 

@@ -63,6 +63,7 @@
         selectedAlert = row;
     }
   }
+  import { PopOutButton } from '@components/ui';
 </script>
 
 <PageLayout title="Alert Management" subtitle="Detection pipeline orchestration and logic control">
@@ -70,6 +71,7 @@
     <div class="flex items-center gap-2">
       <Input variant="search" placeholder="Search alerts..." bind:value={searchQuery} class="w-64" />
       <Button variant="primary" size="sm" onclick={() => appStore.notify('Manual alert creation disabled', 'warning')}>Create Alert</Button>
+      <PopOutButton route="/alert-management" title="Alert Management" />
     </div>
   {/snippet}
 
