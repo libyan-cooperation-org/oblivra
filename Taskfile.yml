@@ -1,10 +1,22 @@
 version: '3'
 
+# Per-platform Taskfiles are generated lazily; mark them optional so
+# `wails3 build` (and any other Task invocation) doesn't fail with
+# "GetFileAttributesEx … cannot find the path specified" when the
+# platform-specific files haven't been scaffolded yet.
 includes:
-  common: ./build/Taskfile.yml
-  windows: ./build/windows/Taskfile.yml
-  linux: ./build/linux/Taskfile.yml
-  agent: ./build/agent/Taskfile.yml
+  common:
+    taskfile: ./build/Taskfile.yml
+    optional: true
+  windows:
+    taskfile: ./build/windows/Taskfile.yml
+    optional: true
+  linux:
+    taskfile: ./build/linux/Taskfile.yml
+    optional: true
+  agent:
+    taskfile: ./build/agent/Taskfile.yml
+    optional: true
 
 vars:
   APP_NAME: "oblivrashell"
