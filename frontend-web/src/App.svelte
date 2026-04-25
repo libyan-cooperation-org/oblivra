@@ -9,6 +9,7 @@
   // ── Pages (Dynamic Imports)
   const Login             = () => import('./pages/Login.svelte');
   const Onboarding        = () => import('./pages/Onboarding.svelte');
+  const SetupWizard       = () => import('./pages/SetupWizard.svelte');
   const Dashboard         = () => import('./core/Dashboard.svelte');
   const FleetManagement   = () => import('./pages/FleetManagement.svelte');
   const SIEMSearch        = () => import('./pages/SIEMSearch.svelte');
@@ -30,12 +31,13 @@
   const FusionDashboard   = () => import('./pages/FusionDashboard.svelte');
   const Investigation     = () => import('./pages/InvestigationCanvas.svelte');
 
-  const PUBLIC_PATHS = ['/login', '/onboarding'];
+  const PUBLIC_PATHS = ['/login', '/onboarding', '/setup'];
 
   const ROUTES: Record<string, any> = {
     '/':                 Dashboard,
     '/login':            Login,
     '/onboarding':       Onboarding,
+    '/setup':            SetupWizard,
     '/siem/search':      SIEMSearch,
     '/alerts':           AlertManagement,
     '/lookups':          LookupManager,
