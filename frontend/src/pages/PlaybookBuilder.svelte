@@ -3,7 +3,7 @@
   Designing tactical response playbooks: Automating containment and investigation logic.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button } from '@components/ui';
+  import { PageLayout, Badge, Button, PopOutButton} from '@components/ui';
   import { Zap, Plus, History, GitBranch, Save, Play } from 'lucide-svelte';
   import { playbookStore } from '@lib/stores/playbook.svelte';
   import { onMount } from 'svelte';
@@ -28,7 +28,8 @@
       <Button variant="secondary" size="sm" icon={Save}>SAVE DESIGN</Button>
       <Button variant="primary" size="sm" icon={Play}>TEST PLAYBOOK</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/playbook-builder" title="Playbook Builder" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-0 -m-6">
     <!-- METRIC STRIP -->

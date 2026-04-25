@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { KPI, PageLayout, Badge, Button, DataTable, PopOutButton} from '@components/ui';
   import { Sword, Activity, Skull } from 'lucide-svelte';
 
   const simulations = $state<any[]>([]);
@@ -18,7 +18,8 @@
       <Button variant="secondary" size="sm">MITRE Topology</Button>
       <Button variant="primary" size="sm" icon="🔥">Deploy Emulation</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/purple-team" title="Purple Team" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">

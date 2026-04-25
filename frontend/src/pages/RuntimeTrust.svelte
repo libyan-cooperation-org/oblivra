@@ -3,7 +3,7 @@
   Real-time process verification and execution trust orchestration.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { KPI, PageLayout, Badge, Button, DataTable, PopOutButton} from '@components/ui';
   import { ShieldCheck, Activity, Cpu, Eye } from 'lucide-svelte';
 
   const processes: Record<string, any>[] = [
@@ -17,7 +17,8 @@
   {#snippet toolbar()}
     <Button variant="secondary" size="sm">Recalibrate Baselines</Button>
     <Button variant="primary" size="sm" icon="🛡️">Scan Active Memory</Button>
-  {/snippet}
+      <PopOutButton route="/runtime-trust" title="Runtime Trust" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

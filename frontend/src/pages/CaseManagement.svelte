@@ -3,7 +3,7 @@
   Orchestration hub for incident investigations and legal readiness.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button, Input } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, Input, PopOutButton} from '@components/ui';
   import { User, ExternalLink } from 'lucide-svelte';
 
   const cases: Record<string, any>[] = [
@@ -22,7 +22,8 @@
       <Input variant="search" placeholder="Filter cases..." bind:value={searchQuery} class="w-64" />
       <Button variant="primary" size="sm">New Investigation</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/cases" title="Case Management" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

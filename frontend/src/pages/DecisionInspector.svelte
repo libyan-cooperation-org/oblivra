@@ -3,7 +3,7 @@
   Inspecting autonomous platform decisions: Transparency and audit trails for SOAR and AI orchestration.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Button, DataTable } from '@components/ui';
+  import { KPI, PageLayout, Button, DataTable, PopOutButton} from '@components/ui';
   import { Activity, Zap, Globe, Eye } from 'lucide-svelte';
 
   const decisions = [
@@ -25,7 +25,8 @@
   {#snippet toolbar()}
      <Button variant="secondary" size="sm">Logic Re-Evaluation</Button>
      <Button variant="primary" size="sm" icon="🧠">Decision Audit</Button>
-  {/snippet}
+      <PopOutButton route="/decisions" title="Decision Inspector" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

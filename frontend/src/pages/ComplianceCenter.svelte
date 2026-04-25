@@ -3,7 +3,7 @@
   Governance and Regulatory alignment: SOC2, HIPAA, NIST monitoring.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, PopOutButton} from '@components/ui';
   import { CheckCircle, FileText } from 'lucide-svelte';
 
   const frameworks = [
@@ -25,7 +25,8 @@
   {#snippet toolbar()}
     <Button variant="secondary" size="sm">Evidence Locker</Button>
     <Button variant="primary" size="sm">Standard Audit</Button>
-  {/snippet}
+      <PopOutButton route="/compliance" title="Compliance Center" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

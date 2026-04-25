@@ -3,7 +3,7 @@
   Data provenance and forensic lineage: Tracing the origin and transformation of security telemetry.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Button } from '@components/ui';
+  import { KPI, PageLayout, Button, PopOutButton} from '@components/ui';
   import { Network, Share2, Activity, Zap, Database, Search, ShieldCheck } from 'lucide-svelte';
 
   const lineageNodes = [
@@ -18,7 +18,8 @@
   {#snippet toolbar()}
      <Button variant="secondary" size="sm">Trace New Hash</Button>
      <Button variant="primary" size="sm" icon="🔍">Provenance Audit</Button>
-  {/snippet}
+      <PopOutButton route="/lineage" title="Lineage Explorer" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

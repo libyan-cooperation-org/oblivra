@@ -3,7 +3,7 @@
   Real-time regulatory posture and continuous control monitoring.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, ProgressBar } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, ProgressBar, PopOutButton} from '@components/ui';
   import { Shield, CheckCircle, AlertTriangle, Clock, RefreshCw, Filter, Download } from 'lucide-svelte';
   import { complianceStore } from '@lib/stores/compliance.svelte';
   import { onMount } from 'svelte';
@@ -22,7 +22,8 @@
       <Button variant="secondary" size="sm" icon={RefreshCw} onclick={() => complianceStore.validateAll()} loading={complianceStore.loading}>VALIDATE ALL</Button>
       <Button variant="primary" size="sm" icon={Download}>GENERATE REPORT</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/compliance" title="Compliance" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-0 -m-6">
     <!-- POSTURE STRIP -->

@@ -3,7 +3,7 @@
   Real-time response orchestration and containment controls.
 -->
 <script lang="ts">
-  import { KPI, Badge, PageLayout, Button, Toggle } from '@components/ui';
+  import { KPI, Badge, PageLayout, Button, Toggle, PopOutButton} from '@components/ui';
   import { Shield, Zap, Lock, Power, Activity, Crosshair } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
 
@@ -23,7 +23,8 @@
        <Button variant="danger" size="sm" icon="🚨">PANIC LOCK</Button>
        <Button variant="primary" size="sm">New Response Playbook</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/response" title="Incident Response" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">

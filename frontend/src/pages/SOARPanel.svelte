@@ -3,7 +3,7 @@
   Security Orchestration, Automation, and Response dashboard.
 -->
 <script lang="ts">
-  import { KPI, Badge, PageLayout, Button, DataTable } from '@components/ui';
+  import { KPI, Badge, PageLayout, Button, DataTable, PopOutButton} from '@components/ui';
   import { Zap, Play } from 'lucide-svelte';
 
   const playbooks: Record<string, any>[] = [
@@ -17,7 +17,8 @@
 <PageLayout title="SOAR Orchestrator" subtitle="Automated signal response and playbook execution engine">
   {#snippet toolbar()}
     <Button variant="primary" size="sm">New Playbook</Button>
-  {/snippet}
+      <PopOutButton route="/soar" title="SOAR Panel" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">

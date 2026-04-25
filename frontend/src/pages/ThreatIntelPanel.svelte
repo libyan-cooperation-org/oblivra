@@ -3,7 +3,7 @@
   The Intelligence Orbit: Strategic threat landscape and actor profiles.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, Input } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, Input, PopOutButton} from '@components/ui';
   import { Shield, Target, Activity, Zap, ExternalLink, Filter, RefreshCw, AlertTriangle, ChevronRight, Globe, Fingerprint } from 'lucide-svelte';
 
   let intelSearch = $state('');
@@ -29,7 +29,8 @@
       <Button variant="secondary" size="sm" icon={RefreshCw}>SYNC FEEDS</Button>
       <Button variant="primary" size="sm">NEW IOC</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/threat-intel" title="Threat Intelligence" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-4">
     <!-- INTEL STRIP -->

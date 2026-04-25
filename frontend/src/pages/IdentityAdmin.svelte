@@ -3,7 +3,7 @@
   Unified Identity & Access Management for platform operators.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button, Input } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, Input, PopOutButton} from '@components/ui';
   import { identityStore } from '@lib/stores/identity.svelte';
   import { User, Settings, Activity, ShieldCheck, Lock, Globe } from 'lucide-svelte';
 
@@ -29,7 +29,8 @@
       <Input variant="search" placeholder="Filter identities..." bind:value={searchQuery} class="w-64" />
       <Button variant="primary" size="sm" icon="+">Create Operator</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/identity-admin" title="Identity Admin" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">

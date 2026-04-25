@@ -7,7 +7,7 @@
   import { RefreshCw, Terminal, AlertTriangle, Zap, Database, Server, ShieldCheck } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
-  import { KPI, Badge, Button, PageLayout, DataTable } from '@components/ui';
+  import { KPI, Badge, Button, PageLayout, DataTable, PopOutButton} from '@components/ui';
 
   // Stats derived from stores
   const stats = $derived({
@@ -33,7 +33,8 @@
       <Button variant="primary" size="sm" icon={Terminal}>OQL TERMINAL</Button>
       <Button variant="cta" size="sm" icon={Zap}>WAR MODE</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/" title="Dashboard" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-4">
     <!-- CORE KPI STRIP -->

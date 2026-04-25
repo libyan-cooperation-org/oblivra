@@ -3,7 +3,7 @@
   Dynamic integration of third-party security modules and extensions.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState, SearchBar, PopOutButton} from '@components/ui';
 
   const mockPlugins = [
     { id: 'p1', name: 'Suricata Bridge', version: '2.1.0', author: 'OBLIVRA Core', status: 'active', type: 'Ingestion' },
@@ -28,7 +28,8 @@
   {#snippet toolbar()}
     <SearchBar bind:value={searchQuery} placeholder="Search plugins..." compact />
     <Button variant="primary" size="sm" icon="+">Install Plugin</Button>
-  {/snippet}
+      <PopOutButton route="/plugins" title="Plugin Manager" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">

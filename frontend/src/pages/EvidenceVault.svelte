@@ -3,7 +3,7 @@
   Immutable forensic storage and chain-of-custody management.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, PopOutButton} from '@components/ui';
   import { Lock, FileText, Download, History, Search, Filter, HardDrive } from 'lucide-svelte';
   import { forensicsStore } from '@lib/stores/forensics.svelte.ts';
   import { onMount } from 'svelte';
@@ -21,7 +21,8 @@
       <Button variant="secondary" size="sm" icon={HardDrive}>MOUNT SHARD</Button>
       <Button variant="primary" size="sm" icon={Download}>EXPORT BUNDLE</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/evidence-vault" title="Evidence Vault" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-4">
     <!-- VAULT STATS -->

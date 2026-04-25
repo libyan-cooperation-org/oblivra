@@ -8,9 +8,12 @@
   pattern is the difference between "obvious, native, professional" and
   the user reporting "there is no maximize close."
 
-  Drag region: header has -webkit-app-region: drag so the operator can
+  Drag region: header sets `--wails-draggable: drag` so the operator can
   drag the window between monitors. Every interactive element overrides
-  with -webkit-app-region: no-drag so clicks work.
+  with `--wails-draggable: no-drag` so clicks pass through to the button.
+  (The older `-webkit-app-region: drag` is Electron's API; Wails v3
+  silently ignores it — that's why the operator reported the app could
+  not be dragged at all on the previous build.)
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
@@ -133,41 +136,25 @@
     } catch { /* dev */ }
   }
 
-  /**
-   * handleMousedown — Manual drag fallback.
-   * On Linux/Windows, CSS -webkit-app-region: drag can sometimes be blocked
-   * by nested elements or specific window managers. Explicitly calling
-   * Window.Drag() on the header ensures the operator can always move the app.
-   */
-  async function handleMousedown(e: MouseEvent) {
-    // Only trigger on left-click
-    if (e.button !== 0) return;
-
-    // Do NOT drag if the user is clicking an interactive element (button, input, etc)
-    const target = e.target as HTMLElement;
-    if (target.closest('button, input, a, select, textarea, [style*="no-drag"]')) {
-      return;
-    }
-
-    try {
-      const { Window } = await import('@wailsio/runtime');
-      if (Window && typeof (Window as any).Drag === 'function') {
-        (Window as any).Drag();
-      }
-    } catch {
-      /* dev / web mode */
-    }
-  }
+  // Drag region is handled entirely by Wails v3's runtime (drag.js):
+  // any element with the CSS custom property `--wails-draggable: drag`
+  // becomes a drag handle, and children with `--wails-draggable: no-drag`
+  // pass clicks through. The previous `-webkit-app-region: drag` was an
+  // Electron-era property that Wails v3 silently ignores — that's why
+  // the operator reported the app couldn't be dragged at all.
+  //
+  // The `Window.Drag()` JS fallback we used to call doesn't exist in the
+  // Wails v3 runtime either; v3 sends the drag start as a `wails:drag`
+  // IPC message internally. We don't need to dispatch it manually.
 </script>
 
 <header
   class="flex items-center h-8 bg-surface-1 border-b border-border-primary select-none z-50 px-2 gap-3 shrink-0 cursor-grab active:cursor-grabbing hover:bg-surface-2 transition-colors duration-200"
-  style="-webkit-app-region: drag;"
-  onmousedown={handleMousedown}
+  style="--wails-draggable: drag;"
 >
   <!-- macOS traffic lights (left side, Mac-only) -->
   {#if !IS_BROWSER && platform === 'mac'}
-    <div class="flex items-center gap-1.5 shrink-0 pl-1 pr-1" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center gap-1.5 shrink-0 pl-1 pr-1" style="--wails-draggable: no-drag;">
       <button
         class="w-3 h-3 rounded-full bg-[#ff5f57] hover:opacity-80 transition-opacity border-none cursor-pointer flex items-center justify-center group"
         onclick={windowClose}
@@ -222,7 +209,7 @@
         class="flex items-center gap-1 text-[8px] font-mono text-text-muted hover:text-text-heading uppercase tracking-wider bg-transparent border-none cursor-pointer"
         onclick={closeAllPopouts}
         title="Close all pop-out windows"
-        style="-webkit-app-region: no-drag;"
+        style="--wails-draggable: no-drag;"
       >
         <Monitor class="w-3 h-3" />
         <span>{popoutCount} POP-OUT{popoutCount === 1 ? '' : 'S'}</span>
@@ -240,7 +227,7 @@
       {/if}
       {#if highCount > 0}
         <span class="px-1.5 py-px text-[8px] font-mono font-bold rounded-sm
-          bg-warning/12 text-warning border border-warning/25" style="-webkit-app-region: no-drag;">HIGH {highCount}</span>
+          bg-warning/12 text-warning border border-warning/25" style="--wails-draggable: no-drag;">HIGH {highCount}</span>
       {/if}
     </div>
   {/if}
@@ -252,7 +239,7 @@
       class="flex items-center bg-surface-3 border border-border-primary rounded-sm px-2.5 h-[20px] gap-2 w-[240px]
              hover:border-border-hover transition-colors cursor-pointer"
       onclick={() => appStore.toggleCommandPalette()}
-      style="-webkit-app-region: no-drag;"
+      style="--wails-draggable: no-drag;"
     >
       <span class="text-text-muted text-[8px] font-mono tracking-wide opacity-60">Search commands…</span>
       <span class="ml-auto text-text-muted text-[8px] font-mono opacity-40">⌃K</span>
@@ -265,7 +252,7 @@
     onclick={() => notificationStore.toggleDrawer()}
     aria-label="Notifications {notificationStore.unreadCount > 0 ? `(${notificationStore.unreadCount} unread)` : ''}"
     title={notificationStore.unreadCount > 0 ? `${notificationStore.unreadCount} unread notifications` : 'Notifications'}
-    style="-webkit-app-region: no-drag;"
+    style="--wails-draggable: no-drag;"
   >
     <Bell class="w-3.5 h-3.5" />
     {#if notificationStore.unreadCount > 0}
@@ -293,7 +280,7 @@
         class="h-8 px-2 flex items-center justify-center gap-1.5 text-text-muted hover:text-accent hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer group"
         onclick={() => appStore.launchSOCExperience()}
         title="Launch SOC Multi-Monitor Experience (3+ Windows)"
-        style="-webkit-app-region: no-drag;"
+        style="--wails-draggable: no-drag;"
       >
         <Layout class="w-3.5 h-3.5" />
         <span class="text-[9px] font-mono font-bold tracking-widest hidden lg:block opacity-60 group-hover:opacity-100">SOC MODE</span>
@@ -304,7 +291,7 @@
         onclick={() => appStore.popOut()}
         aria-label="Pop out into new window"
         title="Pop out into new window"
-        style="-webkit-app-region: no-drag;"
+        style="--wails-draggable: no-drag;"
       >
         <ExternalLink class="w-3.5 h-3.5" />
       </button>
@@ -315,7 +302,7 @@
           onclick={windowMinimize}
           aria-label="Minimize window"
           title="Minimize"
-          style="-webkit-app-region: no-drag;"
+          style="--wails-draggable: no-drag;"
         >
           <Minus class="w-3.5 h-3.5" />
         </button>
@@ -324,7 +311,7 @@
           onclick={windowToggleMax}
           aria-label={isMaximised ? 'Restore window' : 'Maximize window'}
           title={isMaximised ? 'Restore' : 'Maximize'}
-          style="-webkit-app-region: no-drag;"
+          style="--wails-draggable: no-drag;"
         >
           {#if isMaximised}
             <Restore class="w-3.5 h-3.5" />
@@ -337,7 +324,7 @@
           onclick={windowClose}
           aria-label="Close window"
           title="Close"
-          style="-webkit-app-region: no-drag;"
+          style="--wails-draggable: no-drag;"
         >
           <X class="w-3.5 h-3.5" />
         </button>

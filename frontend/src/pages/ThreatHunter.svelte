@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { KPI, PageLayout, Button, Badge } from '@components/ui';
+  import { KPI, PageLayout, Button, Badge, PopOutButton} from '@components/ui';
   import { Search, Crosshair } from 'lucide-svelte';
 
   const hypotheses = [
@@ -17,7 +17,8 @@
       <Button variant="secondary" size="sm">Hunt Library</Button>
       <Button variant="primary" size="sm" icon="🔍">Begin New Mission</Button>
     </div>
-  {/snippet}
+      <PopOutButton route="/threat-hunter" title="Threat Hunter" />
+    {/snippet}
 
   <div class="flex flex-col h-full gap-6">
     <!-- Stats Row -->
