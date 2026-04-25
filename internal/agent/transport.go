@@ -240,32 +240,51 @@ func (t *Transport) FlushLoop(ctx context.Context, wal *WAL, maxBatch int, onCon
 }
 
 func (t *Transport) flushOnce(wal *WAL, maxBatch int, onConfig func(FleetConfig, []PendingAction)) error {
-	events, err := wal.ReadAll()
+	all, err := wal.ReadAll()
 	if err != nil {
 		return fmt.Errorf("WAL read: %w", err)
 	}
 
-	// Always send at least a heartbeat (empty batch)
+	// Filter out events the server has already acknowledged on a previous
+	// flush. Without this filter, a successful flush followed by a crash
+	// before TruncateUpTo would resend the entire WAL on restart; the
+	// server would dedupe it but the round-trip is wasted.
+	_, lastAcked := wal.Cursor().Snapshot()
+	var events []Event
+	for _, ev := range all {
+		if ev.Seq > lastAcked {
+			events = append(events, ev)
+		}
+	}
+
+	// Cap the batch size; the rest will be picked up on the next tick.
 	if len(events) > maxBatch {
 		events = events[:maxBatch]
 	}
 
-	cfg, actions, err := t.Send(events)
+	result, err := t.Send(events)
 	if err != nil {
 		return err
 	}
 
-	// Only truncate after confirmed server acknowledgement
-	if err := wal.Truncate(); err != nil {
-		t.log.Warn("[transport] WAL truncate failed: %v", err)
+	// Persist the new ack watermark before touching disk. If we crash
+	// between MarkAcked and TruncateUpTo, the next flush re-reads the WAL
+	// and the cursor filter above skips the already-acked prefix.
+	if result.AckedSeq > 0 {
+		if err := wal.Cursor().MarkAcked(result.AckedSeq); err != nil {
+			t.log.Warn("[transport] cursor ack persist failed: %v", err)
+		}
+		if err := wal.TruncateUpTo(result.AckedSeq); err != nil {
+			t.log.Warn("[transport] WAL truncate-up-to failed: %v", err)
+		}
 	}
 
-	if cfg != nil && onConfig != nil {
-		onConfig(*cfg, actions)
+	if onConfig != nil {
+		onConfig(result.Config, result.Actions)
 	}
 
 	if len(events) > 0 {
-		t.log.Info("[transport] Flushed %d events to server", len(events))
+		t.log.Info("[transport] Flushed %d events to server (acked_seq=%d)", len(events), result.AckedSeq)
 	}
 	return nil
 }

@@ -217,6 +217,11 @@ type AgentInfo struct {
 	LastSeen   string    `json:"last_seen"`
 	Status     string    `json:"status"`
 	PublicKey  []byte    `json:"public_key"` // 1.4: Hardware-rooted trust key (TPM)
+	// LastAckedSeq is the highest agent-assigned sequence number this server
+	// has durably accepted. Returned to the agent on every ingest so it can
+	// truncate its WAL up to that point; events with Seq <= LastAckedSeq are
+	// silently dropped as duplicate replays. Phase 22.1 reconnect guarantee.
+	LastAckedSeq uint64 `json:"last_acked_seq"`
 }
 
 // SearchRequest defines the JSON body for SIEM search endpoints

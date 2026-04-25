@@ -17,7 +17,14 @@ import (
 
 // AgentEvent mirrors the agent's Event struct for deserialization.
 // AgentID is required — agents stamp every event with their stable ID.
+//
+// Seq is a per-agent monotonically increasing sequence number assigned by
+// the agent's WAL. The server uses it for idempotent replay: events with
+// Seq <= AgentInfo.LastAckedSeq are silently dropped as duplicates from
+// a retry triggered by a previous-batch network failure. See
+// internal/agent/cursor.go for the agent-side persistence model.
 type AgentEvent struct {
+	Seq       uint64                 `json:"seq"`
 	Timestamp string                 `json:"timestamp"`
 	Source    string                 `json:"source"`
 	Type      string                 `json:"type"`
@@ -99,12 +106,22 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(events) == 0 {
-		// Heartbeat: update last-seen from headers even with no events
+		// Heartbeat: update last-seen from headers even with no events.
+		// Echo the current ack watermark so a heartbeat-only agent still
+		// learns it is in sync (e.g. a server that lost its agents map and
+		// rebuilt it can confirm "no events outstanding" via heartbeat).
 		s.updateAgentLastSeen(r)
+		ackedSeq := uint64(0)
+		s.agentsMu.RLock()
+		if a, ok := s.agents[r.Header.Get("X-Agent-ID")]; ok {
+			ackedSeq = a.LastAckedSeq
+		}
+		s.agentsMu.RUnlock()
 		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-			"accepted": 0,
-			"config":   map[string]interface{}{},
-			"actions":  []interface{}{},
+			"accepted":  0,
+			"config":    map[string]interface{}{},
+			"actions":   []interface{}{},
+			"acked_seq": ackedSeq,
 		})
 		return
 	}
@@ -148,13 +165,35 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		s.agentsMu.Unlock()
 	}
 
-	// Forward events to SIEM store
+	// Read the agent's current ack watermark — events at or below this Seq
+	// are duplicate replays (the agent retried after a server restart or
+	// network blip) and must be skipped to avoid double-ingestion.
+	prevAckedSeq := uint64(0)
+	s.agentsMu.RLock()
+	if a, ok := s.agents[agentID]; ok {
+		prevAckedSeq = a.LastAckedSeq
+	}
+	s.agentsMu.RUnlock()
+
+	// Forward events to SIEM store, tracking the highest-Seq event we
+	// successfully ingest so we can advance the watermark exactly that
+	// far. If event N+5 fails to insert but N+1..N+4 succeed, we ack N+4
+	// and force the agent to retry N+5 onward — no silent loss.
 	accepted := 0
+	skipped := 0
+	highestAckedThisBatch := prevAckedSeq
+
 	if s.siem != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
 		for _, ev := range events {
+			// Idempotency: drop replays of already-acked events.
+			if ev.Seq != 0 && ev.Seq <= prevAckedSeq {
+				skipped++
+				continue
+			}
+
 			rawLog := ""
 			if ev.Data != nil {
 				if raw, err := json.Marshal(ev.Data); err == nil {
@@ -171,19 +210,37 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := s.siem.InsertHostEvent(ctx, hostEvent); err != nil {
 				s.log.Warn("[agent] Failed to insert event from %s: %v", ev.Host, err)
-				continue
+				// Stop advancing the ack here — the agent must retry from
+				// this Seq forward on its next flush.
+				break
 			}
 			accepted++
+			if ev.Seq > highestAckedThisBatch {
+				highestAckedThisBatch = ev.Seq
+			}
 		}
 	}
 
-	s.log.Info("[agent] Ingested %d/%d events from host=%s agent=%s",
-		accepted, len(events), hostname, agentID)
+	// Persist the new watermark only if it actually advanced. A batch with
+	// no Seq fields (legacy agent) leaves the watermark untouched and the
+	// agent falls back to the local highest-Seq-in-batch on its end.
+	if highestAckedThisBatch > prevAckedSeq && agentID != "" {
+		s.agentsMu.Lock()
+		if a, ok := s.agents[agentID]; ok {
+			a.LastAckedSeq = highestAckedThisBatch
+		}
+		s.agentsMu.Unlock()
+	}
+
+	s.log.Info("[agent] Ingested %d (skipped %d duplicate) of %d events from host=%s agent=%s acked_seq=%d",
+		accepted, skipped, len(events), hostname, agentID, highestAckedThisBatch)
 
 	// Respond with fleet config + any pending actions for this agent
 	s.jsonResponse(w, http.StatusAccepted, map[string]interface{}{
-		"accepted": accepted,
-		"total":    len(events),
+		"accepted":  accepted,
+		"skipped":   skipped,
+		"total":     len(events),
+		"acked_seq": highestAckedThisBatch,
 		// Echo back minimal fleet config so agent can sync interval/toggles
 		"config": map[string]interface{}{
 			"interval":        30,
