@@ -1,16 +1,8 @@
-<!--
-  OBLIVRA — Purple Team (Svelte 5)
-  Adversary Simulation and Collaborative Defense Orchestration.
--->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Sword, Activity, Zap, Play, Skull } from 'lucide-svelte';
+  import { Sword, Activity, Skull } from 'lucide-svelte';
 
-  const simulations = [
-    { id: 'S-701', name: 'T1059.001 - PowerShell Execution', status: 'running', coverage: '82%', drift: 'Low' },
-    { id: 'S-702', name: 'T1566.001 - Spearphishing Attachment', status: 'completed', coverage: '100%', drift: 'Zero' },
-    { id: 'S-703', name: 'T1003.001 - LSASS Memory Dumping', status: 'blocked', coverage: '45%', drift: 'Critical' },
-  ];
+  const simulations = $state<any[]>([]);
 
   const columns = [
     { key: 'name', label: 'Tactical Mission / TTP' },
@@ -30,10 +22,10 @@
 
   <div class="flex flex-col h-full gap-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Active Emulations" value={simulations.filter(s => s.status === 'running').length} trend="stable" trendValue="Prioritized" variant="accent" />
-      <KPI label="Detection Coverage" value="88.2%" trend="up" trendValue="+4.1%" variant="success" />
-      <KPI label="Atomic Scenarios" value="1,422" trend="stable" trendValue="Verified" variant="success" />
-      <KPI label="Logic Drift" value="Minimal" trend="stable" trendValue="Hardened" variant="success" />
+      <KPI label="Active Emulations" value={simulations.filter(s => s.status === 'running').length} trend="stable" trendValue="Nominal" variant="accent" />
+      <KPI label="Detection Coverage" value="0%" trend="stable" trendValue="PENDING" variant="success" />
+      <KPI label="Atomic Scenarios" value="0" trend="stable" trendValue="Verified" variant="success" />
+      <KPI label="Logic Drift" value="Zero" trend="stable" trendValue="Hardened" variant="success" />
     </div>
 
     <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -43,34 +35,18 @@
             Platform Adversary Emulation Registry
          </div>
          <div class="flex-1 overflow-auto">
-            <DataTable data={simulations} {columns} compact>
-              {#snippet render({ value, col, row })}
-                {#if col.key === 'status'}
-                   <Badge variant={value === 'running' ? 'accent' : value === 'blocked' ? 'critical' : 'success'} dot={value === 'running'}>
-                      {String(value).toUpperCase()}
-                   </Badge>
-                {:else if col.key === 'coverage'}
-                   <div class="flex items-center gap-3">
-                      <div class="flex-1 bg-surface-3 h-1 rounded-full overflow-hidden min-w-[50px]">
-                         <div class="bg-accent h-full" style="width: {value}"></div>
-                      </div>
-                      <span class="text-[10px] font-mono font-bold text-text-heading">{value}</span>
-                   </div>
-                {:else if col.key === 'name'}
-                   <div class="flex items-center gap-2">
-                      <Skull size={14} class="text-error opacity-60" />
-                      <span class="text-[11px] font-bold text-text-heading">{value}</span>
-                   </div>
-                {:else if col.key === 'action'}
-                   <div class="flex gap-2">
-                      <Button variant="ghost" size="xs"><Play size={12} /></Button>
-                      <Button variant="ghost" size="xs"><Activity size={12} /></Button>
-                   </div>
-                {:else}
-                   <span class="text-[11px] text-text-secondary">{value}</span>
-                {/if}
-              {/snippet}
-            </DataTable>
+            {#if simulations.length === 0}
+               <div class="flex flex-col items-center justify-center h-full opacity-20 py-24 gap-4">
+                  <Skull size={48} />
+                  <span class="text-[10px] font-mono font-bold uppercase tracking-[0.2em]">No simulations orchestrated</span>
+               </div>
+            {:else}
+               <DataTable data={simulations} {columns} compact>
+                 {#snippet render()}
+                   <!-- Render logic -->
+                 {/snippet}
+               </DataTable>
+            {/if}
          </div>
       </div>
 
@@ -91,20 +67,9 @@
                <span>Blue-Cell Feedback Loop</span>
                <Badge variant="success" size="xs">SECURE</Badge>
             </div>
-            <div class="flex-1 space-y-5 overflow-y-auto pr-1">
-               {#each Array(4) as _, i}
-                  <div class="flex gap-4 items-start group">
-                     <div class="w-2 h-2 rounded-full bg-success mt-1.5 shrink-0 group-hover:scale-125 transition-transform"></div>
-                     <div class="flex flex-col gap-0.5">
-                        <span class="text-[11px] font-bold text-text-heading group-hover:text-success transition-colors">Alert V-{1000 + i * 42}: Logic Breach Blocked</span>
-                        <div class="flex items-center gap-2 text-[8px] text-text-muted font-mono uppercase tracking-widest font-bold">
-                           <span>LATENCY: 12ms</span>
-                           <span class="opacity-30">|</span>
-                           <span>SVR: MESH-NODE-{i + 1}</span>
-                        </div>
-                     </div>
-                  </div>
-               {/each}
+            <div class="flex-1 flex flex-col items-center justify-center opacity-10 gap-4">
+               <Activity size={32} />
+               <span class="text-[9px] font-mono font-bold uppercase tracking-widest">Awaiting engagement signals</span>
             </div>
          </div>
       </div>

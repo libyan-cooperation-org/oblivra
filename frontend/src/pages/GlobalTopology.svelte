@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button } from '@components/ui';
+  import { KPI, PageLayout, Button } from '@components/ui';
   import { Globe, Activity, Share2 } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
 
   const regions = $state<any[]>([]);
 </script>
@@ -41,7 +40,7 @@
                 </div>
              {:else}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 content-start w-full">
-                    {#each regions as region}
+                    {#each regions as _}
                         <!-- Region cards here -->
                     {/each}
                 </div>
