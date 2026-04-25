@@ -21,7 +21,10 @@ func NewWindowService(log *logger.Logger) *WindowService {
 
 func (s *WindowService) Name() string { return "window-service" }
 
-func (s *WindowService) PopOut(route string, title string) (int64, error) { return 0, nil }
-func (s *WindowService) ClosePopout(id int64) error                       { return nil }
-func (s *WindowService) CloseAllPopouts() int                             { return 0 }
-func (s *WindowService) ListPopouts() []int64                             { return nil }
+func (s *WindowService) PopOut(route string, title string) (int64, error)     { return 0, nil }
+func (s *WindowService) ClosePopout(id int64) error                            { return nil }
+func (s *WindowService) CloseAllPopouts() int                                  { return 0 }
+func (s *WindowService) ListPopouts() []int64                                  { return nil }
+func (s *WindowService) SaveWorkspace() (int, error)                           { return 0, nil }
+func (s *WindowService) RestoreWorkspace(closeExisting bool) (int, error)      { return 0, nil }
+func (s *WindowService) HasSavedWorkspace() bool                               { return false }

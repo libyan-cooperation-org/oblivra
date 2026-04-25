@@ -2,6 +2,51 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.3.0] - 2026-04-25
+
+### 🍔 Application Menu Bar (Phase 23.10 new)
+Wails v3 native menu bar — File, Edit, View, Navigate, Window, Help. Native roles for cut/copy/paste, undo/redo, fullscreen, zoom, reload. Custom items emit `menu:<action>` events that App.svelte routes to the right handler.
+
+Accelerators wired:
+- `Ctrl+T` New Local Terminal
+- `Ctrl+Shift+O` Pop Out Current Page
+- `Ctrl+B` Toggle Sidebar
+- `Ctrl+K` Command Palette (already existed; menu makes it discoverable)
+- `Ctrl+1..5` Quick-jump to Dashboard / SIEM / Alerts / Fleet / Terminal
+- `Ctrl+Shift+S/R` Save / Restore Workspace
+- `Ctrl+/` Keyboard Shortcuts
+- `Ctrl+,` Settings
+
+### 🔔 System Tray (Phase 23.10 new)
+Minimize-to-tray with a quick-action menu: Show OBLIVRA, Open SIEM/Alerts/Fleet/Terminal, New Pop-Out → SIEM/Alerts, Close All Pop-Outs, Quit. Tray icon embedded via `//go:embed appicon.png` so it works in air-gap deployments. Critical for ops-room ambient awareness on a shared monitor.
+
+### 💾 Workspace Save/Restore (Phase 23.11 new)
+- `WindowService.SaveWorkspace()` captures every open pop-out's route, title, and best-effort position+size to `<DataDir>/workspace.json` (atomic temp-file + rename, schema-versioned).
+- `WindowService.RestoreWorkspace(closeExisting)` re-opens the captured layout — operator's 4-monitor workspace survives a restart with one click.
+- `HasSavedWorkspace()` lets the frontend decide when to prompt for restore.
+
+### 🔕 Notification Center (Phase 23.12 new)
+- New `notificationStore` (Svelte 5 runes) — persistent log backed by `localStorage`, 200-entry cap, quota-exhaustion fallback.
+- `NotificationDrawer.svelte` — slide-in panel from the right with per-entry trash, "Mark all read" / "Clear all" footer, level-coloured rails, relative-time stamps. Click-through navigates if the entry carries an action.
+- **Bell button in TitleBar** — unread count badge (red on critical, accent blue otherwise; "99+" if >99).
+- **Toast bridge** — every `toastStore.add(...)` mirrors into the notification log, so toasts that auto-dismiss in 5s still survive in history.
+
+### 🪟 Multi-Monitor Pop-Out — Rollout
+PopOutButton now on **8 more pages**: NetworkMap, MitreHeatmap, NDROverview, UEBAOverview, FusionDashboard, OpsCenter, IncidentTimeline, EvidenceLedger. Total now 12 pop-out-enabled pages.
+
+### 🎨 UX State Polish — AlertManagement
+- Cold-load: `LoadingSkeleton` row grid replaces the empty-table flash.
+- Filter-yields-zero-results: `EmptyState` with "Clear search" / "Show open alerts" recovery actions instead of an empty table.
+
+### 🛠️ Build Stability
+- Fixed `wails3 build` failure (`build/agent/Taskfile.yml` not found): made all four platform Taskfile includes `optional: true`, scaffolded `build/Taskfile.yml` (common: tasks) and `build/windows/Taskfile.yml` (frontend bundle dependency + Go compile with `-H windowsgui`). `wails3 build` now produces `bin/oblivrashell.exe` from a clean checkout.
+
+### 📝 Documentation
+- task.md: new Phase 23 sections — 23.10 (Menu Bar + Tray), 23.11 (Workspace Save/Restore), 23.12 (Notification Center), 23.13 (PopOut Rollout). All marked ✅.
+- README badge bumped to 1.3.0.
+
+---
+
 ## [1.2.0] - 2026-04-25
 
 ### 🖥️ SOC Multi-Monitor Pop-Out

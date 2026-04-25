@@ -3,7 +3,7 @@
   Real-time behavioral intelligence and anomaly orchestration.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, ProgressBar } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, ProgressBar, PopOutButton } from '@components/ui';
   import { User, Monitor, Activity, Radar } from 'lucide-svelte';
   import { uebaStore } from '@lib/stores/ueba.svelte';
   import { onMount } from 'svelte';
@@ -22,6 +22,7 @@
     <div class="flex items-center gap-2">
       <Button variant="secondary" size="sm" onclick={() => uebaStore.refresh()} loading={uebaStore.loading}>BASELINE STATUS</Button>
       <Button variant="primary" size="sm">DOWNLOAD AUDIT</Button>
+      <PopOutButton route="/ueba" title="UEBA Overview" />
     </div>
   {/snippet}
 

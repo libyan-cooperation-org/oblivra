@@ -3,7 +3,7 @@
   Geospatial network visualization: Mapping platform presence across global zones.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Button, Chart } from '@components/ui';
+  import { KPI, PageLayout, Button, Chart, PopOutButton } from '@components/ui';
   import type { EChartsOption } from 'echarts';
   import { ndrStore } from '@lib/stores/ndr.svelte';
   import { onMount } from 'svelte';
@@ -48,6 +48,7 @@
   {#snippet toolbar()}
      <Button variant="secondary" size="sm">Animate Flows</Button>
      <Button variant="primary" size="sm">Zone Re-allocate</Button>
+     <PopOutButton route="/network-map" title="Network Map" />
   {/snippet}
 
   <div class="flex flex-col h-full gap-5">

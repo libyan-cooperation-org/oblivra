@@ -3,7 +3,7 @@
   Immutable hash-linked record of all SOC actions and forensic evidence.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { KPI, PageLayout, Badge, Button, DataTable, PopOutButton } from '@components/ui';
   import { Shield } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
 
@@ -24,6 +24,7 @@
       </div>
       <Button variant="secondary" size="sm">Export Signed Bundle</Button>
       <Button variant="primary" size="sm" onclick={() => appStore.notify('Re-indexing blockchain segments...', 'info')}>Verify Integrity</Button>
+      <PopOutButton route="/ledger" title="Evidence Ledger" />
     </div>
   {/snippet}
 

@@ -103,6 +103,18 @@ func runGUI() {
 		oblivraApp.DomReady(context.Background())
 	}()
 
+	// Phase 22.5 + SOC UX — wire the application menu (File / Edit / View /
+	// Navigate / Window / Help) before any window is shown. Native OS
+	// chrome on macOS picks this up automatically; Windows shows it under
+	// the title bar; Linux GTK4 ignores it and the in-app menu is the
+	// fallback (see frontend/src/components/layout/TitleBar.svelte).
+	app.Menu.Set(oblivraApp.BuildApplicationMenu())
+
+	// SOC ambient awareness — tray icon stays visible while the operator is
+	// in a different app, with a quick-action menu (open SIEM / alerts /
+	// terminal, pop-out shortcuts, quit).
+	oblivraApp.SetupSystemTray()
+
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "OblivraShell",
 		Width:            1280,

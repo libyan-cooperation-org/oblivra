@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { PageLayout, Badge, Button } from '@components/ui';
+  import { PageLayout, Badge, Button, PopOutButton } from '@components/ui';
   import { Layers, Target, Filter } from 'lucide-svelte';
 
   interface Campaign {
@@ -43,6 +43,7 @@
     <div class="flex items-center gap-2">
       <Button variant="secondary" size="sm" icon={Filter}>LAYER FILTER</Button>
       <Button variant="primary" size="sm">NEW CAMPAIGN</Button>
+      <PopOutButton route="/fusion" title="Fusion Intelligence" />
     </div>
   {/snippet}
 

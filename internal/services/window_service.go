@@ -3,15 +3,32 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/platform"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// popoutRecord tracks a pop-out window plus the metadata needed to restore
+// it later (workspace persistence). The window handle is short-lived; the
+// metadata survives a process restart via WorkspaceFile().
+type popoutRecord struct {
+	handle *application.WebviewWindow
+	Route  string `json:"route"`
+	Title  string `json:"title,omitempty"`
+	X      int    `json:"x,omitempty"`
+	Y      int    `json:"y,omitempty"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
+}
 
 // WindowService is a Wails-bound service that lets the frontend pop a panel
 // out into its own native window — the SOC operator pattern of "drag the
@@ -20,20 +37,20 @@ import (
 // same Go process and the same in-memory data, so there's zero IPC round
 // trip between the panel views.
 //
-// SOC multi-monitor support.
+// SOC multi-monitor support + workspace save/restore.
 type WindowService struct {
 	BaseService
 	log *logger.Logger
 
-	mu       sync.Mutex
-	popouts  map[int64]*application.WebviewWindow // window-id → window handle
-	nextID   atomic.Int64
+	mu      sync.Mutex
+	popouts map[int64]*popoutRecord // window-id → record
+	nextID  atomic.Int64
 }
 
 func NewWindowService(log *logger.Logger) *WindowService {
 	return &WindowService{
 		log:     log.WithPrefix("window"),
-		popouts: make(map[int64]*application.WebviewWindow),
+		popouts: make(map[int64]*popoutRecord),
 	}
 }
 
@@ -91,7 +108,11 @@ func (s *WindowService) PopOut(route string, title string) (int64, error) {
 
 	id := s.nextID.Add(1)
 	s.mu.Lock()
-	s.popouts[id] = win
+	s.popouts[id] = &popoutRecord{
+		handle: win,
+		Route:  route,
+		Title:  title,
+	}
 	s.mu.Unlock()
 	s.log.Info("popped out route=%s as window id=%d title=%q", route, id, title)
 	return id, nil
@@ -101,13 +122,13 @@ func (s *WindowService) PopOut(route string, title string) (int64, error) {
 // returns nil if the ID was already closed/unknown.
 func (s *WindowService) ClosePopout(id int64) error {
 	s.mu.Lock()
-	win, ok := s.popouts[id]
+	rec, ok := s.popouts[id]
 	delete(s.popouts, id)
 	s.mu.Unlock()
-	if !ok || win == nil {
+	if !ok || rec == nil || rec.handle == nil {
 		return nil
 	}
-	win.Close()
+	rec.handle.Close()
 	return nil
 }
 
@@ -119,9 +140,9 @@ func (s *WindowService) CloseAllPopouts() int {
 	defer s.mu.Unlock()
 
 	closed := 0
-	for id, win := range s.popouts {
-		if win != nil {
-			win.Close()
+	for id, rec := range s.popouts {
+		if rec != nil && rec.handle != nil {
+			rec.handle.Close()
 			closed++
 		}
 		delete(s.popouts, id)
@@ -145,4 +166,154 @@ func (s *WindowService) ListPopouts() []int64 {
 		out = append(out, id)
 	}
 	return out
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workspace save / restore
+//
+// Captures the route + position + size of every open pop-out and the main
+// window, persists to <DataDir>/workspace.json, and restores them on the
+// next launch (or on demand via the menu's "Restore Workspace" item).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// WorkspaceSnapshot is the on-disk layout — versioned so future schema
+// changes can detect and migrate old files.
+type WorkspaceSnapshot struct {
+	Version int            `json:"version"`
+	Popouts []popoutRecord `json:"popouts"`
+}
+
+const workspaceSchemaVersion = 1
+
+func workspaceFilePath() string {
+	return filepath.Join(platform.DataDir(), "workspace.json")
+}
+
+// SaveWorkspace captures every currently-open pop-out's route + geometry
+// to <DataDir>/workspace.json. Returns the number of pop-outs saved.
+//
+// Geometry is best-effort: if a window's Position()/Size() call panics or
+// returns zero (some Wails platforms haven't initialised the surface yet),
+// we fall back to defaults — the route is the important bit.
+func (s *WindowService) SaveWorkspace() (int, error) {
+	s.mu.Lock()
+	snapshot := WorkspaceSnapshot{Version: workspaceSchemaVersion}
+	for _, rec := range s.popouts {
+		if rec == nil {
+			continue
+		}
+		entry := popoutRecord{
+			Route: rec.Route,
+			Title: rec.Title,
+		}
+		if rec.handle != nil {
+			// Wails v3 panics defensively if a window is in an odd state
+			// during shutdown; guard against that so SaveWorkspace never
+			// kills the host process.
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.log.Warn("SaveWorkspace: window geometry probe panicked: %v", r)
+					}
+				}()
+				if x, y := rec.handle.Position(); x != 0 || y != 0 {
+					entry.X, entry.Y = x, y
+				}
+				if w, h := rec.handle.Size(); w > 0 && h > 0 {
+					entry.Width, entry.Height = w, h
+				}
+			}()
+		}
+		snapshot.Popouts = append(snapshot.Popouts, entry)
+	}
+	s.mu.Unlock()
+
+	data, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return 0, fmt.Errorf("marshal workspace: %w", err)
+	}
+	path := workspaceFilePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return 0, fmt.Errorf("workspace dir: %w", err)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return 0, fmt.Errorf("write workspace temp: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return 0, fmt.Errorf("rename workspace: %w", err)
+	}
+
+	s.log.Info("saved workspace with %d pop-out(s) to %s", len(snapshot.Popouts), path)
+	return len(snapshot.Popouts), nil
+}
+
+// RestoreWorkspace re-opens the pop-outs captured by the most recent
+// SaveWorkspace. Idempotent in the sense that calling it twice produces
+// duplicate windows — by design, since multiple pop-outs of the same
+// route is a valid SOC pattern. Closes existing pop-outs first if
+// `closeExisting` is true, so the operator can use it as a "reset to my
+// saved layout" action.
+//
+// Returns the number of pop-outs restored.
+func (s *WindowService) RestoreWorkspace(closeExisting bool) (int, error) {
+	data, err := os.ReadFile(workspaceFilePath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil // nothing saved — no-op, not an error
+		}
+		return 0, fmt.Errorf("read workspace: %w", err)
+	}
+	var snap WorkspaceSnapshot
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return 0, fmt.Errorf("parse workspace: %w", err)
+	}
+	if snap.Version != workspaceSchemaVersion {
+		return 0, fmt.Errorf("unsupported workspace version %d (this build expects %d)",
+			snap.Version, workspaceSchemaVersion)
+	}
+
+	if closeExisting {
+		s.CloseAllPopouts()
+	}
+
+	restored := 0
+	for _, entry := range snap.Popouts {
+		id, err := s.PopOut(entry.Route, entry.Title)
+		if err != nil {
+			s.log.Warn("RestoreWorkspace: skipping %q: %v", entry.Route, err)
+			continue
+		}
+		// Re-apply geometry if we have it. SetPosition/SetSize are no-ops
+		// when the values are zero or invalid for the current screen layout.
+		s.mu.Lock()
+		rec := s.popouts[id]
+		s.mu.Unlock()
+		if rec != nil && rec.handle != nil {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						s.log.Warn("RestoreWorkspace: geometry restore panicked: %v", r)
+					}
+				}()
+				if entry.X != 0 || entry.Y != 0 {
+					rec.handle.SetPosition(entry.X, entry.Y)
+				}
+				if entry.Width > 0 && entry.Height > 0 {
+					rec.handle.SetSize(entry.Width, entry.Height)
+				}
+			}()
+		}
+		restored++
+	}
+	s.log.Info("restored %d pop-out(s) from workspace.json", restored)
+	return restored, nil
+}
+
+// HasSavedWorkspace returns true when a workspace.json exists. Used by the
+// frontend to decide whether to show "Restore Workspace?" prompts on cold
+// boot.
+func (s *WindowService) HasSavedWorkspace() bool {
+	_, err := os.Stat(workspaceFilePath())
+	return err == nil
 }

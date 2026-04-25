@@ -3,7 +3,7 @@
   The Command and Control Hub: Managing clusters and active operator mission-sets.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button } from '@components/ui';
+  import { PageLayout, Badge, Button, PopOutButton } from '@components/ui';
   import { Terminal, Cpu, Zap } from 'lucide-svelte';
 
   interface CommandEntry {
@@ -31,6 +31,7 @@
         <span class="text-[9px] font-mono text-accent font-bold uppercase tracking-widest">Operator Online</span>
       </div>
       <Button variant="primary" size="sm">NEW MISSION</Button>
+      <PopOutButton route="/ops" title="Operations Center" />
     </div>
   {/snippet}
 

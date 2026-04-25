@@ -3,7 +3,7 @@
   Detection rule orchestration and signal filtering.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs, EmptyState, LoadingSkeleton } from '@components/ui';
   import { Zap, ShieldAlert, MoreHorizontal } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
@@ -129,6 +129,29 @@
 
     <!-- ALERT TABLE -->
     <div class="flex-1 overflow-hidden relative">
+        {#if alertStore.isLoading && filteredAlerts.length === 0}
+            <!-- Skeleton on cold load — replaces the spinner+empty-table flash -->
+            <div class="px-6 py-4">
+                <LoadingSkeleton rows={8} columns={6} />
+            </div>
+        {:else if filteredAlerts.length === 0}
+            <!-- Helpful empty state explains what filter/tab is hiding the data -->
+            <EmptyState
+                title="No alerts in this view"
+                description={searchQuery
+                    ? `Nothing matches "${searchQuery}" with the current severity + tab filters.`
+                    : `Nothing in the ${activeTab.toLowerCase()} bucket. Try a different tab or widen the severity filter.`}
+                icon="🛡"
+            >
+                {#snippet action()}
+                    {#if searchQuery}
+                        <Button variant="secondary" onclick={() => (searchQuery = '')}>Clear search</Button>
+                    {:else}
+                        <Button variant="secondary" onclick={() => (activeTab = 'OPEN')}>Show open alerts</Button>
+                    {/if}
+                {/snippet}
+            </EmptyState>
+        {:else}
         {#if alertStore.isLoading}
             <div class="absolute inset-0 bg-surface-1/50 backdrop-blur-xs z-20 flex items-center justify-center">
                 <Spinner />
@@ -136,8 +159,8 @@
         {/if}
 
         <div class="h-full overflow-auto">
-            <DataTable 
-                data={filteredAlerts} 
+            <DataTable
+                data={filteredAlerts}
                 onRowClick={handleRowClick}
                 columns={[
                     { key: 'severity', label: 'SEV', width: '60px' },
@@ -194,6 +217,7 @@
                 {/snippet}
             </DataTable>
         </div>
+        {/if}
     </div>
 
     <!-- DETAIL DRAWER -->

@@ -3,7 +3,7 @@
   Interactive visualization of adversary techniques detected in the environment.
 -->
 <script lang="ts">
-  import { Chart, PageLayout, Badge, Button, Tabs } from '@components/ui';
+  import { Chart, PageLayout, Badge, Button, Tabs, PopOutButton } from '@components/ui';
   import type { EChartsOption } from 'echarts';
 
   const tactics = [
@@ -79,6 +79,7 @@
   {#snippet toolbar()}
     <Badge variant="accent" dot>LIVE FEED ACTIVE</Badge>
     <Button variant="secondary" size="sm">Export Report</Button>
+    <PopOutButton route="/mitre-heatmap" title="MITRE ATT&CK Heatmap" />
   {/snippet}
 
   <div class="flex flex-col h-full gap-5">

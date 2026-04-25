@@ -5,12 +5,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { 
-    PageLayout, 
-    Button, 
-    Badge, 
+  import {
+    PageLayout,
+    Button,
+    Badge,
     Spinner,
-    EmptyState
+    EmptyState,
+    PopOutButton
   } from '@components/ui';
   import { 
     History, 
@@ -73,6 +74,7 @@
         <History size={14} class="mr-1" />
         Regenerate Story
       </Button>
+      <PopOutButton route={window.location.pathname} title="Incident Timeline" />
     </div>
   {/snippet}
 

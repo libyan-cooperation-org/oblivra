@@ -11,7 +11,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
+  import NotificationDrawer from '@components/layout/NotificationDrawer.svelte';
   import BottomNav from '@components/layout/BottomNav.svelte';
+  import { notificationStore } from '@lib/stores/notifications.svelte';
   import LoadingScreen from '@components/ui/LoadingScreen.svelte';
   import ErrorScreen from '@components/ui/ErrorScreen.svelte';
   import { siemStore } from '@lib/stores/siem.svelte';
@@ -256,6 +258,83 @@ import Sidebar from '@components/layout/CommandRail.svelte';
         rt.EventsOn('system.toast', (toast: any) => {
           toastStore.add(toast);
         });
+
+        // ── Menu / tray event handlers ────────────────────────────────
+        // The native application menu and system tray (internal/app/menu.go,
+        // internal/app/tray.go) emit menu:* / tray:* events instead of
+        // directly mutating frontend state — this keeps the menu Go code
+        // ignorant of router/UI internals.
+        rt.EventsOn('menu:goto', (route: string) => {
+          appStore.navigate(route);
+        });
+        rt.EventsOn('menu:new-terminal', () => {
+          appStore.navigate('/terminal');
+          appStore.connectToLocal?.();
+        });
+        rt.EventsOn('menu:command-palette', () => {
+          appStore.showCommandPalette = true;
+        });
+        rt.EventsOn('menu:toggle-sidebar', () => {
+          appStore.sidebarVisible = !appStore.sidebarVisible;
+        });
+        rt.EventsOn('menu:popout-current', async () => {
+          try {
+            const mod = await import(
+              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
+            );
+            await mod.PopOut(window.location.pathname, document.title || '');
+          } catch (e) {
+            toastStore.add({ type: 'error', title: 'Pop-out failed', message: String(e) });
+          }
+        });
+        rt.EventsOn('menu:close-popouts', async () => {
+          try {
+            const mod = await import(
+              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
+            );
+            const closed = await mod.CloseAllPopouts();
+            toastStore.add({ type: 'info', title: 'Pop-outs closed', message: `${closed} window(s)` });
+          } catch { /* noop */ }
+        });
+        rt.EventsOn('menu:save-workspace', async () => {
+          try {
+            const mod = await import(
+              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
+            );
+            const count = await mod.SaveWorkspace();
+            toastStore.add({ type: 'info', title: 'Workspace saved', message: `${count} pop-out(s)` });
+          } catch (e) {
+            toastStore.add({ type: 'error', title: 'Workspace save failed', message: String(e) });
+          }
+        });
+        rt.EventsOn('menu:restore-workspace', async () => {
+          try {
+            const mod = await import(
+              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
+            );
+            const count = await mod.RestoreWorkspace(true);
+            toastStore.add({ type: 'info', title: 'Workspace restored', message: `${count} pop-out(s)` });
+          } catch (e) {
+            toastStore.add({ type: 'error', title: 'Workspace restore failed', message: String(e) });
+          }
+        });
+        rt.EventsOn('menu:diagnostics', () => {
+          // Diagnostics modal is owned by appStore; trigger it the same way
+          // the bottom-bar grade chip does.
+          (appStore as any).showDiagnostics?.() ??
+            appStore.navigate('/monitoring');
+        });
+        rt.EventsOn('menu:open-url', (url: string) => {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        });
+        rt.EventsOn('tray:popout', async (route: string) => {
+          try {
+            const mod = await import(
+              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
+            );
+            await mod.PopOut(route, '');
+          } catch { /* noop */ }
+        });
       }
 
       await appStore.init();
@@ -394,6 +473,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       {/if}
 
       <ToastContainer />
+      <NotificationDrawer />
     </div>
   {:else if error}
     <ErrorScreen message={error} />

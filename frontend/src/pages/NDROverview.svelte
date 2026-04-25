@@ -3,7 +3,7 @@
   Deep packet inspection and traffic flow analysis.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, PopOutButton } from '@components/ui';
   import { Activity, Share2, ArrowRight, Filter, Shield } from 'lucide-svelte';
 
   const flows = [
@@ -20,6 +20,7 @@
     <div class="flex items-center gap-2">
       <Button variant="secondary" size="sm" icon={Filter}>FLOW FILTERS</Button>
       <Button variant="primary" size="sm">ENGAGE IDS</Button>
+      <PopOutButton route="/ndr" title="NDR Overview" />
     </div>
   {/snippet}
 

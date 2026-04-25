@@ -17,7 +17,8 @@
   import { IS_BROWSER } from '@lib/context';
   import { appStore } from '@lib/stores/app.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
-  import { Minus, Square, X, Copy as Restore, Monitor, ExternalLink, Layout } from 'lucide-svelte';
+  import { Minus, Square, X, Copy as Restore, Monitor, ExternalLink, Layout, Bell } from 'lucide-svelte';
+  import { notificationStore } from '@lib/stores/notifications.svelte';
 
   // Platform detection — userAgent is reliable enough for picking chrome style.
   // We default to "win" if uncertain because that's the dominant SOC operator
@@ -227,6 +228,25 @@
       <span class="ml-auto text-text-muted text-[8px] font-mono opacity-40">⌃K</span>
     </button>
   </div>
+
+  <!-- Notification bell -->
+  <button
+    class="relative h-8 w-8 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer shrink-0"
+    onclick={() => notificationStore.toggleDrawer()}
+    aria-label="Notifications {notificationStore.unreadCount > 0 ? `(${notificationStore.unreadCount} unread)` : ''}"
+    title={notificationStore.unreadCount > 0 ? `${notificationStore.unreadCount} unread notifications` : 'Notifications'}
+    style="-webkit-app-region: no-drag;"
+  >
+    <Bell class="w-3.5 h-3.5" />
+    {#if notificationStore.unreadCount > 0}
+      <span
+        class="absolute top-1 right-1 min-w-[14px] h-[14px] px-1 rounded-full text-[8px] font-mono font-bold flex items-center justify-center {notificationStore.criticalUnread > 0 ? 'bg-error text-white' : 'bg-accent text-black'}"
+        aria-hidden="true"
+      >
+        {notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount}
+      </span>
+    {/if}
+  </button>
 
   <!-- Operator -->
   <div class="flex items-center gap-2 shrink-0">

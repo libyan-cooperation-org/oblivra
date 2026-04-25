@@ -978,6 +978,28 @@
 
 ### 23.9 — UX State Primitives ✅ (new)
 - [x] **`LoadingSkeleton.svelte`** added to `@components/ui` barrel. Three variants (`row` / `card` / `block`) with shimmer animation that respects `prefers-reduced-motion`. Pairs with the existing `EmptyState`, `LoadingScreen`, `ErrorScreen`, and `Spinner` primitives — page authors now have the full set without rolling their own.
+- [x] **AlertManagement** opted in: cold-load shows `LoadingSkeleton` row grid, filter-yields-zero-results shows `EmptyState` with "Clear search" / "Show open alerts" recovery actions instead of an empty table.
+
+### 23.10 — Application Menu Bar + System Tray ✅ (new)
+> Wails v3 native menu bar + system tray for SOC operators who want full keyboard / OS-level control without ever opening the main window.
+
+- [x] **Application menu** (`internal/app/menu.go`) — File, Edit, View, Navigate, Window, Help submenus. Native roles for cut/copy/paste, undo/redo, fullscreen, zoom, reload. Custom items emit `menu:<action>` events on the Wails event bus; `App.svelte` onMount listens and dispatches to `appStore.navigate(...)`, `appStore.toggleCommandPalette()`, the `WindowService` pop-out methods, etc. Accelerators wired: `Ctrl+T` new terminal, `Ctrl+Shift+O` pop out current, `Ctrl+B` toggle sidebar, `Ctrl+1..5` quick-jump to Dashboard / SIEM / Alerts / Fleet / Terminal, `Ctrl+Shift+S/R` save/restore workspace, `Ctrl+/` shortcuts, `Ctrl+,` settings.
+- [x] **System tray** (`internal/app/tray.go`) — minimize-to-tray with a quick-action menu: Show OBLIVRA, Open SIEM/Alerts/Fleet/Terminal, New Pop-Out → SIEM/Alerts, Close All Pop-Outs, Quit. Tray icon embedded via `//go:embed appicon.png` so it works in air-gap deployments. Click-through emits `tray:show` / `menu:goto` / `tray:popout` events the frontend listens for.
+
+### 23.11 — Workspace Save/Restore ✅ (new)
+- [x] **`WindowService.SaveWorkspace()`** — captures every open pop-out's route, title, and (best-effort) position+size to `<DataDir>/workspace.json`. Atomic temp-file + rename. Wails-bound so the menu's "Save Workspace" item invokes it.
+- [x] **`WindowService.RestoreWorkspace(closeExisting)`** — reads the saved file, optionally closes existing pop-outs, then re-opens each captured route via `PopOut`. Geometry restoration is best-effort with panic-recovery (Wails panics defensively on stale window handles during shutdown).
+- [x] **`HasSavedWorkspace()`** — frontend-side check used to decide whether to surface "Restore Workspace?" prompts on cold boot.
+- [x] Schema versioned (`workspace_schema_version = 1`) so future migrations can detect old files.
+
+### 23.12 — Notification Center ✅ (new)
+- [x] **`notificationStore`** (`frontend/src/lib/stores/notifications.svelte.ts`) — persistent log of toasts + system events. Backed by `localStorage` with a 200-entry cap and quota-exhaustion fallback (drops oldest half on retry). Tracks read/unread state.
+- [x] **`NotificationDrawer.svelte`** (`frontend/src/components/layout/`) — slide-in panel with per-entry trash, "Mark all read" + "Clear all" footer, level-coloured rails (critical/error red, warning amber, success green, info blue), relative-time stamps. Click-through optionally navigates via `entry.action.route`.
+- [x] **Bell button in TitleBar** — unread count badge (red on critical, accent blue otherwise; "99+" if >99). Toggles the drawer.
+- [x] **Toast bridge** — every `toastStore.add(...)` call now mirrors into `notificationStore.push(...)`, so toasts that auto-dismiss in 5s still survive in the drawer history.
+
+### 23.13 — Multi-Monitor Pop-Out Rollout ✅ (extending 23.7)
+- [x] PopOutButton now opted in on **NetworkMap, MitreHeatmap, NDROverview, UEBAOverview, FusionDashboard, OpsCenter, IncidentTimeline, EvidenceLedger** (in addition to the original SIEMSearch / AlertManagement / AlertDashboard / FleetDashboard from v1.2.0). Total: 12 pages now poppable.
 
 ---
 
