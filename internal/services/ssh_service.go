@@ -423,6 +423,7 @@ func (s *SSHService) registerSessionCallbacks(ctx context.Context, session *ssh.
 			} else {
 				// Fallback if batcher somehow missing
 				encoded := base64.StdEncoding.EncodeToString(data)
+				EmitEvent(fmt.Sprintf("terminal:out:%s", sessionID), encoded)
 				EmitEvent(fmt.Sprintf("session.output.%s", sessionID), encoded)
 			}
 

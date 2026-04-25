@@ -222,6 +222,16 @@ class AppStore {
             const { StartLocalSession } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
             const sessionId = await StartLocalSession();
             if (sessionId) {
+                // Optimistic add to ensure UI updates immediately even if event is slightly delayed
+                if (!this.sessions.find(s => s.id === sessionId)) {
+                    this.sessions = [...this.sessions, {
+                        id: sessionId,
+                        hostId: 'local',
+                        status: 'active',
+                        hostLabel: 'Local Terminal',
+                        startedAt: new Date().toISOString()
+                    }];
+                }
                 this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
                 push('/terminal');

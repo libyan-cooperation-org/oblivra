@@ -99,11 +99,38 @@
       }
     } catch { /* dev */ }
   }
+
+  /**
+   * handleMousedown — Manual drag fallback.
+   * On Linux/Windows, CSS -webkit-app-region: drag can sometimes be blocked
+   * by nested elements or specific window managers. Explicitly calling
+   * Window.Drag() on the header ensures the operator can always move the app.
+   */
+  async function handleMousedown(e: MouseEvent) {
+    // Only trigger on left-click
+    if (e.button !== 0) return;
+
+    // Do NOT drag if the user is clicking an interactive element (button, input, etc)
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, a, select, textarea, [style*="no-drag"]')) {
+      return;
+    }
+
+    try {
+      const { Window } = await import('@wailsio/runtime');
+      if (Window && typeof (Window as any).Drag === 'function') {
+        (Window as any).Drag();
+      }
+    } catch {
+      /* dev / web mode */
+    }
+  }
 </script>
 
 <header
-  class="flex items-center h-8 bg-surface-1 border-b border-border-primary select-none z-50 px-2 gap-3 shrink-0"
+  class="flex items-center h-8 bg-surface-1 border-b border-border-primary select-none z-50 px-2 gap-3 shrink-0 cursor-grab active:cursor-grabbing hover:bg-surface-2 transition-colors duration-200"
   style="-webkit-app-region: drag;"
+  onmousedown={handleMousedown}
 >
   <!-- macOS traffic lights (left side, Mac-only) -->
   {#if !IS_BROWSER && platform === 'mac'}
@@ -134,7 +161,7 @@
   {/if}
 
   <!-- Brand + context badge -->
-  <div class="flex items-center gap-2 shrink-0" style="-webkit-app-region: no-drag;">
+  <div class="flex items-center gap-2 shrink-0">
     <span class="text-text-heading font-mono text-[11px] font-semibold tracking-[0.1em]">
       OBL<em class="text-error not-italic">IV</em>RA
     </span>
@@ -149,19 +176,20 @@
   <div class="w-px h-3.5 bg-border-primary shrink-0"></div>
 
   <!-- Sovereign status -->
-  <div class="flex items-center gap-1.5 shrink-0" style="-webkit-app-region: no-drag;">
+  <div class="flex items-center gap-1.5 shrink-0">
     <div class="w-1.5 h-1.5 rounded-full bg-success shrink-0"></div>
     <span class="text-[9px] font-mono text-text-muted uppercase tracking-wider">Sovereign Cloud</span>
   </div>
 
   <!-- Pop-out indicator — visible only when one or more pop-outs are open -->
   {#if popoutCount > 0}
-    <div class="flex items-center gap-1.5 shrink-0" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center gap-1.5 shrink-0">
       <div class="w-px h-3.5 bg-border-primary"></div>
       <button
         class="flex items-center gap-1 text-[8px] font-mono text-text-muted hover:text-text-heading uppercase tracking-wider bg-transparent border-none cursor-pointer"
         onclick={closeAllPopouts}
         title="Close all pop-out windows"
+        style="-webkit-app-region: no-drag;"
       >
         <Monitor class="w-3 h-3" />
         <span>{popoutCount} POP-OUT{popoutCount === 1 ? '' : 'S'}</span>
@@ -171,7 +199,7 @@
 
   <!-- Severity chips -->
   {#if critCount > 0 || highCount > 0}
-    <div class="flex items-center gap-1.5 shrink-0" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center gap-1.5 shrink-0">
       <div class="w-px h-3.5 bg-border-primary"></div>
       {#if critCount > 0}
         <span class="px-1.5 py-px text-[8px] font-mono font-bold rounded-sm
@@ -179,18 +207,19 @@
       {/if}
       {#if highCount > 0}
         <span class="px-1.5 py-px text-[8px] font-mono font-bold rounded-sm
-          bg-warning/12 text-warning border border-warning/25">HIGH {highCount}</span>
+          bg-warning/12 text-warning border border-warning/25" style="-webkit-app-region: no-drag;">HIGH {highCount}</span>
       {/if}
     </div>
   {/if}
 
   <!-- Centered command search — fills the drag area but doesn't drag itself -->
-  <div class="flex-1 flex justify-center" style="-webkit-app-region: no-drag;">
+  <div class="flex-1 flex justify-center">
     <button
       type="button"
       class="flex items-center bg-surface-3 border border-border-primary rounded-sm px-2.5 h-[20px] gap-2 w-[240px]
              hover:border-border-hover transition-colors cursor-pointer"
       onclick={() => appStore.toggleCommandPalette()}
+      style="-webkit-app-region: no-drag;"
     >
       <span class="text-text-muted text-[8px] font-mono tracking-wide opacity-60">Search commands…</span>
       <span class="ml-auto text-text-muted text-[8px] font-mono opacity-40">⌃K</span>
@@ -198,7 +227,7 @@
   </div>
 
   <!-- Operator -->
-  <div class="flex items-center gap-2 shrink-0" style="-webkit-app-region: no-drag;">
+  <div class="flex items-center gap-2 shrink-0">
     <span class="text-[9px] font-mono text-text-muted">OPERATOR ·</span>
     <span class="text-[9px] font-mono text-text-heading font-semibold uppercase tracking-tight">K. MAVERICK</span>
     <div class="w-5 h-5 rounded-sm flex items-center justify-center text-[9px] font-bold font-mono
@@ -207,11 +236,12 @@
 
   <!-- Global Desktop Actions (Pop-out, etc) -->
   {#if !IS_BROWSER}
-    <div class="flex items-center shrink-0 ml-auto" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center shrink-0 ml-auto">
       <button
         class="h-8 px-2 flex items-center justify-center gap-1.5 text-text-muted hover:text-accent hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer group"
         onclick={() => appStore.launchSOCExperience()}
         title="Launch SOC Multi-Monitor Experience (3+ Windows)"
+        style="-webkit-app-region: no-drag;"
       >
         <Layout class="w-3.5 h-3.5" />
         <span class="text-[9px] font-mono font-bold tracking-widest hidden lg:block opacity-60 group-hover:opacity-100">SOC MODE</span>
@@ -222,6 +252,7 @@
         onclick={() => appStore.popOut()}
         aria-label="Pop out into new window"
         title="Pop out into new window"
+        style="-webkit-app-region: no-drag;"
       >
         <ExternalLink class="w-3.5 h-3.5" />
       </button>
@@ -232,6 +263,7 @@
           onclick={windowMinimize}
           aria-label="Minimize window"
           title="Minimize"
+          style="-webkit-app-region: no-drag;"
         >
           <Minus class="w-3.5 h-3.5" />
         </button>
@@ -240,6 +272,7 @@
           onclick={windowToggleMax}
           aria-label={isMaximised ? 'Restore window' : 'Maximize window'}
           title={isMaximised ? 'Restore' : 'Maximize'}
+          style="-webkit-app-region: no-drag;"
         >
           {#if isMaximised}
             <Restore class="w-3.5 h-3.5" />
@@ -252,6 +285,7 @@
           onclick={windowClose}
           aria-label="Close window"
           title="Close"
+          style="-webkit-app-region: no-drag;"
         >
           <X class="w-3.5 h-3.5" />
         </button>

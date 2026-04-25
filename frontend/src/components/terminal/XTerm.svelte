@@ -128,7 +128,15 @@
 
     // ── Incoming Data (Backend -> Frontend)
     const unsubOut = subscribe(`terminal:out:${sessionId}`, (data: string) => {
-      term.write(data);
+      try {
+        // Backend emits base64 encoded chunks to safely transport control characters/binary
+        const decoded = atob(data);
+        term.write(decoded);
+      } catch (e) {
+        console.warn('[xterm] failed to decode terminal output:', e);
+        // Fallback: if it's not base64, just write it raw (legacy/direct paths)
+        term.write(data);
+      }
     });
     unsubscribes.push(unsubOut);
 
@@ -178,9 +186,12 @@
   }
 
   $effect(() => {
-    if (isActive) {
-      setTimeout(() => handleResize(), 50);
-      term?.focus();
+    if (isActive && term) {
+      // Ensure terminal is focused and resized when it becomes the active view
+      setTimeout(() => {
+        handleResize();
+        term.focus();
+      }, 50);
     }
   });
 

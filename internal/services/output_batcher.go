@@ -70,6 +70,11 @@ func (b *OutputBatcher) flushLocked() {
 
 	// Encode as plain base64 (frontend decodes via atob)
 	encoded := base64.StdEncoding.EncodeToString(b.buffer)
+	
+	// Primary event for Svelte 5 Terminal component
+	EmitEvent(fmt.Sprintf("terminal:out:%s", b.sessionID), encoded)
+	
+	// Legacy / internal events
 	EmitEvent(fmt.Sprintf("terminal-output-%s", b.sessionID), encoded)
 	EmitEvent(fmt.Sprintf("session.output.%s", b.sessionID), encoded)
 
