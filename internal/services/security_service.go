@@ -113,9 +113,12 @@ func (s *SecurityService) QuorumPropose(action string, description string, propo
 	return s.quorum.Propose(security.QuorumAction(action), description, proposer, required, payload)
 }
 
-// QuorumApprove records an approval
-func (s *SecurityService) QuorumApprove(id string, userID string, credentialID []byte, signature []byte, authData []byte, clientData []byte) error {
-	return s.quorum.Approve(id, userID, credentialID, signature, authData, clientData)
+// QuorumApprove records an approval. challengeID is a FIDO2 challenge issued
+// via FIDO2Manager.StartAuthentication before the user signed; the underlying
+// QuorumManager.Approve drives FIDO2Manager.CompleteAuthentication so the
+// hardware signature is verified before the approval is counted.
+func (s *SecurityService) QuorumApprove(id, userID, challengeID string, credentialID, signature, authData, clientData []byte, newSignCount uint32) error {
+	return s.quorum.Approve(id, userID, challengeID, credentialID, signature, authData, clientData, newSignCount)
 }
 
 // QuorumListPending returns all pending requests

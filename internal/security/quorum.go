@@ -87,7 +87,21 @@ func (m *QuorumManager) Propose(action QuorumAction, description string, propose
 }
 
 // Approve records a signature-backed approval for a request.
-func (m *QuorumManager) Approve(id string, userID string, credentialID []byte, signature []byte, authData []byte, clientData []byte) error {
+//
+// challengeID is a FIDO2 challenge issued via FIDO2Manager.StartAuthentication
+// before the user signed. credentialID/signature/authenticatorData/clientDataJSON
+// are the WebAuthn assertion outputs from the user's hardware token.
+//
+// Phase 26.5 hardening: this function now drives FIDO2Manager.CompleteAuthentication
+// to verify the ECDSA signature against the registered public key BEFORE
+// counting the approval. Previously the approval was counted on trust ("we
+// assume the caller has already verified") which made the M-of-N quorum
+// gate trivially forgeable by any caller able to write to the requests map.
+//
+// If no FIDO2Manager is wired (development / dev-vault mode), the function
+// emits a clearly-marked WARN log and falls back to count-only behaviour.
+// Production deployments must NOT run without a FIDO2Manager.
+func (m *QuorumManager) Approve(id string, userID string, challengeID string, credentialID []byte, signature []byte, authData []byte, clientData []byte, newSignCount uint32) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -105,17 +119,25 @@ func (m *QuorumManager) Approve(id string, userID string, credentialID []byte, s
 		return fmt.Errorf("request has expired")
 	}
 
-	// 1. Verify FIDO2 Signature
-	// Note: We use the existing CompleteAuthentication logic to verify the hardware-backed signature.
-	// In a real ceremony, the challenge should be bound to the Request ID.
-	// For this phase, we assume the caller has already verified the FIDO2 auth via the FIDO2Manager 
-	// and is passing the result.
-
-	// Check if already approved by this user
+	// Check if already approved by this user — done BEFORE FIDO2 verify so
+	// repeated-approval errors are cheap (no hardware round-trip).
 	for _, a := range req.Approvals {
 		if a == userID {
 			return fmt.Errorf("user already approved this request")
 		}
+	}
+
+	// Hardware signature verification.
+	if m.fido != nil {
+		if err := m.fido.CompleteAuthentication(challengeID, credentialID, signature, authData, clientData, newSignCount); err != nil {
+			m.log.Warn("[QUORUM] FIDO2 verification REJECTED for user=%s req=%s: %v", userID, id, err)
+			return fmt.Errorf("FIDO2 verification failed: %w", err)
+		}
+	} else {
+		// Critical: development fallback. Production must wire a FIDO2Manager
+		// in container.go; absence of one means *any* caller passing through
+		// this code path can count an approval without a hardware token.
+		m.log.Warn("[QUORUM] APPROVAL COUNTED WITHOUT HARDWARE VERIFICATION — FIDO2Manager is nil (development mode only). user=%s req=%s", userID, id)
 	}
 
 	req.Approvals = append(req.Approvals, userID)

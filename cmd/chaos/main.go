@@ -30,7 +30,7 @@
 //
 // Usage:
 //
-//	go run ./cmd/chaos [--scenario=all|wal|badger|oom|clock|reconnect] [--server=http://localhost:8090]
+//	go run ./cmd/chaos [--scenario=all|wal|badger|oom|clock|reconnect|raft] [--server=http://localhost:8090]
 //
 // Exit code 0 = all targeted scenarios passed.
 // Exit code 1 = at least one scenario failed.
@@ -54,6 +54,7 @@ import (
 	"time"
 
 	badger "github.com/dgraph-io/badger/v4"
+	hraft "github.com/hashicorp/raft"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 var (
-	scenario  = flag.String("scenario", "all", "Scenario to run: all | wal | badger | oom | clock | reconnect")
+	scenario  = flag.String("scenario", "all", "Scenario to run: all | wal | badger | oom | clock | reconnect | raft")
 	serverURL = flag.String("server", "http://localhost:8090", "Base URL of the running OBLIVRA server")
 	verbose   = flag.Bool("verbose", false, "Verbose output")
 )
@@ -715,6 +716,147 @@ func scenarioReconnect() bool {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Scenario 6 — Raft leader failure & re-election
+//
+// Validates Phase 22.1's "node failure simulation" without depending on
+// CGO/SQLite (the existing internal/cluster Raft tests require gcc to link
+// the SQLite driver, which keeps them out of CGO_ENABLED=0 lanes).
+//
+// Builds a 3-node Raft cluster over hashicorp/raft's in-memory transport
+// with a no-op FSM, bootstraps it, kills the elected leader, and asserts:
+//
+//   1. A leader is elected within 5 seconds.
+//   2. After leader.Shutdown(), one of the surviving nodes wins re-election
+//      within 5 seconds.
+//   3. The new leader is NOT the same node ID as the original leader.
+//
+// This is the smallest test that proves the cluster recovers from a leader
+// kill — split-brain prevention and idempotent retry are covered by the
+// CGO-using TestLeaderFailureIdempotency / TestRaftSplitBrain in
+// internal/cluster/.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type chaosNoOpFSM struct{}
+
+func (f *chaosNoOpFSM) Apply(*hraft.Log) interface{}                    { return nil }
+func (f *chaosNoOpFSM) Snapshot() (hraft.FSMSnapshot, error)            { return &chaosNoOpSnap{}, nil }
+func (f *chaosNoOpFSM) Restore(rc io.ReadCloser) error                  { rc.Close(); return nil }
+
+type chaosNoOpSnap struct{}
+
+func (s *chaosNoOpSnap) Persist(sink hraft.SnapshotSink) error { return sink.Close() }
+func (s *chaosNoOpSnap) Release()                              {}
+
+func makeRaftNode(id string, transport hraft.Transport) (*hraft.Raft, error) {
+	cfg := hraft.DefaultConfig()
+	cfg.LocalID = hraft.ServerID(id)
+	cfg.HeartbeatTimeout = 200 * time.Millisecond
+	cfg.ElectionTimeout = 200 * time.Millisecond
+	cfg.LeaderLeaseTimeout = 200 * time.Millisecond
+	cfg.CommitTimeout = 50 * time.Millisecond
+	cfg.LogLevel = "ERROR"
+
+	logStore := hraft.NewInmemStore()
+	stableStore := hraft.NewInmemStore()
+	snapshotStore := hraft.NewInmemSnapshotStore()
+
+	return hraft.NewRaft(cfg, &chaosNoOpFSM{}, logStore, stableStore, snapshotStore, transport)
+}
+
+func waitForLeader(deadline time.Time, nodes map[string]*hraft.Raft) (string, *hraft.Raft) {
+	for time.Now().Before(deadline) {
+		for id, n := range nodes {
+			if n.State() == hraft.Leader {
+				return id, n
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return "", nil
+}
+
+func scenarioRaft() bool {
+	banner("Scenario 6 — Raft leader failure & re-election")
+
+	addrA, addrB, addrC := hraft.ServerAddress("NodeA"), hraft.ServerAddress("NodeB"), hraft.ServerAddress("NodeC")
+	_, tA := hraft.NewInmemTransport(addrA)
+	_, tB := hraft.NewInmemTransport(addrB)
+	_, tC := hraft.NewInmemTransport(addrC)
+
+	tA.Connect(addrB, tB)
+	tA.Connect(addrC, tC)
+	tB.Connect(addrA, tA)
+	tB.Connect(addrC, tC)
+	tC.Connect(addrA, tA)
+	tC.Connect(addrB, tB)
+
+	rA, err := makeRaftNode("NodeA", tA)
+	if err != nil {
+		fail("Raft:NodeA-init", err.Error())
+		return false
+	}
+	rB, err := makeRaftNode("NodeB", tB)
+	if err != nil {
+		fail("Raft:NodeB-init", err.Error())
+		return false
+	}
+	rC, err := makeRaftNode("NodeC", tC)
+	if err != nil {
+		fail("Raft:NodeC-init", err.Error())
+		return false
+	}
+	defer rA.Shutdown()
+	defer rB.Shutdown()
+	defer rC.Shutdown()
+
+	bootstrap := hraft.Configuration{
+		Servers: []hraft.Server{
+			{ID: hraft.ServerID("NodeA"), Address: addrA},
+			{ID: hraft.ServerID("NodeB"), Address: addrB},
+			{ID: hraft.ServerID("NodeC"), Address: addrC},
+		},
+	}
+	if err := rA.BootstrapCluster(bootstrap).Error(); err != nil {
+		fail("Raft:bootstrap", err.Error())
+		return false
+	}
+
+	nodes := map[string]*hraft.Raft{"NodeA": rA, "NodeB": rB, "NodeC": rC}
+
+	// Step 1: a leader emerges within 5s
+	leaderID, leader := waitForLeader(time.Now().Add(5*time.Second), nodes)
+	if leader == nil {
+		fail("Raft:initial-election", "no leader elected within 5s of bootstrap")
+		return false
+	}
+	info("Raft: initial leader=%s", leaderID)
+
+	// Step 2: kill the leader and confirm a new one is elected
+	if err := leader.Shutdown().Error(); err != nil {
+		fail("Raft:leader-shutdown", err.Error())
+		return false
+	}
+	delete(nodes, leaderID)
+	info("Raft: leader %s shut down, waiting for re-election", leaderID)
+
+	newID, newLeader := waitForLeader(time.Now().Add(5*time.Second), nodes)
+	if newLeader == nil {
+		fail("Raft:re-election", "no new leader elected within 5s of leader shutdown")
+		return false
+	}
+
+	// Step 3: new leader must be a different node
+	if newID == leaderID {
+		fail("Raft:identity", "re-elected the same NodeID after shutdown")
+		return false
+	}
+
+	info("Raft: re-elected leader=%s (was %s)", newID, leaderID)
+	pass("Raft leader failure & re-election — cluster recovered to a new leader")
+	return true
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -740,6 +882,7 @@ func main() {
 	run("oom", scenarioOOM)
 	run("clock", scenarioClock)
 	run("reconnect", scenarioReconnect)
+	run("raft", scenarioRaft)
 
 	// Summary
 	fmt.Printf("\n%s══ SUMMARY ══%s  (%.2fs)\n", yellow, reset, time.Since(start).Seconds())
