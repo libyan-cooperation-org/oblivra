@@ -513,6 +513,20 @@ func (p *Pipeline) processEvent(ctx context.Context, evt *events.SovereignEvent)
 		ctx = database.WithTenant(ctx, database.DefaultTenantID)
 	}
 
+	// Phase 22.1 Time Synchronization Enforcement: tag every event with a
+	// confidence classification + signed skew so detection rules and
+	// queries can decide how much weight to give the claimed timestamp.
+	// This must happen before WAL/index writes so the tag is durable.
+	if evt.EventTimeConfidence == "" {
+		evt.EventTimeConfidence, evt.SkewSeconds = events.ClassifyTime(evt.Timestamp, time.Now().UTC())
+		if evt.EventTimeConfidence == events.TimeConfidenceSkewed && p.log != nil {
+			// Skewed timestamps are forensically interesting — log once at
+			// info level so operators can correlate with NTP failures.
+			p.log.Info("[TIMESYNC] event from host=%s tenant=%s tagged skewed (delta=%ds)",
+				evt.Host, evt.TenantID, evt.SkewSeconds)
+		}
+	}
+
 	_, span := tracer.Start(ctx, "pipeline.WALWrite")
 	rawBytes := []byte(evt.RawLine)
 

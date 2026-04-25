@@ -58,18 +58,20 @@ func (m *ProcessManager) StartWorker(ctx context.Context, wType WorkerType, exec
 
 	m.workers[wType] = cmd
 
-	// Monitor output in background
+	// Monitor output in background.
+	// Pass format args directly to the logger instead of pre-formatting via
+	// fmt.Sprintf so go vet's printf-format-string check stays clean.
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			m.log.Info(fmt.Sprintf("[Worker-%s] %s", wType, scanner.Text()))
+			m.log.Info("[Worker-%s] %s", wType, scanner.Text())
 		}
 	}()
 
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			m.log.Error(fmt.Sprintf("[Worker-%s] %s", wType, scanner.Text()))
+			m.log.Error("[Worker-%s] %s", wType, scanner.Text())
 		}
 	}()
 
@@ -83,9 +85,9 @@ func (m *ProcessManager) StartWorker(ctx context.Context, wType WorkerType, exec
 
 		err := cmd.Wait()
 		if err != nil {
-			m.log.Error(fmt.Sprintf("Worker %s exited with error: %v", wType, err))
+			m.log.Error("Worker %s exited with error: %v", wType, err)
 		} else {
-			m.log.Info(fmt.Sprintf("Worker %s exited successfully", wType))
+			m.log.Info("Worker %s exited successfully", wType)
 		}
 	}()
 
@@ -99,7 +101,7 @@ func (m *ProcessManager) StopAll() {
 	for wType, cmd := range m.workers {
 		if cmd.Process != nil {
 			cmd.Process.Kill()
-			m.log.Info(fmt.Sprintf("Killed worker: %s", wType))
+			m.log.Info("Killed worker: %s", wType)
 		}
 	}
 }

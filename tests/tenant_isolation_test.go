@@ -10,12 +10,23 @@ import (
 	"github.com/kingknull/oblivrashell/internal/database"
 )
 
+// TestTenantIsolation validates structural per-tenant isolation at the
+// scale claimed in task.md Phase 22.2: 50 tenants × 1000 events each =
+// 50k events. Asserts (a) each tenant sees exactly its own events, (b)
+// cross-tenant queries return zero matches that belong to other tenants.
+//
+// Phase 28 audit caught this test running 10 events/tenant; bumped to
+// 1000 to match the task.md claim and exercise the index size sweet spot.
 func TestTenantIsolation(t *testing.T) {
 	application, cleanup := setupTestApp(t) // reuse setupTestApp from smoke_test.go
 	defer cleanup()
 
 	const numTenants = 50
-	const eventsPerTenant = 10
+	const eventsPerTenant = 1000
+
+	if testing.Short() {
+		t.Skip("tenant isolation: skipping 50k-event scale run in -short mode")
+	}
 
 	t.Logf("Creating %d tenants and ingesting %d events per tenant sequentially...", numTenants, eventsPerTenant)
 

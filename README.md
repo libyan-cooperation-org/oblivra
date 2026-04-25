@@ -12,7 +12,7 @@
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte)](https://svelte.dev)
 [![Wails](https://img.shields.io/badge/Wails-v3-red?logo=wails)](https://wails.io)
 [![License](https://img.shields.io/badge/License-Proprietary-lightgrey)](#license)
-[![Release](https://img.shields.io/badge/Version-1.1.2-blue)](#changelog)
+[![Release](https://img.shields.io/badge/Version-1.1.3-blue)](#changelog)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)](#building-from-source)
 
 ---

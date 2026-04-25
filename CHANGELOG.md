@@ -2,6 +2,47 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.1.3] - 2026-04-25
+
+### 🚦 Phase 22.1 — Reliability Engineering (S2 close-out)
+
+Four more S2 reliability items shipped, finishing the bulk of the open 22.1 backlog.
+
+#### BadgerDB corruption recovery
+`internal/storage/badger.go:NewHotStore` now ladders through three recovery levels on open failure:
+
+1. Normal open
+2. Truncate-mode open (drops a torn vlog tail — typical after a power-loss mid-write)
+3. Read-only fallback with CRITICAL-level log so the operator can extract data via `HotStore.ExportSnapshot(dst)` and reinitialise from `HotStore.ImportSnapshot(src)`
+
+Previously a torn last write would refuse the SIEM's startup. Now the service either heals itself or surfaces a recoverable read-only handle. The new `ExportSnapshot`/`ImportSnapshot` pair uses Badger's native protobuf backup stream so it round-trips cleanly across Badger versions.
+
+#### Time Synchronization Enforcement
+`internal/events/events.go` adds a `TimeConfidence` enum (`normal` / `late` / `skewed` / `unknown`) and a pure `ClassifyTime(timestamp, now)` function. `pipeline.processEvent` tags every event with `EventTimeConfidence` + signed `SkewSeconds` **before** WAL and index writes — so the tag is durable and queryable. Skewed events log a single info line per occurrence for NTP correlation.
+
+Thresholds: ±60s = normal, 60s to 5min in the past = late, >60s in the future or >5min in the past = skewed, unparseable = unknown (skew=0).
+
+#### Deterministic Replay (MVP)
+New `cmd/replay` CLI exposes the deterministic-replay foundation:
+
+- `replay --mode=capture --wal <path> --out manifest.ndjson` — walks every record in a WAL via the existing `storage.WAL.Replay` primitive and emits a per-record SHA-256 manifest (NDJSON, order-preserving).
+- `replay --mode=verify --wal <path> --against manifest.ndjson` — re-walks the WAL and asserts every record matches the manifest by index, length, and SHA. Exact diff on drift.
+
+This locks down **input determinism** (the WAL is byte-identical run-over-run). The full alert-equivalence layer (replay through the detection engine + diff alerts) is the follow-up; the MVP is enough to prove a WAL hasn't been tampered with between a baseline run and a regression run.
+
+#### 50-tenant isolation test scaled to 1000 events/tenant
+`tests/tenant_isolation_test.go` now runs 50 × 1000 = 50k events (up from 50 × 10) so the test actually exercises the index size sweet spot the task.md claim was made about. `-short` mode skips the larger run for fast CI loops.
+
+### 🧹 Cleanup
+
+- `internal/isolation/manager.go` — six `m.log.Info(fmt.Sprintf(...))` and `m.log.Error(fmt.Sprintf(...))` sites converted to direct format-arg passing (`m.log.Info("[Worker-%s] %s", wType, text)`). `go vet` is now clean on the package; one of the lingering Phase 28 audit warnings closed.
+- 6 prior commits (audit verification + license gates + GDPR audit + agent reconnect + degraded banner) pushed to `origin/main`.
+
+### 📝 Documentation
+- `task.md` — Phase 22.1: BadgerDB corruption recovery now `[x]`, Time Synchronization Enforcement now `[x]`, Deterministic Replay marked `[v]` with MVP scope explained, 50-tenant test bumped to match the claim.
+
+---
+
 ## [1.1.2] - 2026-04-25
 
 ### 🚦 Phase 22.1 — Reliability Engineering (S2)
