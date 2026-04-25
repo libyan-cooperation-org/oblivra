@@ -62,3 +62,4 @@ tmp/
 *.pid
 *.wal
 gosec
+.claude/worktrees/hungry-shtern-83a01c
