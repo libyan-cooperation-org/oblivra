@@ -1,4 +1,5 @@
 <script lang="ts">
+  console.log("App.svelte <script> is executing!");
   import { onMount } from 'svelte';
   import RouterView from '@components/RouterView.svelte';
   import { initBridge, APP_CONTEXT } from '@lib/bridge';

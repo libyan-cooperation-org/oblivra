@@ -33,19 +33,21 @@ export class CollaborationStore {
 
   init() {
     // If no analysts yet, add self as active
-    $effect(() => {
-        if (appStore.currentUser && this.analysts.length === 0) {
-            this.analysts = [{
-                id: appStore.currentUser.id,
-                name: appStore.currentUser.username || appStore.currentUser.name,
-                role: appStore.currentUser.role || 'Operator',
-                status: 'active',
-                color: '#5aaef0',
-                lastActive: new Date().toISOString()
-            }];
-            // Announce presence
-            send('presence.update', this.analysts[0]);
-        }
+    $effect.root(() => {
+      $effect(() => {
+          if (appStore.currentUser && this.analysts.length === 0) {
+              this.analysts = [{
+                  id: appStore.currentUser.id,
+                  name: appStore.currentUser.username || appStore.currentUser.name,
+                  role: appStore.currentUser.role || 'Operator',
+                  status: 'active',
+                  color: '#5aaef0',
+                  lastActive: new Date().toISOString()
+              }];
+              // Announce presence
+              send('presence.update', this.analysts[0]);
+          }
+      });
     });
 
     subscribe('presence.update', (data: Analyst) => {
