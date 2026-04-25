@@ -1,63 +1,41 @@
+<!-- OBLIVRA — SystemBanner v2 — design tokens, no raw Tailwind color names -->
 <script lang="ts">
-  /**
-   * OBLIVRA — System Health Banner (Svelte 5)
-   *
-   * Displayed at the top of the App Layout when the backend reports
-   * Degraded or Critical health states (e.g. Ingestion Overload).
-   */
   import { appStore } from '@lib/stores/app.svelte';
-  import { ShieldAlert, AlertTriangle } from 'lucide-svelte';
   import { slide } from 'svelte/transition';
 
-  const isDegraded = $derived(appStore.systemHealth.status === 'degraded');
-  const isCritical = $derived(appStore.systemHealth.status === 'critical');
-  const isVisible = $derived(isDegraded || isCritical);
-
-  const bannerClasses = $derived(
-    isCritical
-      ? 'bg-red-500/10 border-red-500/30 text-red-400'
-      : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-  );
+  const isDegraded = $derived(appStore.systemHealth?.status === 'degraded');
+  const isCritical = $derived(appStore.systemHealth?.status === 'critical');
+  const isVisible  = $derived(isDegraded || isCritical);
+  const message    = $derived(appStore.systemHealth?.message || 'Backpressure detected in core ingestion pipeline.');
 </script>
 
 {#if isVisible}
   <div
-    transition:slide={{ duration: 300 }}
-    class="relative z-50 flex items-center justify-between px-4 py-2 border-b transition-colors duration-500 {bannerClasses}"
+    transition:slide={{ duration: 200 }}
+    class="relative z-50 flex items-center justify-between px-4 py-1.5 border-b shrink-0"
+    style="{isCritical
+      ? 'background:rgba(192,40,40,0.09); border-color:rgba(192,40,40,0.28); color:var(--cr2);'
+      : 'background:rgba(184,96,0,0.08); border-color:rgba(184,96,0,0.22); color:var(--hi2);'}"
+    role="alert"
+    aria-live="assertive"
   >
     <div class="flex items-center gap-3">
-      <div class="flex items-center justify-center w-8 h-8 rounded-full animate-pulse" style="background: color-mix(in srgb, currentColor 10%, transparent)">
-        {#if isCritical}
-          <ShieldAlert size={18} />
-        {:else}
-          <AlertTriangle size={18} />
-        {/if}
-      </div>
-      
+      <!-- Pulsing indicator -->
+      <span class="w-2 h-2 rounded-full shrink-0"
+        style="background:currentColor; animation:var(--animate-banner-pulse);"></span>
+
+      <!-- Label + message -->
       <div class="flex flex-col">
-        <span class="text-sm font-semibold tracking-wide uppercase">
-          System {isCritical ? 'Critical' : 'Degraded'}
+        <span class="font-mono text-[9px] font-bold uppercase tracking-widest">
+          SYSTEM {isCritical ? 'CRITICAL' : 'DEGRADED'}
         </span>
-        <span class="text-xs opacity-80 font-mono">
-          {appStore.systemHealth.message || 'Backpressure detected in core ingestion pipeline.'}
-        </span>
+        <span class="font-mono text-[9px] opacity-70 mt-px">{message}</span>
       </div>
     </div>
 
-    <div class="flex items-center gap-4">
-      <button 
-        class="text-[10px] font-bold tracking-tighter uppercase px-2 py-1 rounded border border-current/20 hover:bg-current/10 transition-colors"
-        onclick={() => appStore.setActiveNavTab('health')}
-      >
-        View Diagnostics
-      </button>
-    </div>
+    <button
+      class="font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm border border-current/20 hover:bg-current/10 transition-colors cursor-pointer"
+      onclick={() => appStore.setActiveNavTab('health')}
+    >View Diagnostics</button>
   </div>
 {/if}
-
-<style>
-  /* Subtle glassmorphism */
-  div {
-    backdrop-filter: blur(8px);
-  }
-</style>
