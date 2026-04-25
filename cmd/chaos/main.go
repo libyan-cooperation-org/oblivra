@@ -63,7 +63,7 @@ import (
 var (
 	scenario  = flag.String("scenario", "all", "Scenario to run: all | wal | badger | oom | clock | reconnect")
 	serverURL = flag.String("server", "http://localhost:8090", "Base URL of the running OBLIVRA server")
-	verbose   = flag.Bool("v", false, "Verbose output")
+	verbose   = flag.Bool("verbose", false, "Verbose output")
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
