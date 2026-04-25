@@ -95,6 +95,9 @@ func (s *RESTServer) handlePlaybookActions(w http.ResponseWriter, r *http.Reques
 
 // POST /api/v1/playbooks/run
 func (s *RESTServer) handlePlaybookRun(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureSOAR) {
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -140,6 +143,9 @@ func (s *RESTServer) handlePlaybookRun(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/playbooks/metrics
 func (s *RESTServer) handlePlaybookMetrics(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureSOAR) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -226,6 +232,9 @@ func (s *RESTServer) handleUEBAAnomalies(w http.ResponseWriter, r *http.Request)
 
 // GET /api/v1/ueba/stats
 func (s *RESTServer) handleUEBAStats(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureUEBA) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -341,6 +350,9 @@ func (s *RESTServer) handleNDRAlerts(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/ndr/protocols
 func (s *RESTServer) handleNDRProtocols(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureNDR) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -360,6 +372,9 @@ func (s *RESTServer) handleNDRProtocols(w http.ResponseWriter, r *http.Request) 
 
 // GET /api/v1/ransomware/events?limit=N
 func (s *RESTServer) handleRansomwareEvents(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureRansomware) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -461,6 +476,9 @@ func (s *RESTServer) handleRansomwareHosts(w http.ResponseWriter, r *http.Reques
 
 // GET /api/v1/ransomware/stats
 func (s *RESTServer) handleRansomwareStats(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureRansomware) {
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -480,6 +498,9 @@ func (s *RESTServer) handleRansomwareStats(w http.ResponseWriter, r *http.Reques
 
 // POST /api/v1/ransomware/isolate
 func (s *RESTServer) handleRansomwareIsolate(w http.ResponseWriter, r *http.Request) {
+	if !s.checkFeature(w, licensing.FeatureRansomware) {
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

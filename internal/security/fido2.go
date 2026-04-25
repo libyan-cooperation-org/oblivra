@@ -92,7 +92,9 @@ func (m *FIDO2Manager) CompleteRegistration(
 		return nil, fmt.Errorf("challenge not found")
 	}
 
-	if time.Now().After(parseTime(challenge.ExpiresAt)) {
+	expiresAt, err := parseTime(challenge.ExpiresAt)
+	if err != nil || time.Now().After(expiresAt) {
+		// Treat unparseable timestamps as expired — a malformed challenge cannot be trusted.
 		delete(m.challenges, challengeID)
 		return nil, fmt.Errorf("challenge expired")
 	}
@@ -164,7 +166,9 @@ func (m *FIDO2Manager) CompleteAuthentication(
 		return fmt.Errorf("challenge not found")
 	}
 
-	if time.Now().After(parseTime(challenge.ExpiresAt)) {
+	expiresAt, err := parseTime(challenge.ExpiresAt)
+	if err != nil || time.Now().After(expiresAt) {
+		// Treat unparseable timestamps as expired — a malformed challenge cannot be trusted.
 		delete(m.challenges, challengeID)
 		return fmt.Errorf("challenge expired")
 	}

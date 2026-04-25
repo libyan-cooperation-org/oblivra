@@ -12,7 +12,7 @@
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte)](https://svelte.dev)
 [![Wails](https://img.shields.io/badge/Wails-v3-red?logo=wails)](https://wails.io)
 [![License](https://img.shields.io/badge/License-Proprietary-lightgrey)](#license)
-[![Release](https://img.shields.io/badge/Version-1.1.0-blue)](#changelog)
+[![Release](https://img.shields.io/badge/Version-1.1.1-blue)](#changelog)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)](#building-from-source)
 
 ---
@@ -736,16 +736,18 @@ curl -X POST http://localhost:8080/api/v1/audit/packages/generate \
 
 | Phase | Status | Capabilities |
 |---|---|---|
-| Phase 0–5 | ✅ Validated | Storage, Ingest (18k EPS), Alerts, ThreatIntel, MITRE, OQL |
-| Phase 6 | ✅ Validated | SSH/PTY, Vault, Terminal Grid, SFTP, FIDO2, Forensics, Compliance |
+| Phase 0–5 | ✅ Validated | Storage, Ingest (18k EPS burst / 10k EPS sustained), Alerts, ThreatIntel, MITRE, OQL |
+| Phase 6 | 🟡 Partial — self-validated | SSH/PTY, Vault, Terminal Grid, SFTP, FIDO2, Forensics, Compliance *(third-party compliance audit pending)* |
 | Phase 7 | ✅ Validated | Agent Framework (eBPF, FIM, WAL, gRPC) |
 | Phase 8–10 | ✅ Validated | SOAR, Ransomware Defense, UEBA, Case Management |
-| Phase 11–12 | 🔨 Active | NDR, Multi-tenancy, HA Cluster, LDAP/Okta connectors |
-| Phase 16 | Planned | CSPM (AWS, Azure, GCP) |
-| Phase 17 | Planned | Container & Kubernetes security |
-| Phase 18 | Planned | Vulnerability management integration |
-| Phase 21–22 | Planned | Federated search, AI security copilot, covert channel detection |
-| Phase 25–26 | Research | ITDR, AI/LLM monitoring, EASM, OT/ICS |
+| Phase 11–12 | ✅ Shipped | NDR, Multi-tenancy (per-tenant Bleve index + encryption), HA Cluster, LDAP/Okta connectors |
+| Phase 17–19 | ✅ Shipped | Sigma transpiler, OpenTelemetry, supply chain (SBOM + cosign + SLSA) |
+| Phase 20 | ✅ Shipped | OQL, SCIM, identity connectors, automated triage, report factory, dashboard studio |
+| Phase 21 | ✅ Shipped | Partitioned event pipeline (8 shards), WAL fsync window, enrichment LRU, rule route index |
+| Phase 22 | 🔨 Active | Productization: 22.1 chaos harness + soak regression ✅ · 22.2 multi-tenant isolation ✅ · 22.3 storage tiering 🔨 |
+| Phase 23 | ✅ Shipped | Terminal UX: SSH bookmarks, session restore, per-host history *(operator banner UI partial)* |
+| Phase 26 | 🔨 Partial | NATS JetStream log fabric ✅ · graph investigations ✅ · timeline reconstruction ✅ · M-of-N quorum hardware-binding 🔨 |
+| Phase 27 | Planned | BYOK/CMK, SCIM 2.0 deprovisioning, OQL piped analytics, temporal entity resolution, central DLP |
 
 ---
 
@@ -763,10 +765,11 @@ Include: description of the issue, steps to reproduce, impact assessment, and an
 
 - **Vault** — AES-256-GCM with Argon2id KDF; master key never leaves process memory; zeroed on lock
 - **Transport** — TLS 1.3 minimum for all server connections; HMAC-SHA256 signed agent requests
-- **Multi-tenancy** — TenantID enforced at every database query via context middleware; no shared state between tenants
+- **Multi-tenancy** — Structurally enforced: per-tenant BadgerDB keyspace (`tenant:{id}:events:...`), one Bleve index per tenant, per-tenant AES-256 keys derived via HMAC. Cross-tenant queries are physically impossible — there is no shared index to escape. Auth middleware plumbs the authenticated tenant via `database.WithTenant(ctx, ...)`; user input cannot influence the tenant scope.
 - **Plugins** — Lua and WASM sandboxes with explicit permission manifests; signed manifest verification before load
 - **Audit** — All admin actions written to a Merkle-chained, append-only audit log
-- **Dependencies** — SBOM generated on every release (SPDX + CycloneDX); Grype vulnerability scan in CI
+- **License-gated APIs** — Premium endpoints (SOAR, UEBA, NDR, Ransomware) check `licensing.Feature*` before executing. Destructive actions like `POST /api/v1/ransomware/isolate` reject without a valid feature claim regardless of caller (Wails or REST).
+- **Dependencies** — SBOM generated on every release (SPDX + CycloneDX); Grype, gosec, gitleaks, and govulncheck run on every PR (SARIF uploaded to GitHub Security tab)
 
 A full static code and security vulnerability audit report is available in [`docs/🔴 OBLIVRA — Deep Audit.md`](docs/) and the accompanying [`OBLIVRA_Security_Audit.docx`](docs/).
 

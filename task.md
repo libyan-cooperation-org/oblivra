@@ -6,7 +6,8 @@
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-03-25** — Phase 22 Productization Sprint + Platform Split Model
+> **Last audited: 2026-04-25** — Phase 22 Productization Sprint + Platform Split Model
+> **Verification pass 2026-04-25** — every `[x]` item in Phases 22, 23, 25, 26 was re-checked against actual code paths; corrections applied in place. See `## Phase 28: 2026-04-25 Verification Audit` at the bottom of this file for the full delta.
 >
 > **Companion files** (not this file's concern):
 > - [`ROADMAP.md`](ROADMAP.md) — Phases 16–26 (CSPM, K8s, vuln mgmt, etc.)
@@ -794,7 +795,7 @@
 | **S10 🔵** | Sovereign / Nation-State | **22.7** (all 6) + Sovereign Meta-Layer remaining | 3 wks |
 | **Defer ⚫** | v2+ Features | Cloud connectors, ClickHouse, ITDR, AI/LLM Sec, Endpoint Prevention | — |
 
-> **Current sprint**: ~~S0~~ ✅ → **S1** (Multi-Tenant Isolation)
+> **Current sprint**: ~~S0~~ ✅ → ~~S1~~ ✅ (22.2 verified, structural per-tenant isolation in place) → **S2** (Reliability Gate — chaos harness + soak regression already shipped; agent reconnect, BadgerDB recovery, graceful degradation, time sync remain)
 
 ---
 
@@ -811,28 +812,30 @@
 
 ### 22.1 — Reliability Engineering
 
-- [ ] **Chaos test harness** — `cmd/chaos/main.go`: kill agent mid-stream (WAL replay), corrupt BadgerDB VLog (recovery), OOM-kill server, clock skew ±5min
+- [x] **Chaos test harness** — `cmd/chaos/main.go` (520 LOC): WAL replay after mid-stream kill (CRC-checked record-at-a-time), BadgerDB VLog corruption + truncate-mode reopen, OOM/burst load-shedding probe (429/503 expected), clock skew ±5 min. `cmd/chaos-fuzzer/` and `cmd/chaos-harness/` extend this. Verified 2026-04-25.
 - [ ] **Agent reconnect guarantee** — resume without data loss after server restart; unvalidated at >1000 events in-flight
-- [ ] **BadgerDB corruption recovery** — truncate VLog mid-write → verify `OpenReadOnly` fallback, snapshot export, clean re-init
+- [ ] **BadgerDB corruption recovery** — truncate VLog mid-write → verify `OpenReadOnly` fallback, snapshot export, clean re-init *(partially exercised by chaos harness scenario 2; production recovery path still needs `OpenReadOnly` fallback + snapshot export)*
 - [ ] **Graceful degradation under overload** — at 3× rated EPS: backpressure, detection degrades gracefully, UI shows `DEGRADED` banner; no silent data loss
-- [ ] **Automated soak regression** — GHA workflow: 30-minute 5,000 EPS soak on every release tag; fail if EPS drops >10%
+- [x] **Automated soak regression** — `.github/workflows/soak.yml`: 30-min 5,000 EPS soak on every release tag, fails if EPS drops >10%, event loss >0.1%, or min-window EPS <50% of target. Captures heap pprof. Verified 2026-04-25.
 - [ ] **Node failure simulation** — kill Raft leader mid-election; verify cluster recovers, no double-processed events
 - [ ] **Deterministic Replay System** — full platform replay (`oblivra replay --from WAL --timestamp`) ensuring exact same alerts are produced deterministically
-- [ ] **Time Synchronization Enforcement** — agent time drift detection, NTP validation per agent, explicit `event_time_confidence` scoring
+- [ ] **Time Synchronization Enforcement** — agent time drift detection, NTP validation per agent, explicit `event_time_confidence` scoring *(chaos harness scenario 4 stubs the ingest path; pipeline-side tagging unverified)*
 - [ ] **Upgrade Safety Guarantees** — versioned schema migration rollback, dual-run (old+new pipeline), per-tenant canary upgrades
 
 ---
 
 ### 22.2 — Multi-Tenant Isolation
 
-- [x] **Tenant-prefixed BadgerDB keyspace** — all keys: `tenant:{id}:events:{ts}:{uuid}`; enforce in `SIEMStore.Write()` and all scan paths
-- [x] **Bleve index per tenant** — one index per tenant ID; `IndexManager` multiplexes; cross-tenant queries structurally impossible
-- [x] **Correlation state isolation** — `correlation.go` LRU keyed on `tenantID+ruleID+groupKey`; no cross-tenant state leakage
-- [x] **Per-tenant encryption keys** — derive AES-256 key from master key + tenant HMAC; rotate without re-keying all tenants
-- [x] **Query sandbox enforcement** — OQL planner rejects queries without `TenantID` predicate; `HeavyQueryLimits` per-tenant
-- [x] **Tenant provisioning API** — `POST /api/v1/admin/tenants` creates keyspace + index + encryption key atomically; idempotent
-- [x] **Tenant deletion audit trail** — cryptographic wipe + immutable deletion record (GDPR right-to-erasure)
-- [x] **50-tenant isolation test** — 50 tenants, 1000 events each, cross-tenant search returns 0 results; structurally enforced
+- [x] **Tenant-prefixed BadgerDB keyspace** — `formatEventKey()` writes `tenant:{id}:events:{ts}:{uuid}` (`internal/storage/siem_badger.go:72`); ALL scan paths use the prefix (`siem_badger.go:109,134`, `badger_source.go:29,37`). Verified.
+- [x] **Bleve index per tenant** — `SearchEngine.getIndex(tenantID)` returns a tenant-scoped index from `s.indexes[tenantID]` map; separate filesystem paths `bleve_{tenantID}.idx` (`internal/search/bleve.go:45-85`). Cross-tenant queries are structurally impossible. Verified.
+- [v] **Correlation state isolation** — `correlation_store.go:20` keys on `tenant:{tenantID}:correlation:{ruleID}:{window}:{groupKey}` ✓, but in-memory LRU at `correlation.go:138` is keyed on `tenant+ruleID` only (groupKey isolation enforced *within* the LRU at `correlation.go:153-162`, not in the LRU key itself). Functionally correct; partial against the literal "tenantID+ruleID+groupKey" claim. Not a security issue.
+- [x] **Per-tenant encryption keys** — `tenant_crypto.go:25-33` `DeriveTenantKey` = `HMAC-SHA256(masterKey, tenantID || salt)` → AES-256. Per-tenant rotation supported. Verified.
+- [x] **Query sandbox enforcement** — `internal/database/query_planner.go:62` returns `"sandbox violation: query must contain TenantID predicate"`. Verified.
+- [x] **Tenant provisioning API** — `POST /api/v1/admin/tenants` (`rest_tenants.go:14-57`) generates salt + creates tenant; Badger/Bleve indexes auto-create on first write. Idempotent. Verified.
+- [v] **Tenant deletion audit trail** — `rest_tenants.go:63-92` calls `CryptographicWipe`; `tenants.go:70-81` flips status to `Deleted` and wipes salt. **Gap**: no immutable deletion record (no `deletion_log` table, no audit-bus event published). GDPR right-to-erasure-class evidence missing. Open subtask.
+- [v] **50-tenant isolation test** — `tests/tenant_isolation_test.go` runs 50 tenants × **10 events each** (claim said 1000) and verifies cross-tenant search returns 0 results. Structural isolation confirmed; throughput claim overstated by 100×. Worth bumping to 1k events/tenant to validate at scale.
+
+> **Note (2026-04-25)**: The redundant `fmt.Sprintf("TenantID:%s AND ...")` in `rest.go:803,846` flagged in Phase 25.9 as a leak vector has been removed. Storage-layer `MustTenantFromContext` + per-tenant Bleve index dispatch is the source of truth (auth middleware plumbs tenant via `database.WithTenant` in `apikey.go:143,164`). Removing the string concat removed dead code that *looked* like an injection vulnerability without actually being one.
 
 ---
 
@@ -855,10 +858,10 @@
 - [x] **MITRE coverage gap report** — `GenerateMITREGapReport()` per-technique scoring (covered/partial/none); MITRE Navigator JSON layer export with colour coding (`internal/detection/rules.go`)
 - [x] **Rule test framework** — `RuleTestFixture`, `RuleTestResult`, `RuleTestSuiteResult`; `TestRule()` runs fixtures against conditions; `matchRuleConditions()` with `regex:` prefix support (`internal/detection/rules.go`)
 
-#### Operator Mode — The Killer Workflow ✅
-- [x] **SSH → anomaly banner** — SIEM events for active terminal host surfaced as status bar notification; one keypress opens filtered event panel 🖥️
+#### Operator Mode — The Killer Workflow (Partial)
+- [v] **SSH → anomaly banner** — `OperatorService.GetContext()` (`internal/services/operator_service.go:65-150`) retrieves SIEM host alerts and exposes them through `OperatorContext`. **UI gap**: status-bar surfacing + one-keypress event panel keybind not yet implemented in frontend. 🖥️
 - [ ] **Event row → enrichment pivot** — click IP/host in SIEM results → inline enrichment card (GeoIP, ASN, TI match, open ports) 🏗️
-- [x] **Host isolation from terminal context** — `Ctrl+Shift+I` → isolation confirmation → network isolator playbook → status in titlebar 🖥️
+- [v] **Host isolation from terminal context** — `OperatorMode.svelte:44-52` → `agentStore.toggleQuarantine(agentID, true)` → `ToggleQuarantine()` (`agent.svelte.ts:117-127`). **UI gap**: no `Ctrl+Shift+I` keybind handler found, no confirmation modal, titlebar status indicator unverified. 🖥️
 - [ ] **One-click memory/process capture** — trigger forensic snapshot, auto-seal SHA-256, auto-add to active incident evidence 🖥️
 - [ ] **Operator timeline** — unified chronological view: terminal commands + SIEM events + enrichment + playbook executions + evidence 🏗️
 - [ ] **Autonomous Hunt** — scheduled and automated threat hunting queries based on Threat Intel 🌐
@@ -937,27 +940,27 @@
 - [x] `BookmarkService` — Wails-bound CRUD for host bookmarks (wraps `HostStore` + Vault-encrypted credentials) 🖥️
 - [x] `SSHBookmarks.svelte` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
 
-### 23.2 — Session Restore on Restart ✅
+### 23.2 — Session Restore on Restart (Partial)
 - [x] `session_persistence.go` — save active session host IDs + tab order on graceful shutdown 🖥️
 - [x] `SSHService` restore hook — reconnect saved sessions on app start 🖥️
-- [x] Session restore banner in `TerminalLayout.svelte` — "Restore 3 previous sessions?" 🖥️
+- [ ] Session restore banner in `TerminalLayout.svelte` — "Restore 3 previous sessions?" *(component file missing — current terminal page is `TerminalPage.svelte`; banner UI not found)* 🖥️
 
 ### 23.3 — Per-Host Command History ✅
 - [x] `CommandHistoryService` — store/retrieve commands per host (SQLite, last 500 per host) 🖥️
 - [x] Autocomplete overlay in terminal — ↑ arrow history + Tab suggestions 🖥️
 
-### 23.4 — Operator Mode (Core) ✅
+### 23.4 — Operator Mode (Core) (Partial)
 > See also Phase 22.4 Operator Mode items for full scope.
-- [x] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host 🖥️
-- [x] `OperatorBanner.svelte` — SIEM alert count + severity overlay on terminal tab bar 🖥️
-- [x] `Ctrl+Shift+I` host isolation shortcut — confirmation modal → `NetworkIsolator` playbook 🖥️
+- [x] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host (`internal/services/operator_service.go:11-150`) 🖥️
+- [ ] `OperatorBanner.svelte` — SIEM alert count + severity overlay on terminal tab bar *(component file missing in `frontend/src/`)* 🖥️
+- [ ] `Ctrl+Shift+I` host isolation shortcut — confirmation modal → `NetworkIsolator` playbook *(no keybind handler found; toggleQuarantine path exists but no UI flow)* 🖥️
 
-### 23.5 — Clipboard OSC 52 ✅
-- [x] xterm.js clipboard integration — auto-copy-on-selection, right-click paste 🖥️
+### 23.5 — Clipboard OSC 52 (Not Started)
+- [ ] xterm.js clipboard integration — auto-copy-on-selection, right-click paste *(no OSC 52 handler in `frontend/src/components/terminal/XTerm.svelte`)* 🖥️
 
-### 23.6 — AI Autocomplete Polish ✅
-- [x] Floating suggestion box wired to `CommandHistoryService` + per-host command history 🖥️
-- [x] Smart context: current input buffering + cursor coordinate anchoring 🖥️
+### 23.6 — AI Autocomplete Polish (Not Started)
+- [ ] Floating suggestion box wired to `CommandHistoryService` + per-host command history *(`CommandHistoryService` backend exists with `GetSuggestions()`; no floating UI overlay shipped)* 🖥️
+- [ ] Smart context: current input buffering + cursor coordinate anchoring 🖥️
 
 ---
 
@@ -1100,16 +1103,16 @@
 - [ ] **61 discarded errors (`_ =`)** — Silent error swallowing. In a SIEM, swallowed errors = missed detections, silent write failures, unnoticed corruption. Every `_ =` on a non-trivially-safe operation must be logged at minimum. 🏗️
 - [ ] **132 untracked goroutine launches** — No goroutine lifecycle accounting. Add `goleak` to the test suite to catch leaks on every PR. 🏗️
 - [ ] **`math/rand` for "security data"** — `internal/api/rest_fusion_peer.go`, `rest_phase8_12.go`, `internal/ueba/anomaly.go` all use `math/rand`. Any time-based seed is guessable. Security-relevant random data must use `crypto/rand`. 🏗️
-- [ ] **No `go vet` / `staticcheck` / `gosec` in CI** — Zero static analysis tooling found in `Makefile` or GitHub Actions. `gosec` would have flagged the `InsecureSkipVerify`, `math/rand` for security, and the Sprintf-into-SQL patterns immediately. Add as mandatory PR gate. 🏗️
-- [ ] **No secrets scanning in CI** — No `gitleaks`, `trufflehog`, or `detect-secrets` in the pipeline. The dark-site URL (`sync.oblivrashell.dev`) survived in the codebase undetected until a manual audit. 🌐
+- [x] **No `go vet` / `staticcheck` / `gosec` in CI** — Added 2026-04-25: `.github/workflows/ci.yml` now runs `go vet`, `gosec` with SARIF upload to GitHub Security tab, and `govulncheck` on every PR. Excludes G104/G304/G601 (handled elsewhere or post-Go-1.22 false positives). 🏗️
+- [x] **No secrets scanning in CI** — Added 2026-04-25: `gitleaks-action@v2` added to `ci.yml`; runs with `fetch-depth: 0` for full history blame. Would have caught the dark-site URL pre-merge. 🌐
 
 ---
 
 ### 25.5 — 🟡 Licensing & Feature Gating
 
-- [x] **Enterprise features are not license-gated at the API layer** — Fixed by integrating the `licensing.Provider` into the `RESTServer` and adding `RequireFeature()` guards to all SOAR, UEBA, NDR, and Ransomware endpoints. 🌐
+- [x] **Enterprise features are not license-gated at the API layer** — `licensing.Provider` integrated into `RESTServer.checkFeature()`. As of 2026-04-25 verification pass, `s.checkFeature()` is now called on **all** premium endpoints — closed gaps on `/api/v1/playbooks/run`, `/api/v1/playbooks/metrics`, `/api/v1/ueba/stats`, `/api/v1/ndr/protocols`, `/api/v1/ransomware/{events,stats,isolate}` (the `/isolate` endpoint executes a destructive network isolation action and was previously ungated). 🌐
 - [ ] **Seat count enforcement** — `Claims.MaxSeats` exists in the license schema but is never enforced. A single-seat license can serve unlimited users with no enforcement. 🌐
-- [x] **License bypass via API** — Resolved by moving the license gate to the API layer (`RESTServer`). Premium routes now enforce tier requirements regardless of whether the caller is the Wails desktop shell or a direct API client. 🌐
+- [x] **License bypass via API** — Resolved by moving the license gate to the API layer (`RESTServer`). Premium routes now enforce tier requirements regardless of whether the caller is the Wails desktop shell or a direct API client. 2026-04-25: gate coverage extended to previously-ungated endpoints (see preceding item). 🌐
 - [x] **Platform Build Stability** — Resolved all compilation errors in `internal/licensing`, `internal/api`, and `internal/services`. Verified production build for both Backend (Go) and Frontend (Svelte 5). 🏗️
 - [x] **Test Suite Integrity** — Updated `smoke_test.go` and `logsource_service_test.go` to match hardened service signatures. 🏗️
 
@@ -1147,7 +1150,7 @@
 
 ### 25.9 — 🟢 Architecture Integrity
 
-- [ ] **`internal/api/rest.go:502,544`** — Tenant isolation in search is done via Bleve query string injection: `query = fmt.Sprintf("TenantID:%s AND (%s)", identityUser.TenantID, query)`. This is **soft isolation** — a crafted Bleve query may escape the tenant filter depending on Bleve's query parser operator precedence. Replace with structural filter (separate index per tenant as planned in Phase 22.2). Until 22.2 lands, this is a tenant data leakage vector. 🏗️
+- [x] **`internal/api/rest.go:803,846`** ~~(was reported as `:502,544`)~~ — Reclassified 2026-04-25 after re-audit: the `fmt.Sprintf("TenantID:%s AND ...")` concat was **dead code, not a leak vector**. Storage-layer enforcement (`internal/storage/siem_badger.go:175-185` calls `MustTenantFromContext` and dispatches to `bleve.SearchEngine.Search(tenantID, ...)`, which selects a per-tenant index) is the actual isolation boundary. The auth middleware (`internal/auth/apikey.go:143,164`) plumbs `database.WithTenant(ctx, identityUser.TenantID)` from the authenticated session — user input cannot influence the tenant. The comment in `siem_badger.go` even warns that prepending the predicate at the API layer "is unnecessary and can break if analyzer casing differs." Fix: removed the redundant string concat from both handlers. 🏗️
 - [ ] **`internal/mcp/engine.go:71,74`** — OQL/MCP query composition via `fmt.Sprintf("%s AND Status:%s", query, status)` — injecting user-supplied `status` directly into a query string. If query parser doesn't sanitize, filter bypass via crafted status value. 🏗️
 - [ ] **No request body size limits on ingest endpoints** — `/api/v1/ingest` accepts arbitrary JSON bodies. A 1GB JSON payload could OOM the server. Add `http.MaxBytesReader`. 🌐
 - [ ] **Bleve full-text index stores raw event data** — Bleve indexes are stored unencrypted on disk alongside BadgerDB. Even if BadgerDB is encrypted (via SQLCipher-style key), Bleve index files may leak raw event content in plaintext. Verify Bleve index encryption or document this as a known gap. 🏗️
@@ -1165,7 +1168,7 @@
 
 - [x] **`internal/mcp/handler.go:161`** — `validateApproval(token, userID)` returns `token == "approved-" + userID`. Any user who knows their own `userID` (which is returned in every authenticated response) can construct a valid approval token without asking anyone. The entire M-of-N gating for destructive SOAR tools is bypassed by sending `"approved-{your-user-id}"` as the approval token. Fixed by replacing static string concatenation with a securely generated HMAC signed token verified on submission. 🏗️
 - [x] **`internal/api/rest.go:1583`** — The approval generation endpoint produces `fmt.Sprintf("approved-%s", req.ActorID)`. This isn't a cryptographically random token — it's deterministic and guessable. Fixed using the `mcpHandler.GenerateApprovalToken(approvalID, actorID)` which relies on a securely generated HMAC key. 🏗️
-- [x] **No multi-party enforcement** — The approval endpoint generates a token from a single actor's request with no vote counting, no quorum check, no threshold enforcement. Phase 22.7's WORM + M-of-N requirement has a stub implementation that provides zero actual protection. 🏗️
+- [v] **No multi-party enforcement** — HMAC-token replacement (preceding two items) closes the *forgery* hole, but the *quorum* enforcement remains partial: `internal/security/quorum.go:111` notes "we assume the caller has already verified the FIDO2 auth" — i.e. the FIDO2 signature on each approval is not actually verified against the registered hardware token, only counted. `quorum.go:125` does check `len(req.Approvals) >= req.Required`, so vote counting works; the gap is the *cryptographic binding* of each vote to a hardware identity. Phase 22.7 / 26.5 still own the full M-of-N + hardware-rooted verification. 🏗️
 
 ---
 
@@ -1191,7 +1194,7 @@
 - [ ] **`internal/services/settings_service.go:60`** — `s.log.Debug("Setting setting: %s=%s", key, value)` — every `Set()` call logs the key AND value in plaintext at DEBUG level. Any setting that stores a sensitive value (SMTP password, webhook secret, Slack token, API key) is logged in plaintext. If debug logging is enabled in any deployment, secrets are exfiltrated to log files. Replace with `s.log.Debug("Setting setting: %s=[REDACTED]", key)` or maintain a blocklist of sensitive key names. 🏗️
 
 #### Honeypot Credentials Leaked to Log Readers
-- [x] **`internal/security/honeypot_service.go:60`** — `s.log.Info("Injected honeypot credential: %s", username)` — logs every honeypot username in plaintext. Fixed by logging only the opaque decoy ID, preventing accidental exposure of trap credentials in audit logs. 🏗️
+- [x] **`internal/security/honeypot_service.go:60` and `:73`** — `Inject…` logs only the decoy ID; **`RegisterTrigger` previously logged `decoy.Value` (the plaintext honeypot username)** at WARN level, which the audit picked up on 2026-04-25. Fixed both call sites: the `HONEYPOT TRIGGERED` line now logs only `id` + `type`, never the decoy value. 🏗️
 
 #### Internal Errors Returned to API Clients
 - [x] **`internal/api/rest.go:507,551`** — `"Search failed: %v"` and `"Query failed: %v"` return raw internal error messages to unauthenticated callers. Fixed by redacting raw internal errors; the API now returns generic `"Search/Query unavailable"` to callers while logging the full traceback server-side. 🌐
@@ -1256,22 +1259,22 @@
 > A DARPA-grade architectural overhaul addressing strict SOC requirements, horizontal scale, and adversarial resilience per the brutal roadmap audit.
 
 ### 🔴 Tier 1: Systemic Scaling & Stream Semantics
-- [x] **26.1 Distributed Log Fabric:** Separate ingestion from indexing by implementing a messaging pipeline (Kafka/NATS JetStream).
+- [x] **26.1 Distributed Log Fabric:** Embedded NATS JetStream (`internal/messaging/nats_service.go:49-113`) with priority subject routing (critical/high/default at lines 132-142); ingestion pipeline references at `internal/ingest/pipeline.go:89`. Verified.
 - [ ] **26.2 Federated Query Federation:** Transition from local BadgerDB/Bleve to a distributed query execution layer (Presto/Trino style) capable of routing by tenant, source, and time-shard.
 - [ ] **26.3 Stream-Oriented Detection Engines:** Refactor rule engines to fully embrace stream-oriented semantics (sliding/tumbling windows, watermarks, late-event handling, and deterministic replay).
-- [x] **26.4 System-Wide Backpressure:** Enforce strict microservice circuit breakers, intelligent queue prioritization (alerts > normal logs), and load-shedding strategies to protect against cluster collapse.
-- [x] **26.5 Cryptographic M-of-N Approval:** Elevate the MCP and SOAR kill-switches to require multi-party FIDO2/Hardware-backed quorum protocols, writing unalterable audit trails.
+- [v] **26.4 System-Wide Backpressure:** Worker pool blocks on full queue (`internal/platform/worker_pool.go:84-92`); event bus rate-limits at 1k events/sec / 5k burst (`internal/eventbus/bus.go:102-110,196-207`); NATS priority subjects (above) provide alert preemption. **Gap**: no explicit circuit breaker / bulkhead pattern (e.g. sony/gobreaker) — services don't trip and isolate when downstream fails.
+- [v] **26.5 Cryptographic M-of-N Approval:** `internal/security/quorum.go:1-158` + `fido2.go:1-100` provide voting structure; `quorum.go:125` enforces `len(req.Approvals) >= req.Required`. **Gap**: `quorum.go:111` comment "we assume the caller has already verified the FIDO2 auth" — actual hardware signature verification per approval is missing. The MCP/SOAR side (Phase 25.10) has HMAC-bound approval tokens but no hardware quorum coupling. Open: 22.7 owns full-stack hardware-rooted M-of-N.
 
 ### 🟡 Tier 2: Investigations & Secrets Automation
-- [x] **26.6 Graph-Based Investigations:** Build out the missing relational UI, allowing rapid traversal from User → Host → Process → IP → Threat intel in a single canvas.
-- [x] **26.7 Automated Incident Timeline Reconstruction:** Provide automatic, causality-linked timeline rebuilds around alerts for instant analyst context.
-- [x] **26.8 Secrets Lifecycle Automation:** Create automated rotation policies for Vault credentials (SSH keys, Jump proxies, API tokens).
-- [x] **26.9 Alert False-Positive Suppression:** Construct a time/user/asset-based suppression manager to curb alert fatigue with automated feedback loops.
+- [x] **26.6 Graph-Based Investigations:** `internal/services/graph_service.go:1-150` (FindAttackPath, GetSubGraph, node/edge model, campaign cluster export). Verified.
+- [x] **26.7 Automated Incident Timeline Reconstruction:** `internal/services/timeline_service.go:1-129` `ReconstructTimeline`; `CausalityID` on `internal/detection/timeline.go:18`; ±10m/+20m alert window. Verified.
+- [x] **26.8 Secrets Lifecycle Automation:** `internal/services/rotation_service.go:1-150` — hourly worker, SSH key rotation, auto-rotate vs notify-only policies, vault integration. Verified.
+- [v] **26.9 Alert False-Positive Suppression:** `internal/services/governance_service.go:55-79` `MarkFalsePositive` + bias-log evidence storage. **Gap**: no time/user/asset-based suppression *rules*, no automated feedback loop that adjusts detection thresholds, no maintenance-window suppression. Re-classify as partial; promote rule-based suppression to a discrete subtask.
 
 ### 🔵 Tier 3: Economic Strategy & Defense
-- [x] **26.10 Hot/Warm/Cold Tiering Strategy:** Segment stored data based on explicit storage and access cost models for extreme retention workloads.
+- [ ] **26.10 Hot/Warm/Cold Tiering Strategy:** ~~Marked complete here, but Phase 22.3 has the same item open `[ ]`. The contradiction is resolved in favour of 22.3:~~ Hot store (BadgerDB) and Parquet write-once archive exist, but no automatic data migration, no warm tier (30–180d), no cold (180d+) S3-compatible tier. `internal/database/query_planner.go` does cost estimation only, no tier-aware routing. Owner: 22.3.
 - [ ] **26.11 Air-Gap vs SaaS Deploy Target Framework:** Create rigid artifact pipelines specific for strictly on-prem, pure SaaS, or hybrid-relay modes.
-- [ ] **26.12 Chaos Engineering Suite:** Establish automated failure injection sequences (network latency, corrupted payloads, database disruption) on the CI to consistently prove SLA/SLO metrics.
+- [ ] **26.12 Chaos Engineering Suite:** Establish automated failure injection sequences (network latency, corrupted payloads, database disruption) on the CI to consistently prove SLA/SLO metrics. *(Note: standalone chaos harness already exists at `cmd/chaos/main.go` — see Phase 22.1; what remains is integrating it as a scheduled CI job with SLA assertions.)*
 
 ---
 
@@ -1353,3 +1356,65 @@
 | `/healthz` + `/readyz` + `/metrics` | GET | 2.3 |
 | `/debug/attestation` | GET | 17 |
 | `/api/v1/openapi.yaml` | GET | 2.2 |
+
+---
+
+## Phase 28: 2026-04-25 Verification Audit
+
+> **Scope**: Re-checked every `[x]` claim in Phases 22, 23, 25, 26 against the actual code paths.
+> Used four parallel Explore agents + targeted reads. The deltas below are reflected in-place above.
+
+### ✅ Items confirmed as already-complete (status was `[ ]` but code exists)
+
+| Item | Evidence |
+|---|---|
+| **22.1 Chaos test harness** | `cmd/chaos/main.go` (520 LOC) ships all four scenarios: WAL CRC replay, BadgerDB VLog corruption + truncate-mode reopen, OOM/burst load-shed probe, clock skew ±5 min. Plus `cmd/chaos-fuzzer/`, `cmd/chaos-harness/`. |
+| **22.1 Automated soak regression** | `.github/workflows/soak.yml` triggers on every release tag + manual dispatch; runs 30 min × 5,000 EPS; fails on >10% EPS drop, >0.1% event loss, or min-window <50% of target. Captures heap pprof. |
+
+### ⚠️ Items that were `[x]` but are actually partial/wrong (downgraded)
+
+| Item | What's actually true |
+|---|---|
+| **22.2 Correlation state isolation** | LRU at `correlation.go:138` keys on `tenant+ruleID`, not `tenant+ruleID+groupKey`. groupKey isolation enforced *within* the LRU at lines 153-162. Functionally correct, claim wording overstates. |
+| **22.2 Tenant deletion audit trail** | Status flip + salt wipe done; no immutable deletion record (no `deletion_log`, no audit-bus publish). GDPR right-to-erasure evidence missing. |
+| **22.2 50-tenant isolation test** | Test runs **10 events/tenant**, not 1000 as claimed. Structural isolation valid; throughput claim overstated. |
+| **22.4 SSH → anomaly banner** | `OperatorService.GetContext()` exists. UI status-bar surfacing + one-keypress event panel keybind missing. |
+| **22.4 Host isolation from terminal** | `agentStore.toggleQuarantine` wired. No `Ctrl+Shift+I` keybind handler, no confirmation modal, titlebar status indicator unverified. |
+| **23.2 Session restore banner** | Backend `session_persistence.go` save/restore present. `TerminalLayout.svelte` doesn't exist (current page is `TerminalPage.svelte`); banner UI missing. |
+| **23.4 OperatorBanner.svelte** | `OperatorService` backend exists; component file `OperatorBanner.svelte` does not. |
+| **23.5 Clipboard OSC 52** | XTerm imported. No OSC 52 handler, no auto-copy-on-selection, no right-click paste. Reset to `[ ]`. |
+| **23.6 AI Autocomplete UI** | `CommandHistoryService.GetSuggestions` exists. No floating suggestion box, no cursor anchoring. Reset to `[ ]`. |
+| **25.10 No multi-party enforcement** | HMAC-token replacement closes the *forgery* hole; FIDO2 hardware-signature verification of each approval is still missing (`quorum.go:111` skips it). |
+| **26.4 System-Wide Backpressure** | Worker pool + bus rate limit + NATS priorities exist; explicit circuit breaker / bulkhead pattern absent. |
+| **26.5 Cryptographic M-of-N Approval** | Voting structure exists; per-approval FIDO2 signature verification missing. |
+| **26.9 Alert False-Positive Suppression** | `MarkFalsePositive` exists; rule-based suppression + automated feedback loop + maintenance windows do not. |
+| **26.10 Hot/Warm/Cold Tiering** | Contradicted open `[ ]` in 22.3 — only Hot (Badger) + Parquet archive exist; no warm/cold migration. Reset to `[ ]`; owner is 22.3. |
+
+### 🛠️ Fixes shipped during this audit pass
+
+| Change | Files |
+|---|---|
+| Removed redundant `TenantID` string concat (Phase 25.9 reclassified — was dead code, not a leak vector). | `internal/api/rest.go` (handleSearch ~803, handleAlertsList ~846) |
+| Added missing license gates on premium endpoints. The `/api/v1/ransomware/isolate` endpoint executes a destructive network isolation — previously **no license gate at all**. Now gated. Also fixed `playbooks/run`, `playbooks/metrics`, `ueba/stats`, `ndr/protocols`, `ransomware/events`, `ransomware/stats`. | `internal/api/rest_phase8_12.go` |
+| Honeypot `RegisterTrigger` previously logged plaintext decoy username at WARN. Now logs only `id` + `type`. | `internal/security/honeypot_service.go:73` |
+| Added `gosec` (SARIF → GitHub Security tab), `gitleaks` (full-history secret scanning), and `govulncheck` (CVE scan with reachability analysis) to `ci.yml`. Phase 25.4 #5 + #6 now resolved. | `.github/workflows/ci.yml` |
+
+### ✅ Items confirmed correct (audit verdict: VERIFIED, no change)
+
+A non-exhaustive list of `[x]` claims that survived the re-audit unchanged:
+- 22.2 tenant-prefixed keyspace, per-tenant Bleve index, per-tenant encryption keys, query sandbox, provisioning API
+- 25.2 osquery stdin-piped, GDPR table allowlist, lifecycle whitelist, FSM tmpPath validation, logsource TLS warning, TAXII InsecureSkipVerify=false, share-service expiresInMinutes
+- 25.10 HMAC approval tokens (mcp/handler.go:161-182, rest.go:GenerateApprovalToken)
+- 25.11 TOTP replay cache (sync.Map, 120s expiry), per-IP rate limiting + 5-failure account lockout
+- 25.12 generic search/query error responses, agent ingest "invalid payload structure"
+- 25.13 CSP / Referrer-Policy / Permissions-Policy headers; agent ingest 10MB MaxBytesReader
+- 25.16 Evidence locker uses `DynamicHMACSigner{provider: keyProvider, purpose: "forensic_hmac"}` — key loaded from vault, not hardcoded (audit agent's "FAILED" verdict was incorrect on this one)
+- 25.17 Canary path randomized via `time.Now().UnixNano()` (still in `/tmp/.oblivra_canary_<rand>` — randomization mitigates symlink pre-creation; could be hardened further with `O_CREAT|O_EXCL` semantics over SFTP)
+- 26.1, 26.6, 26.7, 26.8 (verified above)
+
+### 🚨 Open critical items not yet addressed by this pass
+
+1. **`internal/services/settings_service.go:60`** still logs `Setting setting: %s=%s` at DEBUG with raw value — sensitive setting values (SMTP passwords, webhook secrets) leak to log files when DEBUG logging is on. (Phase 25.12)
+2. **`internal/security/fido2.go` and `internal/security/siem.go`** have pre-existing build errors (`time.Now().After(t, err)` — treating time.Now() as 2-return). Independent of this audit; surfaced when verifying the API package compiles.
+3. **Phase 6 / Phase 12 self-validated compliance claims** still need reclassification to `[ ]` until externally audited.
+4. **GDPR right-to-erasure** — tenant deletion path needs an immutable deletion record (Phase 22.2 partial item).

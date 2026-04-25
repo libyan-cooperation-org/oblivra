@@ -70,7 +70,9 @@ func (s *HoneypotService) RegisterTrigger(id string) {
 		now := time.Now().Format(time.RFC3339)
 		decoy.LastTrigger = &now
 		s.decoys[id] = decoy
-		s.log.Warn("HONEYPOT TRIGGERED: %s interaction with %s (%s)", decoy.ID, decoy.Value, decoy.Type)
+		// Never log decoy.Value: it may be a plaintext honeypot credential
+		// (username/password/token) and audit log readers must not exfiltrate trap secrets.
+		s.log.Warn("HONEYPOT TRIGGERED: id=%s type=%s", decoy.ID, decoy.Type)
 	}
 }
 

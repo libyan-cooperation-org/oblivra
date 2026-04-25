@@ -312,8 +312,11 @@ func (f *SIEMForwarder) sendSplunk(events []SIEMEvent) error {
 	var buf bytes.Buffer
 
 	for _, event := range events {
+		// Unparseable timestamps fall back to 0 (epoch) so Splunk still ingests the event;
+		// the SIEM forwarder should not drop alerts because of a malformed timestamp string.
+		eventTime, _ := parseTime(event.Timestamp)
 		splunkEvent := map[string]interface{}{
-			"time":       parseTime(event.Timestamp).Unix(),
+			"time":       eventTime.Unix(),
 			"host":       "sovereign-terminal",
 			"source":     "sovereign-terminal",
 			"sourcetype": "sovereign:security",

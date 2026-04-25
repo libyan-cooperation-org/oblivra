@@ -88,3 +88,71 @@ jobs:
           cache: true
       - name: Run architecture tests
         run: go test ./internal/architecture/...
+
+  # ── Static analysis: gosec ───────────────────────────────────────────────
+  # Catches the classes of bug surfaced in the Phase 25 audit:
+  # InsecureSkipVerify, math/rand-as-security-source, fmt.Sprintf into SQL, etc.
+  gosec:
+    name: Static analysis (gosec)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          # Excludes:
+          #   G104 (errcheck — staticcheck handles this better)
+          #   G304 (file inclusion via variable — too noisy for SIEM file-tailing collectors)
+          #   G601 (loop var capture — Go 1.22+ fixes the underlying issue)
+          # Output SARIF for the GitHub Security tab; warn-only on PRs to avoid
+          # flag-day rejection of pre-existing findings.
+          args: '-no-fail -fmt=sarif -out=gosec.sarif -exclude=G104,G304,G601 ./...'
+      - name: Upload gosec SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: gosec.sarif
+
+  # ── Secrets scanning: gitleaks ───────────────────────────────────────────
+  # Would have caught the dark-site URL (sync.oblivrashell.dev) before merge.
+  gitleaks:
+    name: Secrets scan (gitleaks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks needs full history for blame on findings
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Pass-through; not a license — repo-scope only. Blocks PRs on detection.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
+
+  # ── Vulnerable Go dependencies: govulncheck ──────────────────────────────
+  # Surfaces CVEs in BadgerDB, gRPC, golang.org/x/* etc. before they ship.
+  govulncheck:
+    name: Vulnerability scan (govulncheck)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck
+        # Fails the job on any GO-... advisory whose vulnerable symbol is reachable
+        # from our code. Use `go list ./...` so we scan every module in the tree.
+        run: govulncheck ./...

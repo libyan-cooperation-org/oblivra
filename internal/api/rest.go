@@ -795,17 +795,21 @@ func (s *RESTServer) handleSIEMSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Multi-Tenant Enforcement: Scoped Search
+	// Multi-tenant isolation is enforced structurally one layer down:
+	//   - auth middleware plumbs the authenticated tenant via database.WithTenant(ctx, ...)
+	//   - SIEMStore.SearchHostEvents resolves it via MustTenantFromContext and dispatches
+	//     to the tenant's dedicated Bleve index (internal/search/bleve.go:getIndex)
+	// Concatenating "TenantID:X AND ..." into the query string here is redundant and
+	// can interact badly with analyzer casing — the storage layer is the source of truth.
 	identityUser := auth.UserFromContext(r.Context())
-	if identityUser != nil && identityUser.TenantID != "" && identityUser.TenantID != "GLOBAL" {
-		// Prepend TenantID filter if not already present or if we want to force scope.
-		// For MVP, we'll force the scope.
-		query = fmt.Sprintf("TenantID:%s AND (%s)", identityUser.TenantID, query)
-	}
 
 	events, err := s.siem.SearchHostEvents(r.Context(), query, limit)
 	if err != nil {
-		s.log.Error("[REST] Search failed for tenant %s: %v", identityUser.TenantID, err)
+		tenantLabel := ""
+		if identityUser != nil {
+			tenantLabel = identityUser.TenantID
+		}
+		s.log.Error("[REST] Search failed for tenant %s: %v", tenantLabel, err)
 		http.Error(w, "Search unavailable. Internal processing error.", http.StatusInternalServerError)
 		return
 	}
@@ -839,18 +843,20 @@ func (s *RESTServer) handleAlertsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Multi-Tenant Enforcement: Scoped Alerts
+	// Tenant scope is enforced by the storage layer (per-tenant Bleve index dispatch
+	// keyed off the auth-middleware-supplied tenant context). See handleSearch above.
 	identityUser := auth.UserFromContext(r.Context())
 	query := "EventType:security_alert"
-	if identityUser != nil && identityUser.TenantID != "" && identityUser.TenantID != "GLOBAL" {
-		query = fmt.Sprintf("TenantID:%s AND %s", identityUser.TenantID, query)
-	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	alerts, err := s.siem.SearchHostEvents(ctx, query, 100)
 	cancel()
 	if err != nil {
-		s.log.Error("[REST] Query failed for tenant %s: %v", identityUser.TenantID, err)
+		tenantLabel := ""
+		if identityUser != nil {
+			tenantLabel = identityUser.TenantID
+		}
+		s.log.Error("[REST] Query failed for tenant %s: %v", tenantLabel, err)
 		http.Error(w, "Query unavailable. Internal processing error.", http.StatusInternalServerError)
 		return
 	}

@@ -2,6 +2,45 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.1.1] - 2026-04-25
+
+### 🔍 Verification Audit Pass — Phase 28
+A re-audit of every `[x]` item in Phases 22, 23, 25, and 26 against the actual code paths. Several claims were overstated or shipped only as backend stubs without UI; corrections applied in `task.md` Phase 28.
+
+**Confirmed already-shipped (status was open):**
+- 22.1 Chaos test harness — `cmd/chaos/main.go` (520 LOC) covers WAL CRC replay, BadgerDB VLog corruption + truncate-mode reopen, OOM/burst load-shed probe, clock skew ±5 min
+- 22.1 Automated soak regression — `.github/workflows/soak.yml` runs 30 min × 5,000 EPS on every release tag; fails on >10% EPS drop, >0.1% event loss, or min-window <50% of target
+
+**Reset to open (claim was overstated):**
+- 23.5 Clipboard OSC 52 — backend missing entirely
+- 23.6 AI Autocomplete UI — `CommandHistoryService.GetSuggestions` exists; floating suggestion box does not
+- 26.10 Hot/Warm/Cold Tiering — contradicted open `[ ]` in Phase 22.3; only Hot (Badger) + Parquet archive exist
+
+**Downgraded to partial:**
+- 22.2 50-tenant isolation test runs 10 events/tenant (not 1000); structural isolation valid but throughput claim overstated
+- 22.2 Tenant deletion — flips status + wipes salt but does not write an immutable deletion record (GDPR right-to-erasure evidence)
+- 23.4 OperatorBanner.svelte — backend service exists; component file does not
+- 26.4 System-wide backpressure — worker pool + bus rate limit + NATS priorities exist; no explicit circuit breaker pattern
+- 26.5 / 26.9 — voting structure / `MarkFalsePositive` exist; FIDO2 hardware signature verification on quorum approvals + rule-based suppression with feedback loop do not
+
+### 🔒 Security Hardening
+- **License gates closed** on previously-ungated premium endpoints, including the destructive `POST /api/v1/ransomware/isolate` (network isolation action with no licensing check at all). Coverage extended to `playbooks/run`, `playbooks/metrics`, `ueba/stats`, `ndr/protocols`, `ransomware/{events,stats}`.
+- **Honeypot credential leak** — `RegisterTrigger` was logging `decoy.Value` (the plaintext honeypot username) at WARN level. Now logs only `id` + `type` so audit log readers cannot exfiltrate trap credentials.
+- **Tenant query string concat removed** — `internal/api/rest.go` `handleSearch` and `handleAlertsList` were prepending `TenantID:%s AND (%s)` to user queries. Reclassified after re-audit: this was *dead code, not a leak vector* (storage layer at `siem_badger.go:175-185` already dispatches via `MustTenantFromContext` to a per-tenant Bleve index; auth middleware plumbs tenant from authenticated session). Removed the redundant predicate so future auditors don't keep flagging it.
+
+### 🛡️ CI Security Tooling
+- **`gosec`** — static analysis for InsecureSkipVerify, math/rand-as-security-source, fmt.Sprintf-into-SQL. SARIF uploads to GitHub Security tab.
+- **`gitleaks`** — full-history secret scanning. Would have caught the `sync.oblivrashell.dev` dark-site URL pre-merge.
+- **`govulncheck`** — CVE reachability analysis on every PR; fails on advisories with reachable vulnerable symbols.
+
+### 🐛 Build Stability
+- Fixed three pre-existing `parseTime()` 2-return-value misuse sites (`internal/security/fido2.go:95,167`, `siem.go:316`, `honeypot_service_test.go:38`) that were blocking `go vet` on `internal/security`. Unparseable challenge timestamps now fail closed (treated as expired); SIEM forwarder falls back to epoch on malformed timestamps so the event still ingests.
+
+### 📝 Documentation
+- `task.md` — Phase 28 verification audit summary appended; current sprint marker advanced from S1 to S2; 50+ items reclassified with file:line evidence and verdict (VERIFIED / PARTIAL / FAILED).
+
+---
+
 ## [1.1.0] - 2026-03-16
 
 ### 🔒 Security Hardening (31 findings resolved)
