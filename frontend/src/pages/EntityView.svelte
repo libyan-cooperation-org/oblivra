@@ -3,9 +3,9 @@
   Deep-dive analytics for platform entities: Users, Hosts, and Identities.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button } from '@components/ui';
-  import { User, Shield, Activity, Layers, Globe, History } from 'lucide-svelte';
-  
+  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
+  import { User, Server, Shield, Activity, Zap, Layers, Globe, Cpu, Clock, History } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
   const entity = {
     id: 'E-401',

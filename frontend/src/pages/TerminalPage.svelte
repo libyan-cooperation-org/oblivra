@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { PageLayout, Button, EmptyState } from '@components/ui';
+  import { KPI, Badge, PageLayout, Button, EmptyState } from '@components/ui';
   import XTerm from '@components/terminal/XTerm.svelte';
   import TerminalTabs from '@components/terminal/TerminalTabs.svelte';
   import TerminalToolbar from '@components/terminal/TerminalToolbar.svelte';

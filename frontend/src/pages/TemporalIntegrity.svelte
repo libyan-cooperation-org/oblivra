@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Database, Lock } from 'lucide-svelte';
-  
+  import { Shield, Clock, Database, CheckCircle, AlertTriangle, Activity, Lock } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
   const integrityBlocks = [
     { epoch: '1,422,100', hash: '0x8f22...11ac', verified: true, signers: 4, drift: '0ms' },

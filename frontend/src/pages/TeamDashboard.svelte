@@ -3,7 +3,7 @@
   Collaboration and access control management for SOC teams.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState } from '@components/ui';
 
   const mockTeam = [
     { id: 'u1', name: 'Maverick', role: 'Global Admin', last_active: 'Now', status: 'online' },

@@ -13,7 +13,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
   import NotificationDrawer from '@components/layout/NotificationDrawer.svelte';
   import BottomNav from '@components/layout/BottomNav.svelte';
-  
+  import { notificationStore } from '@lib/stores/notifications.svelte';
   import LoadingScreen from '@components/ui/LoadingScreen.svelte';
   import ErrorScreen from '@components/ui/ErrorScreen.svelte';
   import { siemStore } from '@lib/stores/siem.svelte';

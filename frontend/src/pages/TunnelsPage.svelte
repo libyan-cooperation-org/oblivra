@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { KPI, Badge, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
   import { IS_BROWSER } from '@lib/context';
 
   interface TunnelInfo {

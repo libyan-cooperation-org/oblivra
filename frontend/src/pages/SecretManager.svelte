@@ -7,7 +7,20 @@
   import { toastStore } from '@lib/stores/toast.svelte';
   import Badge from '@components/ui/Badge.svelte';
   import Button from '@components/ui/Button.svelte';
-  import { Shield, RefreshCw, Calendar, Clock, AlertTriangle, Search, Settings2, Lock, Key, ShieldAlert } from 'lucide-svelte';
+  import { 
+    Shield, 
+    RefreshCw, 
+    Calendar, 
+    Clock, 
+    CheckCircle2, 
+    AlertTriangle, 
+    Search, 
+    ChevronRight,
+    Settings2,
+    Lock,
+    Key,
+    ShieldAlert
+  } from 'lucide-svelte';
 
   let credentials = $state<any[]>([]);
   let policies = $state<any[]>([]);

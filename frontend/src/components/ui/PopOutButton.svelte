@@ -10,7 +10,6 @@
   import { ExternalLink } from 'lucide-svelte';
   import { IS_BROWSER } from '@lib/context';
   import { toastStore } from '@lib/stores/toast.svelte';
-  import { t } from '@lib/i18n';
 
   interface Props {
     /** Route to pop out, e.g. "/siem-search". Defaults to current pathname. */

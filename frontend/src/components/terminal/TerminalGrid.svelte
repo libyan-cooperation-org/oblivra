@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { VirtualLayout, LayoutConfig } from 'golden-layout';
-  
+  import { VirtualLayout, LayoutConfig, ComponentItemConfig } from 'golden-layout';
+  import { appStore } from '@lib/stores/app.svelte';
   import XTerm from './XTerm.svelte';
   import 'golden-layout/dist/css/goldenlayout-base.css';
   import 'golden-layout/dist/css/themes/goldenlayout-dark-theme.css';

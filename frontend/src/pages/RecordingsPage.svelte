@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { KPI, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
+  import { KPI, Badge, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
   import { appStore } from '@lib/stores/app.svelte';
   import { IS_BROWSER } from '@lib/context';
   import { push } from '@lib/router.svelte';

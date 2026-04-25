@@ -3,9 +3,9 @@
   Forensic replay of recorded terminal telemetry.
 -->
 <script lang="ts">
-  import { PageLayout, Button, Badge } from '@components/ui';
-  import { Play, Pause, SkipBack, SkipForward, Clock } from 'lucide-svelte';
-  
+  import { KPI, PageLayout, Button, Badge } from '@components/ui';
+  import { Play, Pause, SkipBack, SkipForward, Clock, Shield } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
   let playing = $state(false);
   let progress = $state(45);

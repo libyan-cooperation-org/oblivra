@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { PageLayout, Button, DataTable } from '@components/ui';
-  import { Layout, Plus, Save, Play, Trash2, Move, BarChart, Terminal, Eye } from 'lucide-svelte';
+  import { PageLayout, Button, KPI, DataTable, Input } from '@components/ui';
+  import { Layout, Plus, Save, Play, Settings, Trash2, Move, BarChart, Terminal, Eye } from 'lucide-svelte';
   import { siemStore } from '@lib/stores/siem.svelte';
   import { onMount } from 'svelte';
 

@@ -5,7 +5,7 @@
 <script lang="ts">
   import { KPI, Badge, PageLayout, Button } from '@components/ui';
   import { Zap, Phone, Activity } from 'lucide-svelte';
-  
+  import { appStore } from '@lib/stores/app.svelte';
 
   const escalationPaths = [
     { tier: 1, team: 'SOC Analysts', method: 'Slack/PagerDuty', status: 'engaged' },

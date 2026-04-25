@@ -3,9 +3,9 @@
   Super-admin control plane for sovereign cluster orchestration.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button } from '@components/ui';
-  import { Shield, Activity, Database, Users, Server, HardDrive, Key, History, Zap } from 'lucide-svelte';
-  
+  import { PageLayout, Badge, Button, KPI, DataTable } from '@components/ui';
+  import { Shield, Activity, Database, Users, Server, HardDrive, Key, History, Zap, ShieldAlert } from 'lucide-svelte';
+  import { appStore } from '@lib/stores/app.svelte';
   import { tenantStore } from '@lib/stores/tenant.svelte.ts';
 
   const stats = $derived(tenantStore.platformMetrics);

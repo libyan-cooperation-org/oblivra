@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { appStore } from '@lib/stores/app.svelte';
-  import { DataTable, PageLayout, Button, EmptyState, Tabs, Input } from '@components/ui';
+  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState, Tabs, Input } from '@components/ui';
 
   const vaultTabs = [
     { id: 'keys', label: 'SSH Keys', icon: '🔑' },
