@@ -8,9 +8,22 @@
   import XTerm from '@components/terminal/XTerm.svelte';
   import TerminalTabs from '@components/terminal/TerminalTabs.svelte';
   import TerminalToolbar from '@components/terminal/TerminalToolbar.svelte';
+  import OperatorBanner from '@components/terminal/OperatorBanner.svelte';
+  import SessionRestoreBanner from '@components/terminal/SessionRestoreBanner.svelte';
 
   const activeSession = $derived(
     appStore.sessions.find(s => s.id === appStore.activeSessionId) || appStore.sessions[0]
+  );
+
+  // Best-effort host derivation from the active session — used by
+  // OperatorBanner to filter SIEM alerts to the host the operator is
+  // currently looking at. Schemas vary across stores; prefer hostname
+  // then any host-like field.
+  const activeHost = $derived(
+    (activeSession as any)?.hostname ??
+    (activeSession as any)?.host ??
+    (activeSession as any)?.host_id ??
+    ''
   );
 </script>
 
@@ -21,6 +34,14 @@
 
   {#if appStore.sessions.length > 0}
     <div class="flex flex-col h-full gap-2">
+      <!-- Restore-from-last-session prompt (visible only on cold start) -->
+      <SessionRestoreBanner />
+
+      <!-- SIEM alerts for the currently-active SSH host -->
+      {#if activeHost}
+        <OperatorBanner host={activeHost} />
+      {/if}
+
       <!-- Session Tabs -->
       <TerminalTabs />
 

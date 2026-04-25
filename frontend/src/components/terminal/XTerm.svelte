@@ -73,6 +73,59 @@
     term.open(terminalContainer);
     fitAddon.fit();
 
+    // ── Phase 23.5 — Clipboard (OSC 52 + native fallback) ───────────────
+    // OSC 52 is a terminal escape sequence that lets remote programs (vim,
+    // tmux, etc.) push text into the OS clipboard. xterm.js fires the
+    // event but doesn't write to the clipboard itself — we wire that up
+    // here. Pair with auto-copy-on-selection and right-click paste so the
+    // operator gets the same affordances as Termius / Windows Terminal.
+    term.parser.registerOscHandler(52, (data) => {
+      // OSC 52 payload: "<targets>;<base64>". We accept any target (c=clipboard,
+      // p=primary, etc.) and route everything to the OS clipboard since the
+      // distinction doesn't translate cleanly to most desktop OSes.
+      const semi = data.indexOf(';');
+      if (semi < 0) return false;
+      const b64 = data.slice(semi + 1);
+      try {
+        const text = atob(b64);
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(text).catch(() => { /* permission denied */ });
+        }
+      } catch {
+        // Malformed base64; ignore.
+      }
+      return true;
+    });
+
+    // Auto-copy on selection — most SOC operators expect "select = copied"
+    // rather than the xterm default which requires a separate ⌃C.
+    term.onSelectionChange(() => {
+      const sel = term.getSelection();
+      if (sel && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(sel).catch(() => { /* permission denied */ });
+      }
+    });
+
+    // Right-click paste — reads from the OS clipboard and writes through the
+    // same SendInput path as keystrokes, so the remote shell sees a normal
+    // paste stream.
+    terminalContainer.addEventListener('contextmenu', async (ev) => {
+      ev.preventDefault();
+      try {
+        const text = await navigator.clipboard?.readText?.();
+        if (!text) return;
+        if (sessionId.startsWith('local-')) {
+          const { SendInput } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/localservice');
+          await SendInput(sessionId, text);
+        } else {
+          const { SendInput } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/sshservice');
+          await SendInput(sessionId, text);
+        }
+      } catch (e) {
+        console.warn('[xterm] paste failed:', e);
+      }
+    });
+
     // ── Incoming Data (Backend -> Frontend)
     const unsubOut = subscribe(`terminal:out:${sessionId}`, (data: string) => {
       term.write(data);

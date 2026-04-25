@@ -940,20 +940,20 @@
 - [x] `BookmarkService` — Wails-bound CRUD for host bookmarks (wraps `HostStore` + Vault-encrypted credentials) 🖥️
 - [x] `SSHBookmarks.svelte` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
 
-### 23.2 — Session Restore on Restart (Partial)
+### 23.2 — Session Restore on Restart ✅
 - [x] `session_persistence.go` — save active session host IDs + tab order on graceful shutdown 🖥️
 - [x] `SSHService` restore hook — reconnect saved sessions on app start 🖥️
-- [ ] Session restore banner in `TerminalLayout.svelte` — "Restore 3 previous sessions?" *(component file missing — current terminal page is `TerminalPage.svelte`; banner UI not found)* 🖥️
+- [x] `SessionRestoreBanner.svelte` (`frontend/src/components/terminal/`) wired into TerminalPage. On mount it queries the SessionPersistence binding (LoadState / GetSavedSessions / List — graceful fallback across naming variants) and offers one-click restore for the operator's previous tabs. Silently no-ops in browser mode. 🖥️
 
 ### 23.3 — Per-Host Command History ✅
 - [x] `CommandHistoryService` — store/retrieve commands per host (SQLite, last 500 per host) 🖥️
 - [x] Autocomplete overlay in terminal — ↑ arrow history + Tab suggestions 🖥️
 
-### 23.4 — Operator Mode (Core) (Partial)
+### 23.4 — Operator Mode (Core) ✅
 > See also Phase 22.4 Operator Mode items for full scope.
 - [x] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host (`internal/services/operator_service.go:11-150`) 🖥️
-- [ ] `OperatorBanner.svelte` — SIEM alert count + severity overlay on terminal tab bar *(component file missing in `frontend/src/`)* 🖥️
-- [ ] `Ctrl+Shift+I` host isolation shortcut — confirmation modal → `NetworkIsolator` playbook *(no keybind handler found; toggleQuarantine path exists but no UI flow)* 🖥️
+- [x] `OperatorBanner.svelte` (`frontend/src/components/terminal/OperatorBanner.svelte`) — alert count + crit/high severity chips overlay on the terminal page; click-throughs for "View events" (drills to filtered SIEM search) and "Isolate" (fires the same global event Ctrl+Shift+I dispatches). Re-shows itself on severity escalation even if previously dismissed. 🖥️
+- [x] `Ctrl+Shift+I` host isolation shortcut — wired in App.svelte's onKeyDown to dispatch `oblivra:isolate-host` window event; OperatorMode.svelte listens and calls `agentStore.toggleQuarantine`. Off-page invocation navigates to /operator with a hint toast. Same pattern for Ctrl+Shift+E (evidence capture). 🖥️
 
 ### 23.5 — Clipboard OSC 52 (Not Started)
 - [ ] xterm.js clipboard integration — auto-copy-on-selection, right-click paste *(no OSC 52 handler in `frontend/src/components/terminal/XTerm.svelte`)* 🖥️
