@@ -13,6 +13,7 @@
   import { tick } from 'svelte';
   import { notificationStore, type NotificationEntry } from '@lib/stores/notifications.svelte';
   import { appStore } from '@lib/stores/app.svelte';
+  import { t } from '@lib/i18n';
 
   const open = $derived(notificationStore.drawerOpen);
 
@@ -103,7 +104,7 @@
   <button
     class="fixed inset-0 bg-black/30 z-40 border-none cursor-pointer"
     onclick={() => (notificationStore.drawerOpen = false)}
-    aria-label="Close notifications panel"
+    aria-label={t('common.close') + ' ' + t('notifications.title')}
     tabindex="-1"
   ></button>
 
@@ -119,18 +120,18 @@
       <div class="flex items-center gap-2">
         <Bell class="w-3.5 h-3.5 text-text-muted" />
         <span id="notification-drawer-title" class="text-[11px] font-mono font-bold uppercase tracking-widest text-text-heading">
-          Notifications
+          {t('notifications.title')}
         </span>
         {#if notificationStore.unreadCount > 0}
           <span class="px-1.5 py-px text-[8px] font-mono font-bold rounded-sm bg-accent/20 text-accent border border-accent/40">
-            {notificationStore.unreadCount} NEW
+            {t('notifications.unreadBadge', notificationStore.unreadCount)}
           </span>
         {/if}
       </div>
       <button
         class="p-1 text-text-muted hover:text-text-heading transition-colors bg-transparent border-none cursor-pointer"
         onclick={() => (notificationStore.drawerOpen = false)}
-        aria-label="Close"
+        aria-label={t('common.close')}
       >
         <X class="w-4 h-4" />
       </button>
@@ -141,8 +142,8 @@
       {#if notificationStore.entries.length === 0}
         <div class="flex flex-col items-center justify-center py-20 px-6 gap-3 text-center">
           <Bell class="w-8 h-8 text-text-muted opacity-30" />
-          <p class="text-[11px] font-mono text-text-muted uppercase tracking-wider">No notifications yet</p>
-          <p class="text-[10px] text-text-muted opacity-60">Alerts, system events, and warnings appear here.</p>
+          <p class="text-[11px] font-mono text-text-muted uppercase tracking-wider">{t('notifications.empty.title')}</p>
+          <p class="text-[10px] text-text-muted opacity-60">{t('notifications.empty.description')}</p>
         </div>
       {:else}
         {#each notificationStore.entries as entry (entry.id)}
@@ -202,7 +203,7 @@
           onclick={() => notificationStore.markAllRead()}
         >
           <Check class="w-3 h-3" />
-          <span>Mark all read</span>
+          <span>{t('notifications.markAllRead')}</span>
         </button>
         <div class="flex-1"></div>
         <button
@@ -210,7 +211,7 @@
           onclick={() => notificationStore.clearAll()}
         >
           <Trash2 class="w-3 h-3" />
-          <span>Clear all</span>
+          <span>{t('notifications.clearAll')}</span>
         </button>
       </footer>
     {/if}

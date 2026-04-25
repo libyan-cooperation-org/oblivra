@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { appStore } from '@lib/stores/app.svelte';
-  import { KPI, Badge, PageLayout, Button, EmptyState } from '@components/ui';
+  import { PageLayout, Button, EmptyState } from '@components/ui';
   import XTerm from '@components/terminal/XTerm.svelte';
   import TerminalTabs from '@components/terminal/TerminalTabs.svelte';
   import TerminalToolbar from '@components/terminal/TerminalToolbar.svelte';

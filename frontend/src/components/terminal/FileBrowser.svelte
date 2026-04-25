@@ -3,7 +3,7 @@
   SFTP interface for remote host file management.
 -->
 <script lang="ts">
-  import { KPI, Badge, Button, DataTable } from '@components/ui';
+  import { Button, DataTable } from '@components/ui';
   import { appStore } from '@lib/stores/app.svelte';
 
   let currentPath = $state('/var/log');

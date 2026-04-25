@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button } from '@components/ui';
-  import { Shield, Target, Activity, Zap, TrendingUp, Globe, Database } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { TrendingUp, Globe } from 'lucide-svelte';
+  
 
   const riskMetrics = [
     { label: 'Platform Resilience', value: '94%', goal: '98%', status: 'nominal' },

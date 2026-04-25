@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Zap, Activity, Eye, Search, Settings } from 'lucide-svelte';
+  import { Zap, Activity, Eye, Settings } from 'lucide-svelte';
 
   const features: Record<string, any>[] = [
     { id: 'F-01', name: 'Adaptive Egress Filtering', state: 'enabled', tier: 'Sovereign' },

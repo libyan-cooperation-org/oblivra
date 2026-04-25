@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { guardedUnlock } from '@lib/bridge';
-  import { appStore } from '@lib/stores/app.svelte';
+  
   import { toastStore } from '@lib/stores/toast.svelte';
   import Button from '@components/ui/Button.svelte';
   import Input from '@components/ui/Input.svelte';

@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { appStore } from '@lib/stores/app.svelte';
-  import { Button, Badge } from '@components/ui';
-  import { Shield, Play, Square, Settings, Share2, Grid } from 'lucide-svelte';
+  import { Button } from '@components/ui';
+  import { Settings } from 'lucide-svelte';
 
   function toggleWarMode() {
     appStore.notify('War Mode Engaged', 'error', 'Applying high-performance compute limits and hardened shell isolation.');

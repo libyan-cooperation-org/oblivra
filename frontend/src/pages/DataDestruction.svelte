@@ -3,8 +3,8 @@
   Secure erasure and atomic sanitization of mission logs and technical data.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, Input } from '@components/ui';
-  import { Trash2, ShieldAlert, Zap, Lock, Skull, Activity, Database, Check } from 'lucide-svelte';
+  import { KPI, PageLayout, Badge, Button } from '@components/ui';
+  import { Trash2, ShieldAlert, Database, Check } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
 
   let armed = $state(false);

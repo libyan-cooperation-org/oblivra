@@ -3,9 +3,9 @@
   Managing platform licensing, capabilities and sovereign-grade entitlements.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, Input } from '@components/ui';
-  import { ShieldCheck, Zap, Key, Activity, Database, Globe, RefreshCcw, Lock } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { PageLayout, Badge, Button, Input } from '@components/ui';
+  import { ShieldCheck, Lock } from 'lucide-svelte';
+  
 
   let licenseKey = $state('OBL-7721-MESH-SIGN');
 </script>

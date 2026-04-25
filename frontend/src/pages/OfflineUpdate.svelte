@@ -3,8 +3,8 @@
   Secure, air-gapped platform updates and signature verification.
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, Input, Spinner } from '@components/ui';
-  import { ShieldCheck, Download, Package, Activity, Zap, FileCode, CheckCircle2 } from 'lucide-svelte';
+  import { KPI, PageLayout, Badge, Button, Spinner } from '@components/ui';
+  import { ShieldCheck, Package, Activity, FileCode, CheckCircle2 } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
 
   let verifying = $state(false);

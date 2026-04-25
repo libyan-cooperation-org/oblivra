@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { PageLayout, Badge, Button, KPI } from '@components/ui';
-  import { ShieldAlert, Zap, MoreHorizontal, Terminal as TerminalIcon, Search, ShieldCheck, Activity, Lock, Database } from 'lucide-svelte';
+  import { PageLayout, Badge, Button } from '@components/ui';
+  import { ShieldAlert, Terminal as TerminalIcon, Activity, Database } from 'lucide-svelte';
   import XTerm from '@components/terminal/XTerm.svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';

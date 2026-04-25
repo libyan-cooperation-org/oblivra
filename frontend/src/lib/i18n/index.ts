@@ -106,7 +106,9 @@ export function t(key: string, ...args: Array<string | number>): string {
     // Fall back to English; warn once in dev for visibility.
     raw = LOCALES.en[key];
     if (raw == null) {
-      if (typeof console !== 'undefined' && import.meta?.env?.DEV) {
+      // import.meta.env is a Vite extension; cast to any so non-Vite
+      // type-checking environments (svelte-check standalone) don't error.
+      if (typeof console !== 'undefined' && (import.meta as any)?.env?.DEV) {
         console.warn(`[i18n] missing translation: ${key} (locale=${i18n.locale})`);
       }
       return key;

@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
   import { KPI, Badge, PageLayout, Button, Toggle, PopOutButton} from '@components/ui';
-  import { Shield, Zap, Lock, Power, Activity, Crosshair } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { Shield, Lock, Power, Crosshair } from 'lucide-svelte';
+  
 
   let isolationActive = $state(false);
   let firewallActive = $state(true);
