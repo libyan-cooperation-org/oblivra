@@ -25,24 +25,28 @@ export interface NotificationEntry {
 
 const STORAGE_KEY = 'oblivra:notifications:v1';
 const MAX_ENTRIES = 200;
+// Debounce window for localStorage persistence — coalesces an alert flood
+// (e.g. a SIEM panic burst pushing 50 notifications/sec) into one disk
+// write per quarter-second instead of N writes that thrash localStorage.
+const PERSIST_DEBOUNCE_MS = 250;
 
 class NotificationStore {
   // Reactive state visible to Svelte components via $state runes.
   entries: NotificationEntry[] = $state([]);
   drawerOpen = $state(false);
+  // Cache the unread count instead of re-filtering on every getter access —
+  // SOC dashboards re-evaluate this dozens of times per render. The cached
+  // value is invalidated by every mutation method below.
+  private unreadCountCache = $state(0);
+  private criticalUnreadCache = $state(0);
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Derived getters
-  get unreadCount(): number {
-    return this.entries.filter((e) => !e.read).length;
-  }
-
-  // Per-level counts power the bell-icon badge colour.
-  get criticalUnread(): number {
-    return this.entries.filter((e) => !e.read && (e.level === 'critical' || e.level === 'error')).length;
-  }
+  get unreadCount(): number { return this.unreadCountCache; }
+  get criticalUnread(): number { return this.criticalUnreadCache; }
 
   constructor() {
     this.load();
+    this.recomputeCounts();
   }
 
   /** Load from localStorage. Silently no-ops on parse error / SSR. */
@@ -60,18 +64,62 @@ class NotificationStore {
     }
   }
 
-  /** Persist on every mutation. Silent on quota / SSR errors. */
+  private recomputeCounts() {
+    let unread = 0;
+    let critical = 0;
+    for (const e of this.entries) {
+      if (e.read) continue;
+      unread++;
+      if (e.level === 'critical' || e.level === 'error') critical++;
+    }
+    this.unreadCountCache = unread;
+    this.criticalUnreadCache = critical;
+  }
+
+  /**
+   * Debounced persist — coalesces multiple mutations within
+   * PERSIST_DEBOUNCE_MS into a single localStorage write. Page-unload is
+   * handled separately via persistImmediately() so we never lose the most
+   * recent batch.
+   */
   private persist() {
+    if (typeof localStorage === 'undefined') return;
+    if (this.persistTimer) return; // a flush is already pending
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      this.persistImmediately();
+    }, PERSIST_DEBOUNCE_MS);
+  }
+
+  private persistImmediately() {
     if (typeof localStorage === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.entries));
-    } catch {
-      /* quota exceeded — drop oldest and retry once */
+    } catch (err) {
+      // Quota exceeded — drop oldest 50% and retry. Surface the truncation
+      // to the operator (via console; the bell drawer would itself be the
+      // place to surface this but recursing into push() during a quota
+      // crisis is the wrong move).
+      console.warn(
+        '[notifications] localStorage quota exceeded; truncating history by 50%',
+        err,
+      );
       try {
         this.entries = this.entries.slice(0, Math.floor(MAX_ENTRIES / 2));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.entries));
-      } catch { /* give up */ }
+      } catch (err2) {
+        console.error('[notifications] persist still failing after truncate:', err2);
+      }
     }
+  }
+
+  /** Force-flush any pending debounce. Useful before unload / navigation. */
+  flush() {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    this.persistImmediately();
   }
 
   push(level: NotificationLevel, title: string, message?: string, action?: NotificationEntry['action']) {
@@ -85,34 +133,48 @@ class NotificationStore {
       action,
     };
     this.entries = [entry, ...this.entries].slice(0, MAX_ENTRIES);
+    this.unreadCountCache++;
+    if (entry.level === 'critical' || entry.level === 'error') this.criticalUnreadCache++;
     this.persist();
   }
 
   markRead(id: string) {
-    const next = this.entries.map((e) => (e.id === id ? { ...e, read: true } : e));
-    if (next.some((e, i) => e !== this.entries[i])) {
-      this.entries = next;
-      this.persist();
-    }
+    let mutated = false;
+    const next = this.entries.map((e) => {
+      if (e.id === id && !e.read) {
+        mutated = true;
+        return { ...e, read: true };
+      }
+      return e;
+    });
+    if (!mutated) return;
+    this.entries = next;
+    this.recomputeCounts();
+    this.persist();
   }
 
   markAllRead() {
-    if (this.entries.every((e) => e.read)) return;
-    this.entries = this.entries.map((e) => ({ ...e, read: true }));
+    // Fast path: bail out when nothing is unread (audit MED-7).
+    if (this.unreadCountCache === 0) return;
+    this.entries = this.entries.map((e) => (e.read ? e : { ...e, read: true }));
+    this.unreadCountCache = 0;
+    this.criticalUnreadCache = 0;
     this.persist();
   }
 
   remove(id: string) {
     const next = this.entries.filter((e) => e.id !== id);
-    if (next.length !== this.entries.length) {
-      this.entries = next;
-      this.persist();
-    }
+    if (next.length === this.entries.length) return;
+    this.entries = next;
+    this.recomputeCounts();
+    this.persist();
   }
 
   clearAll() {
     if (this.entries.length === 0) return;
     this.entries = [];
+    this.unreadCountCache = 0;
+    this.criticalUnreadCache = 0;
     this.persist();
   }
 
@@ -122,3 +184,9 @@ class NotificationStore {
 }
 
 export const notificationStore = new NotificationStore();
+
+// Force-flush pending debounced writes when the user is leaving the page,
+// so a bug or crash doesn't lose the most recent ~250ms of notifications.
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => notificationStore.flush());
+}

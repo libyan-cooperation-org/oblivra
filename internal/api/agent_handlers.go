@@ -224,9 +224,15 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	// Persist the new watermark only if it actually advanced. A batch with
 	// no Seq fields (legacy agent) leaves the watermark untouched and the
 	// agent falls back to the local highest-Seq-in-batch on its end.
+	//
+	// Concurrency: two ingest requests for the same agent must not both
+	// pass the "advanced?" check and both write — that would let the
+	// later (lower) value clobber the earlier (higher) one. We compare
+	// AND set under a single Lock, and only commit if our value is still
+	// higher than what's already there (CAS-style guard).
 	if highestAckedThisBatch > prevAckedSeq && agentID != "" {
 		s.agentsMu.Lock()
-		if a, ok := s.agents[agentID]; ok {
+		if a, ok := s.agents[agentID]; ok && highestAckedThisBatch > a.LastAckedSeq {
 			a.LastAckedSeq = highestAckedThisBatch
 		}
 		s.agentsMu.Unlock()

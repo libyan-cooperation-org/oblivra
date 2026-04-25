@@ -20,19 +20,16 @@
   import { Minus, Square, X, Copy as Restore, Monitor, ExternalLink, Layout, Bell } from 'lucide-svelte';
   import { notificationStore } from '@lib/stores/notifications.svelte';
 
-  // Platform detection — userAgent is reliable enough for picking chrome style.
-  // We default to "win" if uncertain because that's the dominant SOC operator
-  // platform and shows the more discoverable explicit icon controls.
+  // Platform detection — userAgent is constant per process, so we resolve it
+  // once at module load instead of on every $derived re-evaluation.
   type Platform = 'mac' | 'win' | 'linux';
-  const platform = $derived(
-    typeof window !== 'undefined'
-      ? window.navigator.userAgent.toLowerCase().includes('mac')
-        ? 'mac'
-        : window.navigator.userAgent.toLowerCase().includes('linux')
-          ? 'linux'
-          : 'win'
-      : 'win'
-  );
+  const platform: Platform = (() => {
+    if (typeof window === 'undefined') return 'win';
+    const ua = window.navigator.userAgent.toLowerCase();
+    if (ua.includes('mac')) return 'mac';
+    if (ua.includes('linux')) return 'linux';
+    return 'win';
+  })();
   let isMaximised = $state(false);
   let popoutCount = $state(0);
 
@@ -63,19 +60,52 @@
         const mod = await import('../../../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js');
         if (mod && typeof mod.ListPopouts === 'function') {
           const ids = await mod.ListPopouts();
-          popoutCount = Array.isArray(ids) ? ids.length : 0;
+          const next = Array.isArray(ids) ? ids.length : 0;
+          // Adaptive cadence — 1.5s when actively tracking pop-outs, 8s
+          // when idle so we're not burning RPCs to confirm "still 0".
+          if (next !== popoutCount) {
+            popoutCount = next;
+            schedule(next > 0 ? 1500 : 8000);
+          }
         }
       } catch {
         // Bindings only exist in desktop builds; ignore in web.
       }
     };
 
+    function schedule(delayMs: number) {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(pollState, delayMs);
+    }
+
+    // Pause polling entirely while the window is hidden — saves RPCs
+    // when the operator is in another app on a different monitor.
+    function onVisibilityChange() {
+      if (document.hidden) {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = undefined;
+        }
+      } else {
+        pollState();
+        schedule(popoutCount > 0 ? 1500 : 8000);
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     pollState();
-    pollInterval = setInterval(pollState, 1500);
+    schedule(8000); // start in idle cadence; pollState bumps to 1.5s if needed
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   });
 
   onDestroy(() => {
-    if (pollInterval) clearInterval(pollInterval);
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = undefined;
+    }
   });
 
   async function windowClose() {

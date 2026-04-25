@@ -174,7 +174,8 @@ type RESTServer struct {
 	agentProvider AgentProvider     // provider for agent fleet data
 	globalLimiter  *rate.Limiter
 	ipLimiters     sync.Map // IP -> *rate.Limiter
-	failedLogins   sync.Map // email -> {count, lockoutUntil}
+	failedLogins   sync.Map     // email -> {count, lockoutUntil}
+	failedLoginsMu sync.Mutex   // serialises check-then-increment on failedLogins (TOCTOU fix)
 	tenantLimiters sync.Map // map[string]*rate.Limiter
 	upgrader websocket.Upgrader
 
@@ -1295,40 +1296,62 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Lockout Check
+	//
+	// Concurrency: two failed logins racing on the same email used to
+	// both Load(count=4) → both compute count=5 → both Store, leaving
+	// the counter at 5 instead of 6 (and effectively granting the
+	// attacker one extra attempt). We serialize all failure-counter
+	// mutations on a single mutex; login failures are rare so contention
+	// is negligible. Successful logins still take the fast path through
+	// failedLogins.Delete (sync.Map handles that).
 	now := time.Now()
+	s.failedLoginsMu.Lock()
 	if lockout, ok := s.failedLogins.Load(req.Email); ok {
 		info := lockout.(struct {
-			count   int
-			until   time.Time
+			count int
+			until time.Time
 		})
 		if info.count >= 5 && now.Before(info.until) {
+			s.failedLoginsMu.Unlock()
 			s.log.Warn("[SECURITY] Login blocked for %s: too many failed attempts (locked until %v)", req.Email, info.until)
 			http.Error(w, "Account temporarily locked. Please try again in 15 minutes.", http.StatusForbidden)
 			return
 		}
 	}
+	s.failedLoginsMu.Unlock()
 
 	user, err := s.identity.LoginLocal(req.Email, req.Password)
 	if err != nil {
-		// Increment failure counter
+		// Atomic check-then-increment under the same mutex used by the
+		// lockout-read above. Without this, two parallel failed logins
+		// could both read count=N, both compute N+1, both Store, and the
+		// counter only advances by 1 — letting an attacker probe twice
+		// per real failure.
+		s.failedLoginsMu.Lock()
 		count := 1
 		if existing, ok := s.failedLogins.Load(req.Email); ok {
 			count = existing.(struct {
-				count   int
-				until   time.Time
+				count int
+				until time.Time
 			}).count + 1
 		}
-		
+
 		until := time.Time{}
+		justLocked := false
 		if count >= 5 {
 			until = now.Add(15 * time.Minute)
+			justLocked = true
+		}
+
+		s.failedLogins.Store(req.Email, struct {
+			count int
+			until time.Time
+		}{count, until})
+		s.failedLoginsMu.Unlock()
+
+		if justLocked {
 			s.appendAuditEntry(req.Email, "lockout", "system", "locked", r)
 		}
-		
-		s.failedLogins.Store(req.Email, struct {
-			count   int
-			until   time.Time
-		}{count, until})
 
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return

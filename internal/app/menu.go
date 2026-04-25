@@ -25,11 +25,9 @@ func (a *App) BuildApplicationMenu() *application.Menu {
 func buildApplicationMenu() *application.Menu {
 	menu := application.NewMenu()
 
-	// macOS App menu — only present on Darwin; Wails returns nil elsewhere
-	if appMenu := application.NewAppMenu(); appMenu != nil {
-		menu.ItemAt(0) // no-op; AppendMenu happens via the helper below
-		_ = appMenu
-	}
+	// macOS App menu (About/Hide/Quit) is auto-injected by Wails on Darwin
+	// when a *Menu is bound; we don't need to manually splice NewAppMenu()
+	// in here. Earlier code did and it was a no-op — removed in audit.
 
 	// ── File ──────────────────────────────────────────────────────────────
 	file := menu.AddSubmenu("File")

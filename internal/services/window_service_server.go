@@ -24,7 +24,11 @@ func (s *WindowService) Name() string { return "window-service" }
 func (s *WindowService) PopOut(route string, title string) (int64, error)     { return 0, nil }
 func (s *WindowService) ClosePopout(id int64) error                            { return nil }
 func (s *WindowService) CloseAllPopouts() int                                  { return 0 }
-func (s *WindowService) ListPopouts() []int64                                  { return nil }
+
+// ListPopouts returns an empty (non-nil) slice so frontend callers that
+// assume an array shape (e.g. `arr.length`) don't NPE on nil. Audit LOW-12.
+func (s *WindowService) ListPopouts() []int64                                  { return []int64{} }
+
 func (s *WindowService) SaveWorkspace() (int, error)                           { return 0, nil }
 func (s *WindowService) RestoreWorkspace(closeExisting bool) (int, error)      { return 0, nil }
 func (s *WindowService) HasSavedWorkspace() bool                               { return false }

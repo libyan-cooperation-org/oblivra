@@ -10,10 +10,58 @@
 -->
 <script lang="ts">
   import { Bell, X, Trash2, Check, ChevronRight } from 'lucide-svelte';
+  import { tick } from 'svelte';
   import { notificationStore, type NotificationEntry } from '@lib/stores/notifications.svelte';
   import { appStore } from '@lib/stores/app.svelte';
 
   const open = $derived(notificationStore.drawerOpen);
+
+  let asideEl = $state<HTMLElement | null>(null);
+  let lastFocused = $state<HTMLElement | null>(null);
+
+  // Focus management — when the drawer opens, remember what had focus,
+  // shift focus into the drawer, and restore on close. Escape closes.
+  $effect(() => {
+    if (open) {
+      lastFocused = (document.activeElement as HTMLElement) ?? null;
+      tick().then(() => {
+        // First focusable element inside the drawer
+        const first = asideEl?.querySelector<HTMLElement>(
+          'button, [href], input, [tabindex]:not([tabindex="-1"])',
+        );
+        first?.focus();
+      });
+    } else {
+      // Restore focus to the bell button (or whatever opened us).
+      lastFocused?.focus?.();
+    }
+  });
+
+  function onWindowKey(e: KeyboardEvent) {
+    if (!open) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      notificationStore.drawerOpen = false;
+      return;
+    }
+    // Tab trap: keep focus inside the drawer while open. Without this,
+    // tabbing escapes back into the page underneath.
+    if (e.key === 'Tab' && asideEl) {
+      const focusables = asideEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
 
   function levelClass(level: NotificationEntry['level']) {
     switch (level) {
@@ -46,24 +94,31 @@
   }
 </script>
 
+<svelte:window onkeydown={onWindowKey} />
+
 {#if open}
-  <!-- Backdrop -->
+  <!-- Backdrop — pointer cursor signals it's clickable; full-area button
+       gives mouse + keyboard parity (operators using only the keyboard
+       can Tab to it and Enter). -->
   <button
-    class="fixed inset-0 bg-black/30 z-40 border-none cursor-default"
+    class="fixed inset-0 bg-black/30 z-40 border-none cursor-pointer"
     onclick={() => (notificationStore.drawerOpen = false)}
-    aria-label="Close notifications"
+    aria-label="Close notifications panel"
+    tabindex="-1"
   ></button>
 
   <aside
+    bind:this={asideEl}
     class="fixed top-8 right-0 bottom-0 w-96 bg-surface-1 border-l border-border-primary z-50 flex flex-col shadow-2xl"
     role="dialog"
-    aria-label="Notifications"
+    aria-modal="true"
+    aria-labelledby="notification-drawer-title"
   >
     <!-- Header -->
     <header class="flex items-center justify-between px-4 h-10 border-b border-border-primary shrink-0">
       <div class="flex items-center gap-2">
         <Bell class="w-3.5 h-3.5 text-text-muted" />
-        <span class="text-[11px] font-mono font-bold uppercase tracking-widest text-text-heading">
+        <span id="notification-drawer-title" class="text-[11px] font-mono font-bold uppercase tracking-widest text-text-heading">
           Notifications
         </span>
         {#if notificationStore.unreadCount > 0}

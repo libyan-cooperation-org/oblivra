@@ -30,18 +30,41 @@
       window.open(target, '_blank', 'noopener,noreferrer');
       return;
     }
+
+    let mod: any = null;
     try {
-      const mod = await import(
+      mod = await import(
         '../../../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
       );
-      if (!mod || typeof mod.PopOut !== 'function') {
-        toastStore.add({ type: 'warning', title: 'Pop-out unavailable', message: 'WindowService binding not loaded.' });
-        return;
-      }
+    } catch (err) {
+      // Distinguish missing-file (refactor moved binding path) from any
+      // other import error — both go to the console with detail so the
+      // dev tools have the real error, while the toast stays user-readable.
+      console.error('[PopOutButton] WindowService binding import failed:', err);
+      toastStore.add({
+        type: 'error',
+        title: 'Pop-out unavailable',
+        message: 'WindowService binding could not be loaded — see console for details.',
+      });
+      return;
+    }
+
+    if (!mod || typeof mod.PopOut !== 'function') {
+      console.warn('[PopOutButton] WindowService imported but PopOut not exported:', mod);
+      toastStore.add({
+        type: 'warning',
+        title: 'Pop-out unavailable',
+        message: 'WindowService binding loaded without PopOut method (rebuild needed?).',
+      });
+      return;
+    }
+
+    try {
       const r = route ?? window.location.pathname;
       const t = title ?? '';
       await mod.PopOut(r, t);
     } catch (err) {
+      console.error('[PopOutButton] PopOut RPC failed:', err);
       toastStore.add({
         type: 'error',
         title: 'Pop-out failed',

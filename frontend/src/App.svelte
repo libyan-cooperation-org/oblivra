@@ -1,6 +1,6 @@
 <script lang="ts">
   console.log("App.svelte <script> is executing!");
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import RouterView from '@components/RouterView.svelte';
   import { initBridge, APP_CONTEXT } from '@lib/bridge';
   import { appStore } from '@lib/stores/app.svelte';
@@ -245,6 +245,38 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '*', component: DevelopmentPage },
   ];
 
+  // Stash the runtime cleanup callbacks so onDestroy can release them.
+  // Wails v3's EventsOn returns an unsubscribe function; we collect them
+  // here and run them all on teardown so HMR / component remounts don't
+  // accumulate duplicate listeners (audit finding HIGH-1).
+  let runtimeUnsubs: Array<() => void> = [];
+
+  // Lazy single-shot loader for the WindowService binding. Multiple menu
+  // handlers used to dynamic-import this in parallel; cache and reuse.
+  let windowSvc: any = null;
+  async function getWindowService() {
+    if (!windowSvc) {
+      windowSvc = await import(
+        '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
+      ).catch((err) => {
+        console.error('[App] WindowService binding load failed:', err);
+        return null;
+      });
+    }
+    return windowSvc;
+  }
+
+  function on(rt: any, name: string, fn: (...args: any[]) => void) {
+    // Wails v3's EventsOn returns an unsubscribe handle. v2 returned void
+    // and required EventsOff. Support both.
+    const result = rt.EventsOn(name, fn);
+    if (typeof result === 'function') {
+      runtimeUnsubs.push(result);
+    } else if (typeof rt.EventsOff === 'function') {
+      runtimeUnsubs.push(() => rt.EventsOff(name));
+    }
+  }
+
   onMount(async () => {
     try {
       await initBridge();
@@ -252,10 +284,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       const rt = (window as any).runtime;
       if (rt && APP_CONTEXT !== 'browser') {
         console.debug('[App] Diagnostics initialized:', diagnosticsStore.healthGrade);
-        rt.EventsOn('system.error', (msg: string) => {
+        on(rt, 'system.error', (msg: string) => {
           toastStore.add({ type: 'error', title: 'System Error', message: msg });
         });
-        rt.EventsOn('system.toast', (toast: any) => {
+        on(rt, 'system.toast', (toast: any) => {
           toastStore.add(toast);
         });
 
@@ -264,76 +296,73 @@ import Sidebar from '@components/layout/CommandRail.svelte';
         // internal/app/tray.go) emit menu:* / tray:* events instead of
         // directly mutating frontend state — this keeps the menu Go code
         // ignorant of router/UI internals.
-        rt.EventsOn('menu:goto', (route: string) => {
+        on(rt, 'menu:goto', (route: string) => {
           appStore.navigate(route);
         });
-        rt.EventsOn('menu:new-terminal', () => {
+        on(rt, 'menu:new-terminal', () => {
           appStore.navigate('/terminal');
           appStore.connectToLocal?.();
         });
-        rt.EventsOn('menu:command-palette', () => {
+        on(rt, 'menu:command-palette', () => {
           appStore.showCommandPalette = true;
         });
-        rt.EventsOn('menu:toggle-sidebar', () => {
+        on(rt, 'menu:toggle-sidebar', () => {
           appStore.sidebarVisible = !appStore.sidebarVisible;
         });
-        rt.EventsOn('menu:popout-current', async () => {
+        on(rt, 'menu:popout-current', async () => {
+          const mod = await getWindowService();
+          if (!mod) return;
           try {
-            const mod = await import(
-              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
-            );
             await mod.PopOut(window.location.pathname, document.title || '');
           } catch (e) {
             toastStore.add({ type: 'error', title: 'Pop-out failed', message: String(e) });
           }
         });
-        rt.EventsOn('menu:close-popouts', async () => {
+        on(rt, 'menu:close-popouts', async () => {
+          const mod = await getWindowService();
+          if (!mod) return;
           try {
-            const mod = await import(
-              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
-            );
             const closed = await mod.CloseAllPopouts();
             toastStore.add({ type: 'info', title: 'Pop-outs closed', message: `${closed} window(s)` });
-          } catch { /* noop */ }
+          } catch (e) {
+            console.warn('[App] CloseAllPopouts failed:', e);
+          }
         });
-        rt.EventsOn('menu:save-workspace', async () => {
+        on(rt, 'menu:save-workspace', async () => {
+          const mod = await getWindowService();
+          if (!mod) return;
           try {
-            const mod = await import(
-              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
-            );
             const count = await mod.SaveWorkspace();
             toastStore.add({ type: 'info', title: 'Workspace saved', message: `${count} pop-out(s)` });
           } catch (e) {
             toastStore.add({ type: 'error', title: 'Workspace save failed', message: String(e) });
           }
         });
-        rt.EventsOn('menu:restore-workspace', async () => {
+        on(rt, 'menu:restore-workspace', async () => {
+          const mod = await getWindowService();
+          if (!mod) return;
           try {
-            const mod = await import(
-              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
-            );
             const count = await mod.RestoreWorkspace(true);
             toastStore.add({ type: 'info', title: 'Workspace restored', message: `${count} pop-out(s)` });
           } catch (e) {
             toastStore.add({ type: 'error', title: 'Workspace restore failed', message: String(e) });
           }
         });
-        rt.EventsOn('menu:diagnostics', () => {
-          // Diagnostics modal is owned by appStore; trigger it the same way
-          // the bottom-bar grade chip does.
+        on(rt, 'menu:diagnostics', () => {
           (appStore as any).showDiagnostics?.() ??
             appStore.navigate('/monitoring');
         });
-        rt.EventsOn('menu:open-url', (url: string) => {
+        on(rt, 'menu:open-url', (url: string) => {
           window.open(url, '_blank', 'noopener,noreferrer');
         });
-        rt.EventsOn('tray:popout', async (route: string) => {
+        on(rt, 'tray:popout', async (route: string) => {
+          const mod = await getWindowService();
+          if (!mod) return;
           try {
-            const mod = await import(
-              '../bindings/github.com/kingknull/oblivrashell/internal/services/windowservice.js'
-            );
             await mod.PopOut(route, '');
-          } catch { /* noop */ }
+          } catch (e) {
+            console.warn('[App] tray:popout failed:', e);
+          }
         });
       }
 
@@ -352,6 +381,16 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       console.error('App init failed:', e);
       error = e.message || 'Failed to initialize OBLIVRA core.';
     }
+  });
+
+  onDestroy(() => {
+    // Drop every Wails event listener we registered in onMount. Without
+    // this, a parent component remount (HMR or programmatic) accumulates
+    // duplicate listeners and the same event fires N times.
+    for (const off of runtimeUnsubs) {
+      try { off(); } catch { /* already torn down */ }
+    }
+    runtimeUnsubs = [];
   });
 
   function onKeyDown(e: KeyboardEvent) {

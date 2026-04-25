@@ -185,9 +185,14 @@ type WorkspaceSnapshot struct {
 
 const workspaceSchemaVersion = 1
 
-func workspaceFilePath() string {
+// workspaceFilePathFn is the resolver for the on-disk workspace file.
+// Indirected through a var so tests can swap in a temp directory without
+// touching the operator's real data.
+var workspaceFilePathFn = func() string {
 	return filepath.Join(platform.DataDir(), "workspace.json")
 }
+
+func workspaceFilePath() string { return workspaceFilePathFn() }
 
 // SaveWorkspace captures every currently-open pop-out's route + geometry
 // to <DataDir>/workspace.json. Returns the number of pop-outs saved.

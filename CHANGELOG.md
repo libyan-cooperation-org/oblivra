@@ -2,6 +2,38 @@
 
 All notable changes to Oblivra Sovereign Terminal are documented here.
 
+## [1.3.1] - 2026-04-25
+
+### 🔍 Self-audit pass on v1.3.0 UX code
+12 findings across the freshly-shipped menu, tray, workspace, notification, pop-out, and TitleBar code. All HIGH and MED items closed.
+
+### 🔧 Frontend (HIGH severity fixes)
+- **`App.svelte`** event-listener leak — 9 `rt.EventsOn(...)` registrations had no cleanup, accumulating duplicate handlers across HMR / component remounts. Now collected into `runtimeUnsubs` and released in `onDestroy`. Also extracted the `WindowService` binding behind a single cached lazy loader so menu handlers don't re-import on every event.
+- **`notificationStore`** localStorage thrash — replaced sync `persist()` on every mutation with a 250 ms debounce that coalesces alert-flood writes. Cached `unreadCount` and `criticalUnread` instead of `.filter(...).length` per access. Quota-exceeded path now logs a warning so silent truncation is visible. Added `flush()` + `beforeunload` listener so pending writes don't get lost on page close.
+- **`NotificationDrawer.svelte`** keyboard / a11y — `Escape` closes, `Tab` traps focus inside the panel, `aria-modal="true"` and `aria-labelledby` set, focus is restored to the previously-active element on close. Backdrop cursor changed to `pointer`.
+- **`PopOutButton.svelte`** silent import failures — refactor that moves the binding path silently broke the button. Now logs the real error to `console.error` before showing a user-readable toast, distinguishing "import failed" / "import returned no PopOut" / "PopOut RPC failed".
+
+### 🔧 Frontend (MED severity)
+- **`TitleBar.svelte`** polling — pop-out poll is now adaptive (1.5 s when ≥1 pop-out open, 8 s when idle) and pauses entirely when `document.visibilityState === 'hidden'`. Platform detection is resolved once at module load instead of re-running on every `$derived` evaluation.
+
+### 🔧 Backend
+- **`internal/api/agent_handlers.go` watermark race** — two concurrent agent ingests for the same agent could both pass the "advanced?" check and both write the same value, leaving a gap. Added a CAS-style guard inside the Lock so only the higher value wins.
+- **`internal/api/rest.go` failed-login TOCTOU** — two parallel failed logins could both `Load(count=4)` → both compute 5 → both `Store`, advancing the counter by only 1 instead of 2 (effectively letting an attacker probe twice per real failure). New `failedLoginsMu` mutex serialises the check-then-increment under one critical section. Lockout audit is recorded outside the lock so it doesn't block other failure-path callers.
+- **`internal/services/window_service_server.go`** — `ListPopouts()` stub now returns an empty slice instead of `nil` so frontend callers that do `arr.length` don't NPE on the headless server build.
+- **`internal/app/menu.go`** — removed dead `NewAppMenu()` no-op block (Wails auto-injects the macOS App menu when a `*Menu` is bound).
+
+### 🧪 New test coverage
+- **`window_service_test.go`** — 4 tests covering SaveWorkspace round-trip (3 pop-outs round-trip cleanly through JSON), `HasSavedWorkspace` empty-state, `RestoreWorkspace` from missing file (silent 0), `RestoreWorkspace` rejects future schema versions. Added `workspaceFilePathFn` indirection so tests inject a temp dir without touching real `platform.DataDir()`.
+- **`identity_bootstrap_test.go`** — 7-case `validatePassword` table test locking down the `BootstrapAdmin` password policy (too-short / missing-upper / missing-lower / missing-digit / valid-min / valid-strong / empty). Guards the *first gate* that protects raw-API setup callers from bypassing the frontend wizard's 12-char minimum.
+
+11 of 11 new tests pass.
+
+### 🛡️ Security scanners
+- `govulncheck ./...` — **No vulnerabilities found.** (clean)
+- gitleaks — runs in CI via `.github/workflows/ci.yml` (`gitleaks-action@v2`); not installed locally.
+
+---
+
 ## [1.3.0] - 2026-04-25
 
 ### 🍔 Application Menu Bar (Phase 23.10 new)
