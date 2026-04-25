@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,6 +11,12 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
+
+// InsecureHostKeyWarning is emitted to the audit log whenever a connection is
+// established with host key verification disabled (SA-01).
+const InsecureHostKeyWarning = "[SECURITY WARNING] SSH host key verification is DISABLED. " +
+	"This connection is vulnerable to man-in-the-middle attacks. " +
+	"Enable StrictHostKey in host settings for production use."
 
 // buildAuthMethods constructs SSH auth methods from config
 func buildAuthMethods(cfg *ConnectionConfig) ([]ssh.AuthMethod, error) {
@@ -60,9 +67,10 @@ func buildAuthMethods(cfg *ConnectionConfig) ([]ssh.AuthMethod, error) {
 	}
 
 	// Try SSH agent as fallback
+	// SA-06: sshAgentAuth now returns the underlying conn so we can close it after use.
 	if cfg.EnableAgent {
-		if agentAuth := sshAgentAuth(); agentAuth != nil {
-			methods = append(methods, agentAuth)
+		if agentAuth, conn := sshAgentAuth(); agentAuth != nil {
+			methods = append(methods, sshAgentAuthWithCleanup(agentAuth, conn))
 		}
 	}
 
@@ -91,27 +99,48 @@ func parsePrivateKey(keyData []byte, passphrase []byte) (ssh.Signer, error) {
 	return signer, nil
 }
 
-// sshAgentAuth returns SSH agent auth method if available
-func sshAgentAuth() ssh.AuthMethod {
+// sshAgentAuth returns an SSH agent auth method and the underlying net.Conn so the
+// caller can close it when authentication is complete (SA-06: fix fd leak).
+// Returns (nil, nil) when no SSH agent is available.
+func sshAgentAuth() (ssh.AuthMethod, net.Conn) {
 	sock := os.Getenv("SSH_AUTH_SOCK")
 	if sock == "" {
-		return nil
+		return nil, nil
 	}
 
 	conn, err := net.Dial("unix", sock)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
 	agentClient := agent.NewClient(conn)
-	return ssh.PublicKeysCallback(agentClient.Signers)
+	return ssh.PublicKeysCallback(agentClient.Signers), conn
 }
 
-// buildHostKeyCallback creates host key verification
+// sshAgentAuthWithCleanup wraps the agent auth callback so that the underlying
+// Unix socket is closed after the signers are retrieved (SA-06).
+func sshAgentAuthWithCleanup(method ssh.AuthMethod, conn net.Conn) ssh.AuthMethod {
+	if conn == nil {
+		return method
+	}
+	agentClient := agent.NewClient(conn)
+	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+		defer conn.Close()
+		return agentClient.Signers()
+	})
+}
+
+// buildHostKeyCallback creates host key verification.
+// SA-01: when strict=false, emit a prominent security warning and log each connection.
 func buildHostKeyCallback(strict bool) (ssh.HostKeyCallback, error) {
 	if !strict {
-		//nolint:gosec // user explicitly disabled strict checking
-		return ssh.InsecureIgnoreHostKey(), nil
+		log.Println(InsecureHostKeyWarning)
+		//nolint:gosec // caller explicitly disabled strict host key checking
+		return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			log.Printf("[SECURITY] InsecureIgnoreHostKey: connected to %s (%s) — no host key verification",
+				hostname, remote.String())
+			return nil
+		}, nil
 	}
 
 	home, err := os.UserHomeDir()
@@ -147,7 +176,8 @@ func LoadDefaultKeys() ([]byte, error) {
 		return nil, err
 	}
 
-	keyNames := []string{"id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"}
+	// SA-03: id_dsa removed — DSA is deprecated (FIPS 186-5 withdrawn) and cryptographically weak.
+	keyNames := []string{"id_ed25519", "id_ecdsa", "id_rsa"}
 	for _, name := range keyNames {
 		keyPath := filepath.Join(home, ".ssh", name)
 		data, err := os.ReadFile(keyPath)

@@ -18,9 +18,12 @@ import (
 )
 
 var (
-	ErrLocked        = errors.New("vault is locked")
-	ErrNotSetup      = errors.New("vault not initialized")
-	ErrWrongPassword = errors.New("incorrect password")
+	ErrLocked           = errors.New("vault is locked")
+	ErrNotSetup         = errors.New("vault not initialized")
+	ErrWrongPassword    = errors.New("incorrect password")
+	// ErrNotImplemented is returned by base Vault methods that must be overridden
+	// by a concrete VaultService. SA-07: typed sentinel for misconfiguration detection.
+	ErrNotImplemented   = errors.New("not implemented in base vault")
 )
 
 type Config struct {
@@ -215,10 +218,12 @@ func (v *Vault) Unlock(password string, hardwareKey []byte, rememberMe bool) err
 		if subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
 			return ErrWrongPassword
 		}
-		// SEC-20: One-time migration to random canary
+			// SEC-20: One-time migration to random canary
 		v.log.Info("Vault.Unlock: Migrating legacy static canary to random canary")
 		canaryPlain := make([]byte, 32)
-		crand.Read(canaryPlain)
+		if _, err := crand.Read(canaryPlain); err != nil {
+			return fmt.Errorf("SEC-20 migration: generate canary: %w", err)
+		}
 		newCanary, _ := Encrypt(key, canaryPlain)
 		hasher := sha256.New()
 		hasher.Write(canaryPlain)
@@ -311,10 +316,12 @@ func (v *Vault) UnlockWithKeychain() error {
 		if subtle.ConstantTimeCompare(decrypted, expectedCanary) != 1 {
 			return ErrWrongPassword
 		}
-		// SEC-20: One-time migration to random canary
+			// SEC-20: One-time migration to random canary
 		v.log.Info("Vault.UnlockWithKeychain: Migrating legacy static canary to random canary")
 		canaryPlain := make([]byte, 32)
-		crand.Read(canaryPlain)
+		if _, err := crand.Read(canaryPlain); err != nil {
+			return fmt.Errorf("SEC-20 migration: generate canary: %w", err)
+		}
 		newCanary, _ := Encrypt(key, canaryPlain)
 		hasher := sha256.New()
 		hasher.Write(canaryPlain)
@@ -442,6 +449,10 @@ func (v *Vault) RotateMasterKey(oldPassword, newPassword string) error {
 }
 
 // NuclearDestruction performs a forensic wipe of the vault and all volatile secrets.
+// SA-09: Note that on SSDs with wear-levelling, overwriting the file cannot guarantee
+// physical erasure of the original sectors. This operation is best-effort on flash
+// storage. For full assurance on SSDs, use full-disk encryption (e.g. BitLocker, FileVault)
+// so that discarding the encryption key renders all data irrecoverable.
 func (v *Vault) NuclearDestruction() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -570,10 +581,10 @@ func (v *Vault) GetPassword(id string) ([]byte, error) {
 	if !v.unlocked {
 		return nil, ErrLocked
 	}
-	// Note: Vault itself doesn't have the DB/Repo.
-	// This method is primarily for the Provider interface.
-	// Actual retrieval happens in VaultService or SSHService using Decrypt.
-	return nil, errors.New("method not implemented in base vault")
+	// SA-07: Return a clearly typed sentinel error so callers can distinguish
+	// "vault locked" from "method not implemented in this vault implementation".
+	// Concrete VaultService implementations override this via the repo layer.
+	return nil, fmt.Errorf("%w: GetPassword must be implemented by a concrete VaultService, not the base Vault", ErrNotImplemented)
 }
 
 func (v *Vault) GetPrivateKey(id string) ([]byte, string, error) {
@@ -582,5 +593,6 @@ func (v *Vault) GetPrivateKey(id string) ([]byte, string, error) {
 	if !v.unlocked {
 		return nil, "", ErrLocked
 	}
-	return nil, "", errors.New("method not implemented in base vault")
+	// SA-07: Same as GetPassword — return typed sentinel so callers can detect misconfiguration.
+	return nil, "", fmt.Errorf("%w: GetPrivateKey must be implemented by a concrete VaultService, not the base Vault", ErrNotImplemented)
 }

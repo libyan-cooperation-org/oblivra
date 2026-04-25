@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 )
 
 // PluginType defines the kind of plugin
@@ -92,10 +94,22 @@ func LoadManifest(path string) (*Manifest, error) {
 	return &manifest, nil
 }
 
+// validPluginID matches safe plugin identifiers: alphanumeric, hyphens, underscores, dots.
+// Rejects path separators, spaces, and all characters that could enable directory traversal (SA-04).
+var validPluginID = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,64}$`)
+
 // Validate checks the manifest for required fields
 func (m *Manifest) Validate() error {
 	if m.ID == "" {
 		return fmt.Errorf("missing plugin ID")
+	}
+	// SA-04: reject IDs containing path traversal sequences or invalid characters.
+	if !validPluginID.MatchString(m.ID) {
+		return fmt.Errorf("invalid plugin ID %q: must match [a-zA-Z0-9._-]{1,64}", m.ID)
+	}
+	// Belt-and-suspenders: filepath.Clean + filepath.Base must not alter the ID.
+	if cleaned := filepath.Base(filepath.Clean(m.ID)); cleaned != m.ID {
+		return fmt.Errorf("invalid plugin ID %q: must not contain path separators", m.ID)
 	}
 	if m.Name == "" {
 		return fmt.Errorf("missing plugin name")

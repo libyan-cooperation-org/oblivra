@@ -68,10 +68,14 @@ type PolicyCheckReply struct {
 }
 
 func (e *WorkerPolicyEngine) CheckPolicy(args *PolicyCheckArgs, reply *PolicyCheckReply) error {
-	// Isolated policy decisions run outside the main process address space.
-	// Default: allow. A real implementation loads a policy bundle from disk.
-	reply.Allowed = true
-	reply.Reason = "default-allow"
+	// SA-02: The policy engine MUST NOT default to allow.
+	// This subprocess is designed to enforce tier/action policy in an isolated address space.
+	// Until a real policy bundle is loaded from disk, all requests are denied with a clear reason
+	// so callers fail closed rather than silently passing.
+	//
+	// TODO: Load policy bundle from the path provided via --policy-bundle flag and evaluate args.
+	reply.Allowed = false
+	reply.Reason = "policy-engine-not-configured: no policy bundle loaded; all actions denied by default"
 	return nil
 }
 
