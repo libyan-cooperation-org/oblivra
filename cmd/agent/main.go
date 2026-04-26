@@ -35,6 +35,7 @@ func main() {
 	tlsKey         := flag.String("tls-key",        "",               "Path to TLS client key (mTLS)")
 	tlsCA          := flag.String("tls-ca",         "",               "Path to CA certificate for server verification")
 	insecure       := flag.Bool("insecure",         false,            "Allow insecure TLS (skip verification)")
+	fleetSecret    := flag.String("fleet-secret",   os.Getenv("OBLIVRA_FLEET_SECRET"), "HMAC fleet shared secret for agent auth (default: dev value, set in production)")
 	showVersion    := flag.Bool("version",          false,            "Print version and exit")
 	logJSON        := flag.Bool("log-json",         false,            "Enable JSON structured logging")
 	logPath        := flag.String("log-path",       "",               "Path to agent log file (default: <data-dir>/agent.log)")
@@ -92,6 +93,7 @@ func main() {
 		TLSKey:         *tlsKey,
 		TLSCA:          *tlsCA,
 		InsecureTLS:    *insecure,
+		FleetSecret:    []byte(*fleetSecret),
 		Version:        version,
 	}
 
