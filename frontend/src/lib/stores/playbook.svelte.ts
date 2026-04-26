@@ -41,9 +41,9 @@ export class PlaybookStore {
     try {
         if (IS_BROWSER) {
             const [pbRes, metricsRes, actionsRes] = await Promise.all([
-                fetch('/api/v1/playbooks', { credentials: 'include' }),
-                fetch('/api/v1/playbooks/metrics', { credentials: 'include' }),
-                fetch('/api/v1/playbooks/actions', { credentials: 'include' })
+                apiFetch('/api/v1/playbooks'),
+                apiFetch('/api/v1/playbooks/metrics'),
+                apiFetch('/api/v1/playbooks/actions')
             ]);
 
             if (pbRes.ok) {
@@ -67,11 +67,10 @@ export class PlaybookStore {
 
   async runPlaybook(name: string, incidentID: string, steps: any[]) {
       if (!IS_BROWSER) return;
-      const res = await fetch('/api/v1/playbooks/run', {
+      const res = await apiFetch('/api/v1/playbooks/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, incident_id: incidentID, steps }),
-          credentials: 'include'
       });
       if (res.ok) {
           await this.refresh();

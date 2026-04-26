@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { PageLayout, Badge, Button, PopOutButton } from '@components/ui';
   import { Layers, Target, Filter } from 'lucide-svelte';
+  import { apiFetch } from '@lib/apiClient';
 
   interface Campaign {
     id: string;
@@ -21,7 +22,7 @@
   let selectedCampaign = $state<Campaign | null>(null);
 
   onMount(async () => {
-    const res = await fetch('/api/v1/fusion/campaigns', { credentials: 'include' });
+    const res = await apiFetch('/api/v1/fusion/campaigns');
     if (res.ok) {
         const data = await res.json();
         campaigns = data.campaigns.map((c: any) => ({

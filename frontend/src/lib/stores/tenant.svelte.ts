@@ -4,6 +4,7 @@
  * Orchestrates cross-tenant management and platform-wide metrics.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 import type { TacticalMessage } from './collaboration.svelte';
 
 export interface Tenant {
@@ -36,7 +37,7 @@ export class MultiTenantStore {
     this.loading = true;
     try {
         if (IS_BROWSER) {
-            const res = await fetch('/api/v1/platform/metrics', { credentials: 'include' });
+            const res = await apiFetch('/api/v1/platform/metrics');
             if (res.ok) {
                 const metrics = await res.json();
                 this.platformMetrics = {

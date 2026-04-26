@@ -7,6 +7,7 @@
   import { appStore } from '@lib/stores/app.svelte';
   import { IS_BROWSER } from '@lib/context';
   import { subscribe, emitLocal } from '@lib/bridge';
+  import { apiFetch } from '@lib/apiClient';
   import { KPI, Badge, DataTable, PageLayout, Button, Input, Tabs } from '@components/ui';
 
   const MAX_LIVE_EVENTS = 500;

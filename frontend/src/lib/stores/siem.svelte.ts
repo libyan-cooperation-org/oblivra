@@ -4,6 +4,7 @@
  * Handles OQL execution and search result persistence.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface SIEMEvent {
   timestamp: string;
@@ -67,7 +68,7 @@ export class SIEMStore {
   async refreshStats() {
     try {
       if (IS_BROWSER) {
-        const res = await fetch('/api/v1/platform/metrics', { credentials: 'include' });
+        const res = await apiFetch('/api/v1/platform/metrics');
         if (res.ok) {
           const metrics = await res.json();
           // Map backend metrics to store format

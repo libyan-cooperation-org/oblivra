@@ -4,6 +4,7 @@
  * Orchestrates behavioral analytics and anomaly feed from the backend.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface EntityProfile {
   id: string;
@@ -38,9 +39,9 @@ export class UEBAStore {
     try {
         if (IS_BROWSER) {
             const [profilesRes, anomaliesRes, statsRes] = await Promise.all([
-                fetch('/api/v1/ueba/profiles', { credentials: 'include' }),
-                fetch('/api/v1/ueba/anomalies', { credentials: 'include' }),
-                fetch('/api/v1/ueba/stats', { credentials: 'include' })
+                apiFetch('/api/v1/ueba/profiles'),
+                apiFetch('/api/v1/ueba/anomalies'),
+                apiFetch('/api/v1/ueba/stats')
             ]);
 
             if (profilesRes.ok) {
