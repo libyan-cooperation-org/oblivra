@@ -23,6 +23,8 @@
   import { Minus, Square, X, Copy as Restore, Monitor, ExternalLink, Layout, Bell } from 'lucide-svelte';
   import { notificationStore } from '@lib/stores/notifications.svelte';
   import TenantSwitcher from '@components/ui/TenantSwitcher.svelte';
+  import TimeRangePicker from '@components/ui/TimeRangePicker.svelte';
+  import { timeRangeStore } from '@lib/stores/timeRange.svelte';
 
   // Platform detection — userAgent is constant per process, so we resolve it
   // once at module load instead of on every $derived re-evaluation.
@@ -202,6 +204,16 @@
        a window drag through the title bar. -->
   <div class="shrink-0" style="--wails-draggable: no-drag;">
     <TenantSwitcher />
+  </div>
+
+  <!-- Global time-range scope (Phase 31). Lives in the title bar so
+       every page can read it from `timeRangeStore`. Pages that don't
+       care (Settings, etc.) simply ignore it. -->
+  <div class="shrink-0" style="--wails-draggable: no-drag;">
+    <TimeRangePicker
+      value={timeRangeStore.range}
+      onChange={(r) => timeRangeStore.set(r)}
+    />
   </div>
 
   <div class="w-px h-3.5 bg-border-primary shrink-0"></div>

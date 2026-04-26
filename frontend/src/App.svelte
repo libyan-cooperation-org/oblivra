@@ -10,6 +10,7 @@
 import Sidebar from '@components/layout/CommandRail.svelte';
   import AppSidebar from '@components/layout/AppSidebar.svelte';
   import BottomDock from '@components/layout/BottomDock.svelte';
+  import InvestigationPanel from '@components/layout/InvestigationPanel.svelte';
   import { navigationStore } from '@lib/stores/navigation.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
@@ -60,6 +61,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import NotesPage from '@pages/NotesPage.svelte';
   import FleetDashboard from '@pages/FleetDashboard.svelte';
   import HostDetail from '@pages/HostDetail.svelte';
+  import Overview from '@pages/Overview.svelte';
   import UEBAOverview from '@pages/UEBAOverview.svelte';
   import NDROverview from '@pages/NDROverview.svelte';
   import EnrichmentViewer from '@pages/EnrichmentViewer.svelte';
@@ -173,6 +175,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // Fleet & Workspace
     { path: '/investigation',   component: InvestigationDashboard },
+    { path: '/overview',         component: Overview },
     { path: '/host/:id',         component: HostDetail },
     { path: '/fleet',            component: FleetDashboard },
     { path: '/fleet-management', component: FleetDashboard },
@@ -531,6 +534,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
       <ToastContainer />
       <NotificationDrawer />
+
+      <!-- Global investigation drawer — slides in whenever any
+           EntityLink (host/user/IP/process/...) is clicked anywhere
+           in the app. Phase 31 SOC redesign. -->
+      <InvestigationPanel />
     </div>
   {:else if error}
     <ErrorScreen message={error} />

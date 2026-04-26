@@ -3,7 +3,7 @@
   Detection rule orchestration and signal filtering.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs, EmptyState, LoadingSkeleton } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs, EmptyState, LoadingSkeleton, EntityLink } from '@components/ui';
   import { Zap, ShieldAlert, MoreHorizontal, Search as SearchIcon, FileText } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
@@ -251,7 +251,16 @@
                             <span class="text-[9px] font-mono text-text-muted opacity-60">{row.id} · EDR-3847</span>
                         </div>
                     {:else if col.label === 'HOST'}
-                        <span class="text-[10px] font-mono text-accent">{row.host}</span>
+                        <!-- EntityLink: clicking opens the global investigation
+                             panel (Phase 31). Falls back to a muted span when
+                             host is missing/unknown. -->
+                        {#if row.host && row.host !== 'unknown' && row.host !== 'remote'}
+                            <span class="text-[10px] font-mono text-accent">
+                                <EntityLink type="host" id={row.host} context={{ severity: row.severity, alertId: row.id }} />
+                            </span>
+                        {:else}
+                            <span class="text-[10px] font-mono text-text-muted opacity-60">—</span>
+                        {/if}
                     {:else if col.label === 'RISK'}
                         <div class="px-1.5 py-0.5 rounded-sm font-mono text-[9px] font-bold text-center {row.severity === 'critical' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
                             {row.severity === 'critical' ? '97' : '72'}

@@ -29,4 +29,5 @@ export { default as LanguageSwitcher } from './LanguageSwitcher.svelte';
 export { default as ActivityFeed } from './ActivityFeed.svelte';
 export { default as TimeRangePicker } from './TimeRangePicker.svelte';
 export { default as TenantSwitcher } from './TenantSwitcher.svelte';
+export { default as EntityLink } from './EntityLink.svelte';
 export * from './decision.types';
