@@ -160,6 +160,11 @@
     border-right: 1px solid var(--b1);
     display: flex;
     flex-direction: column;
+    /* `position: relative` is REQUIRED for z-index to take effect.
+       Without it, the InvestigationPanel's `position: fixed` backdrop
+       (z-index 80) would sit ABOVE this sidebar in the stacking
+       context and capture every click meant for nav buttons. */
+    position: relative;
     z-index: 1000;
     overflow: hidden;
     flex-shrink: 0;

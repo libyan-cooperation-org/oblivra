@@ -283,6 +283,11 @@
        inner `.dock-items` actually clip and scroll. */
     min-width: 0;
     width: 100%;
+    /* `position: relative` is REQUIRED for z-index to take effect.
+       Without it, the InvestigationPanel's `position: fixed` backdrop
+       (z-index 80) would capture clicks meant for dock buttons. */
+    position: relative;
+    z-index: 70;
   }
   .dock.collapsed {
     max-height: 28px;
