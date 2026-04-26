@@ -4,8 +4,7 @@
 -->
 <script lang="ts">
   import { KPI, PageLayout, Badge, Button } from '@components/ui';
-  import { Shield, Target, Activity, Zap, TrendingUp, Globe, Database } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { TrendingUp, Globe } from 'lucide-svelte';
 
   const riskMetrics = [
     { label: 'Platform Resilience', value: '94%', goal: '98%', status: 'nominal' },
@@ -86,7 +85,7 @@
                Platform Growth (30D)
             </div>
             <div class="flex-1 h-32 flex items-end justify-between px-2 gap-2">
-               {#each Array(10) as _, i}
+               {#each Array(10) as _}
                   <div class="flex-1 bg-accent/20 rounded-t-sm hover:bg-accent/40 transition-colors border-x border-t border-accent/30" style="height: {20 + Math.random() * 80}%"></div>
                {/each}
             </div>

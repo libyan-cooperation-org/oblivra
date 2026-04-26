@@ -3,8 +3,8 @@
   Command reference and shortcut orchestration guide.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button } from '@components/ui';
-  import { Keyboard, MousePointer2, Command, Globe, ShieldAlert, Zap, Search, LayoutDashboard } from 'lucide-svelte';
+  import { PageLayout, Badge } from '@components/ui';
+  import { Command } from 'lucide-svelte';
 
   const sections = [
     {
