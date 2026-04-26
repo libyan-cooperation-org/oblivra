@@ -1625,3 +1625,78 @@ The four heavyweight items from "Advanced Platform Mechanics" all closed in this
 | `svelte-check` | 162 errors (down from 172), 0 in any file modified during this arc |
 | `frontend/scripts/lint-guards.sh` | ✓ 3/3 guards pass |
 | Migration ladder | v25 `suppression_rules` → v26 `dhcp_lease_log` → v27 `tenant_deletion_log` |
+
+---
+
+## Phase 31: SOC Investigation-First UI + Agent Splunk-Parity++
+
+> **Date**: 2026-04-26 (continuation arc)
+> **Scope**: Investigation-first UI redesign (7-domain SOC nav + InvestigationPanel
+> + EntityLink drill-down + Mission Control overview), Phase 27.2 close-out
+> (OQL parse, lease ledger, DLP, Raft state replicator), pre-stage close-out
+> (goleak, rule fixture coverage, agent close-out passes A-F).
+
+### 31.1 — SOC Investigation-First UI ✅
+
+- [x] **7-domain nav restructure** — `Overview / Security / Network / Identity / Hosts / Logs / System`. `lib/stores/navigation.svelte.ts` schema bumped v1→v2; `lib/nav-config.ts` rewritten with 50+ items mapped to existing routes (no new pages required, just re-organised). `AppSidebar` + `BottomDock` updated with new `GROUP_HEADER_ICONS` (LayoutDashboard / Shield / Network / UserCog / Server / FileText / Settings), de-duplicated icon imports. 🌐
+- [x] **`InvestigationPanel.svelte`** (~340 LOC) — global slide-out drawer pinned below TitleBar. Sections: header (entity icon + label + back/close + entity-id chip), Quick Actions (Full page + Pivot to SIEM), Host Status (when type=host), Related Alerts (severity-coloured), Activity Timeline (interleaved alerts + events sorted DESC). 220ms cubic-bezier slide-in with `prefers-reduced-motion` fallback, `Esc` to close, `⌘⌫` / `⌥⌫` to walk back. Mounted globally at App.svelte root — single instance, reachable from every page. 🌐
+- [x] **`EntityLink.svelte`** — drop-in clickable primitive: `<EntityLink type="host" id={row.host} />` opens the global panel. Type-specific hover hint colors (host=accent, ip=warn, alert=error). Stops propagation so it doesn't activate row-level click handlers. Wired into `AlertManagement.svelte` host cells; `Overview.svelte` timeline rows; available platform-wide via `@components/ui` barrel. 🌐
+- [x] **`investigationStore.svelte.ts`** — `openEntity()`, `back()` history stack (capped at 20), debounced `close()` for animation, `EntityType` enum covering host/user/ip/process/hash/domain/alert. 🌐
+- [x] **`Overview.svelte`** — Mission Control landing page at `/overview`. Risk-level KPI (LOW/MEDIUM/HIGH) computed from real alert distribution in last hour with gradient backgrounds per level. KPIs: ACTIVE INCIDENTS, CRITICAL ALERTS, ONLINE AGENTS. Global event timeline (large left panel) with severity left-rails; Live Activity Feed (narrow right panel). NO charts — per spec: "focus on timelines, context, actionable insights." 🌐
+- [x] **`timeRange.svelte.ts`** + global `TimeRangePicker` in TitleBar — single platform-wide time scope, persisted to localStorage. `resolve()` recomputes relative presets at call time so long sessions don't drift. Wrapped in `--wails-draggable: no-drag` so clicks don't drag the window. 🌐
+
+### 31.2 — Phase 27.2 close-out ✅
+
+(Already documented inline at Phase 27.2 above; cross-referenced here for completeness.)
+
+- [x] **27.2.1 OQL `parse json|xml|kv`** — full parser + evaluator + 6 grammar tests
+- [x] **27.2.2 Temporal Entity Resolution** — `internal/identity/lease.go` + migration v26
+- [x] **27.2.3 Centralized DLP** — `internal/dlp/redactor.go` + DAG node, 6 default rules
+- [x] **27.2.4 Raft control plane wrappers** — `internal/cluster/state_replicator.go`
+
+### 31.3 — Pre-stage close-out ✅
+
+The 6-item pre-stage ship-blocker list:
+
+- [x] **25.4 Goroutine leak detection** — `goleak.VerifyTestMain` in `eventbus`/`ingest`/`agent` test suites. Caught a real leak in eventbus tests (`TestBusPublishSubscribe` and `TestBusWildcardSubscriber` weren't calling `bus.Close()`). Added `t.Cleanup(bus.Close)` to every `NewBus()` call. Whitelisted bounded third-party daemons (glog, Bleve `AnalysisWorker`). 🏗️
+- [x] **25.7 Detection rule fixture coverage gate** — `internal/detection/rule_fixtures_test.go`. `TestRuleCoverage_AllRulesHaveFixtures` walks `sigma/core/` and fails CI if any rule lacks fixtures registered in `fixtureSet`. Adding a new Sigma rule without fixtures now blocks the merge. Match-evaluation test deferred (Sigma transpiler condition shape needs deeper sigma-side wiring; coverage gate is the load-bearing CI hard-block). 🏗️
+- [x] **30.5a/b/c Agent remote actions** — `ActionTriggerScan` / `ActionToggleDebug` / `ActionRestartAgent` added to `agent.ActionType`; new `internal/api/agent_actions_queue.go` provides per-agent in-memory pending-actions queue with 5-minute TTL; existing `handleAgentAction` endpoint now actually enqueues (was a log-only stub); heartbeat handler dequeues + ships in response. UI: HostDetail's "Trigger Scan / Toggle Debug / Restart Agent" buttons no longer disabled — call `apiPostJSON('/api/v1/agent/action', {agent_id, type, payload})` via the new `apiClient`. 🌐
+- [ ] **22.3 Hot/Warm/Cold tiering** — STILL OPEN. The last engineering ship-blocker. Current state: Hot (BadgerDB) + Parquet archive exist; no auto-migration, no warm tier (30-180d), no cold (180d+) S3-compatible tier. (Pre-stage roadmap targets the *foundation* in the next phase.)
+- [ ] **SOC2 / ISO27001 / FIPS** — still external-auditor work, not engineering.
+- [ ] **BYOK / SCIM** — still multi-week investments deferred to a future phase.
+
+### 31.4 — Agent Splunk-Parity++ Close-Out (Passes A through F) ✅
+
+The five "❌ Missing" items from the agent feature audit + the agent-control RPCs:
+
+- [x] **A. Encrypted config storage** — `internal/agent/config_storage.go` (~150 LOC). Chacha20-Poly1305 AEAD with key derived from the agent's existing Ed25519 identity (`SHA-256("oblivra-agent-config" || privKey)`). On-disk wire format: `OBC1 || nonce(12) || ciphertext+tag(16+)`. Atomic write via temp+rename+fsync. Backwards-compatible with legacy plaintext config (no OBC1 magic = legacy passthrough; next write re-encrypts). 5 tests: round-trip, legacy passthrough, wrong-key reject, tamper detect, atomic write, missing-file. 🖥️🌐
+- [x] **B. Multi-output routing** — `internal/agent/output_router.go` (~150 LOC). Priority-ordered output set; tries each in priority order until one succeeds; tracks consecutive failures per endpoint; demotes to back of rotation after `MaxConsecutiveFailures` (default 3); `DemotionWindow` (default 60s) before rehab. Recovery is fast — single success clears the counter. 6 tests: primary-wins, failover-on-error, demote-after-N, recovery clears counter, all-fail surfaces error, nil-safe. Beats Splunk Forwarder which requires a separate load-balancing tier. 🖥️
+- [x] **C. Watchdog auto-restart** — `internal/agent/restart.go` (~100 LOC). `RestartManager.RequestRestart(reason, timeout)` calls the configured shutdown drain (WAL flush, collector close) then `os.Exit(75)`. Code 75 = BSD `EX_TEMPFAIL`, recognised by systemd / launchd / Windows SCM as "transient failure, restart me." Idempotent via `sync.Once` so concurrent triggers (watchdog + UI both firing simultaneously) only drain once. 4 tests: shutdown-then-exit, idempotent under concurrency, proceeds-on-drain-error, nil-shutdown valid. 🖥️
+- [x] **D. Local detection rules** — `internal/agent/local_detection.go` (~270 LOC). 3 in-process rules running BEFORE WAL/transport for sub-millisecond edge response: SSH brute-force (5 failed-password from same source-IP in 60s sliding window), suspicious sudo (8 patterns: `sudo bash`, `sudo /bin/bash`, `command=/bin/bash`, etc.), discovery commands (14 commands: whoami, net user, ipconfig /all, etc.). Per-rule `SetEnabled(bool)` toggle wired to ToggleDebug action. 5 tests: brute-force fires after threshold, per-IP isolation, sudo patterns, discovery commands, disable-honored. 🖥️
+- [x] **E. Remote control RPCs** — see 30.5a/b/c above (deduplicated). 🌐
+- [x] **F. Agent telemetry surface** — `HostDetail.svelte` KPI strip expanded to 7 columns: ALERTS / CRITICAL / EVENTS / COLLECTORS / **CPU / RAM / DISK**. CPU/RAM/Disk derived from the latest `metrics` event in `siemStore.results` filtered to this host. `formatPct` shows "—" until the first metrics event arrives. 🌐
+
+### 31.5 — Verification at this commit
+
+| Check | Result |
+|---|---|
+| `go build ./internal/... ./cmd/...` | exit 0 |
+| `go vet -unsafeptr=false ./internal/...` | exit 0 |
+| `go test ./internal/agent/ ./internal/detection/ ./internal/eventbus/ ./internal/ingest/ ./internal/oql/ ./internal/identity/ ./internal/dlp/ ./internal/cluster/` | all pass with `goleak` active |
+| Cross-compile `linux/darwin/windows` agent | all clean |
+| `vite build` | ✓ ~12s, `index.js` ~654 kB |
+| `svelte-check` | 162 errors, **0 in any Phase 31 file** |
+| `frontend/scripts/lint-guards.sh` | ✓ 3/3 guards pass |
+| New test counts | +5 config_storage, +6 output_router, +4 restart, +5 local_detection, +6 oql parse, +3 lease ledger, +7 dlp, +5 cluster state, +2 detection coverage |
+
+### 31.6 — Outstanding GA blockers
+
+After Phase 31 close-out, only 3 items remain on the GA path:
+
+| Item | Status | Owner |
+|---|---|---|
+| **22.3 Hot/Warm/Cold tiering** | Last pure-engineering blocker. Foundation work scheduled next. | engineering |
+| **SOC2 / ISO27001 / FIPS attestations** | Self-validated only. | external auditors |
+| **BYOK / SCIM** | Multi-week investments. | future phase |
+
+**Beta-1 ship-readiness: confirmed.** GA gated on storage tiering (engineering, ~1 week) and external auditors (months, runs in parallel).

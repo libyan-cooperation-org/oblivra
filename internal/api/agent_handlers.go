@@ -11,7 +11,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kingknull/oblivrashell/internal/agent"
+	// Aliased because this file already uses `agent` as a local
+	// variable (the loop binding in handleAgentFleet, etc.) — the
+	// shadowing was confusing the compiler when we needed to
+	// reference `agentpkg.PendingAction` for the new control-RPC queue.
+	agentpkg "github.com/kingknull/oblivrashell/internal/agent"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 )
@@ -123,12 +127,12 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		// Dequeue any pending operator-control actions for this
 		// agent. Empty when the queue is idle; the agent's
 		// FlushLoop tolerates either shape.
-		var actions []agent.PendingAction
+		var actions []agentpkg.PendingAction
 		if s.actionsQueue != nil && agentID != "" {
 			actions = s.actionsQueue.Dequeue(agentID)
 		}
 		if actions == nil {
-			actions = []agent.PendingAction{}
+			actions = []agentpkg.PendingAction{}
 		}
 		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 			"accepted":  0,
@@ -258,12 +262,12 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	// (Trigger Scan / Toggle Debug / Restart Agent etc.) and ship
 	// them in the heartbeat response. Empty list is the steady
 	// state — the actions queue is operator-driven, not automatic.
-	var actions []agent.PendingAction
+	var actions []agentpkg.PendingAction
 	if s.actionsQueue != nil && agentID != "" {
 		actions = s.actionsQueue.Dequeue(agentID)
 	}
 	if actions == nil {
-		actions = []agent.PendingAction{}
+		actions = []agentpkg.PendingAction{}
 	}
 
 	// Respond with fleet config + any pending actions for this agent
@@ -544,9 +548,9 @@ func (s *RESTServer) handleAgentAction(w http.ResponseWriter, r *http.Request) {
 	// Phase 31 close-out: was a log-only stub before this commit.
 	actionID := fmt.Sprintf("act-%d", time.Now().UnixNano())
 	if s.actionsQueue != nil {
-		s.actionsQueue.Enqueue(req.AgentID, agent.PendingAction{
+		s.actionsQueue.Enqueue(req.AgentID, agentpkg.PendingAction{
 			ID:      actionID,
-			Type:    agent.ActionType(req.Type),
+			Type:    agentpkg.ActionType(req.Type),
 			Payload: req.Payload,
 		})
 	}

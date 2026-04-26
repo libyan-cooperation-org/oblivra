@@ -94,6 +94,30 @@
     }),
   );
 
+  // ── Live telemetry: pull the most-recent `metrics` event for this
+  // host and expose CPU / RAM / disk / queue. The agent's
+  // MetricsCollector emits these every `Interval` (default 30s) and
+  // they ride the same ingest channel as everything else.
+  // Phase 31 close-out: Pass F surfaces this in the KPI strip below.
+  const latestMetrics = $derived.by<Record<string, any>>(() => {
+    const found = scopedEvents.find((e: any) => {
+      const t = e.event_type ?? e.EventType ?? e.type ?? '';
+      return t === 'metrics' || t === 'metric' || t === 'system.metrics';
+    });
+    return (found?.data ?? found?.Data ?? found ?? {}) as Record<string, any>;
+  });
+
+  const cpuPct = $derived<string>(formatPct(latestMetrics?.cpu_percent ?? latestMetrics?.cpu));
+  const ramPct = $derived<string>(formatPct(latestMetrics?.memory_percent ?? latestMetrics?.ram_percent ?? latestMetrics?.ram));
+  const diskPct = $derived<string>(formatPct(latestMetrics?.disk_percent ?? latestMetrics?.disk));
+
+  function formatPct(v: any): string {
+    if (v === undefined || v === null) return '—';
+    const n = typeof v === 'number' ? v : parseFloat(String(v));
+    if (!isFinite(n)) return '—';
+    return n.toFixed(0) + '%';
+  }
+
   // ── Activity timeline: interleave alerts + events, sort DESC ─────
   type TimelineEntry = {
     ts: string;
@@ -261,12 +285,18 @@
         </div>
       </section>
 
-      <!-- KPI strip -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <KPI label="ALERTS" value={String(scopedAlerts.length)} />
-        <KPI label="CRITICAL" value={String(criticalAlerts.length)} />
-        <KPI label="EVENTS (LIVE)" value={String(scopedEvents.length)} />
+      <!-- KPI strip — alert posture + live telemetry from the agent's
+           MetricsCollector. CPU/RAM/Disk fall back to "—" until the
+           first metrics event arrives (typically within Interval seconds
+           of agent start; default Interval is 30s). -->
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+        <KPI label="ALERTS"     value={String(scopedAlerts.length)} />
+        <KPI label="CRITICAL"   value={String(criticalAlerts.length)} variant={criticalAlerts.length > 0 ? 'critical' : 'success'} />
+        <KPI label="EVENTS"     value={String(scopedEvents.length)} sublabel="live tail" />
         <KPI label="COLLECTORS" value={String(agent.collectors?.length ?? 0)} />
+        <KPI label="CPU"        value={cpuPct}  sublabel="agent host" />
+        <KPI label="RAM"        value={ramPct}  sublabel="agent host" />
+        <KPI label="DISK"       value={diskPct} sublabel="agent host" />
       </div>
 
       <!-- Agent control panel (Phase 30.2 piece — remote actions) -->

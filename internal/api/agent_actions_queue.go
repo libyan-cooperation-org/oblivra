@@ -30,13 +30,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kingknull/oblivrashell/internal/agent"
+	agentpkg "github.com/kingknull/oblivrashell/internal/agent"
 )
 
 // queuedAction wraps a pending action with metadata used by the
 // queue's TTL sweeper.
 type queuedAction struct {
-	action   agent.PendingAction
+	action   agentpkg.PendingAction
 	queuedAt time.Time
 }
 
@@ -62,7 +62,7 @@ func newAgentActionsQueue() *agentActionsQueue {
 }
 
 // Enqueue appends an action to the named agent's pending list.
-func (q *agentActionsQueue) Enqueue(agentID string, a agent.PendingAction) {
+func (q *agentActionsQueue) Enqueue(agentID string, a agentpkg.PendingAction) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.pending[agentID] = append(q.pending[agentID], queuedAction{
@@ -75,7 +75,7 @@ func (q *agentActionsQueue) Enqueue(agentID string, a agent.PendingAction) {
 // agent. Expired entries (older than ttl) are silently dropped.
 // Empty result is normal — the heartbeat handler always calls this
 // regardless of whether anything's queued.
-func (q *agentActionsQueue) Dequeue(agentID string) []agent.PendingAction {
+func (q *agentActionsQueue) Dequeue(agentID string) []agentpkg.PendingAction {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	queue, ok := q.pending[agentID]
@@ -83,7 +83,7 @@ func (q *agentActionsQueue) Dequeue(agentID string) []agent.PendingAction {
 		return nil
 	}
 	cutoff := time.Now().Add(-q.ttl)
-	out := make([]agent.PendingAction, 0, len(queue))
+	out := make([]agentpkg.PendingAction, 0, len(queue))
 	for _, qa := range queue {
 		if qa.queuedAt.After(cutoff) {
 			out = append(out, qa.action)
