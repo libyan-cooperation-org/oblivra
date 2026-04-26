@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/agent"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 )
@@ -112,15 +113,27 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 		// rebuilt it can confirm "no events outstanding" via heartbeat).
 		s.updateAgentLastSeen(r)
 		ackedSeq := uint64(0)
+		agentID := r.Header.Get("X-Agent-ID")
 		s.agentsMu.RLock()
-		if a, ok := s.agents[r.Header.Get("X-Agent-ID")]; ok {
+		if a, ok := s.agents[agentID]; ok {
 			ackedSeq = a.LastAckedSeq
 		}
 		s.agentsMu.RUnlock()
+
+		// Dequeue any pending operator-control actions for this
+		// agent. Empty when the queue is idle; the agent's
+		// FlushLoop tolerates either shape.
+		var actions []agent.PendingAction
+		if s.actionsQueue != nil && agentID != "" {
+			actions = s.actionsQueue.Dequeue(agentID)
+		}
+		if actions == nil {
+			actions = []agent.PendingAction{}
+		}
 		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 			"accepted":  0,
 			"config":    map[string]interface{}{},
-			"actions":   []interface{}{},
+			"actions":   actions,
 			"acked_seq": ackedSeq,
 		})
 		return
@@ -241,6 +254,18 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("[agent] Ingested %d (skipped %d duplicate) of %d events from host=%s agent=%s acked_seq=%d",
 		accepted, skipped, len(events), hostname, agentID, highestAckedThisBatch)
 
+	// Dequeue any pending operator-control actions for this agent
+	// (Trigger Scan / Toggle Debug / Restart Agent etc.) and ship
+	// them in the heartbeat response. Empty list is the steady
+	// state — the actions queue is operator-driven, not automatic.
+	var actions []agent.PendingAction
+	if s.actionsQueue != nil && agentID != "" {
+		actions = s.actionsQueue.Dequeue(agentID)
+	}
+	if actions == nil {
+		actions = []agent.PendingAction{}
+	}
+
 	// Respond with fleet config + any pending actions for this agent
 	s.jsonResponse(w, http.StatusAccepted, map[string]interface{}{
 		"accepted":  accepted,
@@ -255,7 +280,7 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 			"enable_metrics":  true,
 			"enable_event_log": false,
 		},
-		"actions": []interface{}{},
+		"actions": actions,
 	})
 }
 
@@ -513,9 +538,18 @@ func (s *RESTServer) handleAgentAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Action dispatch is queued for the agent to pull on next flush.
-	// Full implementation: write to pending_actions table, agent reads on heartbeat.
+	// Action dispatch is queued for the agent to pull on next heartbeat.
+	// The queue lives in `actionsQueue` (see agent_actions_queue.go);
+	// the heartbeat handler will dequeue + ship in the response.
+	// Phase 31 close-out: was a log-only stub before this commit.
 	actionID := fmt.Sprintf("act-%d", time.Now().UnixNano())
+	if s.actionsQueue != nil {
+		s.actionsQueue.Enqueue(req.AgentID, agent.PendingAction{
+			ID:      actionID,
+			Type:    agent.ActionType(req.Type),
+			Payload: req.Payload,
+		})
+	}
 	s.log.Info("[agent] Action queued: id=%s type=%s agent=%s", actionID, req.Type, req.AgentID)
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{

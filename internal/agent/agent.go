@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,6 +86,15 @@ const (
 	ActionProcessInventory ActionType = "process_inventory"
 	ActionIsolateNetwork  ActionType = "isolate_network"
 	ActionRestoreNetwork  ActionType = "restore_network"
+
+	// ── Phase 30.5 / Phase 31 — operator remote-control actions ──
+	// These are the three actions the HostDetail "Agent Control"
+	// panel surfaces in the UI. They're routed through the same
+	// PendingAction queue + handleAction switch as response-action
+	// commands so there's one consistent server→agent control plane.
+	ActionTriggerScan  ActionType = "trigger_scan"
+	ActionToggleDebug  ActionType = "toggle_debug"
+	ActionRestartAgent ActionType = "restart_agent"
 )
 
 // PendingAction represents a command waiting for an agent to pull.
@@ -112,6 +122,15 @@ type Agent struct {
 	hostname   string // Host identifier resolved at startup
 	privKey    ed25519.PrivateKey // 1.4: Sovereign identity key
 	watchdog   *Watchdog // 5: Sovereign self-protection
+
+	// Phase 30.5 / Phase 31 operator-control plumbing.
+	// `detector` runs the agent-side local rules (SSH brute-force,
+	// suspicious sudo, discovery commands). nil-safe — when unset,
+	// local detection is disabled silently.
+	// `restartMgr` orchestrates the restart-with-WAL-drain shutdown
+	// triggered by ActionRestartAgent or by the watchdog on tamper.
+	detector   *Detector
+	restartMgr *RestartManager
 }
 
 // Collector defines the interface for data collection plugins.
@@ -419,6 +438,63 @@ func (a *Agent) handleAction(action PendingAction) {
 	case ActionRestoreNetwork:
 		a.log.Info("[recovery] Network restore requested by SOAR")
 		err = applyNetworkIsolation(false, a.log)
+
+	// ── Phase 30.5 — operator remote control ────────────────────────
+	case ActionTriggerScan:
+		// On-demand scan = re-emit a fresh metrics + FIM sweep
+		// regardless of the configured Interval. Synthesised as a
+		// single event so the operator's UI gets immediate feedback.
+		a.log.Info("[c2] Triggered on-demand scan")
+		evt := Event{
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Source:    "agent",
+			Type:      "scan.triggered",
+			Host:      a.hostname,
+			AgentID:   a.cfg.AgentID,
+			Data:      map[string]interface{}{"action_id": action.ID, "requested_by": action.Payload["requested_by"]},
+		}
+		select {
+		case a.eventCh <- evt:
+		default:
+			a.log.Warn("[c2] event channel full, scan-triggered event dropped")
+		}
+	case ActionToggleDebug:
+		// Toggle the local-detection rule pack on/off. We can't
+		// flip the global zerolog level at runtime without
+		// rebuilding the logger, so this action's scope is bounded
+		// to detection-rule enablement — which is the operator-
+		// visible behaviour anyway. Emit a debug-mode-changed event
+		// so the dashboard reflects the new state.
+		desired := strings.ToLower(action.Payload["state"])
+		debugOn := desired == "on" || desired == "true" || desired == "1"
+		if a.detector != nil {
+			a.detector.SetEnabled(!debugOn) // debug-on disables noisy local rules
+		}
+		a.log.Info("[c2] Debug mode set to %v (local detection %s)", debugOn,
+			map[bool]string{true: "disabled", false: "enabled"}[debugOn])
+		evt := Event{
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Source:    "agent",
+			Type:      "debug.toggled",
+			Host:      a.hostname,
+			AgentID:   a.cfg.AgentID,
+			Data:      map[string]interface{}{"debug_on": debugOn, "action_id": action.ID},
+		}
+		select {
+		case a.eventCh <- evt:
+		default:
+		}
+	case ActionRestartAgent:
+		// Hand off to the RestartManager, which flushes WAL, closes
+		// collectors, and exits with code 75 so the OS service
+		// manager (systemd / launchd / SCM) auto-respawns us.
+		a.log.Warn("[c2] Operator-initiated agent restart requested")
+		if a.restartMgr != nil {
+			go a.restartMgr.RequestRestart(RestartReasonUIRequest, 10*time.Second)
+		} else {
+			a.log.Error("[c2] No RestartManager configured — restart action ignored")
+		}
+
 	default:
 		a.log.Warn("[c2] Unknown action type: %s", action.Type)
 		return

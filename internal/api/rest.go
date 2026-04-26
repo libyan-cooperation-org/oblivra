@@ -171,6 +171,12 @@ type RESTServer struct {
 	matchEngine *threatintel.MatchEngine
 	agents   map[string]*AgentInfo // registered agent fleet
 	agentsMu sync.RWMutex           // protects agents map
+
+	// Phase 31 — operator remote-control RPC queue. Holds per-agent
+	// pending actions (Trigger Scan / Toggle Debug / Restart Agent
+	// + the legacy response-action types) until the agent picks
+	// them up on its next heartbeat. See agent_actions_queue.go.
+	actionsQueue *agentActionsQueue
 	agentProvider AgentProvider     // provider for agent fleet data
 	globalLimiter  *rate.Limiter
 	ipLimiters     sync.Map // IP -> *rate.Limiter
@@ -258,7 +264,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		log:      log,
 		attest:   attest,
 		certManager: certManager,
-		agents:   make(map[string]*AgentInfo),
+		agents:       make(map[string]*AgentInfo),
+		actionsQueue: newAgentActionsQueue(),
 		enrichRecent: make(map[string][]map[string]interface{}),
 		globalLimiter:  rate.NewLimiter(rate.Limit(200), 500), // global higher limit
 		maxWS:    100,                               // Max 100 concurrent websocket listeners

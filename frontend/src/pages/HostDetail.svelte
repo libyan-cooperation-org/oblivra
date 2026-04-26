@@ -29,6 +29,23 @@
   import { alertStore, type Alert } from '@lib/stores/alerts.svelte';
   import { siemStore } from '@lib/stores/siem.svelte';
   import { push } from '@lib/router.svelte';
+  import { apiPostJSON } from '@lib/apiClient';
+
+  /**
+   * sendAgentAction enqueues a PendingAction for the agent. The
+   * server side endpoint (`POST /api/v1/agent/action`) writes the
+   * action to the pending queue; the agent reads it on its next
+   * heartbeat (~10s) and executes locally. The agent's
+   * acknowledgement event surfaces in the activity timeline below.
+   */
+  async function sendAgentAction(type: string, payload: Record<string, string>) {
+    if (!agent) throw new Error('No agent in scope');
+    await apiPostJSON('/api/v1/agent/action', {
+      agent_id: agent.id,
+      type,
+      payload,
+    });
+  }
   import PageLayout from '@components/ui/PageLayout.svelte';
   import Badge from '@components/ui/Badge.svelte';
   import Button from '@components/ui/Button.svelte';
@@ -260,32 +277,34 @@
         </header>
         <div class="panel-body">
           <div class="flex flex-wrap gap-2">
-            <!-- Remote-action buttons are gated until the backend RPCs
-                 land. Showing them as disabled keeps the UI affordance
-                 visible (operators see what's coming) without the
-                 dishonest "click does nothing but toast 'succeeded'"
-                 pattern Phase 30.5 flagged. The corresponding tasks
-                 are tracked in task.md as 30.5a/b/c. -->
+            <!-- Remote-action RPCs landed in Phase 31 close-out.
+                 Each button enqueues a PendingAction on the agent's
+                 next heartbeat; the agent executes locally and emits
+                 an acknowledgement event the operator sees in the
+                 timeline below. -->
             <Button
               variant="ghost"
-              disabled
-              title="Request agent run an on-demand scan (RPC pending — tracked as 30.5a)"
+              onclick={() => runAction('Trigger Scan', () => sendAgentAction('trigger_scan', {}))}
+              title="Request agent run an on-demand scan"
+              disabled={!agent || actionInFlight !== null}
             >
               <RefreshCw class="w-3 h-3 mr-1" /> Trigger Scan
             </Button>
 
             <Button
               variant="ghost"
-              disabled
-              title="Toggle agent debug-level logging (RPC pending — tracked as 30.5b)"
+              onclick={() => runAction('Toggle Debug', () => sendAgentAction('toggle_debug', { state: 'on' }))}
+              title="Toggle agent debug-level logging"
+              disabled={!agent || actionInFlight !== null}
             >
               <Bug class="w-3 h-3 mr-1" /> Toggle Debug
             </Button>
 
             <Button
               variant="ghost"
-              disabled
-              title="Request agent process restart (RPC pending — tracked as 30.5c)"
+              onclick={() => runAction('Restart Agent', () => sendAgentAction('restart_agent', {}))}
+              title="Request agent process restart (the OS service manager auto-respawns)"
+              disabled={!agent || actionInFlight !== null}
             >
               <Power class="w-3 h-3 mr-1" /> Restart Agent
             </Button>
