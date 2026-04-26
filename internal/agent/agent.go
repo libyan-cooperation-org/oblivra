@@ -55,6 +55,15 @@ type Config struct {
 	TLSKey         string
 	TLSCA          string
 	InsecureTLS    bool
+	// FleetSecret is the shared HMAC secret the server validates
+	// every agent request against (`internal/api/middleware.go:VerifyHMAC`).
+	// Without this, the server returns 401 on `/api/v1/agent/ingest`
+	// with "missing authentication headers (X-Timestamp/X-Signature)".
+	// The default `oblivra-fleet-secret-v1` matches the dev value
+	// hardcoded in `internal/services/api_service.go:142`. In
+	// production this MUST be operator-supplied and identical on
+	// every agent + the server.
+	FleetSecret    []byte
 	// TenantID is used for multi-tenant isolation.
 	// Defaults to "GLOBAL" if not provided.
 	TenantID string

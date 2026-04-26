@@ -5,14 +5,18 @@ import (
 	"compress/zlib"
 	"context"
 	"crypto/ed25519"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -299,6 +303,22 @@ func (t *Transport) SetIdentityKey(key ed25519.PrivateKey) {
 }
 
 // setHeaders applies standard agent identification headers and cryptographic signatures.
+//
+// Two layers of authentication go on every request:
+//
+//   1. HMAC fleet auth — `X-Timestamp` + `X-Signature`, validated by
+//      `internal/api/middleware.go:VerifyHMAC` against the shared
+//      `fleetSecret`. Proves the request came from a registered
+//      agent that knows the deployment-wide secret.
+//
+//   2. Ed25519 batch signature — `X-Agent-Signature`, validated in
+//      `agent_handlers.go` against the agent's registered public key.
+//      Proves the BATCH bytes haven't been tampered with in flight.
+//
+// Both must be present or the server rejects with 401. This was the
+// root cause of the "server returned 401" failure log seen on first
+// agent boot — the agent was sending only #2 and the server was
+// looking for #1 too.
 func (t *Transport) setHeaders(req *http.Request, contentEncoding string, body []byte) {
 	req.Header.Set("X-Agent-ID", t.cfg.AgentID)
 	req.Header.Set("X-Agent-Version", t.cfg.Version)
@@ -306,7 +326,23 @@ func (t *Transport) setHeaders(req *http.Request, contentEncoding string, body [
 	req.Header.Set("X-Tenant-ID", t.cfg.TenantID)
 	req.Header.Set("Content-Encoding", contentEncoding)
 
-	// 1.4: Cryptographic Batch Signature
+	// 1. HMAC fleet auth — required by every agent endpoint.
+	// `secret` defaults to the dev value when no secret is configured;
+	// production deployments MUST override via `--fleet-secret` or
+	// the env var to a per-deployment 32+ byte random value.
+	secret := t.cfg.FleetSecret
+	if len(secret) == 0 {
+		secret = []byte("oblivra-fleet-secret-v1") // matches api_service.go default
+	}
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(body)
+	mac.Write([]byte(ts))
+	req.Header.Set("X-Timestamp", ts)
+	req.Header.Set("X-Signature", hex.EncodeToString(mac.Sum(nil)))
+
+	// 2. Ed25519 sovereign batch signature — proves byte-for-byte
+	// integrity of the payload independently of the HMAC envelope.
 	if t.privKey != nil && len(body) > 0 {
 		sig := ed25519.Sign(t.privKey, body)
 		req.Header.Set("X-Agent-Signature", base64.StdEncoding.EncodeToString(sig))
