@@ -1551,5 +1551,77 @@ This was a **pre-existing latent bug** introduced in Phase 24.2 (Arabic/RTL supp
 
 ### Followup actions (v1.5.0 third regression)
 
-- [ ] **29.8 CI hard-block on runes in plain `.ts` files.** Run `git grep -n -E '\$state\b|\$derived\b|\$effect\b' '*.ts' ':(exclude)*.svelte.ts' ':(exclude)*.d.ts'` at lint stage and fail any match. svelte-check missed this one for an unknown number of builds; a regex grep is bulletproof.
-- [ ] **29.9 Audit all of `frontend/src/lib/**/*.ts` for the same shape.** Already done at fix time (only `i18n/index.ts` was affected) but bake into 29.8 above so it's continuous.
+- [x] **29.8 CI hard-block on runes in plain `.ts` files.** Closed 2026-04-26 by `frontend/scripts/lint-guards.sh` — three grep-based checks running as a CI step (new `frontend-guards` job in `.github/workflows/ci.yml`). Catches: (1) runes outside `.svelte.ts`, (2) `import * as` from tree-shakeable icon libs (lucide / radix), (3) `t(...)` template usage without an `@lib/i18n` import. Zero new npm deps (preserves air-gap binary size). Also exposed via `npm run lint:guards`.
+- [x] **29.9 Audit all of `frontend/src/lib/**/*.ts` for the same shape.** Subsumed by 29.8 — the lint-guards script runs on the entire `src/` tree on every PR.
+
+---
+
+## Phase 30: Operator UX Pivot + Phase 27.2 Close-Out
+
+> **Date**: 2026-04-26
+> **Scope**: HostDetail single-pane-of-glass + Investigation flow + agent historical backfill +
+> Phase 30 polish (5 passes) + Phase 27.2 four-item close-out.
+
+### 30.1 — Host-centric pivot ✅
+
+- [x] **`frontend/src/pages/HostDetail.svelte`** — single-pane-of-glass at `/host/:id`. Sections: status banner (online/offline + last heartbeat + OS/version/trust), KPI strip (alerts/critical/events/collectors), Agent Control panel, Activity Timeline (interleaved logs + alerts sorted DESC, capped at 100). Severity rails on every entry. Pivots to `/siem-search?host=<id>` and `/alert-management?host=<id>`.
+- [x] **Drill-down wiring** — hostname cell in `FleetDashboard.svelte` is now a real `<button>` that pushes to `/host/<id>`.
+- [x] **Route registered** in `App.svelte` (`{ path: '/host/:id', component: HostDetail }`).
+
+### 30.2 — Investigation workflow ✅
+
+- [x] **`AlertManagement.svelte` quick-action panel** — wired four real handlers (was static placeholders): primary INVESTIGATE pivots to `/host/<host>?alert=<id>` (HostDetail with alert id in query), ISOLATE HOST calls `agentStore.toggleQuarantine`, CAPTURE EVIDENCE fires the existing global `oblivra:capture-evidence` window event, PIVOT IN SIEM pushes to `/siem-search?host=<host>&alert=<id>`. Auto-context expansion: HostDetail filters logs/alerts/timeline scoped to the alert's host so one click takes the operator from raw alert → full surrounding context.
+
+### 30.3 — Agent historical backfill ✅
+
+- [x] **`internal/agent/backfill.go`** + Linux/Windows/Darwin/other branches — one-shot OS-log scan on first agent run with `<DataDir>/backfill.complete` marker. Linux: `journalctl --since=<lookback> --output=json` + `/var/log/{syslog,auth.log,secure,messages,kern.log,dpkg.log,apt/history.log}`. Windows: `wevtutil qe System|Security|Application` with XPath `*[System[TimeCreated[timediff(@SystemTime) <= <ms>]]]`. macOS: `log show --last <h>h --style ndjson` + `/var/log/system.log`. Default 30-day lookback. Every emitted event tagged `Source: "historical"` with `Data["original_timestamp"]` and `Data["collected_at"]` per audit spec. `MapSeverity()` provides unified DEBUG/INFO/WARN/ERROR/CRITICAL mapping from syslog facility / journald PRIORITY / Windows EventLevel. Best-effort — subprocess errors logged at WARN, never block agent boot. Wired into `agent.go` collector list. Linux + Darwin + Windows cross-compile clean. 🖥️
+
+### 30.4 — Operator UX polish (subset of audit findings) ✅
+
+- [x] **Severity color tokens** in `app.css` — unified `--color-sev-{debug,info,warn,error,critical}` palette + matching `*-bg` tints. DEBUG=gray, INFO=blue, WARN=amber, ERROR=red, CRITICAL=bright red. Used by HostDetail timeline + ActivityFeed entries; available for any future log table.
+- [x] **`ActivityFeed.svelte`** (`@components/ui`) — global "what's happening RIGHT NOW" widget. Live-streams new alerts via `$effect` on `alertStore.alerts.length` + agent online/offline transitions via 10s polling + diff. 30-entry default cap, severity-coloured icons, click-through to `/host/:id` or `/siem-search`. Wired into Dashboard's right column (replaced the dead "Engine Load" placeholder block).
+- [x] **`savedQueries.svelte.ts`** store — persistent saved-queries with `pin`, `bumpUsage`, `rename`, `togglePin`, dedup-on-save, quota-exhaustion fallback (drops oldest half on retry), schema-versioned localStorage. `MAX_RECENT=50`. Wired into SIEMSearch as: pinned-queries chip strip at the top, history drawer toggleable from the toolbar HISTORY button, save dialog from the SAVE QUERY button, sidebar "Recent Queries" panel reading from the store (replaced dead mock data). 🌐
+- [x] **`TimeRangePicker.svelte`** (`@components/ui`) — preset buttons (LIVE / 5M / 1H / 24H / 7D / 30D / INSTALL / CUSTOM) + custom datetime-local popover. Emits typed `{ start, end, preset }` to parent. Wired into SIEMSearch toolbar; SIEMSearch's `composedQuery()` automatically appends `where timestamp >= "..."` clauses (or AND-extends an existing where) before executing.
+- [x] **`TenantSwitcher.svelte`** (`@components/ui`) — top-bar dropdown reading `tenantStore.tenants`, writing to new `appStore.currentTenantId`. Wired into TitleBar with `--wails-draggable: no-drag`. `appStore.setCurrentTenant()` persists to localStorage. New `lib/apiClient.ts` (`apiFetch` / `apiGetJSON` / `apiPostJSON`) reads `currentTenantId` and attaches `X-Tenant-Id` to every outbound REST request — `alerts.svelte.ts` and `agent.svelte.ts` both migrated. 🌐
+
+### 30.5 — Polish passes (5×) ✅
+
+- [x] **Pass 1 — wire orphans + delete dangerous script** (the orphans were the 30.4 components; commit `3701da8` had already removed `cleanup_unused_imports.py`).
+- [x] **Pass 2 — regression-prevention guards.** `frontend/scripts/lint-guards.sh` (~110 LOC) runs three grep checks; new `frontend-guards` CI job; `npm run lint:guards`. Closes 29.5 + 29.6 + 29.8.
+- [x] **Pass 3 — backend security/docs.**
+  - **Cross-tenant authorization** (`rest.go:1043`) — replaced `isGlobalAdmin := false // TODO` with real `auth.IsGlobalAdminFromContext(...)`. New `auth.IsGlobalAdmin` helper checks for `*` / `platform:admin` / `tenant:read:*` permissions. 🚨
+  - **Settings DEBUG hardening verified** — already logs only `key=%s value_bytes=%d`, never values; substring-fallback `isSensitiveKey` covers password/passphrase/secret/token/webhook/credential/private_key/auth_key/client_secret. 🟢
+  - **Security headers verified** — CSP + Referrer-Policy + Permissions-Policy + X-Content-Type-Options + X-Frame-Options all present in middleware. 🟢
+  - **`bridge_wails.go` doc comment** corrected (was referencing v2 `runtime.EventsEmit`; code is pure v3 `app.Event.Emit`).
+  - **`internal/search/federation.go:SetPeers`** — atomic peer-set replacement; `cluster_service.go:syncNodesWithFederator` now uses it (handles additions AND removals, no stale peers).
+  - **`HostStore.GetByCredentialID`** — new method on interface + `HostRepository`; `rotation_service.go` no longer scans the full host table per key rotation.
+  - **`internal/memory/secure.go`** — `osPageSlice()` helper isolates the OS-allocated `uintptr → unsafe.Pointer` cast; CI vet now uses `-unsafeptr=false` with documented justification.
+  - **All backfill log calls** converted printf-style to match logger interface.
+  - **Docs `rules_loaded: 2543` → `82`** with note explaining detection-pack dependence.
+- [x] **Pass 4 — frontend type cleanup.** `FleetMap.svelte` missing `Button` import (would crash at render); `App.svelte` `sidebarVisible` → `toggleSidebar()`; `tenant.svelte.ts` missing `TacticalMessage` type import; `i18n/index.ts` `import.meta.env` cast; `MultiTenantAdmin.svelte` `activeIncidents` → `totalIncidents`; `Settings.svelte` Input missing required `value` bind. 172 → 162 svelte-check errors (none in any modified file). Remaining 162 are bounded variant-mismatch noise + schema drift, deferred.
+- [x] **Pass 5 — GDPR deletion audit + control panel honesty.**
+  - **Migration v27** (post-renumber) `tenant_deletion_log` — append-only table: tenant_id, name, deleted_by_user, deleted_by_role, reason, prev_row_hash (SHA-256 of pre-wipe row contents), timestamp. Article-30 records-of-processing evidence.
+  - **`CryptographicWipeWithAudit`** — new audit-aware deletion path. Reads + hashes the row, applies the wipe, writes the deletion log entry, fires optional `auditor` callback post-commit. Backwards-compat: old `CryptographicWipe(ctx, id)` delegates with `system` actor. 🚨
+  - **HostDetail control panel** placeholders replaced — Trigger Scan / Toggle Debug / Restart Agent now `disabled` with tooltip noting RPC pending (tracked as 30.5a/b/c). Honest UI affordance instead of fake "succeeded" no-op toasts.
+
+### Phase 27.2 close-out (this update) ✅
+
+The four heavyweight items from "Advanced Platform Mechanics" all closed in this same arc:
+
+- [x] **27.2.1 OQL `parse json|xml|kv`** — see Phase 27.2 entry above.
+- [x] **27.2.2 Temporal Entity Resolution** — `internal/identity/lease.go` + migration v26 `dhcp_lease_log`.
+- [x] **27.2.3 Centralized DLP** — `internal/dlp/redactor.go` + `internal/engine/dag/node_dlp.go` + `pipeline.go:SetDLPRedactor`.
+- [x] **27.2.4 Raft control plane wrappers** — `internal/cluster/state_replicator.go` (typed `ApplyAlertState` / `ApplyPlaybook` / `ApplyThreatIntel` with stable SHA-256 request IDs + `LocalApplier` fallback for single-node).
+
+### Verification at this commit
+
+| Check | Result |
+|---|---|
+| `go build ./internal/... ./cmd/...` | exit 0 |
+| `go vet -unsafeptr=false ./internal/...` | exit 0 |
+| `go test ./internal/oql/ ./internal/identity/ ./internal/dlp/ ./internal/cluster/` (Phase 27.2 suite) | all pass |
+| `go test ./internal/agent/...` (backfill) | all pass; cross-compile linux/darwin/windows clean |
+| `vite build` | ✓ in ~13s, `index.js` ≈ 638 kB |
+| `svelte-check` | 162 errors (down from 172), 0 in any file modified during this arc |
+| `frontend/scripts/lint-guards.sh` | ✓ 3/3 guards pass |
+| Migration ladder | v25 `suppression_rules` → v26 `dhcp_lease_log` → v27 `tenant_deletion_log` |
