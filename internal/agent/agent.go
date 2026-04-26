@@ -230,6 +230,14 @@ func New(cfg Config, log *logger.Logger) (*Agent, error) {
 			NewEBPFCollector(a.hostname, log.WithPrefix("ebpf")))
 	}
 
+	// Historical backfill (Phase 30.3) — one-shot scan of OS log
+	// stores on first launch. Runs to completion, writes a marker
+	// file, and is skipped on subsequent boots. We register it
+	// unconditionally because it's a no-op on already-backfilled
+	// agents and a no-op fallback on unsupported GOOS values.
+	a.collectors = append(a.collectors,
+		NewBackfillCollector(a.hostname, agentID, cfg.DataDir, log.WithPrefix("backfill")))
+
 	log.Info("Agent ID: %s  a.hostname: %s  collectors: %d", agentID, a.hostname, len(a.collectors))
 	return a, nil
 }
