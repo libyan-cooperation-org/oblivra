@@ -4,6 +4,7 @@
  * Orchestrates regulatory control monitoring and evidence validation.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface ComplianceControl {
   id: string;
@@ -35,7 +36,7 @@ export class ComplianceStore {
     this.loading = true;
     try {
         if (IS_BROWSER) {
-            const res = await fetch('/api/v1/compliance/status', { credentials: 'include' });
+            const res = await apiFetch('/api/v1/compliance/status');
             if (res.ok) {
                 const data = await res.json();
                 this.controls = data.controls;

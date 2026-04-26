@@ -4,6 +4,7 @@
  * Orchestrates automated response workflows and execution metrics.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface Playbook {
   id: string;

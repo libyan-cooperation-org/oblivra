@@ -1,5 +1,11 @@
 /**
  * OBLIVRA — Auth Service (Svelte/Web)
+ *
+ * Auth endpoints intentionally bypass the tenant-aware `apiFetch`
+ * wrapper because login/logout are tenant-agnostic — they happen
+ * BEFORE a tenant scope is established. Direct `fetch` is correct
+ * here. Migration to `apiFetch` would attach a stale tenant header
+ * from the previous session.
  */
 import { IS_BROWSER } from '../context';
 
@@ -26,8 +32,22 @@ export async function login(email: string, password: string): Promise<User> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Authentication failed' }));
-    throw new Error(error.message || 'Authentication failed');
+    // Surface the backend's specific error reason instead of a
+    // generic message — operators need to distinguish "wrong
+    // password" from "account locked" from "rate limited" from
+    // "server down" (Medium audit finding #11).
+    let message = 'Authentication failed';
+    try {
+      const body = await response.json() as { message?: string; error?: string };
+      message = body.message || body.error || message;
+    } catch {
+      // Body wasn't JSON — fall back to status-text so the operator
+      // at least sees "503 Service Unavailable" instead of a black box.
+      message = response.statusText || message;
+    }
+    const err = new Error(message) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
   }
 
   const { user } = await response.json() as AuthResponse;

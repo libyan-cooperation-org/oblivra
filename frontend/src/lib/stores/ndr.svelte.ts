@@ -4,6 +4,7 @@
  * Orchestrates Network Detection and Response telemetry and flows.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface NetworkFlow {
   id: string;
@@ -34,9 +35,9 @@ export class NDRStore {
     try {
         if (IS_BROWSER) {
             const [flowsRes, alertsRes, protoRes] = await Promise.all([
-                fetch('/api/v1/ndr/flows?limit=50', { credentials: 'include' }),
-                fetch('/api/v1/ndr/alerts?limit=50', { credentials: 'include' }),
-                fetch('/api/v1/ndr/protocols', { credentials: 'include' })
+                apiFetch('/api/v1/ndr/flows?limit=50'),
+                apiFetch('/api/v1/ndr/alerts?limit=50'),
+                apiFetch('/api/v1/ndr/protocols')
             ]);
 
             if (flowsRes.ok) this.flows = await flowsRes.json();

@@ -4,6 +4,7 @@
  * Orchestrates operator identities, RBAC roles, and session gravity.
  */
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface Identity {
   id: string;
@@ -34,7 +35,7 @@ export class IdentityStore {
     this.loading = true;
     try {
         if (IS_BROWSER) {
-            const res = await fetch('/api/v1/identities', { credentials: 'include' });
+            const res = await apiFetch('/api/v1/identities');
             if (res.ok) {
                 const data = await res.json();
                 this.identities = data.identities.map((u: any) => ({
@@ -48,7 +49,7 @@ export class IdentityStore {
                 }));
             }
 
-            const rolesRes = await fetch('/api/v1/identities/roles', { credentials: 'include' });
+            const rolesRes = await apiFetch('/api/v1/identities/roles');
             if (rolesRes.ok) {
                 const data = await rolesRes.json();
                 this.roles = data.roles;
