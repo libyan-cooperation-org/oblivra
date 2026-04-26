@@ -20,7 +20,7 @@ func (s *RESTServer) handleReportTemplates(w http.ResponseWriter, r *http.Reques
 	case http.MethodGet:
 		templates, err := s.reports.ListTemplates(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, templates)
@@ -32,7 +32,7 @@ func (s *RESTServer) handleReportTemplates(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if err := s.reports.CreateTemplate(r.Context(), &t); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusCreated, t)
@@ -51,7 +51,7 @@ func (s *RESTServer) handleGeneratedReports(w http.ResponseWriter, r *http.Reque
 
 	reports, err := s.reports.ListGeneratedReports(r.Context(), 50)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, reports)
@@ -76,7 +76,7 @@ func (s *RESTServer) handleReportGenerate(w http.ResponseWriter, r *http.Request
 
 	path, err := s.reports.GenerateManualReport(r.Context(), req.TemplateID, req.Start, req.End)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 

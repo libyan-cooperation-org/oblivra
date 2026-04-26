@@ -19,7 +19,7 @@ func (s *RESTServer) handleDashboards(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		dashboards, err := s.dashboards.ListDashboards(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, dashboards)
@@ -31,7 +31,7 @@ func (s *RESTServer) handleDashboards(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.dashboards.CreateDashboard(r.Context(), &d); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusCreated, d)
@@ -83,14 +83,14 @@ func (s *RESTServer) handleDashboardByID(w http.ResponseWriter, r *http.Request)
 		}
 		d.ID = id
 		if err := s.dashboards.UpdateDashboard(r.Context(), &d); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, d)
 
 	case http.MethodDelete:
 		if err := s.dashboards.DeleteDashboard(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -108,7 +108,7 @@ func (s *RESTServer) handleDashboardData(w http.ResponseWriter, r *http.Request,
 
 	data, err := s.dashboards.GetDashboardData(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, data)
@@ -124,7 +124,7 @@ func (s *RESTServer) handleDashboardWidgets(w http.ResponseWriter, r *http.Reque
 		}
 		widget.DashboardID = id
 		if err := s.dashboards.AddWidget(r.Context(), &widget); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusCreated, widget)

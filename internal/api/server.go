@@ -226,7 +226,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	query := `SELECT id, label, hostname, port, username, auth_method FROM hosts WHERE tenant_id = ?`
 	rows, err := s.db.DB().QueryContext(ctx, query, database.DefaultTenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	defer rows.Close()
@@ -310,7 +310,7 @@ func (s *Server) handleExec(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.respondError(w, r, http.StatusBadRequest, publicErrorMessage(http.StatusBadRequest, ""), "bad_request", err)
 		return
 	}
 

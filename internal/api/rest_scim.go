@@ -20,7 +20,7 @@ func (s *RESTServer) handleSCIMUsers(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		users, err := s.identity.ListUsers(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 
@@ -65,7 +65,7 @@ func (s *RESTServer) handleSCIMUsers(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.identity.ProvisionSCIMUser(r.Context(), user); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 
@@ -114,7 +114,7 @@ func (s *RESTServer) handleSCIMUserByID(w http.ResponseWriter, r *http.Request) 
 
 		identity.FromUserResource(&res, user)
 		if err := s.identity.ProvisionSCIMUser(r.Context(), user); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, identity.ToUserResource(user, "http://"+r.Host))
@@ -148,14 +148,14 @@ func (s *RESTServer) handleSCIMUserByID(w http.ResponseWriter, r *http.Request) 
 		}
 
 		if err := s.identity.ProvisionSCIMUser(r.Context(), user); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, identity.ToUserResource(user, "http://"+r.Host))
 
 	case http.MethodDelete:
 		if err := s.identity.DeleteUser(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

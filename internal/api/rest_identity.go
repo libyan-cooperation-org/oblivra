@@ -20,7 +20,7 @@ func (s *RESTServer) handleIdentityConnectors(w http.ResponseWriter, r *http.Req
 	case http.MethodGet:
 		connectors, err := s.identity.ListConnectors(r.Context())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, connectors)
@@ -36,7 +36,7 @@ func (s *RESTServer) handleIdentityConnectors(w http.ResponseWriter, r *http.Req
 		}
 		c.Status = "new"
 		if err := s.identity.CreateConnector(r.Context(), &c); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusCreated, c)
@@ -67,7 +67,7 @@ func (s *RESTServer) handleIdentityConnectorByID(w http.ResponseWriter, r *http.
 			return
 		}
 		if err := s.identity.TriggerSync(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		w.WriteHeader(http.StatusAccepted)
@@ -93,14 +93,14 @@ func (s *RESTServer) handleIdentityConnectorByID(w http.ResponseWriter, r *http.
 		}
 		c.ID = id
 		if err := s.identity.UpdateConnector(r.Context(), &c); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		s.jsonResponse(w, http.StatusOK, c)
 
 	case http.MethodDelete:
 		if err := s.identity.DeleteConnector(r.Context(), id); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

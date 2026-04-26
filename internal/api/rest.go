@@ -583,7 +583,9 @@ func (s *RESTServer) checkFeature(w http.ResponseWriter, f licensing.Feature) bo
 	}
 	if err := s.license.RequireFeature(f); err != nil {
 		s.log.Warn("[REST] Feature gate blocked: %s (Tier: %s)", f, s.license.CurrentTier())
-		http.Error(w, err.Error(), http.StatusForbidden)
+		// checkFeature is a helper that doesn't carry the request,
+		// so pass nil — respondError handles that gracefully.
+		s.respondError(w, nil, http.StatusForbidden, "forbidden", "feature_gate", err)
 		return false
 	}
 	return true
@@ -680,7 +682,18 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// 2. CORS Headers — restrict to local Wails frontend origins
+		// 2. CORS Headers — restrict to local Wails frontend origins.
+		//
+		// Only echo Allow-Origin back when the caller's origin appears
+		// in the allowlist. Cookies (HttpOnly auth) require
+		// Allow-Credentials: true AND a specific (not wildcard) origin
+		// — the browser will REFUSE to send cookies with
+		// "Access-Control-Allow-Origin: *". Audit finding Critical #3.
+		//
+		// Allow-Methods now includes PUT/DELETE/PATCH because some
+		// CRUD endpoints (e.g. tenant lifecycle, suppression rules)
+		// genuinely use those verbs. Allow-Headers includes the new
+		// X-Tenant-Id used by apiFetch (Phase 30.4d).
 		origin := r.Header.Get("Origin")
 		allowedOrigins := map[string]bool{
 			"https://wails.localhost": true,
@@ -689,12 +702,17 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		// SEC-35: Allow localhost:3000 ONLY in debug mode to prevent DNS rebinding in production
 		if os.Getenv("OBLIVRA_DEBUG") == "true" {
 			allowedOrigins["http://localhost:3000"] = true
+			allowedOrigins["http://localhost:5173"] = true // Vite dev server default
 		}
 		if allowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			// CRITICAL: required for HttpOnly auth cookies to ride
+			// cross-origin requests. Without this, every browser-mode
+			// API call after login fails silently with 401.
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key, X-Tenant-Id, X-Agent-ID, X-Agent-Hostname, X-Agent-Signature")
 		w.Header().Set("Vary", "Origin")
 
 		// 3. Security Headers
@@ -1589,7 +1607,7 @@ func (s *RESTServer) handleIdentitiesList(w http.ResponseWriter, r *http.Request
 	}
 	users, err := s.identity.ListUsers(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
@@ -1605,7 +1623,7 @@ func (s *RESTServer) handleRolesList(w http.ResponseWriter, r *http.Request) {
 	}
 	roles, err := s.identity.ListRoles(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
@@ -1621,7 +1639,7 @@ func (s *RESTServer) handlePlatformMetrics(w http.ResponseWriter, r *http.Reques
 	}
 	metrics, err := s.platformProvider.GetMetrics(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, metrics)
@@ -1661,7 +1679,7 @@ func (s *RESTServer) handleCampaignTimeline(w http.ResponseWriter, r *http.Reque
 	id := r.URL.Query().Get("id")
 	timeline, err := s.fusion.GetCampaignTimeline(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, timeline)
@@ -1922,7 +1940,7 @@ func (s *RESTServer) handleEscalationAck(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := s.getEscalation().Acknowledge(req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.respondError(w, r, http.StatusBadRequest, publicErrorMessage(http.StatusBadRequest, ""), "bad_request", err)
 		return
 	}
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"status": "acknowledged"})
@@ -2268,7 +2286,7 @@ func (s *RESTServer) handleEvidenceExport(w http.ResponseWriter, r *http.Request
 	}
 	data, err := s.evidence.Export()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.respondError(w, r, http.StatusInternalServerError, "internal error", "operation_failed", err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
