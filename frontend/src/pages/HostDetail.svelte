@@ -260,32 +260,32 @@
         </header>
         <div class="panel-body">
           <div class="flex flex-wrap gap-2">
+            <!-- Remote-action buttons are gated until the backend RPCs
+                 land. Showing them as disabled keeps the UI affordance
+                 visible (operators see what's coming) without the
+                 dishonest "click does nothing but toast 'succeeded'"
+                 pattern Phase 30.5 flagged. The corresponding tasks
+                 are tracked in task.md as 30.5a/b/c. -->
             <Button
               variant="ghost"
-              onclick={() => runAction('Trigger Scan', async () => {
-                /* Placeholder — real RPC is wired in 30.2 follow-up */
-              })}
-              title="Request agent run an on-demand scan"
+              disabled
+              title="Request agent run an on-demand scan (RPC pending — tracked as 30.5a)"
             >
               <RefreshCw class="w-3 h-3 mr-1" /> Trigger Scan
             </Button>
 
             <Button
               variant="ghost"
-              onclick={() => runAction('Toggle Debug', async () => {
-                /* Placeholder for log-level toggle RPC */
-              })}
-              title="Toggle agent debug-level logging"
+              disabled
+              title="Toggle agent debug-level logging (RPC pending — tracked as 30.5b)"
             >
               <Bug class="w-3 h-3 mr-1" /> Toggle Debug
             </Button>
 
             <Button
               variant="ghost"
-              onclick={() => runAction('Restart Agent', async () => {
-                /* Placeholder for agent restart RPC */
-              })}
-              title="Request agent process restart"
+              disabled
+              title="Request agent process restart (RPC pending — tracked as 30.5c)"
             >
               <Power class="w-3 h-3 mr-1" /> Restart Agent
             </Button>
