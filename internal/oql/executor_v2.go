@@ -233,6 +233,8 @@ func (ex *Executor) executeCommand(ctx context.Context, cmd Command, rows []Row,
 		return ex.execRare(c, rows, prof)
 	case *RexCommand:
 		return ex.execRex(c, rows, prof)
+	case *ParseCommand:
+		return ex.execParse(c, rows, prof)
 	case *LookupCommand:
 		return ex.execLookup(ctx, c, rows, prof)
 	case *JoinCommand:

@@ -180,6 +180,43 @@ type RexCommand struct {
 	Field   *FieldRef
 	Pattern string
 }
+
+// ParseFormat names the structured parser variant. Phase 27.2 extends
+// the OQL pipeline with a dedicated `parse` command that mirrors the
+// canonical Splunk SPL `spath` / `xmlkv` operators rolled into one.
+type ParseFormat int
+
+const (
+	// ParseJSON reads `Field` as JSON and expands the result onto
+	// the event under either the field's name or `Output` when set.
+	// Nested objects flatten with dot-paths (`a.b.c`).
+	ParseJSON ParseFormat = iota
+	// ParseXML reads `Field` as XML and flattens elements/attributes
+	// into dot-paths.
+	ParseXML
+	// ParseKV reads `Field` as `key=value` pairs (separator-aware:
+	// space, comma, or semicolon). Quoted values are honoured.
+	ParseKV
+)
+
+// ParseCommand extracts structured data out of a free-text field on
+// each event, exposing the resulting key/value pairs as new event
+// fields downstream operators (where, eval, stats, …) can reference.
+//
+// Syntax examples:
+//   `... | parse json _raw`
+//   `... | parse json message as evt`
+//   `... | parse xml body`
+//   `... | parse kv message`
+//
+// `Output` is optional. When unset, parsed keys land at the top level
+// (e.g. `{"user":"alice","ip":"10.0.0.1"}` → fields `user` and `ip`).
+// When set, they land under a prefix (e.g. `... as evt` → `evt.user`).
+type ParseCommand struct {
+	Format ParseFormat
+	Field  FieldRef // source field; defaults to `_raw` when omitted
+	Output string   // optional prefix; empty means top-level
+}
 type TableCommand struct{ Fields []FieldRef }
 type SortCommand struct{ Specs []SortSpec }
 type SortSpec struct {
@@ -277,11 +314,13 @@ func (*FillNullCommand) command()    {}
 func (*MvExpandCommand) command()    {}
 func (*PredictCommand) command()     {}
 func (*AnomalyDetectionCommand) command() {}
+func (*ParseCommand) command()       {}
 
 func (*WhereCommand) CommandName() string       { return "where" }
 func (*StatsCommand) CommandName() string       { return "stats" }
 func (*EvalCommand) CommandName() string        { return "eval" }
 func (*RexCommand) CommandName() string         { return "rex" }
+func (*ParseCommand) CommandName() string       { return "parse" }
 func (*TableCommand) CommandName() string       { return "table" }
 func (*SortCommand) CommandName() string        { return "sort" }
 func (*HeadCommand) CommandName() string        { return "head" }

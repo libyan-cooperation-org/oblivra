@@ -349,6 +349,8 @@ func (p *parser) parseCommand() (Command, error) {
 		return p.parseTopRare("rare")
 	case "rex":
 		return p.parseRex()
+	case "parse":
+		return p.parseParse()
 	case "lookup":
 		return p.parseLookup()
 	case "join":
@@ -966,6 +968,61 @@ func (p *parser) parseRex() (Command, error) {
 	}
 	if p.peek().Type == TokString {
 		cmd.Pattern = p.advance().Val
+	}
+	return cmd, nil
+}
+
+// parseParse consumes the `parse` command body. Grammar:
+//
+//	parse <format> [<field>] [as <output>]
+//
+// where `<format>` is one of `json`, `xml`, `kv`. The source field
+// defaults to `_raw` when omitted. The optional `as <output>` clause
+// puts every extracted key under the given prefix.
+//
+// Examples accepted:
+//
+//	... | parse json
+//	... | parse json _raw
+//	... | parse json message as evt
+//	... | parse xml body
+//	... | parse kv message
+func (p *parser) parseParse() (Command, error) {
+	p.advance() // consume "parse"
+	if p.peek().Type != TokIdent {
+		t := p.peek()
+		return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
+			Message: "parse: expected format (json|xml|kv) after `parse`"}
+	}
+	formatTok := p.advance()
+	cmd := &ParseCommand{
+		Field: NewFieldRef("_raw"),
+	}
+	switch strings.ToLower(formatTok.Val) {
+	case "json":
+		cmd.Format = ParseJSON
+	case "xml":
+		cmd.Format = ParseXML
+	case "kv":
+		cmd.Format = ParseKV
+	default:
+		return nil, &ParseError{Position: formatTok.Pos, Line: formatTok.Line, Col: formatTok.Col,
+			Message: "parse: unknown format '" + formatTok.Val + "' (expected json|xml|kv)"}
+	}
+	// Optional source field — anything that isn't `as` and starts a
+	// new identifier is treated as the source field name.
+	if p.peek().Type == TokIdent && !p.matchIdent("as") {
+		cmd.Field = NewFieldRef(p.advance().Val)
+	}
+	// Optional `as <output>` prefix.
+	if p.matchIdent("as") {
+		p.advance()
+		if p.peek().Type != TokIdent {
+			t := p.peek()
+			return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
+				Message: "parse: expected output prefix after `as`"}
+		}
+		cmd.Output = p.advance().Val
 	}
 	return cmd, nil
 }
