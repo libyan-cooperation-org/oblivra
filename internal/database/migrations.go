@@ -623,6 +623,31 @@ var migrations = []migration{
 			CREATE INDEX IF NOT EXISTS idx_suppression_global ON suppression_rules(tenant_id, field) WHERE is_active = 1 AND (rule_id IS NULL OR rule_id = '');
 		`,
 	},
+	{
+		// Phase 22.2 / Phase 30 — GDPR Article 30 evidence for the
+		// right-to-erasure workflow. When a tenant is wiped via
+		// CryptographicWipe, this immutable log records who did it,
+		// when, the reason, and a SHA-256 of the previous tenant row
+		// (so an auditor can prove the deletion was complete and
+		// non-tampered). Append-only by convention; no UPDATE/DELETE
+		// statements are issued against this table by application code.
+		version: 26,
+		name:    "create_tenant_deletion_log",
+		sql: `
+			CREATE TABLE IF NOT EXISTS tenant_deletion_log (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				tenant_id TEXT NOT NULL,
+				tenant_name TEXT,
+				deleted_by_user TEXT NOT NULL,
+				deleted_by_role TEXT,
+				reason TEXT,
+				prev_row_hash TEXT NOT NULL,
+				deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			CREATE INDEX IF NOT EXISTS idx_tenant_deletion_log_tenant ON tenant_deletion_log(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_tenant_deletion_log_when ON tenant_deletion_log(deleted_at);
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

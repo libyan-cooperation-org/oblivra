@@ -49,7 +49,12 @@ export function t(key: string, ...args: Array<string | number>): string {
     // Fall back to English; warn once in dev for visibility.
     raw = LOCALES.en[key];
     if (raw == null) {
-      if (typeof console !== 'undefined' && import.meta?.env?.DEV) {
+      // Vite/ImportMeta typing isn't picked up by `tsc --noEmit` because
+      // we don't include `vite/client` in tsconfig types. Cast through
+      // `any` to read the dev-mode flag at runtime; the JSDoc above
+      // documents intent so this is not a silent any.
+      const isDev = (import.meta as any)?.env?.DEV === true;
+      if (typeof console !== 'undefined' && isDev) {
         console.warn(`[i18n] missing translation: ${key} (locale=${i18n.locale})`);
       }
       return key;

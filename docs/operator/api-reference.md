@@ -231,8 +231,10 @@ Trigger a manual Sigma rule reload.
 **Response `200`:**
 
 ```json
-{ "rules_loaded": 2543 }
+{ "rules_loaded": 82 }
 ```
+
+> The exact count depends on which detection packs are enabled (essential / extended / paranoid). The example reflects a default install with the bundled `sigma/` core ruleset; air-gap deployments that import additional vendor packs will see higher counts.
 
 ---
 

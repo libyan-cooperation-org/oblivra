@@ -19,6 +19,7 @@
   let workspaceName = $state(appStore.workspace);
   let theme = $state(appStore.theme);
   let serverUrl = $state('https://api.oblivra.io');
+  let apiToken = $state('');
 
   function saveGeneral() {
     appStore.setWorkspace(workspaceName as any);
@@ -64,7 +65,7 @@
             This allows viewing server-side logs and managing cloud agents from your desktop.
           </p>
           <Input label="Server URL" placeholder="https://..." bind:value={serverUrl} />
-          <Input label="API Key / Token" type="password" placeholder="••••••••••••••••" />
+          <Input label="API Key / Token" type="password" placeholder="••••••••••••••••" bind:value={apiToken} />
           
           <div class="pt-2 flex justify-end gap-2">
             <Button variant="secondary" size="sm">Test Connection</Button>

@@ -87,7 +87,7 @@
             </div>
             <div class="bg-surface-2 p-3">
                 <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Incidents</div>
-                <div class="text-xl font-mono font-bold text-error">{stats.activeIncidents}</div>
+                <div class="text-xl font-mono font-bold text-error">{stats.totalIncidents}</div>
                 <div class="text-[9px] text-error/80 mt-1 uppercase animate-pulse">Critical action</div>
             </div>
         </div>

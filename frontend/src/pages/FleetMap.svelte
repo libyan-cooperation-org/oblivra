@@ -3,7 +3,7 @@
   Geographic distribution of managed nodes and real-time threat telemetry.
 -->
 <script lang="ts">
-  import { Chart, PageLayout, KPI, DataTable, Badge } from '@components/ui';
+  import { Chart, PageLayout, KPI, DataTable, Badge, Button } from '@components/ui';
   import type { EChartsOption } from 'echarts';
 
   // Mock fleet locations [lon, lat, count, risk]

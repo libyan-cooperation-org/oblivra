@@ -312,7 +312,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
           appStore.showCommandPalette = true;
         });
         on(rt, 'menu:toggle-sidebar', () => {
-          appStore.sidebarVisible = !appStore.sidebarVisible;
+          // appStore exposes `sidebarOpen`, not `sidebarVisible`.
+          appStore.toggleSidebar();
         });
         on(rt, 'menu:popout-current', async () => {
           const mod = await getWindowService();

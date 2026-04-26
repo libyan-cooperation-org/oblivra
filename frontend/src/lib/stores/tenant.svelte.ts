@@ -4,6 +4,7 @@
  * Orchestrates cross-tenant management and platform-wide metrics.
  */
 import { IS_BROWSER } from '@lib/context';
+import type { TacticalMessage } from './collaboration.svelte';
 
 export interface Tenant {
   id: string;
