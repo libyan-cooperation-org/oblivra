@@ -270,27 +270,20 @@ func TestMigrator_FullStack(t *testing.T) {
 	}
 
 	m := NewMigrator(hot, warm, cold, DefaultRetention(), log)
+	// Cycle 1 does BOTH stages in sequence:
+	//   hot → warm: promotes everything ≥30d from hot.
+	//                That's 6 events (3 at -100d, 3 at -200d).
+	//   warm → cold: promotes everything ≥(30d+150d)=180d from warm.
+	//                Right after the previous step, the 3 events at
+	//                -200d are now in warm AND older than 180d, so
+	//                they get promoted again to cold within the same
+	//                cycle. The 3 events at -100d stay in warm.
 	stats := m.RunOnce(ctx)
 	if stats.HotToWarm < 6 {
 		t.Errorf("HotToWarm: got %d, want ≥6 (3 old + 3 ancient should leave hot)", stats.HotToWarm)
 	}
-	// Sanity-check between cycles. If cycle 1 silently failed to
-	// persist, cycle 2 has nothing to promote and the failure mode
-	// is invisible without this assertion.
-	warmCount := 0
-	_ = warm.Range(ctx, time.Time{}, time.Time{}, func(e Event) bool {
-		warmCount++
-		t.Logf("after cycle 1, warm: id=%s ts=%s", e.ID, e.Timestamp.Format(time.RFC3339))
-		return true
-	})
-	t.Logf("warm count after cycle 1: %d", warmCount)
-
-	// Run a second cycle so warm→cold has something to promote
-	// (the first cycle moved everything ≥30d from hot to warm,
-	// the second cycle moves the now-warm 200d events to cold).
-	stats2 := m.RunOnce(ctx)
-	if stats2.WarmToCold < 3 {
-		t.Errorf("WarmToCold (cycle 2): got %d, want ≥3", stats2.WarmToCold)
+	if stats.WarmToCold < 3 {
+		t.Errorf("WarmToCold (cycle 1): got %d, want ≥3 (-200d events should land in cold same cycle)", stats.WarmToCold)
 	}
 
 	// Final tier accounting.

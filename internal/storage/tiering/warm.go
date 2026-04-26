@@ -110,10 +110,7 @@ func (w *WarmTier) Write(_ context.Context, events []Event) (int, error) {
 
 	written := 0
 	for day, entries := range byDay {
-		fmt.Fprintf(os.Stderr, "DEBUG warm write: day=%s entries=%d dayDate=%s\n",
-			day, len(entries), dayDate[day].Format(time.RFC3339))
 		if err := w.archiver.WriteBatch(dayDate[day], entries); err != nil {
-			w.log.Warn("warm write FAILED day=%s err=%v", day, err)
 			return written, fmt.Errorf("warm write day=%s: %w", day, err)
 		}
 		written += len(entries)
@@ -158,9 +155,6 @@ func (w *WarmTier) Range(_ context.Context, from, to time.Time, fn func(e Event)
 			cur = cur.AddDate(0, 0, 1)
 			continue
 		}
-		w.log.Debug("warm range: day=%s entries=%d window=[%s,%s]",
-			cur.Format("2006-01-02"), len(entries),
-			from.Format(time.RFC3339), to.Format(time.RFC3339))
 		for _, parquetEntry := range entries {
 			ts := time.Unix(0, parquetEntry.Timestamp*int64(time.Microsecond)).UTC()
 			if ts.Before(from) || ts.After(to) {
