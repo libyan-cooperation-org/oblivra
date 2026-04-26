@@ -176,3 +176,27 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run frontend lint-guards
         run: bash frontend/scripts/lint-guards.sh
+
+  # ── Frontend bundle smoke test (Phase 29.7 + Phase 31) ──────────────────
+  # Builds the production bundle and validates that:
+  #   - vite build succeeds
+  #   - dist/ has index.html + assets that reference each other
+  #   - every Phase 30/31 component fingerprint shows up in the JS bundle
+  #     (catches tree-shake regressions like the v1.5.0 lucide-svelte one)
+  #   - critical lucide icons are present
+  #   - severity color tokens shipped in the CSS bundle
+  #   - bundle size is within sane bounds
+  # Closes the audit's "must run against COMPILED output" gap.
+  frontend-smoke:
+    name: Frontend bundle smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Run smoke test
+        run: bash frontend/scripts/smoke-test.sh

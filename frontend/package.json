@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ --ext .ts,.tsx",
     "lint:guards": "bash scripts/lint-guards.sh",
+    "smoke": "bash scripts/smoke-test.sh",
     "test": "bun test"
   },
   "dependencies": {
