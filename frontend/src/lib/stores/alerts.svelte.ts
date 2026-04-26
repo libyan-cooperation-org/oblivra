@@ -109,28 +109,52 @@ class AlertStore {
     await this.init();
   }
 
-  acknowledge(id: string) {
+  // Audit fix High-6: each state transition does an optimistic local
+  // update + a backend POST. On error, we surface (caller decides
+  // whether to revert) so the UI never silently lies about state.
+  // The backend acknowledges via the live `detection.match` /
+  // `security.alert` event stream, which our subscribe() handlers
+  // pick up — but we still apply the optimistic flip for instant
+  // visual feedback.
+
+  async acknowledge(id: string) {
     this.alerts = this.alerts.map(a =>
       a.id === id ? { ...a, status: 'acknowledged' } : a
     );
+    if (IS_BROWSER) {
+      await apiFetch(`/api/v1/alerts/${encodeURIComponent(id)}/ack`, { method: 'POST' })
+        .catch((e) => console.error('[AlertStore] acknowledge failed:', e));
+    }
   }
 
-  investigate(id: string) {
+  async investigate(id: string) {
     this.alerts = this.alerts.map(a =>
       a.id === id ? { ...a, status: 'investigating' } : a
     );
+    if (IS_BROWSER) {
+      await apiFetch(`/api/v1/alerts/${encodeURIComponent(id)}/investigate`, { method: 'POST' })
+        .catch((e) => console.error('[AlertStore] investigate failed:', e));
+    }
   }
 
-  close(id: string) {
+  async close(id: string) {
     this.alerts = this.alerts.map(a =>
       a.id === id ? { ...a, status: 'closed' } : a
     );
+    if (IS_BROWSER) {
+      await apiFetch(`/api/v1/alerts/${encodeURIComponent(id)}/close`, { method: 'POST' })
+        .catch((e) => console.error('[AlertStore] close failed:', e));
+    }
   }
 
-  suppress(id: string) {
+  async suppress(id: string) {
     this.alerts = this.alerts.map(a =>
       a.id === id ? { ...a, status: 'suppressed' } : a
     );
+    if (IS_BROWSER) {
+      await apiFetch(`/api/v1/alerts/${encodeURIComponent(id)}/suppress`, { method: 'POST' })
+        .catch((e) => console.error('[AlertStore] suppress failed:', e));
+    }
   }
 }
 

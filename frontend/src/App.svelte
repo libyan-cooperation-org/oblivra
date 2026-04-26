@@ -285,9 +285,26 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     }
   }
 
+  /**
+   * Audit fix High-7: when apiFetch detects 401/403 it dispatches
+   * `oblivra:auth-failure` so this single listener can route the
+   * operator to /login with a friendly toast. Idempotent: the
+   * window event itself is single-flight on the apiClient side.
+   */
+  function onAuthFailure(e: Event) {
+    const detail = (e as CustomEvent<{ status: number; url: string }>).detail;
+    toastStore.add({
+      type: 'warning',
+      title: 'Session expired',
+      message: `Please sign in again (${detail?.status ?? 401} on ${detail?.url ?? 'request'}).`,
+    });
+    appStore.navigate('/login');
+  }
+
   onMount(async () => {
     try {
       await initBridge();
+      window.addEventListener('oblivra:auth-failure', onAuthFailure);
 
       const rt = (window as any).runtime;
       if (rt && APP_CONTEXT !== 'browser') {
@@ -400,6 +417,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     for (const off of runtimeUnsubs) {
       try { off(); } catch { /* already torn down */ }
     }
+    window.removeEventListener('oblivra:auth-failure', onAuthFailure);
     runtimeUnsubs = [];
   });
 

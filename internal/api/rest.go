@@ -627,19 +627,46 @@ func (s *RESTServer) jsonResponse(w http.ResponseWriter, status int, data interf
 	json.NewEncoder(w).Encode(wrapper)
 }
 
+// stubHandler wraps endpoints whose backend implementation is
+// in-progress. Critical-4 audit fix: instead of silently returning
+// `http.Error("Not Implemented")` (which clients consumed as
+// "succeeded with empty body"), we now respond with a structured
+// envelope `{ok:false, code:"feature_pending"}` so frontend code
+// can distinguish "feature not available" from "feature failed."
+//
+// Every stubHandler entry corresponds to a UI affordance that should
+// either be hidden, disabled with a tooltip, or wired to a real
+// backend. The `feature_pending` code lets frontend components opt
+// into one of those behaviours instead of silently breaking.
+//
+// Production mode (OBLIVRA_ENV=production): returns 501 with the
+// same envelope. Operators see the same shape — just the backend
+// refuses to expose the un-finished feature surface at all.
+//
+// Non-production mode: requires an authenticated role so a stub
+// can be exercised in dev without auth, but isn't open to the
+// public internet.
 func (s *RESTServer) stubHandler(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if os.Getenv("OBLIVRA_ENV") == "production" {
-			http.Error(w, "Not Implemented", http.StatusNotImplemented)
-			return
-		}
-		
-		role := auth.GetRole(r.Context())
-		if role == "" {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			s.respondError(w, r, http.StatusNotImplemented,
+				"feature not yet available in this build",
+				"feature_pending", nil)
+			// Hint the frontend can act on without parsing the message.
+			w.Header().Set("X-Feature-Status", "pending")
 			return
 		}
 
+		role := auth.GetRole(r.Context())
+		if role == "" {
+			s.respondError(w, r, http.StatusForbidden,
+				"forbidden", "stub_unauth", nil)
+			return
+		}
+
+		// Tag the response with the same hint so dev clients can
+		// flag which paths are stubbed even when the body is empty.
+		w.Header().Set("X-Feature-Status", "pending")
 		h(w, r)
 	}
 }

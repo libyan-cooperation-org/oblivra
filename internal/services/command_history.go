@@ -221,8 +221,12 @@ func (s *CommandHistoryService) ensureTable() {
 		s.log.Error("[CMD-HISTORY] Failed to create table: %v", err)
 	}
 
-	// Index for fast per-host lookup
-	_, _ = conn.Exec(`CREATE INDEX IF NOT EXISTS idx_cmd_history_host ON command_history(host_id, timestamp DESC)`)
+	// Index for fast per-host lookup. Audit fix High-8: silently
+	// discarding the error meant a failed CREATE INDEX would never
+	// surface, leading to slow queries that nobody could explain.
+	if _, err := conn.Exec(`CREATE INDEX IF NOT EXISTS idx_cmd_history_host ON command_history(host_id, timestamp DESC)`); err != nil {
+		s.log.Warn("[CMD-HISTORY] Failed to create index idx_cmd_history_host (queries will be slow): %v", err)
+	}
 }
 
 func (s *CommandHistoryService) persistCommand(entry CommandEntry) {
@@ -240,12 +244,16 @@ func (s *CommandHistoryService) persistCommand(entry CommandEntry) {
 		s.log.Debug("[CMD-HISTORY] Persist failed: %v", err)
 	}
 
-	// Prune old entries (keep last 500 per host)
-	_, _ = conn.Exec(`
+	// Prune old entries (keep last 500 per host). Audit fix High-8:
+	// failure here means the table grows unbounded — log at WARN
+	// so the operator can correlate disk-bloat alerts to the cause.
+	if _, err := conn.Exec(`
 		DELETE FROM command_history WHERE host_id = ? AND id NOT IN (
 			SELECT id FROM command_history WHERE host_id = ? ORDER BY timestamp DESC LIMIT 500
 		)
-	`, entry.HostID, entry.HostID)
+	`, entry.HostID, entry.HostID); err != nil {
+		s.log.Warn("[CMD-HISTORY] Prune failed for host %s (table may grow unbounded): %v", entry.HostID, err)
+	}
 }
 
 func (s *CommandHistoryService) loadFromDB(hostID string, limit int) []string {

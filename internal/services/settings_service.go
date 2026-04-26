@@ -154,7 +154,14 @@ func (s *SettingsService) ClearDatabase() error {
 		// Use CryptoWipe for secure erasure
 		if err := s.destroyer.CryptoWipe(table, "1=1"); err != nil {
 			s.log.Error("Failed to crypto-wipe table %s: %v. Falling back to simple DELETE.", table, err)
-			_, _ = s.db.DB().Exec("DELETE FROM " + table)
+			// Audit fix High-8: this fallback path runs when crypto-
+			// wipe fails. If the simple DELETE ALSO fails, we MUST
+			// surface that — the operator believes the data is gone
+			// when it isn't, which is a compliance violation
+			// (right-to-erasure / GDPR Article 17).
+			if _, delErr := s.db.DB().Exec("DELETE FROM " + table); delErr != nil {
+				s.log.Error("CRITICAL: fallback DELETE also failed for table %s: %v. Data NOT erased.", table, delErr)
+			}
 		}
 	}
 

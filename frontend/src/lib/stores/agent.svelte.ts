@@ -107,7 +107,11 @@ export class AgentStore {
     try {
       const { KillProcess } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice.js');
       await KillProcess(agentID, pid);
-      // We don't wait for success here since it's an async C2 operation
+      // Audit fix High-6: refresh after mutation so the UI reflects
+      // the new agent state (process inventory updates, etc.).
+      // Was previously fire-and-forget, leaving the operator's view
+      // stale until the 10-second poll caught up.
+      await this.refresh();
       return true;
     } catch (err: any) {
       console.error('[AgentStore] KillProcess failed:', err);
@@ -120,6 +124,12 @@ export class AgentStore {
     try {
       const { ToggleQuarantine } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice.js');
       await ToggleQuarantine(agentID, enabled);
+      // Audit fix High-6: re-pull fleet state so the quarantine
+      // toggle visible in the UI matches the backend's actual state.
+      // Without this, an operator clicking "Isolate" sees their
+      // intent reflected in the UI but has no way to verify the
+      // backend command actually succeeded.
+      await this.refresh();
       return true;
     } catch (err: any) {
       console.error('[AgentStore] ToggleQuarantine failed:', err);
