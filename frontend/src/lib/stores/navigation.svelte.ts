@@ -19,14 +19,25 @@
  */
 
 const STORAGE_KEY = 'oblivra:nav';
-const SCHEMA_VERSION = 1;
+// Schema bumped from v1 → v2 with the SOC redesign (Overview/Security/
+// Network/Identity/Hosts/Logs/System). v1 stored 'operate'/'detect'
+// etc. which no longer exist; rather than migrate the IDs we drop the
+// stored prefs on first load — the operator just lands on the new
+// 'overview' default and re-pins anything they care about.
+const SCHEMA_VERSION = 2;
 
+// SOC investigation-first taxonomy (per Phase 31 redesign spec).
+// The 7 domains are organised by *what the operator is currently
+// looking at* — overview > security > network > identity > hosts >
+// logs > system — NOT by feature taxonomy. Switching domains sets
+// the active CONTEXT for the rest of the UI.
 export type NavGroupId =
-  | 'operate'
-  | 'detect'
-  | 'investigate'
-  | 'defend'
-  | 'govern'
+  | 'overview'
+  | 'security'
+  | 'network'
+  | 'identity'
+  | 'hosts'
+  | 'logs'
   | 'system';
 
 interface PersistedShape {
@@ -54,18 +65,19 @@ function readPersisted(): PersistedShape | null {
 
 class NavigationStore {
   // ── State ────────────────────────────────────────────────────────
-  activeGroup = $state<NavGroupId>('operate');
+  activeGroup = $state<NavGroupId>('overview');
   pinned = $state<string[]>([]);
   dockExpanded = $state<boolean>(true);
 
   // Last route opened inside each group, so re-clicking a group restores
   // the operator's last view rather than always landing on the first item.
   lastRouteByGroup = $state<Record<NavGroupId, string | null>>({
-    operate: null,
-    detect: null,
-    investigate: null,
-    defend: null,
-    govern: null,
+    overview: null,
+    security: null,
+    network: null,
+    identity: null,
+    hosts: null,
+    logs: null,
     system: null,
   });
 

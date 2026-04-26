@@ -37,25 +37,27 @@
    * the same failure mode for missing imports.
    */
   import {
-    // group / chrome icons
-    Activity, Radar, Search, Shield, Scale, Settings,
+    // chrome / dock controls
+    Activity, Radar, Search, Scale, Settings, FileText,
     ChevronDown, ChevronUp, Pin, PinOff, Circle,
-    // operate
-    LayoutDashboard, Terminal, Crosshair, Zap, FolderOpen, Monitor, Eye,
-    Server, Cable, Code, StickyNote, Video,
-    // detect
-    Database, Bell, BellRing, Telescope, Globe, Sparkles, Grid3x3,
-    Network, Map, HeartPulse, Users,
-    // investigate
-    GitBranch, History, FileSearch, Microscope, HardDrive, BookLock,
-    Link, Workflow, Clock4, Rewind, GitCompare,
-    // defend
-    BookOpen, ShieldAlert, Skull, Wifi, Swords, Play, Siren, Flame,
-    // govern
-    ClipboardCheck, KeyRound, Lock, UserCog, UsersRound, ShieldCheck,
-    EyeOff, ShieldHalf, Award,
-    // system
-    Cpu, Boxes, Puzzle, RefreshCw, TrendingUp, Bot, Keyboard,
+    // overview / dashboards
+    LayoutDashboard, TrendingUp, Monitor, Eye,
+    // hosts / devices
+    Server, Terminal, Crosshair, FolderOpen, Cpu, HardDrive, Boxes,
+    // network / geo
+    Network, Cable, Wifi, Map,
+    // identity / users
+    Users, UserCog, UsersRound, Video,
+    // security / detection
+    Shield, Bell, BellRing, ShieldAlert, ShieldCheck, ShieldHalf,
+    Telescope, Globe, Grid3x3, Zap, Skull, Swords, Play, Siren, Flame,
+    GitBranch, AlertTriangle,
+    // logs / data
+    Database, Sparkles, History, FileSearch, Microscope, BookLock, BookOpen,
+    Link, Workflow, Clock4, Rewind, GitCompare, Code, StickyNote, HeartPulse,
+    // governance / system
+    ClipboardCheck, KeyRound, Lock, EyeOff, Award, Puzzle, RefreshCw,
+    Bot, Keyboard,
     type Icon as IconType,
   } from 'lucide-svelte';
   import { navigationStore, type NavGroupId } from '@lib/stores/navigation.svelte';
@@ -65,16 +67,19 @@
   import { IS_BROWSER, IS_DESKTOP, IS_HYBRID } from '@lib/context';
 
   const GROUP_HEADER_ICONS: Record<NavGroupId, typeof IconType> = {
-    operate: Activity,
-    detect: Radar,
-    investigate: Search,
-    defend: Shield,
-    govern: Scale,
-    system: Settings,
+    overview: LayoutDashboard,
+    security: Shield,
+    network:  Network,
+    identity: UserCog,
+    hosts:    Server,
+    logs:     FileText,
+    system:   Settings,
   };
 
   // Static lookup. Strings here MUST match `icon` field in nav-config.ts.
   // If a string has no entry, lookupIcon() falls back to Circle.
+  // (Phase 29 lesson: NEVER use `import * as` + string lookup against
+  // tree-shakeable libs — Vite strips icons not referenced by name.)
   const ICON_MAP: Record<string, typeof IconType> = {
     LayoutDashboard, Terminal, Crosshair, Zap, FolderOpen, Monitor, Eye,
     Server, Cable, Code, StickyNote, Video,
@@ -86,7 +91,7 @@
     ClipboardCheck, KeyRound, Lock, UserCog, UsersRound, ShieldCheck,
     EyeOff, ShieldHalf, Award,
     Cpu, Boxes, Puzzle, RefreshCw, TrendingUp, Bot, Settings, Keyboard,
-    Activity, Radar, Shield, Scale,
+    Activity, Radar, Shield, Scale, FileText, AlertTriangle,
   };
 
   // Reactive: which group is showing right now, and which items belong
@@ -124,7 +129,7 @@
 
   // Pulled into a derived so we don't recompute on every keystroke.
   const HeaderIcon = $derived(
-    GROUP_HEADER_ICONS[navigationStore.activeGroup] ?? Activity,
+    GROUP_HEADER_ICONS[navigationStore.activeGroup] ?? LayoutDashboard,
   );
 
   /**

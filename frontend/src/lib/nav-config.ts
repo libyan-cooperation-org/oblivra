@@ -1,15 +1,24 @@
 /**
- * nav-config.ts — central definition of navigation groups and their items.
+ * nav-config.ts — central definition of the 7 SOC navigation domains.
  *
- * Single source of truth shared by:
- *   - `AppSidebar.svelte`   (renders the GROUP buttons on the left rail)
- *   - `BottomDock.svelte`   (renders the ITEMS belonging to the active group)
- *   - `CommandPalette`      (flat search across every item — same labels)
+ * Phase 31 SOC redesign: investigation-first information architecture.
+ * The 7 domains are organised around *what the operator is currently
+ * looking at*, not feature taxonomy:
  *
- * The `id` field matches `NavTab` ids in `lib/types.ts` so that
- * `appStore.setActiveNavTab(id)` continues to highlight the legacy
- * `CommandRail` while the new chrome is opt-in. Routes resolve via the
- * existing `routeMap` defined at the call sites.
+ *   Overview   → mission control: risk, incidents, live activity
+ *   Security   → alerts, incidents, campaigns, anomalies
+ *   Network    → connections, traffic, DNS, geo
+ *   Identity   → users, sessions, auth events, risky users
+ *   Hosts      → fleet, activity, processes, host alerts
+ *   Logs       → search, live tail, saved queries
+ *   System     → agents, health, rules, integrations
+ *
+ * Switching a domain sets the active CONTEXT (active group in
+ * navigationStore) and lands on the domain's primary route. The
+ * BottomDock surfaces the domain's tools as cards.
+ *
+ * Single source of truth — both `AppSidebar.svelte` and
+ * `BottomDock.svelte` read from this module.
  */
 
 import type { NavGroupId } from './stores/navigation.svelte';
@@ -23,11 +32,11 @@ export interface NavItem {
   route: string;
   /** Human-readable label. */
   label: string;
-  /** Lucide icon name (used by AppSidebar/BottomDock to look up `lucide-svelte` imports). */
+  /** Lucide icon name (looked up by string in BottomDock's static map). */
   icon: string;
-  /** Where this item is allowed to render (browser-only, desktop-only, or both). */
+  /** Where this item is allowed to render. */
   context?: NavContext;
-  /** Optional badge count source — pulled live from a store at render time. */
+  /** Optional badge count source — pulled from a store at render time. */
   badgeKey?: 'alerts' | 'incidents' | 'agents';
   /** Optional one-line description shown beneath the label in the dock. */
   description?: string;
@@ -43,132 +52,118 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-// ── Groups ───────────────────────────────────────────────────────────
-//
-// Carved up by operator workflow, NOT by feature taxonomy. The bottom
-// dock is the operator's "what can I do RIGHT NOW in this context"
-// surface, so co-locate items the operator reaches for in the same
-// breath. Cross-references:
-//
-//   Operate     → live actions: terminal, dashboards, ongoing incidents
-//   Detect      → things that watch: SIEM, alerts, intel, MITRE
-//   Investigate → things that explain: graphs, timelines, evidence, lineage
-//   Defend      → things that block: SOAR, ransomware, NDR, simulations
-//   Govern      → things that prove: compliance, identity, audit, vault
-//   System      → things that configure: fleet, plugins, settings
-//
-// IDs MUST match the NavTab union in lib/types.ts. routes MUST exist in
-// the Router's path map.
+// ── 7 SOC Domains ────────────────────────────────────────────────────
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    id: 'operate',
-    label: 'Operate',
-    icon: 'Activity',
-    subtitle: 'Live operations & response',
+    id: 'overview',
+    label: 'Overview',
+    icon: 'LayoutDashboard',
+    subtitle: 'Mission control',
     items: [
-      { id: 'dashboard',    route: '/dashboard',    label: 'Dashboard',         icon: 'LayoutDashboard', description: 'Operator overview' },
-      { id: 'terminal',     route: '/terminal',     label: 'Terminal',          icon: 'Terminal',        description: 'PTY sessions', context: 'desktop' },
-      { id: 'operator',     route: '/operator',     label: 'Operator Mode',     icon: 'Crosshair',       description: 'SIEM-aware shell context', context: 'desktop' },
-      { id: 'response',     route: '/response',     label: 'SOAR / Response',   icon: 'Zap',             description: 'Run playbooks' },
-      { id: 'cases',        route: '/cases',        label: 'Cases',             icon: 'FolderOpen',      description: 'Incident folders' },
-      { id: 'ops',          route: '/ops',          label: 'Ops Center',        icon: 'Monitor',         description: 'War-room view' },
-      { id: 'soc',          route: '/soc',          label: 'SOC View',          icon: 'Eye',             description: 'Multi-tenant SOC', context: 'browser' },
-      { id: 'ssh',          route: '/ssh',          label: 'SSH Bookmarks',     icon: 'Server',          description: 'Vaulted hosts', context: 'desktop' },
-      { id: 'tunnels',      route: '/tunnels',      label: 'Tunnels',           icon: 'Cable',           description: 'Port forwards', context: 'desktop' },
-      { id: 'snippets',     route: '/snippets',     label: 'Snippets',          icon: 'Code',            description: 'Saved commands', context: 'desktop' },
-      { id: 'notes',        route: '/notes',        label: 'Notes',             icon: 'StickyNote',      description: 'Per-host notes', context: 'desktop' },
-      { id: 'recordings',   route: '/recordings',   label: 'Recordings',        icon: 'Video',           description: 'Session replay', context: 'desktop' },
+      { id: 'overview',     route: '/overview',     label: 'Mission Control', icon: 'LayoutDashboard', description: 'Risk + incidents + live activity' },
+      { id: 'dashboard',    route: '/dashboard',    label: 'Tactical Hub',    icon: 'Activity',        description: 'Operator overview' },
+      { id: 'executive',    route: '/executive',    label: 'Executive View',  icon: 'TrendingUp',      description: 'KPIs for leadership' },
+      { id: 'ops',          route: '/ops',          label: 'Ops Center',      icon: 'Monitor',         description: 'War-room layout' },
+      { id: 'soc',          route: '/soc',          label: 'SOC Workspace',   icon: 'Eye',             description: 'Multi-analyst SOC', context: 'browser' },
     ],
   },
   {
-    id: 'detect',
-    label: 'Detect',
-    icon: 'Radar',
-    subtitle: 'Visibility & detection',
+    id: 'security',
+    label: 'Security',
+    icon: 'Shield',
+    subtitle: 'Alerts, incidents, campaigns',
     items: [
-      { id: 'siem',                    route: '/siem',                    label: 'SIEM',               icon: 'Database',     description: 'Event store' },
-      { id: 'siem-search',             route: '/siem-search',             label: 'SIEM Search',        icon: 'Search',       description: 'Lucene + OQL', context: 'browser' },
       { id: 'alerts',                  route: '/alerts',                  label: 'Alerts',             icon: 'Bell',         description: 'Active triggers', badgeKey: 'alerts' },
       { id: 'alert-management',        route: '/alert-management',        label: 'Alert Management',   icon: 'BellRing',     description: 'Triage queue', context: 'browser' },
+      { id: 'cases',                   route: '/cases',                   label: 'Incidents',          icon: 'FolderOpen',   description: 'Multi-alert cases' },
+      { id: 'graph',                   route: '/graph',                   label: 'Campaigns',          icon: 'GitBranch',    description: 'Multi-step attack chains' },
+      { id: 'ueba',                    route: '/ueba',                    label: 'Anomalies',          icon: 'Users',        description: 'UEBA deviations' },
       { id: 'threat-hunter',           route: '/threat-hunter',           label: 'Threat Hunter',      icon: 'Telescope',    description: 'Hypothesis-driven hunts' },
       { id: 'threat-intel-dashboard',  route: '/threat-intel-dashboard',  label: 'Threat Intel',       icon: 'Globe',        description: 'TI feeds & matches', context: 'browser' },
-      { id: 'enrichment',              route: '/enrichment',              label: 'Enrichment',         icon: 'Sparkles',      description: 'GeoIP, ASN, TI', context: 'browser' },
       { id: 'mitre-heatmap',           route: '/mitre-heatmap',           label: 'MITRE Heatmap',      icon: 'Grid3x3',      description: 'ATT&CK coverage' },
-      { id: 'topology',                route: '/topology',                label: 'Topology',           icon: 'Network',      description: 'Asset map' },
-      { id: 'threat-map',              route: '/threat-map',              label: 'Threat Map',         icon: 'Map',          description: 'Geo overlay' },
-      { id: 'health',                  route: '/monitoring',              label: 'Health Monitor',     icon: 'HeartPulse',   description: 'Pipeline health' },
-      { id: 'ueba',                    route: '/ueba',                    label: 'UEBA',               icon: 'Users',        description: 'Behavioural anomalies' },
+      { id: 'response',                route: '/response',                label: 'SOAR / Response',    icon: 'Zap',          description: 'Run playbooks' },
+      { id: 'ransomware',              route: '/ransomware',              label: 'Ransomware Defense', icon: 'ShieldAlert',  description: 'Live ransomware shield' },
+      { id: 'purple-team',             route: '/purple-team',             label: 'Purple Team',        icon: 'Swords',       description: 'Sim & validate' },
     ],
   },
   {
-    id: 'investigate',
-    label: 'Investigate',
-    icon: 'Search',
-    subtitle: 'Reconstruct & explain',
+    id: 'network',
+    label: 'Network',
+    icon: 'Network',
+    subtitle: 'Connections, traffic, DNS, geo',
     items: [
-      { id: 'graph',         route: '/graph',           label: 'Threat Graph',       icon: 'GitBranch',  description: 'User → Host → Process' },
-      { id: 'timeline',      route: '/timeline',        label: 'Timeline',           icon: 'History',    description: 'Causal reconstruction' },
-      { id: 'investigation', route: '/investigation',   label: 'Investigations',     icon: 'FileSearch', description: 'Active probes' },
-      { id: 'forensics',     route: '/forensics',       label: 'Forensics',          icon: 'Microscope', description: 'Evidence analysis' },
-      { id: 'remote-forensics', route: '/remote-forensics', label: 'Remote Forensics', icon: 'HardDrive', description: 'Live agent capture' },
-      { id: 'ledger',        route: '/ledger',          label: 'Evidence Ledger',    icon: 'BookLock',   description: 'WORM evidence chain' },
-      { id: 'chain-of-custody', route: '/chain-of-custody', label: 'Chain of Custody', icon: 'Link',     description: 'Custody handoffs' },
-      { id: 'lineage',       route: '/lineage',         label: 'Data Lineage',       icon: 'Workflow',   description: 'Where did this come from?' },
-      { id: 'temporal',      route: '/temporal-integrity', label: 'Temporal Integrity', icon: 'Clock4',  description: 'Late-event audit' },
-      { id: 'replay',        route: '/response-replay', label: 'Response Replay',    icon: 'Rewind',     description: 'Re-run incident' },
-      { id: 'decisions',     route: '/decisions',       label: 'Decision Log',       icon: 'GitCompare', description: 'Why did SOAR do that?' },
+      { id: 'topology',     route: '/topology',     label: 'Connections', icon: 'Network',  description: 'Live connection graph' },
+      { id: 'ndr',          route: '/ndr',          label: 'Traffic',     icon: 'Wifi',     description: 'NDR flow analytics' },
+      { id: 'enrichment',   route: '/enrichment',   label: 'DNS / Enrich', icon: 'Sparkles', description: 'GeoIP, ASN, TI', context: 'browser' },
+      { id: 'threat-map',   route: '/threat-map',   label: 'Geo Map',     icon: 'Map',      description: 'Worldwide threat overlay' },
+      { id: 'fleet-map',    route: '/fleet-map',    label: 'Fleet Map',   icon: 'Map',      description: 'Asset geo distribution' },
+      { id: 'tunnels',      route: '/tunnels',      label: 'Tunnels',     icon: 'Cable',    description: 'Port forwards', context: 'desktop' },
     ],
   },
   {
-    id: 'defend',
-    label: 'Defend',
-    icon: 'Shield',
-    subtitle: 'Block & contain',
+    id: 'identity',
+    label: 'Identity',
+    icon: 'UserCog',
+    subtitle: 'Users, sessions, auth, risky users',
     items: [
-      { id: 'playbook-builder', route: '/playbook-builder', label: 'Playbook Builder', icon: 'BookOpen', description: 'Edit SOAR flows', context: 'browser' },
-      { id: 'ransomware',    route: '/ransomware',     label: 'Ransomware Defense', icon: 'ShieldAlert', description: 'Live ransomware shield' },
-      { id: 'ransomware-ui', route: '/ransomware-ui',  label: 'Ransomware Console', icon: 'Skull',     description: 'Decoys & triggers' },
-      { id: 'ndr',           route: '/ndr',            label: 'NDR',                icon: 'Wifi',       description: 'Network anomalies' },
-      { id: 'ndr-overview',  route: '/ndr-overview',   label: 'NDR Overview',       icon: 'Wifi',       description: 'NDR rollup' },
-      { id: 'purple-team',   route: '/purple-team',    label: 'Purple Team',        icon: 'Swords',     description: 'Sim & validate' },
-      { id: 'simulation',    route: '/simulation',     label: 'Simulation',         icon: 'Play',       description: 'Adversary emulation' },
-      { id: 'war-mode',      route: '/war-mode',       label: 'War Mode',           icon: 'Siren',      description: 'Active-incident lockdown' },
-      { id: 'escalation',    route: '/escalation',     label: 'Escalation',         icon: 'Flame',      description: 'On-call routing', context: 'browser' },
+      { id: 'identity',         route: '/identity',         label: 'Users',         icon: 'Users',     description: 'Identity directory', context: 'browser' },
+      { id: 'identity-admin',   route: '/identity-admin',   label: 'Identity Admin', icon: 'UsersRound', description: 'Per-tenant identity', context: 'browser' },
+      { id: 'recordings',       route: '/recordings',       label: 'Sessions',      icon: 'Video',     description: 'Session replay', context: 'desktop' },
+      { id: 'escalation',       route: '/escalation',       label: 'Auth Events',   icon: 'Flame',     description: 'On-call routing', context: 'browser' },
+      { id: 'ueba-overview',    route: '/ueba-overview',    label: 'Risky Users',   icon: 'AlertTriangle', description: 'Highest-risk identities' },
+      { id: 'team',             route: '/team',             label: 'Team',          icon: 'Users',     description: 'Operator team' },
     ],
   },
   {
-    id: 'govern',
-    label: 'Govern',
-    icon: 'Scale',
-    subtitle: 'Trust & compliance',
+    id: 'hosts',
+    label: 'Hosts',
+    icon: 'Server',
+    subtitle: 'Fleet, activity, processes',
     items: [
-      { id: 'compliance',   route: '/compliance',     label: 'Compliance',         icon: 'ClipboardCheck', description: 'SOC2, HIPAA, ISO' },
-      { id: 'vault',        route: '/vault',          label: 'Vault',              icon: 'KeyRound',     description: 'Encrypted secrets' },
-      { id: 'secrets',      route: '/secrets',        label: 'Secrets',            icon: 'Lock',         description: 'Rotation policies' },
-      { id: 'identity',     route: '/identity',       label: 'Identity Admin',     icon: 'UserCog',      description: 'Users & roles', context: 'browser' },
-      { id: 'identity-admin', route: '/identity-admin', label: 'Identity (Tenant)', icon: 'UsersRound', description: 'Per-tenant identity', context: 'browser' },
-      { id: 'security',     route: '/trust',          label: 'Runtime Trust',      icon: 'ShieldCheck',  description: 'Trust scores' },
-      { id: 'suppression',  route: '/suppression',    label: 'Suppression',        icon: 'EyeOff',       description: 'False-positive rules' },
-      { id: 'admin',        route: '/admin',          label: 'Super Admin',        icon: 'ShieldHalf',   description: 'Tenant lifecycle' },
-      { id: 'license',      route: '/license',        label: 'License',            icon: 'Award',        description: 'Feature flags' },
+      { id: 'fleet-management', route: '/fleet-management', label: 'All Hosts',     icon: 'Boxes',         description: 'Fleet inventory', context: 'browser' },
+      { id: 'fleet',            route: '/fleet',            label: 'Fleet Overview', icon: 'Server',       description: 'Status grid' },
+      { id: 'hosts',            route: '/hosts',            label: 'Asset Inventory', icon: 'HardDrive',   description: 'Discovered assets' },
+      { id: 'agents',           route: '/agents',           label: 'Agent Console',  icon: 'Cpu',          description: 'Per-agent control', context: 'browser', badgeKey: 'agents' },
+      { id: 'operator',         route: '/operator',         label: 'Operator Mode',  icon: 'Crosshair',    description: 'SIEM-aware shell context', context: 'desktop' },
+      { id: 'terminal',         route: '/terminal',         label: 'Terminal',       icon: 'Terminal',     description: 'PTY sessions', context: 'desktop' },
+      { id: 'ssh',              route: '/ssh',              label: 'SSH Bookmarks',  icon: 'Server',       description: 'Vaulted hosts', context: 'desktop' },
+    ],
+  },
+  {
+    id: 'logs',
+    label: 'Logs',
+    icon: 'FileText',
+    subtitle: 'Search, live, saved',
+    items: [
+      { id: 'siem-search',  route: '/siem-search',  label: 'Search',        icon: 'Search',      description: 'OQL + Lucene', context: 'browser' },
+      { id: 'siem',         route: '/siem',         label: 'Live Stream',   icon: 'Activity',    description: 'Tail -f style' },
+      { id: 'health',       route: '/monitoring',   label: 'Pipeline Health', icon: 'HeartPulse', description: 'Ingest metrics' },
+      { id: 'lineage',      route: '/lineage',      label: 'Data Lineage',  icon: 'Workflow',    description: 'Where did this come from?' },
+      { id: 'temporal',     route: '/temporal-integrity', label: 'Temporal Integrity', icon: 'Clock4', description: 'Late-event audit' },
+      { id: 'replay',       route: '/response-replay', label: 'Response Replay', icon: 'Rewind', description: 'Re-run incident' },
+      { id: 'snippets',     route: '/snippets',     label: 'Saved Queries', icon: 'Code',        description: 'Pinned OQL', context: 'desktop' },
+      { id: 'notes',        route: '/notes',        label: 'Notes',         icon: 'StickyNote',  description: 'Per-host notes', context: 'desktop' },
     ],
   },
   {
     id: 'system',
     label: 'System',
     icon: 'Settings',
-    subtitle: 'Configure & extend',
+    subtitle: 'Agents, health, rules, integrations',
     items: [
-      { id: 'hosts',             route: '/hosts',             label: 'Hosts',             icon: 'Server',       description: 'Asset inventory' },
-      { id: 'agents',            route: '/agents',            label: 'Agents',            icon: 'Cpu',          description: 'Agent fleet', context: 'browser', badgeKey: 'agents' },
-      { id: 'fleet-management',  route: '/fleet-management',  label: 'Fleet',             icon: 'Boxes',        description: 'Multi-tenant fleet', context: 'browser' },
-      { id: 'plugins',           route: '/plugins',           label: 'Plugins',           icon: 'Puzzle',       description: 'Loaded extensions' },
-      { id: 'sync',              route: '/sync',              label: 'Sync',              icon: 'RefreshCw',    description: 'Cross-instance sync', context: 'desktop' },
-      { id: 'executive',         route: '/executive',         label: 'Executive Dashboard', icon: 'TrendingUp', description: 'KPIs for leadership' },
-      { id: 'ai-assistant',      route: '/ai-assistant',      label: 'AI Shell',          icon: 'Bot',          description: 'Ask the assistant' },
-      { id: 'settings',          route: '/workspace',         label: 'Settings',          icon: 'Settings',     description: 'App preferences' },
-      { id: 'shortcuts',         route: '/shortcuts',         label: 'Keyboard Shortcuts', icon: 'Keyboard',    description: 'Hotkey reference' },
+      { id: 'compliance',  route: '/compliance',  label: 'Compliance',         icon: 'ClipboardCheck', description: 'SOC2, HIPAA, ISO' },
+      { id: 'vault',       route: '/vault',       label: 'Vault',              icon: 'KeyRound',       description: 'Encrypted secrets' },
+      { id: 'secrets',     route: '/secrets',     label: 'Secrets',            icon: 'Lock',           description: 'Rotation policies' },
+      { id: 'security',    route: '/trust',       label: 'Runtime Trust',      icon: 'ShieldCheck',    description: 'Trust scores' },
+      { id: 'suppression', route: '/suppression', label: 'Suppression Rules',  icon: 'EyeOff',         description: 'False-positive rules' },
+      { id: 'admin',       route: '/admin',       label: 'Super Admin',        icon: 'ShieldHalf',     description: 'Tenant lifecycle' },
+      { id: 'plugins',     route: '/plugins',     label: 'Integrations',       icon: 'Puzzle',         description: 'Plugin marketplace' },
+      { id: 'license',     route: '/license',     label: 'License',            icon: 'Award',          description: 'Feature flags' },
+      { id: 'sync',        route: '/sync',        label: 'Sync',               icon: 'RefreshCw',      description: 'Cross-instance sync', context: 'desktop' },
+      { id: 'ai-assistant', route: '/ai-assistant', label: 'AI Shell',         icon: 'Bot',            description: 'Ask the assistant' },
+      { id: 'settings',    route: '/workspace',   label: 'Settings',           icon: 'Settings',       description: 'App preferences' },
+      { id: 'shortcuts',   route: '/shortcuts',   label: 'Keyboard Shortcuts', icon: 'Keyboard',       description: 'Hotkey reference' },
     ],
   },
 ];

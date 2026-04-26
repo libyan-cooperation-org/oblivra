@@ -18,11 +18,12 @@
 -->
 <script lang="ts">
   import {
-    Activity,
-    Radar,
-    Search,
+    LayoutDashboard,
     Shield,
-    Scale,
+    Network,
+    UserCog,
+    Server,
+    FileText,
     Settings,
     PinOff,
     type Icon as IconType,
@@ -36,12 +37,13 @@
   // Map icon names → component refs. Keeping this local (rather than
   // computing from lucide-svelte by string) preserves Vite tree-shaking.
   const GROUP_ICONS: Record<NavGroupId, typeof IconType> = {
-    operate: Activity,
-    detect: Radar,
-    investigate: Search,
-    defend: Shield,
-    govern: Scale,
-    system: Settings,
+    overview: LayoutDashboard,
+    security: Shield,
+    network:  Network,
+    identity: UserCog,
+    hosts:    Server,
+    logs:     FileText,
+    system:   Settings,
   };
 
   // Filter pinned items by current platform context, since a desktop-only
