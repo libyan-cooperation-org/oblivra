@@ -37,7 +37,7 @@ func (c *BackfillCollector) runPlatformBackfill(ctx context.Context, ch chan<- E
 
 	// 1. journalctl scan — covers most modern Linux distros.
 	if n, err := c.scanJournalctl(ctx, ch); err != nil {
-		c.log.Warn("backfill: journalctl scan failed", "error", err)
+		c.log.Warn("backfill: journalctl scan failed: %v", err)
 		if firstErr == nil {
 			firstErr = err
 		}
@@ -165,11 +165,11 @@ func (c *BackfillCollector) scanJournalctl(ctx context.Context, ch chan<- Event)
 
 	if err := scanner.Err(); err != nil {
 		// non-fatal
-		c.log.Debug("backfill: journalctl scanner err", "error", err)
+		c.log.Debug("backfill: journalctl scanner err: %v", err)
 	}
 	if err := cmd.Wait(); err != nil {
 		// journalctl may exit non-zero with no rows; tolerable.
-		c.log.Debug("backfill: journalctl exit", "error", err)
+		c.log.Debug("backfill: journalctl exit: %v", err)
 	}
 	return count, nil
 }

@@ -1,5 +1,6 @@
 import { IS_BROWSER } from '@lib/context';
 import { subscribe } from '@lib/bridge';
+import { apiFetch } from '@lib/apiClient';
 
 export interface AgentDTO {
   id: string;
@@ -49,10 +50,10 @@ export class AgentStore {
     try {
       let list: any[] = [];
       if (IS_BROWSER) {
-        // Fallback to REST API for browser context via Vite Proxy
-        const res = await fetch('/api/v1/agent/fleet', {
-          credentials: 'include'
-        });
+        // Fallback to REST API for browser context via Vite Proxy.
+        // apiFetch propagates the operator's selected tenant via
+        // X-Tenant-Id (Phase 30.4d).
+        const res = await apiFetch('/api/v1/agent/fleet');
         if (!res.ok) throw new Error('API error: ' + res.status);
         const data = await res.json();
         list = data.agents || [];

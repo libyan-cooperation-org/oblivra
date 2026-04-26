@@ -1038,9 +1038,16 @@ func (s *RESTServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CS-22: Mandatory tenant isolation for event streams.
-	// Only stream events belonging to the user's tenant.
+	// Only stream events belonging to the user's tenant — UNLESS the
+	// caller is a platform-level global admin (wildcard '*' permission
+	// or explicit 'platform:admin' / 'tenant:read:*' grant).
+	// Phase 30 closed the historical TODO at this site by wiring
+	// auth.IsGlobalAdminFromContext through the RBAC engine.
 	userTenant := database.MustTenantFromContext(r.Context())
-	isGlobalAdmin := false // TODO: check if user has global admin role if we want to allow cross-tenant view
+	isGlobalAdmin := auth.IsGlobalAdminFromContext(r.Context())
+	if isGlobalAdmin {
+		s.log.Info("[REST] Event stream: global-admin override (cross-tenant view enabled) tenant=%s", userTenant)
+	}
 	
 	clientAddr := r.RemoteAddr
 	s.log.Info("[REST] Client connected to event stream: %s (Tenant: %s)", clientAddr, userTenant)

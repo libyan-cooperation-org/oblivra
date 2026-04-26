@@ -128,6 +128,37 @@ func GetRole(ctx context.Context) Role {
 	return Role(user.RoleName)
 }
 
+// IsGlobalAdmin reports whether the user holds the platform-wide
+// "see across every tenant" privilege. Used by handlers like the
+// event-stream WebSocket to decide whether to filter out events from
+// other tenants.
+//
+// A user is a global admin iff they hold any of:
+//   - the wildcard permission "*"           (super-admin grant)
+//   - the explicit "platform:admin" permission
+//   - the explicit "tenant:read:*" permission
+//
+// Important: returning false MUST NOT break a single-tenant deploy.
+// In single-tenant mode, every user's events come from the same
+// tenant, so the cross-tenant filter is a no-op anyway.
+func IsGlobalAdmin(user *IdentityUser) bool {
+	if user == nil {
+		return false
+	}
+	for _, perm := range user.Permissions {
+		if perm == "*" || perm == "platform:admin" || perm == "tenant:read:*" {
+			return true
+		}
+	}
+	return false
+}
+
+// IsGlobalAdminFromContext is the convenience form: pulls the user
+// from the request context and runs IsGlobalAdmin against them.
+func IsGlobalAdminFromContext(ctx context.Context) bool {
+	return IsGlobalAdmin(UserFromContext(ctx))
+}
+
 // GetTenantID is a helper to extract the tenant ID from the context.
 func GetTenantID(ctx context.Context) string {
 	user := UserFromContext(ctx)

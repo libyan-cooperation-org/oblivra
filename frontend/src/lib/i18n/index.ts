@@ -33,11 +33,11 @@ export type { LocaleCode, Translations };
 /**
  * t — translate a key. Optional positional `{0}`, `{1}` ... interpolations.
  *
- * Reactivity: this function reads `i18n.locale` (a $state rune) so any
- * component that calls `t(...)` inside a `$derived` or template will
- * re-render when the locale changes. Reading a rune from a non-`.svelte.ts`
- * file is allowed; only USING the rune (declaring `$state(...)`) is
- * restricted.
+ * Reactivity: this function reads `i18n.locale` — a state rune defined
+ * in `store.svelte.ts`. Any component that calls `t(...)` inside a
+ * derived or template re-renders when the locale changes. Reading a
+ * rune from a non-`.svelte.ts` file is allowed; only DECLARING one
+ * (the rune-invocation form) is restricted.
  *
  * Missing keys: returns the key itself plus a console.warn in dev so the
  * untranslated string is visible without crashing the page.

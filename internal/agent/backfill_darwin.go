@@ -33,7 +33,7 @@ func (c *BackfillCollector) runPlatformBackfill(ctx context.Context, ch chan<- E
 	var firstErr error
 
 	if n, err := c.scanUnifiedLog(ctx, ch); err != nil {
-		c.log.Warn("backfill: macOS unified log scan failed", "error", err)
+		c.log.Warn("backfill: macOS unified log scan failed: %v", err)
 		if firstErr == nil {
 			firstErr = err
 		}
@@ -149,7 +149,7 @@ func (c *BackfillCollector) scanUnifiedLog(ctx context.Context, ch chan<- Event)
 	}
 
 	if err := cmd.Wait(); err != nil {
-		c.log.Debug("backfill: log show exit", "error", err)
+		c.log.Debug("backfill: log show exit: %v", err)
 	}
 	return count, nil
 }

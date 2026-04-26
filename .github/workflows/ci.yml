@@ -34,7 +34,12 @@ jobs:
         run: go mod download
 
       - name: Vet
-        run: go vet ./...
+        # -unsafeptr=false disables the intra-procedural unsafe.Pointer
+        # analyzer because we have one intentional uintptr→Pointer
+        # conversion in `internal/memory/secure.go:osPageSlice` for OS-
+        # allocated VirtualAlloc memory (NOT GC-managed). Every other
+        # vet check stays on. See secure.go for the documented contract.
+        run: go vet -unsafeptr=false ./...
 
       - name: Run tests
         run: go test -race -timeout 120s ./...
@@ -156,3 +161,18 @@ jobs:
         # Fails the job on any GO-... advisory whose vulnerable symbol is reachable
         # from our code. Use `go list ./...` so we scan every module in the tree.
         run: govulncheck ./...
+
+  # ── Frontend regression-prevention guards (Phase 29.5 + 29.8) ───────────
+  # Three grep-based checks that would have caught the four blank-screen
+  # regressions encountered on 2026-04-25:
+  #   1. runes ($state/$derived/$effect) outside .svelte.ts files
+  #   2. `import * as` from tree-shakeable icon libraries (lucide, radix)
+  #   3. components calling t(...) without importing it from @lib/i18n
+  # Zero npm deps; pure bash. See frontend/scripts/lint-guards.sh.
+  frontend-guards:
+    name: Frontend regression guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run frontend lint-guards
+        run: bash frontend/scripts/lint-guards.sh

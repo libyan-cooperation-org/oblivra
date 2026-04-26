@@ -90,14 +90,13 @@ func (c *BackfillCollector) Stop() { c.stop.stop() }
 // returned — backfill failure must NEVER block agent boot.
 func (c *BackfillCollector) Start(ctx context.Context, ch chan<- Event) error {
 	if c.alreadyComplete() {
-		c.log.Info("backfill: already complete, skipping",
-			"marker", filepath.Join(c.dataDir, BackfillMarker))
+		c.log.Info("backfill: already complete, skipping (marker=%s)",
+			filepath.Join(c.dataDir, BackfillMarker))
 		return nil
 	}
 
-	c.log.Info("backfill: starting historical log scan",
-		"lookback_hours", int(c.lookback.Hours()),
-		"hostname", c.hostname)
+	c.log.Info("backfill: starting historical log scan (lookback=%dh hostname=%s)",
+		int(c.lookback.Hours()), c.hostname)
 
 	scanStart := time.Now()
 	count := 0
@@ -109,15 +108,14 @@ func (c *BackfillCollector) Start(ctx context.Context, ch chan<- Event) error {
 	if err != nil {
 		// Don't fail — log and proceed. Mark complete anyway so we
 		// don't loop on a permanently-broken log source.
-		c.log.Warn("backfill: platform scan reported errors",
-			"error", err, "events_so_far", emitted)
+		c.log.Warn("backfill: platform scan reported errors (events_so_far=%d): %v",
+			emitted, err)
 	}
 	count += emitted
 
 	c.markComplete(count, scanStart)
-	c.log.Info("backfill: complete",
-		"events_emitted", count,
-		"duration_seconds", time.Since(scanStart).Seconds())
+	c.log.Info("backfill: complete (events=%d duration=%.2fs)",
+		count, time.Since(scanStart).Seconds())
 	return nil
 }
 
@@ -144,11 +142,11 @@ func (c *BackfillCollector) markComplete(events int, started time.Time) {
 	}
 	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
-		c.log.Warn("backfill: marshal marker failed", "error", err)
+		c.log.Warn("backfill: marshal marker failed: %v", err)
 		return
 	}
 	if err := os.WriteFile(path, data, 0600); err != nil {
-		c.log.Warn("backfill: write marker failed", "path", path, "error", err)
+		c.log.Warn("backfill: write marker failed (path=%s): %v", path, err)
 	}
 }
 

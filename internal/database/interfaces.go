@@ -45,6 +45,10 @@ type HostStore interface {
 	GetFavorites(ctx context.Context) ([]Host, error)
 	Search(ctx context.Context, query string) ([]Host, error)
 	GetByTag(ctx context.Context, tag string) ([]Host, error)
+	// GetByCredentialID returns every host bound to a given credential.
+	// Phase 30 backend cleanup — used by the secrets-rotation flow to
+	// avoid scanning the full host table on every key rotation.
+	GetByCredentialID(ctx context.Context, credID string) ([]Host, error)
 	Update(ctx context.Context, host *Host) error
 	Delete(ctx context.Context, id string) error
 	ToggleFavorite(ctx context.Context, id string) (bool, error)

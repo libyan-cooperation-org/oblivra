@@ -7,7 +7,7 @@
   import { RefreshCw, Terminal, AlertTriangle, Zap, Database, Server, ShieldCheck } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
-  import { KPI, Badge, Button, PageLayout, DataTable, PopOutButton} from '@components/ui';
+  import { KPI, Badge, Button, PageLayout, DataTable, PopOutButton, ActivityFeed } from '@components/ui';
 
   // Stats derived from stores
   const stats = $derived({
@@ -130,14 +130,14 @@
             </div>
 
             <!-- ENGINE TELEMETRY -->
-            <div class="bg-surface-2 border border-border-primary rounded-sm flex-1 flex flex-col min-h-0 shadow-premium overflow-hidden">
+            <div class="bg-surface-2 border border-border-primary rounded-sm flex flex-col min-h-0 shadow-premium overflow-hidden shrink-0">
                 <div class="flex items-center justify-between p-3 border-b border-border-primary">
                     <div class="flex items-center gap-2">
                         <Zap size={14} class="text-accent" />
                         <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Engine Load</span>
                     </div>
                 </div>
-                <div class="p-4 flex flex-col gap-6 flex-1">
+                <div class="p-4 flex flex-col gap-6">
                     <div class="space-y-2">
                         <div class="flex justify-between text-[8px] font-mono uppercase text-text-muted">
                             <span>Correlation Engine</span>
@@ -165,11 +165,14 @@
                             <div class="h-full bg-success" style="width: 14%"></div>
                         </div>
                     </div>
-
-                    <div class="mt-auto border border-border-primary border-dashed rounded-sm h-24 flex items-center justify-center opacity-20">
-                        <Zap size={24} class="text-text-muted" />
-                    </div>
                 </div>
+            </div>
+
+            <!-- LIVE ACTIVITY FEED — Phase 30.4b. Streams new alerts +
+                 agent online/offline transitions. Click an entry to drill
+                 into the host page or filtered SIEM search. -->
+            <div class="flex-1 min-h-0">
+                <ActivityFeed limit={40} />
             </div>
         </div>
     </div>

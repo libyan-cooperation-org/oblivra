@@ -44,6 +44,28 @@ func (f *Federator) AddPeer(id, address string) {
 	f.peers = append(f.peers, Peer{ID: id, Address: address, IsActive: true})
 }
 
+// SetPeers replaces the entire peer set. Useful when the cluster
+// service reconfigures the federation after a Raft membership change
+// (peers added AND removed in the same edit). Equivalent to a series
+// of AddPeer calls for each entry, plus removal of any peer not in
+// the new list.
+func (f *Federator) SetPeers(peers []Peer) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Build a fresh slice — no point trying to merge in place when
+	// the caller already authoritatively knows the new set.
+	next := make([]Peer, 0, len(peers))
+	seen := make(map[string]bool, len(peers))
+	for _, p := range peers {
+		if p.ID == "" || seen[p.ID] {
+			continue
+		}
+		seen[p.ID] = true
+		next = append(next, Peer{ID: p.ID, Address: p.Address, IsActive: true})
+	}
+	f.peers = next
+}
+
 // ActivePeerAddresses returns a list of addresses for all currently active peers
 func (f *Federator) ActivePeerAddresses() []string {
 	f.mu.RLock()

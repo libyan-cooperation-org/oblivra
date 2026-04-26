@@ -136,11 +136,10 @@ func (s *RotationService) rotateSSHKey(ctx context.Context, cred *database.Crede
 		return fmt.Errorf("generate new key: %w", err)
 	}
 
-	// 2. Find all hosts using this credential
-	// This requires a new method in HostStore or just listing all and filtering
-	// For now, let's assume we list all hosts.
-	// TODO: Add GetByCredentialID to HostStore
-	hosts, err := s.sshSvc.hosts.GetAll(ctx)
+	// 2. Find all hosts using this credential. The HostStore's
+	// GetByCredentialID was added in Phase 30 to avoid scanning the
+	// entire host table on every rotation.
+	hosts, err := s.sshSvc.hosts.GetByCredentialID(ctx, cred.ID)
 	if err != nil {
 		return err
 	}
@@ -149,7 +148,10 @@ func (s *RotationService) rotateSSHKey(ctx context.Context, cred *database.Crede
 	var lastErr error
 
 	for _, host := range hosts {
-		if host.CredentialID == cred.ID {
+		// host.CredentialID == cred.ID is guaranteed by the new query;
+		// keep the inner block unchanged so the rest of the rotation
+		// loop reads the same as before.
+		{
 			s.log.Info("Pushing new key to host: %s (%s)", host.Label, host.Hostname)
 			// We need a session to push the key.
 			// If not connected, we try to connect using the OLD key.

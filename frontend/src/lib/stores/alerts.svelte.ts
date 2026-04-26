@@ -10,6 +10,7 @@
  */
 import { subscribe } from '@lib/bridge';
 import { IS_BROWSER } from '@lib/context';
+import { apiFetch } from '@lib/apiClient';
 
 export interface Alert {
   id: string;
@@ -34,10 +35,10 @@ class AlertStore {
     this.isLoading = true;
     try {
       if (IS_BROWSER) {
-        // Browser / server mode — fetch from REST API
-        const res = await fetch('/api/v1/alerts', {
-          credentials: 'include'
-        });
+        // Browser / server mode — fetch from REST API.
+        // apiFetch attaches the X-Tenant-Id header from appStore.currentTenantId
+        // so the backend can scope alerts to the operator's selected tenant.
+        const res = await apiFetch('/api/v1/alerts');
         if (res.ok) {
           const data = await res.json();
           const list = data.alerts || [];

@@ -54,8 +54,8 @@ func (c *BackfillCollector) runPlatformBackfill(ctx context.Context, ch chan<- E
 		}
 		n, err := c.scanWindowsChannel(ctx, ch, c2.name, c2.category)
 		if err != nil {
-			c.log.Warn("backfill: wevtutil channel scan failed",
-				"channel", c2.name, "error", err)
+			c.log.Warn("backfill: wevtutil channel scan failed (channel=%s): %v",
+				c2.name, err)
 			continue
 		}
 		count += n
@@ -157,7 +157,7 @@ func (c *BackfillCollector) scanWindowsChannel(
 	}
 
 	if err := cmd.Wait(); err != nil {
-		c.log.Debug("backfill: wevtutil exit", "channel", channel, "error", err)
+		c.log.Debug("backfill: wevtutil exit (channel=%s): %v", channel, err)
 	}
 	return count, nil
 }

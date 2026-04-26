@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ --ext .ts,.tsx",
+    "lint:guards": "bash scripts/lint-guards.sh",
     "test": "bun test"
   },
   "dependencies": {

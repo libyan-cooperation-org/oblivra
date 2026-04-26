@@ -155,21 +155,27 @@ func (s *ClusterService) syncNodesWithFederator() {
 		return
 	}
 
+	// Build the authoritative peer set from Raft cluster membership and
+	// hand it to the federator atomically via SetPeers. This handles
+	// both additions (new node joined) and removals (node decommissioned)
+	// in a single call — addresses the "duplicates / stale peers" TODO
+	// that lived here previously, since AddPeer alone never garbage-
+	// collects nodes that have since left the cluster.
 	nodes := cm.Nodes()
+	desired := make([]search.Peer, 0, len(nodes))
 	for _, nodeAddr := range nodes {
-		// Convert Raft address (e.g. :15300) to API address (e.g. :8080)
-		// For MVP, we assume they are on the same host and main API is 8080.
-		// A more robust way would be to broadcast the API port via Raft FSM.
+		// Convert Raft address (e.g. :15300) to API address (e.g. :8080).
+		// MVP assumption: same host, main API on 8080. A future
+		// improvement is to broadcast the API port via the Raft FSM
+		// so each node advertises its own.
 		host, _, err := net.SplitHostPort(nodeAddr)
 		if err != nil {
-			host = nodeAddr // Fallback
+			host = nodeAddr
 		}
-		
 		apiAddr := fmt.Sprintf("http://%s:8080", host)
-		// s.federator.AddPeer(nodeAddr, apiAddr)
-		// TODO: Implement a method to set/refresh peers instead of just AddPeer (to avoid duplicates)
-		s.federator.AddPeer(nodeAddr, apiAddr)
+		desired = append(desired, search.Peer{ID: nodeAddr, Address: apiAddr, IsActive: true})
 	}
+	s.federator.SetPeers(desired)
 }
 
 func (s *ClusterService) Stop(ctx context.Context) error {

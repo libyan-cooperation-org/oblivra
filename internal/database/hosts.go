@@ -197,6 +197,46 @@ func (r *HostRepository) Search(ctx context.Context, query string) ([]Host, erro
 	return hosts, rows.Err()
 }
 
+// GetByCredentialID returns every host bound to the given credential.
+// Used by the secrets-rotation flow to push a freshly-generated key to
+// every host that referenced the old credential, without scanning the
+// full host table for each rotation.
+//
+// Tenant-scoped: only returns hosts in the caller's tenant.
+func (r *HostRepository) GetByCredentialID(ctx context.Context, credID string) ([]Host, error) {
+	if credID == "" {
+		return nil, nil
+	}
+
+	conn, err := r.db.Conn()
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID := MustTenantFromContext(ctx)
+	rows, err := conn.Query(`
+		SELECT id, tenant_id, label, hostname, port, username, COALESCE(password, ''), auth_method,
+			COALESCE(credential_id, ''), COALESCE(jump_host_id, ''),
+			tags, COALESCE(category, ''), color, notes, is_favorite,
+			last_connected_at, connection_count, criticality_score, criticality_reason, created_at, updated_at
+		FROM hosts WHERE credential_id = ? AND tenant_id = ?
+		ORDER BY label ASC`, credID, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("query by credential id: %w", err)
+	}
+	defer rows.Close()
+
+	var hosts []Host
+	for rows.Next() {
+		host, err := r.scanHostRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		hosts = append(hosts, *host)
+	}
+	return hosts, rows.Err()
+}
+
 // GetByTag returns hosts with a specific tag
 func (r *HostRepository) GetByTag(ctx context.Context, tag string) ([]Host, error) {
 
