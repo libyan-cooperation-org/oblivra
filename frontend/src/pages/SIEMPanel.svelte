@@ -51,9 +51,7 @@
       let result;
 
       if (IS_BROWSER) {
-        const res = await fetch('/api/v1/siem/search?q=' + encodeURIComponent(query), {
-          credentials: 'include'
-        });
+        const res = await apiFetch('/api/v1/siem/search?q=' + encodeURIComponent(query));
         if (!res.ok) throw new Error('API error: ' + res.status);
         result = await res.json();
         if (result.events) {

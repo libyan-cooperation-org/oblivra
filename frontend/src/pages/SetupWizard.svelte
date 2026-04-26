@@ -8,6 +8,7 @@
   import { appStore } from '@lib/stores/app.svelte';
 
   import { IS_BROWSER } from '@lib/context';
+  import { apiFetch } from '@lib/apiClient';
 
   let currentStep = $state(0);
   let status = $state('idle'); // idle, running, success, error
@@ -43,11 +44,10 @@
     }, 100);
 
     try {
-        const res = await fetch('/api/v1/setup/initialize', {
+        const res = await apiFetch('/api/v1/setup/initialize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ step: currentStep }),
-            credentials: 'include'
         });
 
         if (res.ok) {
