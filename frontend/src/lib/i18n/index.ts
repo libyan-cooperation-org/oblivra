@@ -10,91 +10,34 @@
 //
 // Adding a locale:
 //   1. Drop `frontend/src/lib/i18n/<code>.ts` exporting a Translations object
-//   2. Register it in LOCALES below
-//   3. If the locale is RTL, list it in RTL_LOCALES
+//   2. Register it in LOCALES (in `store.svelte.ts`)
+//   3. If the locale is RTL, list it in RTL_LOCALES (in `store.svelte.ts`)
 //
 // Adding a translation key:
 //   1. Add the English string to `en.ts`
 //   2. Add the Arabic translation to `ar.ts` (or other locales)
 //   3. Use `t('your.key')` in any Svelte component
 //
-// Missing-key behaviour: returns the key itself with a console warning
-// in dev mode so untranslated strings are visible in the UI without
-// breaking the page.
+// File layout:
+//   - `store.svelte.ts` — runes-aware I18nStore (uses `$state`)
+//   - `index.ts` (this file) — barrel + the rune-free `t()` helper
+//
+// The split exists because Svelte 5 forbids `$state` in regular `.ts`
+// files; `t()` is a plain function so it stays here.
 
-import { en } from './en';
-import { ar } from './ar';
+import { i18n, LOCALES, type LocaleCode, type Translations } from './store.svelte';
 
-export type Translations = Record<string, string>;
-export type LocaleCode = 'en' | 'ar';
-
-const LOCALES: Record<LocaleCode, Translations> = { en, ar };
-const RTL_LOCALES: ReadonlySet<LocaleCode> = new Set<LocaleCode>(['ar']);
-
-const STORAGE_KEY = 'oblivra:locale';
-
-// Resolve the operator's preferred locale at module load. Order:
-//   1. localStorage override (operator chose explicitly via Settings)
-//   2. navigator.language prefix
-//   3. fallback to English
-function resolveInitialLocale(): LocaleCode {
-  if (typeof localStorage !== 'undefined') {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'en' || stored === 'ar') return stored;
-  }
-  if (typeof navigator !== 'undefined' && navigator.language) {
-    const prefix = navigator.language.toLowerCase().slice(0, 2);
-    if (prefix === 'ar') return 'ar';
-  }
-  return 'en';
-}
-
-class I18nStore {
-  locale = $state<LocaleCode>(resolveInitialLocale());
-
-  /** True when the active locale is right-to-left. Drives <html dir="rtl">. */
-  get isRTL(): boolean {
-    return RTL_LOCALES.has(this.locale);
-  }
-
-  /** Map of available locale codes → human-readable name (in their own script). */
-  readonly availableLocales: Record<LocaleCode, string> = {
-    en: 'English',
-    ar: 'العربية',
-  };
-
-  setLocale(next: LocaleCode) {
-    if (this.locale === next) return;
-    this.locale = next;
-    if (typeof localStorage !== 'undefined') {
-      try { localStorage.setItem(STORAGE_KEY, next); } catch { /* quota / private mode */ }
-    }
-    this.applyDocumentDirection();
-  }
-
-  /** Force the <html dir> attribute to match the active locale. Idempotent. */
-  applyDocumentDirection() {
-    if (typeof document === 'undefined') return;
-    const dir = this.isRTL ? 'rtl' : 'ltr';
-    document.documentElement.setAttribute('dir', dir);
-    document.documentElement.setAttribute('lang', this.locale);
-  }
-}
-
-export const i18n = new I18nStore();
-
-// Apply on first load so the page renders in the correct direction
-// before any component mounts.
-if (typeof document !== 'undefined') {
-  i18n.applyDocumentDirection();
-}
+export { i18n };
+export type { LocaleCode, Translations };
 
 /**
  * t — translate a key. Optional positional `{0}`, `{1}` ... interpolations.
  *
  * Reactivity: this function reads `i18n.locale` (a $state rune) so any
  * component that calls `t(...)` inside a `$derived` or template will
- * re-render when the locale changes.
+ * re-render when the locale changes. Reading a rune from a non-`.svelte.ts`
+ * file is allowed; only USING the rune (declaring `$state(...)`) is
+ * restricted.
  *
  * Missing keys: returns the key itself plus a console.warn in dev so the
  * untranslated string is visible without crashing the page.

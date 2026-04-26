@@ -1415,22 +1415,24 @@
 
 ### ⚠️ Items that were `[x]` but are actually partial/wrong (downgraded)
 
-| Item | What's actually true |
-|---|---|
-| **22.2 Correlation state isolation** | LRU at `correlation.go:138` keys on `tenant+ruleID`, not `tenant+ruleID+groupKey`. groupKey isolation enforced *within* the LRU at lines 153-162. Functionally correct, claim wording overstates. |
-| **22.2 Tenant deletion audit trail** | Status flip + salt wipe done; no immutable deletion record (no `deletion_log`, no audit-bus publish). GDPR right-to-erasure evidence missing. |
-| **22.2 50-tenant isolation test** | Test runs **10 events/tenant**, not 1000 as claimed. Structural isolation valid; throughput claim overstated. |
-| **22.4 SSH → anomaly banner** | `OperatorService.GetContext()` exists. UI status-bar surfacing + one-keypress event panel keybind missing. |
-| **22.4 Host isolation from terminal** | `agentStore.toggleQuarantine` wired. No `Ctrl+Shift+I` keybind handler, no confirmation modal, titlebar status indicator unverified. |
-| **23.2 Session restore banner** | Backend `session_persistence.go` save/restore present. `TerminalLayout.svelte` doesn't exist (current page is `TerminalPage.svelte`); banner UI missing. |
-| **23.4 OperatorBanner.svelte** | `OperatorService` backend exists; component file `OperatorBanner.svelte` does not. |
-| **23.5 Clipboard OSC 52** | XTerm imported. No OSC 52 handler, no auto-copy-on-selection, no right-click paste. Reset to `[ ]`. |
-| **23.6 AI Autocomplete UI** | `CommandHistoryService.GetSuggestions` exists. No floating suggestion box, no cursor anchoring. Reset to `[ ]`. |
-| **25.10 No multi-party enforcement** | HMAC-token replacement closes the *forgery* hole; FIDO2 hardware-signature verification of each approval is still missing (`quorum.go:111` skips it). |
-| **26.4 System-Wide Backpressure** | Worker pool + bus rate limit + NATS priorities exist; explicit circuit breaker / bulkhead pattern absent. |
-| **26.5 Cryptographic M-of-N Approval** | Voting structure exists; per-approval FIDO2 signature verification missing. |
-| **26.9 Alert False-Positive Suppression** | `MarkFalsePositive` exists; rule-based suppression + automated feedback loop + maintenance windows do not. |
-| **26.10 Hot/Warm/Cold Tiering** | Contradicted open `[ ]` in 22.3 — only Hot (Badger) + Parquet archive exist; no warm/cold migration. Reset to `[ ]`; owner is 22.3. |
+> **Reconciliation 2026-04-25 (post-audit)**: rows marked **🟢 CLOSED** in the right-hand column have since been re-completed in subsequent v1.2.0 / v1.3.0 / v1.3.1 / v1.4.0 work — they are correctly `[x]` again above and the evidence pointers in the body of the doc are authoritative. Rows still marked **🟡 partial** or **🔴 open** remain in their downgraded state; consult the inline section for current status.
+
+| Item | What's actually true | Current status |
+|---|---|---|
+| **22.2 Correlation state isolation** | LRU at `correlation.go:138` keys on `tenant+ruleID`, not `tenant+ruleID+groupKey`. groupKey isolation enforced *within* the LRU at lines 153-162. Functionally correct, claim wording overstates. | 🟡 partial (wording, not behaviour) |
+| **22.2 Tenant deletion audit trail** | Status flip + salt wipe done; no immutable deletion record (no `deletion_log`, no audit-bus publish). GDPR right-to-erasure evidence missing. | 🔴 open |
+| **22.2 50-tenant isolation test** | Test runs **10 events/tenant**, not 1000 as claimed. Structural isolation valid; throughput claim overstated. | 🟡 partial (wording, not behaviour) |
+| **22.4 SSH → anomaly banner** | `OperatorService.GetContext()` exists. UI status-bar surfacing + one-keypress event panel keybind missing. | 🟢 CLOSED v1.2.0 — `OperatorBanner.svelte` wired into TerminalPage; "View events" + "Isolate" pivots; re-shows on severity escalation. |
+| **22.4 Host isolation from terminal** | `agentStore.toggleQuarantine` wired. No `Ctrl+Shift+I` keybind handler, no confirmation modal, titlebar status indicator unverified. | 🟢 CLOSED v1.2.0 — `Ctrl+Shift+I` global keybind in `App.svelte` dispatches `oblivra:isolate-host`; OperatorMode listens + calls `agentStore.toggleQuarantine`. Same for `Ctrl+Shift+E` evidence capture. Pop-out windows bind the same keybind. |
+| **23.2 Session restore banner** | Backend `session_persistence.go` save/restore present. `TerminalLayout.svelte` doesn't exist (current page is `TerminalPage.svelte`); banner UI missing. | 🟢 CLOSED v1.2.0 — `SessionRestoreBanner.svelte` wired into TerminalPage; queries SessionPersistence binding with graceful fallback across naming variants. |
+| **23.4 OperatorBanner.svelte** | `OperatorService` backend exists; component file `OperatorBanner.svelte` does not. | 🟢 CLOSED v1.2.0 — file shipped at `frontend/src/components/terminal/OperatorBanner.svelte`. |
+| **23.5 Clipboard OSC 52** | XTerm imported. No OSC 52 handler, no auto-copy-on-selection, no right-click paste. Reset to `[ ]`. | 🟢 CLOSED v1.2.0 — `term.parser.registerOscHandler(52, ...)` for vim/tmux push, `term.onSelectionChange` auto-copy, `contextmenu` paste-via-SendInput. |
+| **23.6 AI Autocomplete UI** | `CommandHistoryService.GetSuggestions` exists. No floating suggestion box, no cursor anchoring. Reset to `[ ]`. | 🔴 open (only ↑-arrow + Tab from 23.3) |
+| **25.10 No multi-party enforcement** | HMAC-token replacement closes the *forgery* hole; FIDO2 hardware-signature verification of each approval is still missing (`quorum.go:111` skips it). | 🟢 CLOSED 2026-04-25 — `QuorumManager.Approve` now drives `FIDO2Manager.CompleteAuthentication` (ECDSA verify against registered hardware key) before counting the vote; failed verification rejects with WARN. |
+| **26.4 System-Wide Backpressure** | Worker pool + bus rate limit + NATS priorities exist; explicit circuit breaker / bulkhead pattern absent. | 🟡 partial — circuit-breaker (sony/gobreaker) + bulkhead still open. |
+| **26.5 Cryptographic M-of-N Approval** | Voting structure exists; per-approval FIDO2 signature verification missing. | 🟢 CLOSED 2026-04-25 — same fix as 25.10; per-approval FIDO2 ECDSA verification now in `quorum.go`. |
+| **26.9 Alert False-Positive Suppression** | `MarkFalsePositive` exists; rule-based suppression + automated feedback loop + maintenance windows do not. | 🟡 partial — Closed 2026-04-25: `GovernanceService.MarkFalsePositive` publishes `suppression:suggested` bus event with evidence; `SuggestFromEvidence(evidence)` extracts a draft rule; `MatchCount(ruleID)` exposes per-rule hit counts. **Still open**: maintenance-window scheduling needs schema migration. |
+| **26.10 Hot/Warm/Cold Tiering** | Contradicted open `[ ]` in 22.3 — only Hot (Badger) + Parquet archive exist; no warm/cold migration. Reset to `[ ]`; owner is 22.3. | 🔴 open — owner remains 22.3. |
 
 ### 🛠️ Fixes shipped during this audit pass
 
@@ -1464,3 +1466,90 @@ A non-exhaustive list of `[x]` claims that survived the re-audit unchanged:
 ### 🛠️ Fix shipped post-audit-summary
 
 **`internal/security/fido2.go` and `internal/security/siem.go` parseTime misuse** — pre-existing build errors where callers treated `parseTime()` (returns `(time.Time, error)`) as a single value passed into `time.Now().After(...)` or `.Unix()`. Fixed in the same commit as the audit corrections (`fido2.go:95,167`, `siem.go:316`, plus `honeypot_service_test.go:38`). Unparseable challenge timestamps now fail closed (treated as expired); SIEM forwarder falls back to epoch on a malformed timestamp so the event still ingests instead of dropping. `go vet ./internal/api/... ./internal/security/...` exits clean.
+
+---
+
+## Phase 29: v1.4.0 Blank-Screen Regression — Postmortem
+
+> **Date**: 2026-04-25
+> **Severity**: P0 (app launches to blank screen, no UI rendered)
+> **Resolution time**: ~1 hour, two-step diagnosis
+> **Root commit fixed in**: `3701da8`
+
+### Symptom
+
+After the v1.4.0 build (mouse drag fix, frameless chrome polish, 30-page pop-out rollout, i18n + RTL scaffolding, app menu, system tray), the desktop app launched and rendered nothing — frame chrome only, no Dashboard, no sidebar, no error visible to the operator. Reported by user as "aftyer building the app lunches with blank screen" then "stll blank page" after a first-pass revert.
+
+### Root Cause Chain
+
+Two orthogonal issues stacked, which made diagnosis non-linear:
+
+1. **Pre-existing latent bug**: `frontend/src/components/ui/PopOutButton.svelte` calls `t('popout.button')`, `t('popout.unavailable.title')`, `t('popout.failed.title')`, etc. **6 times** but never imports `t` from `@lib/i18n`. Svelte's compile-time scope check passed because Svelte 5's parser does not always link template-only string usages to module imports the way TypeScript would. The component compiled clean but threw `ReferenceError: t is not defined` the instant Dashboard tried to mount it (Dashboard has the PopOutButton in its toolbar). The unhandled exception bubbled up through the Svelte runtime, broke the parent App.svelte's mount sequence, `ready=true` never fired, and the entire UI tree collapsed to blank.
+2. **Compounding factor — false-positive cleanup that masked the real bug**: an earlier commit (`71cacd0`) had run `scripts/cleanup_unused_imports.py` which removed 86 imports flagged by svelte-check as "X declared but never read." It turned out svelte-check **misses template-only references** in many cases — the script wrongly removed 86 imports that were actively used in `{...}` and `<X />` template positions, breaking 123 references. We initially suspected `71cacd0` was the cause and reverted it (commit `79b5ef6`). The blank screen persisted, which exposed (1).
+
+### Fix
+
+**One-line fix (`3701da8`)** — added `import { t } from '@lib/i18n';` to `PopOutButton.svelte` script block. Verified with codebase-wide grep that no other component had the same shape (template-only `t()` call without a script-level import). App boots cleanly to Dashboard.
+
+**Cleanup script reversion (`79b5ef6`)** — kept reverted permanently. The Python scanner's import-removal heuristic was unsafe.
+
+### Lessons
+
+1. **svelte-check "X declared but never read" warnings are NOT safe to auto-apply.** Svelte 5's parser does not always reflect template usage back into the import graph. A scanner that consumes only those warnings as ground truth will delete actually-used imports.
+2. **eslint-plugin-svelte with `no-undef` enabled would have caught this pre-build.** ESLint's no-undef rule operates on the runtime scope, not the compile-time export graph, so it correctly flags `t is not defined` in `PopOutButton.svelte`. Adding it to CI is the durable fix.
+3. **Blank-screen regressions need a runtime smoke test in CI.** The `vite build` succeeded; only `vite preview` + Playwright would have caught it. Add a `playwright/smoke.spec.ts` that boots the dev server and asserts `[data-testid="dashboard-root"]` is visible within 5s.
+
+### Followup actions
+
+- [ ] **29.1 Add `eslint-plugin-svelte` with `no-undef` rule to frontend lint pipeline.** Run on every PR. Block merge on violations. *(prevents recurrence of the exact bug)*
+- [ ] **29.2 Add Playwright dev-server smoke test to CI.** Boots `pnpm dev`, waits for `[data-testid="dashboard-root"]` or app-shell, screenshots on fail. *(catches blank-screen regressions independent of which import is missing)*
+- [ ] **29.3 Delete `scripts/cleanup_unused_imports.py`.** It is dangerous and the lesson above replaces its function.
+- [ ] **29.4 Audit other `t(...)` call sites for the same pattern.** Codebase-wide grep was done at fix time; re-run as a CI script to make it ongoing.
+
+### v1.5.0 Sidebar+Dock Redesign — Second Blank-Screen Regression (same morning)
+
+**Symptom**: same blank-screen the moment we shipped the new `AppSidebar.svelte` + `BottomDock.svelte` chrome from the v1.5.0 redesign. `vite build` succeeded clean. Dev mode rendered fine. Compiled exe rendered chrome-only.
+
+**Root cause**: `BottomDock.svelte` used `import * as LucideIcons from 'lucide-svelte'` and looked up icons at runtime by string (`LucideIcons[name]`). Vite's ES tree-shaker correctly recognises that nothing was referenced by named export — only via property access on the namespace — and stripped every icon component from the bundle. Every `lookupIcon(name)` call therefore returned `undefined`, including the `Circle` fallback. Rendering `<undefined size={16} />` threw at mount time, breaking the entire UI tree.
+
+This is the **production-only counterpart to the dev-time `t is not defined` bug from earlier the same day** — both crash at the same place in the Svelte runtime (component-render exception during mount), both result in blank screen, but they are detected by different tooling. svelte-check + dev mode both passed.
+
+**Fix** (`<commit-hash-tbd>`):
+1. Replaced `import * as LucideIcons` with explicit named imports for every icon string used in `nav-config.ts` (~60 icons).
+2. Built a static `ICON_MAP: Record<string, typeof IconType>` so the `lookupIcon` path stays — but now resolves through a real reference graph that Vite cannot tree-shake.
+3. Defensive: moved `useGroupedNav` localStorage hydration out of the class-field initializer in `app.svelte.ts` and into `init()`, so the read happens after `window` is guaranteed ready.
+
+**Updated lesson**: **never use `import * as` + string lookup for tree-shakeable libraries** (lucide-svelte, lucide-react, etc.). The dev-mode behaviour is misleading because dev bundles preserve the namespace; production strips it. Add this to lesson 1: "svelte-check warnings are not safe to auto-apply" → now also: "namespace-import + property access against tree-shakeable libs is not safe in production."
+
+### Followup actions (v1.5.0 regression)
+
+- [ ] **29.5 Add a Vite plugin / ESLint rule banning `import * as` against `lucide-svelte` and similar tree-shaken libs.** Hard-block at lint stage so this can't recur. The mistake happened DESPITE writing the Phase 29 postmortem hours earlier — the rule needs to be machine-enforced, not just documented.
+- [ ] **29.6 Codebase grep for other `import * as` patterns that may have the same issue.** Likely candidates: Lucide, Radix, any icon library.
+- [ ] **29.7 The Playwright smoke test from 29.2 must run against the COMPILED exe, not just `pnpm dev`.** Dev-mode passing is not sufficient — both v1.4.0 and v1.5.0 regressions passed dev mode. Add a `task wails:smoke` job that boots the compiled binary, screenshots the main window, and asserts the dashboard root selector is present.
+
+### v1.5.0 Sidebar+Dock Redesign — THIRD Blank-Screen Regression (rune_outside_svelte)
+
+**Symptom**: same morning, after fixing the lucide-svelte issue above, the rebuilt exe still launched blank. WebView2 dev tools showed:
+
+```
+Uncaught Svelte error: rune_outside_svelte
+The `$state` rune is only available inside `.svelte` and `.svelte.js/ts` files
+   at I18nStore (index.ts:52)
+   at <anonymous> (index.ts:84)
+```
+
+**Root cause**: `frontend/src/lib/i18n/index.ts` was a regular `.ts` file (NOT `.svelte.ts`) but defined an `I18nStore` class with `locale = $state<LocaleCode>(...)`. Svelte 5's runtime strictly enforces that `$state` may only appear in `.svelte`, `.svelte.js`, or `.svelte.ts` files. **Dev mode was permissive about the file extension and silently allowed the rune; production threw at first import** — which happened during `App.svelte` mount, triggering the same blank-screen mount-cascade we hit in the previous two regressions.
+
+This was a **pre-existing latent bug** introduced in Phase 24.2 (Arabic/RTL support). It survived multiple builds because nobody had run the production exe end-to-end with i18n's first import path active until now. The new `PopOutButton.svelte` (after its `import { t }` fix in v1.4.0) finally exercised it.
+
+**Fix** (`<commit-hash-tbd>`):
+1. Created `frontend/src/lib/i18n/store.svelte.ts` — moved `I18nStore` class + `i18n` instance + the document-direction side effect into the proper `.svelte.ts` file.
+2. Reduced `frontend/src/lib/i18n/index.ts` to a barrel that re-exports `i18n` from the new file and keeps the rune-free `t()` helper. **All existing `import { t, i18n } from '@lib/i18n'` call-sites continue to work unchanged** — Vite's path resolver picks `index.ts`, which transparently re-exports from `store.svelte.ts`.
+3. Verified by codebase-wide grep that `frontend/src/lib/i18n/index.ts` is now the ONLY non-`.svelte.ts` file mentioning runes (and only in comments explaining the split).
+
+**Updated lesson**: the regex `\$state\b|\$derived\b|\$effect\b` against any `.ts` file that isn't `.svelte.ts` should be a CI hard-block. svelte-check does not catch this — it requires the dev-runtime extension check. Add to followup 29.5.
+
+### Followup actions (v1.5.0 third regression)
+
+- [ ] **29.8 CI hard-block on runes in plain `.ts` files.** Run `git grep -n -E '\$state\b|\$derived\b|\$effect\b' '*.ts' ':(exclude)*.svelte.ts' ':(exclude)*.d.ts'` at lint stage and fail any match. svelte-check missed this one for an unknown number of builds; a regex grep is bulletproof.
+- [ ] **29.9 Audit all of `frontend/src/lib/**/*.ts` for the same shape.** Already done at fix time (only `i18n/index.ts` was affected) but bake into 29.8 above so it's continuous.

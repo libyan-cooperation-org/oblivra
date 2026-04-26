@@ -8,6 +8,9 @@
   import { crisisStore } from '@lib/stores/crisis.svelte';
   import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
 import Sidebar from '@components/layout/CommandRail.svelte';
+  import AppSidebar from '@components/layout/AppSidebar.svelte';
+  import BottomDock from '@components/layout/BottomDock.svelte';
+  import { navigationStore } from '@lib/stores/navigation.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
@@ -56,6 +59,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import SnippetsPage from '@pages/SnippetsPage.svelte';
   import NotesPage from '@pages/NotesPage.svelte';
   import FleetDashboard from '@pages/FleetDashboard.svelte';
+  import HostDetail from '@pages/HostDetail.svelte';
   import UEBAOverview from '@pages/UEBAOverview.svelte';
   import NDROverview from '@pages/NDROverview.svelte';
   import EnrichmentViewer from '@pages/EnrichmentViewer.svelte';
@@ -169,6 +173,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // Fleet & Workspace
     { path: '/investigation',   component: InvestigationDashboard },
+    { path: '/host/:id',         component: HostDetail },
     { path: '/fleet',            component: FleetDashboard },
     { path: '/fleet-management', component: FleetDashboard },
     { path: '/hosts',            component: FleetDashboard },
@@ -368,6 +373,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
       await appStore.init();
       crisisStore.init();
+      navigationStore.init();
       siemStore.refreshStats();
 
       // In pop-out mode the spawned window starts at "/?popout=1&route=X"
@@ -471,7 +477,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   {#if ready}
     <div class="flex h-full w-full">
       {#if !isMobile && !popoutMode}
-        <Sidebar />
+        {#if appStore.useGroupedNav}
+          <AppSidebar />
+        {:else}
+          <Sidebar />
+        {/if}
       {/if}
 
       <div class="relative flex flex-1 flex-col overflow-hidden">
@@ -501,7 +511,14 @@ import Sidebar from '@components/layout/CommandRail.svelte';
         <div class="flex-1 overflow-auto relative">
           <RouterView {routes} />
         </div>
-        
+
+        <!-- New v1.5.0 chrome: contextual bottom dock for the active
+             nav group. Hidden on mobile (BottomNav takes its place)
+             and when the operator opted into the legacy CommandRail. -->
+        {#if !isMobile && !popoutMode && appStore.useGroupedNav}
+          <BottomDock />
+        {/if}
+
         {#if isMobile}
           <BottomNav />
         {/if}

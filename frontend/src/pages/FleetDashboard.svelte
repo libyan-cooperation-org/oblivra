@@ -6,6 +6,7 @@
   import { PageLayout, Badge, Button, DataTable, Input, Tabs, PopOutButton } from '@components/ui';
   import { Activity, Terminal, ShieldAlert, MoreHorizontal, Monitor, Clock, ShieldCheck } from 'lucide-svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
+  import { push } from '@lib/router.svelte';
 
   let searchQuery = $state('');
   let activeTab = $state('ALL HOSTS');
@@ -100,13 +101,22 @@
                             <Badge variant={row.status === 'online' ? 'success' : 'muted'} size="xs">{row.status}</Badge>
                         </div>
                     {:else if col.key === 'hostname'}
-                        <div class="flex items-center gap-2 py-1">
+                        <!-- Drill-down: clicking the hostname pivots to the
+                             single-pane-of-glass HostDetail page (Phase 30.1).
+                             The keyboard variant fires on Enter/Space so this
+                             row is fully accessible. -->
+                        <button
+                            type="button"
+                            class="flex items-center gap-2 py-1 bg-transparent border-none cursor-pointer text-left hover:text-accent transition-colors w-full"
+                            onclick={() => push(`/host/${encodeURIComponent(row.id)}`)}
+                            title="Open host detail page"
+                        >
                             <Monitor size={12} class="text-text-muted" />
                             <div class="flex flex-col">
-                                <span class="text-[10px] font-bold text-text-heading uppercase">{row.hostname}</span>
+                                <span class="text-[10px] font-bold text-text-heading uppercase hover:text-accent">{row.hostname}</span>
                                 <span class="text-[8px] font-mono text-text-muted opacity-60 tabular-nums">{row.id}</span>
                             </div>
-                        </div>
+                        </button>
                     {:else if col.key === 'remote_address'}
                         <span class="text-[9px] font-mono text-accent tabular-nums">{row.remote_address}</span>
                     {:else if col.key === 'os'}

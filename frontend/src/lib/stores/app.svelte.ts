@@ -40,11 +40,24 @@ class AppStore {
     showCommandPalette = $state(false);
     currentUser = $state<any>(null);
 
+    // ── Layout chrome toggle ─────────────────────────────────────
+    // `useGroupedNav = true` swaps the legacy `CommandRail.svelte` for
+    // the new `AppSidebar.svelte` + `BottomDock.svelte` pair (v1.5.0
+    // UX redesign). Persisted to localStorage so the operator's choice
+    // survives reloads. Defaults to true on fresh installs but a user
+    // who flipped it off keeps it off. Initial value is hydrated in
+    // `init()` so we never reach into `localStorage` from a class field
+    // initializer (those run pre-window-ready in some bundler configs).
+    useGroupedNav = $state<boolean>(true);
+
     private _initialized = false;
 
     async init() {
         if (this._initialized) return;
         this._initialized = true;
+
+        // Hydrate the layout-chrome preference now that `window` is ready.
+        this.useGroupedNav = this._loadGroupedNavPref();
 
         subscribe('vault:unlocked', () => {
             this.vaultUnlocked = true;
@@ -181,6 +194,26 @@ class AppStore {
     setWorkspace(ws: Workspace) { this.workspace = ws; }
     toggleFocusMode() { this.focusMode = !this.focusMode; }
     toggleCommandPalette() { this.showCommandPalette = !this.showCommandPalette; }
+
+    /** Toggle the new grouped nav (sidebar + bottom dock) vs legacy CommandRail. */
+    toggleGroupedNav() {
+        this.useGroupedNav = !this.useGroupedNav;
+        try {
+            localStorage.setItem('oblivra:useGroupedNav', this.useGroupedNav ? '1' : '0');
+        } catch { /* quota / private mode */ }
+    }
+
+    /** Load grouped-nav preference from localStorage. Defaults to true (new UX). */
+    private _loadGroupedNavPref(): boolean {
+        if (typeof localStorage === 'undefined') return true;
+        try {
+            const v = localStorage.getItem('oblivra:useGroupedNav');
+            if (v === null) return true;          // no preference → new UX
+            return v === '1';
+        } catch {
+            return true;
+        }
+    }
 
     /**
      * navigate — programmatic navigation helper used by page components.

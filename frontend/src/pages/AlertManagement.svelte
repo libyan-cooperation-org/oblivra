@@ -4,9 +4,73 @@
 -->
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs, EmptyState, LoadingSkeleton } from '@components/ui';
-  import { Zap, ShieldAlert, MoreHorizontal } from 'lucide-svelte';
+  import { Zap, ShieldAlert, MoreHorizontal, Search as SearchIcon, FileText } from 'lucide-svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
+  import { agentStore } from '@lib/stores/agent.svelte';
+  import { push } from '@lib/router.svelte';
+
+  /**
+   * Investigation workflow (Phase 30.2): drilling into an alert pivots
+   * the operator to a focused context — the HostDetail page (Phase 30.1)
+   * for the alert's host, with the alert id passed in the query string
+   * so the destination can highlight the originating alert in its
+   * timeline.
+   */
+  function investigate(alert: any) {
+    if (!alert) return;
+    alertStore.investigate(alert.id);
+    if (alert.host && alert.host !== 'unknown' && alert.host !== 'remote') {
+      push(`/host/${encodeURIComponent(alert.host)}?alert=${encodeURIComponent(alert.id)}`);
+    } else {
+      // No host context — fall back to filtered SIEM search.
+      push(`/siem-search?alert=${encodeURIComponent(alert.id)}`);
+    }
+  }
+
+  function pivotInSIEM(alert: any) {
+    if (!alert) return;
+    const params = new URLSearchParams();
+    if (alert.host) params.set('host', alert.host);
+    if (alert.id) params.set('alert', alert.id);
+    push(`/siem-search?${params.toString()}`);
+  }
+
+  async function isolateHost(alert: any) {
+    if (!alert?.host) {
+      appStore.notify('No host on alert', 'warning');
+      return;
+    }
+    // Find the agent matching this host. agentStore.toggleQuarantine
+    // takes an agent id — match on hostname OR id so legacy alerts
+    // (which sometimes carry only one) work either way.
+    const agent = agentStore.agents.find(
+      (a) => a.id === alert.host || a.hostname === alert.host,
+    );
+    if (!agent) {
+      appStore.notify(`No registered agent for host ${alert.host}`, 'error');
+      return;
+    }
+    try {
+      await agentStore.toggleQuarantine(agent.id, true);
+      appStore.notify(`Host ${alert.host} isolated`, 'warning');
+    } catch (err) {
+      appStore.notify(
+        `Isolation failed: ${err instanceof Error ? err.message : String(err)}`,
+        'error',
+      );
+    }
+  }
+
+  function captureEvidence(alert: any) {
+    if (!alert) return;
+    // Reuse the global Ctrl+Shift+E handler — it knows how to record
+    // the active context as evidence and seal it to the ledger.
+    window.dispatchEvent(
+      new CustomEvent('oblivra:capture-evidence', { detail: { alertId: alert.id, host: alert.host } }),
+    );
+    appStore.notify('Evidence capture requested', 'info');
+  }
 
   let searchQuery = $state('');
   let activeTab = $state('OPEN');
@@ -258,16 +322,24 @@
             <div class="bg-surface-2 p-4">
                 <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-3">Quick Actions</div>
                 <div class="flex flex-col gap-2">
-                    <Button variant="danger" size="sm" class="justify-start text-[9px] h-8">
+                    <!-- Primary: Investigate — opens the HostDetail page with
+                         scoped logs + activity timeline + related alerts.
+                         This is the Phase 30.2 "auto-context expansion" entry
+                         point: one click takes the operator from raw alert to
+                         full surrounding context. -->
+                    <Button variant="primary" size="sm" class="justify-start text-[9px] h-8" onclick={() => investigate(selectedAlert)}>
+                        <SearchIcon size={14} class="mr-2" /> INVESTIGATE
+                    </Button>
+                    <Button variant="danger" size="sm" class="justify-start text-[9px] h-8" onclick={() => isolateHost(selectedAlert)}>
                         <ShieldAlert size={14} class="mr-2" /> ISOLATE HOST ⌃⇧I
                     </Button>
-                    <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8">
-                        <MoreHorizontal size={14} class="mr-2" /> CAPTURE EVIDENCE ⌃⇧E
+                    <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8" onclick={() => captureEvidence(selectedAlert)}>
+                        <FileText size={14} class="mr-2" /> CAPTURE EVIDENCE ⌃⇧E
                     </Button>
                     <Button variant="cta" size="sm" class="justify-start text-[9px] h-8">
                         <Zap size={14} class="mr-2" /> RUN PLAYBOOK PB-CRED-01
                     </Button>
-                    <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8">
+                    <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8" onclick={() => pivotInSIEM(selectedAlert)}>
                         <MoreHorizontal size={14} class="mr-2" /> PIVOT IN SIEM
                     </Button>
                 </div>

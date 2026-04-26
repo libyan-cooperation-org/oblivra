@@ -27,7 +27,7 @@
       class="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-md border shadow-lg backdrop-blur-sm min-w-[300px] max-w-[420px] font-[var(--font-ui)] text-xs {typeStyles[toast.type]}"
       transition:slide={{ duration: 200 }}
     >
-      <span class="text-sm flex-shrink-0 mt-px">{typeIcons[toast.type]}</span>
+      <span class="text-sm shrink-0 mt-px">{typeIcons[toast.type]}</span>
       <div class="flex-1 min-w-0">
         <div class="font-semibold text-text-heading text-[13px]">{toast.title}</div>
         {#if toast.message}
@@ -35,7 +35,7 @@
         {/if}
       </div>
       <button
-        class="text-text-muted hover:text-text-primary text-sm flex-shrink-0 cursor-pointer bg-transparent border-none p-0"
+        class="text-text-muted hover:text-text-primary text-sm shrink-0 cursor-pointer bg-transparent border-none p-0"
         onclick={() => toastStore.remove(toast.id)}
         aria-label="Dismiss"
       >

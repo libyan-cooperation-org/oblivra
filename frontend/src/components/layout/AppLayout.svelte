@@ -7,10 +7,13 @@
 <script lang="ts">
   import { onMount, onDestroy, type Snippet } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
+  import { navigationStore } from '@lib/stores/navigation.svelte';
   import { IS_BROWSER } from '@lib/context';
   import TitleBar from './TitleBar.svelte';
   import StatusBar from './StatusBar.svelte';
   import CommandRail from './CommandRail.svelte';
+  import AppSidebar from './AppSidebar.svelte';
+  import BottomDock from './BottomDock.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import AddHostModal from '@components/sidebar/AddHostModal.svelte';
   import TransferDrawer from '@components/terminal/TransferDrawer.svelte';
@@ -63,6 +66,11 @@
   onMount(async () => {
     window.addEventListener('keydown', handleKeyDown);
 
+    // Hydrate the navigation store from localStorage (active group,
+    // pinned items, dock-expanded state). Idempotent — safe if the
+    // layout re-mounts on a route change.
+    navigationStore.init();
+
     // Restore workspace state (desktop only)
     if (!IS_BROWSER) {
       try {
@@ -88,17 +96,29 @@
 
   <SystemBanner />
 
-  <!-- Body: Rail + Content -->
+  <!-- Body: Sidebar/Rail + Content (+ optional BottomDock) -->
   <div class="flex flex-1 overflow-hidden bg-surface-0">
-    <!-- Command Rail -->
+    <!-- Navigation chrome — new grouped sidebar OR legacy CommandRail.
+         `appStore.useGroupedNav` toggles between them; the user's
+         preference persists in localStorage (oblivra:useGroupedNav). -->
     {#if !appStore.focusMode}
-      <CommandRail />
+      {#if appStore.useGroupedNav}
+        <AppSidebar />
+      {:else}
+        <CommandRail />
+      {/if}
     {/if}
 
-    <!-- Main Content Area -->
-    <main class="flex-1 bg-surface-0 overflow-auto flex flex-col min-w-0">
-      {@render children()}
-    </main>
+    <!-- Main Content Area + optional BottomDock stacked below -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main class="flex-1 bg-surface-0 overflow-auto flex flex-col min-w-0">
+        {@render children()}
+      </main>
+
+      {#if !appStore.focusMode && appStore.useGroupedNav}
+        <BottomDock />
+      {/if}
+    </div>
   </div>
 
   <!-- Status Bar -->
