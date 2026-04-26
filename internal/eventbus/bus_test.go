@@ -12,6 +12,7 @@ import (
 func TestBusPublishSubscribe(t *testing.T) {
 	log, _ := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
 	bus := NewBus(log)
+	t.Cleanup(bus.Close) // Phase 25.4: ensure worker goroutines drain on test exit
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -39,6 +40,7 @@ func TestBusPublishSubscribe(t *testing.T) {
 func TestBusWildcardSubscriber(t *testing.T) {
 	log, _ := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
 	bus := NewBus(log)
+	t.Cleanup(bus.Close) // Phase 25.4: ensure worker goroutines drain on test exit
 	var wg sync.WaitGroup
 	wg.Add(1)
 

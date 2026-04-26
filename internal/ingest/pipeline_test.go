@@ -15,6 +15,7 @@ import (
 func TestPipeline_TemporalIntegrity(t *testing.T) {
 	log, _ := logger.New(logger.Config{Level: logger.ErrorLevel, OutputPath: os.DevNull})
 	bus := eventbus.NewBus(log)
+	t.Cleanup(bus.Close) // Phase 25.4: drain bus workers on test exit
 	ae := analytics.NewAnalyticsEngine(log)
 
 	// Create Temporal Integrity Service with a strict policy

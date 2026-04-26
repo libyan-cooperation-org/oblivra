@@ -53,20 +53,30 @@ func TestPipeline_QueueAndProcess(t *testing.T) {
 func TestPipeline_DropsBeyondBuffer(t *testing.T) {
 	log := logger.NewStdoutLogger()
 	bus := eventbus.NewBus(log)
-	defer bus.Close()
+	t.Cleanup(bus.Close) // Phase 25.4: drain bus workers on test exit
 
-	// Tiny buffer of 5 — do NOT start workers so events accumulate
+	// Tiny buffer of 5 — do NOT start workers so events accumulate.
+	// As of the backpressure rework, the pipeline load-sheds via the
+	// adaptive controller rather than returning ErrBufferFull from
+	// QueueEvent. The observable signal is the metric counter; either
+	// path indicates the pipeline correctly refused over-capacity work.
 	p := ingest.NewPipeline(5, nil, nil, nil, bus, log, nil, nil, nil, nil)
 
-	dropped := 0
+	directRejects := 0
 	for i := 0; i < 10; i++ {
 		err := p.QueueEvent(mkEvent(fmt.Sprintf("e-%d", i), "test", "", ""))
 		if err == ingest.ErrBufferFull {
-			dropped++
+			directRejects++
 		}
 	}
-	if dropped == 0 {
-		t.Error("expected at least one ErrBufferFull with tiny buffer, got none")
+
+	// Either path is acceptable: direct rejects OR load-shed drops.
+	loadShed := p.GetMetrics().DroppedEvents
+	if directRejects == 0 && loadShed == 0 {
+		t.Errorf(
+			"expected at least one event to be refused (direct=%d, load_shed=%d)",
+			directRejects, loadShed,
+		)
 	}
 }
 
