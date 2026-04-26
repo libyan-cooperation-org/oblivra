@@ -15,6 +15,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/database"
+	"github.com/kingknull/oblivrashell/internal/dlp"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -111,6 +112,7 @@ type Pipeline struct {
 	labels           map[string]string
 	evaluator        *detection.Evaluator
 	identityResolver dag.UserResolver
+	dlpRedactor      *dlp.Redactor // Phase 27.2.3 — server-side DLP scrubber; nil = disabled
 	integrityTree    *integrity.MerkleTree
 	eventChain       *EventChain // tamper-evident hash chain (#12)
 }
@@ -196,6 +198,19 @@ p.identityResolver = r
 p.dag = p.buildProductionDAG()
 }
 
+// SetDLPRedactor wires a centralized DLP redactor into the DAG so
+// every event flowing through the pipeline gets PII patterns
+// (SSN / CC / JWT / AWS keys / emails) scrubbed before it reaches
+// the SIEM index or analytics sinks. Phase 27.2.3.
+//
+// Pass `nil` to disable. Callers (typically the service container)
+// can switch the redactor on/off at runtime by re-invoking this
+// method — the DAG is rebuilt to include or omit the node.
+func (p *Pipeline) SetDLPRedactor(r *dlp.Redactor) {
+	p.dlpRedactor = r
+	p.dag = p.buildProductionDAG()
+}
+
 func (p *Pipeline) SetNATSService(s *messaging.NATSService) {
 	p.nats = s
 }
@@ -209,6 +224,17 @@ if p.identityResolver != nil {
 idNode := &dag.Node{Processor: dag.NewIdentityEnrichmentNode(p.identityResolver, p.log)}
 wasmNode.Children = append(wasmNode.Children, idNode)
 lastNode = idNode
+}
+
+// DLP scrubber — Phase 27.2.3. Inserts after identity enrichment so
+// resolved-user fields are still useful for correlation upstream of
+// this point, but BEFORE the SIEM/analytics fanout so every storage
+// sink sees the redacted form. Nil-safe: when no redactor is
+// registered the node is omitted entirely.
+if p.dlpRedactor != nil {
+	dlpNode := &dag.Node{Processor: dag.NewDLPNode(p.dlpRedactor, p.log)}
+	lastNode.Children = append(lastNode.Children, dlpNode)
+	lastNode = dlpNode
 }
 
 var graphNode *dag.Node
