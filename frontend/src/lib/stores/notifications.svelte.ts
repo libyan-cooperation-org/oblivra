@@ -201,37 +201,30 @@ export const notificationStore = new NotificationStore();
     const { subscribe } = await import('@lib/bridge');
 
     subscribe('setup:initialized', () => {
-      notificationStore.add({
-        level: 'success',
-        title: 'Setup complete',
-        message: 'Bootstrap admin created and platform initialised.',
-      });
+      notificationStore.push('success', 'Setup complete',
+        'Bootstrap admin created and platform initialised.');
     });
 
     subscribe('playbook:executed', (data: { name?: string; status?: string; incident_id?: string }) => {
-      notificationStore.add({
-        level: data.status === 'failed' ? 'error' : 'success',
-        title: `Playbook ${data.status ?? 'executed'}`,
-        message: `${data.name ?? 'unnamed'} on incident ${data.incident_id ?? '—'}`,
-        action: data.incident_id ? { label: 'Open incident', route: `/cases?incident=${data.incident_id}` } : undefined,
-      });
+      const level = data.status === 'failed' ? 'error' : 'success';
+      notificationStore.push(level,
+        `Playbook ${data.status ?? 'executed'}`,
+        `${data.name ?? 'unnamed'} on incident ${data.incident_id ?? '—'}`,
+        data.incident_id ? { label: 'Open incident', route: `/cases?incident=${data.incident_id}` } : undefined,
+      );
     });
 
     subscribe('ransomware:host_isolated', (data: { host?: string; reason?: string }) => {
-      notificationStore.add({
-        level: 'critical',
-        title: 'Host isolated by ransomware shield',
-        message: `${data.host ?? 'unknown host'} — ${data.reason ?? 'policy match'}`,
-        action: data.host ? { label: 'Open host', route: `/host/${encodeURIComponent(data.host)}` } : undefined,
-      });
+      notificationStore.push('critical',
+        'Host isolated by ransomware shield',
+        `${data.host ?? 'unknown host'} — ${data.reason ?? 'policy match'}`,
+        data.host ? { label: 'Open host', route: `/host/${encodeURIComponent(data.host)}` } : undefined,
+      );
     });
 
     subscribe('tenant:deleted', (data: { tenant_id?: string; deleted_by?: string }) => {
-      notificationStore.add({
-        level: 'warning',
-        title: 'Tenant wiped',
-        message: `${data.tenant_id ?? 'tenant'} cryptographically wiped by ${data.deleted_by ?? 'system'}.`,
-      });
+      notificationStore.push('warning', 'Tenant wiped',
+        `${data.tenant_id ?? 'tenant'} cryptographically wiped by ${data.deleted_by ?? 'system'}.`);
     });
   } catch {
     // Bridge not available (e.g. test environment) — silently skip.

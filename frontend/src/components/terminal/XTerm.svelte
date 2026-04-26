@@ -9,7 +9,24 @@
   import { WebLinksAddon } from '@xterm/addon-web-links';
   import { WebglAddon } from '@xterm/addon-webgl';
   import { subscribe } from '@lib/bridge';
+  import { toastStore } from '@lib/stores/toast.svelte';
   import '@xterm/xterm/css/xterm.css';
+
+  // Audit fix M-12: surface clipboard permission denials once per
+  // mount so operators understand why select-to-copy isn't working
+  // (typically: browser denied clipboard permission, or running over
+  // non-localhost HTTP where the API is gated).
+  let clipboardWarned = false;
+  function warnClipboardOnce(label: string, err: unknown) {
+    if (clipboardWarned) return;
+    clipboardWarned = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    toastStore.add({
+      type: 'warning',
+      title: 'Clipboard access denied',
+      message: `${label}: ${msg}. Use Ctrl+C / Ctrl+Shift+V manually, or grant clipboard permission in browser settings.`,
+    });
+  }
 
   interface Props {
     sessionId: string;
@@ -89,7 +106,13 @@
       try {
         const text = atob(b64);
         if (navigator.clipboard?.writeText) {
-          navigator.clipboard.writeText(text).catch(() => { /* permission denied */ });
+          // Audit fix M-12: surface clipboard permission denials
+          // instead of silently dropping them — operators trying to
+          // copy from a remote shell deserve to know why nothing
+          // happened. Toast once per session to avoid spam.
+          navigator.clipboard.writeText(text).catch((err) => {
+            warnClipboardOnce('OSC 52 copy denied', err);
+          });
         }
       } catch {
         // Malformed base64; ignore.
@@ -102,7 +125,9 @@
     term.onSelectionChange(() => {
       const sel = term.getSelection();
       if (sel && navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(sel).catch(() => { /* permission denied */ });
+        navigator.clipboard.writeText(sel).catch((err) => {
+          warnClipboardOnce('selection-copy denied', err);
+        });
       }
     });
 

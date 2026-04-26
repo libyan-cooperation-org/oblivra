@@ -1846,15 +1846,31 @@ func (s *RESTServer) handleLookupQuery(w http.ResponseWriter, r *http.Request) {
 
 func (s *RESTServer) handleMe(w http.ResponseWriter, r *http.Request) {
 	if s.auth == nil {
-		http.Error(w, "Auth not configured", http.StatusServiceUnavailable)
+		s.respondError(w, r, http.StatusServiceUnavailable, "service unavailable", "auth_not_configured", nil)
 		return
 	}
 	// This relies on the middleware having injected the user into context.
 	identityUser := auth.UserFromContext(r.Context())
 	if identityUser == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		s.respondError(w, r, http.StatusUnauthorized, "unauthorized", "no_user_in_context", nil)
 		return
 	}
+
+	// Audit fix M-16: cross-check the user's TenantID against the
+	// request's tenant context. If a JWT or session was forged with
+	// a tenant that doesn't match the request scope (X-Tenant-Id
+	// header / URL param / session-derived), refuse — this is the
+	// last line of defence against tenant-spoofing.
+	requestTenant, _ := database.TenantFromContext(r.Context())
+	if requestTenant != "" && identityUser.TenantID != "" &&
+		requestTenant != identityUser.TenantID &&
+		!auth.IsGlobalAdminFromContext(r.Context()) {
+		s.log.Warn("[auth] handleMe: tenant mismatch user_tenant=%s request_tenant=%s user=%s",
+			identityUser.TenantID, requestTenant, identityUser.Email)
+		s.respondError(w, r, http.StatusForbidden, "forbidden", "tenant_mismatch", nil)
+		return
+	}
+
 	userCopy := *identityUser
 	if auth.Role(userCopy.RoleName) != auth.RoleAdmin {
 		userCopy.Permissions = []string{}
