@@ -22,6 +22,7 @@
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { Minus, Square, X, Copy as Restore, Monitor, ExternalLink, Layout, Bell } from 'lucide-svelte';
   import { notificationStore } from '@lib/stores/notifications.svelte';
+  import TenantSwitcher from '@components/ui/TenantSwitcher.svelte';
 
   // Platform detection — userAgent is constant per process, so we resolve it
   // once at module load instead of on every $derived re-evaluation.
@@ -191,6 +192,16 @@
         : 'text-[#9878e0] border-[#9878e0]/30 bg-[#9878e0]/8'}">
       {IS_BROWSER ? 'WEB' : 'DESKTOP'}
     </span>
+  </div>
+
+  <div class="w-px h-3.5 bg-border-primary shrink-0"></div>
+
+  <!-- Tenant switcher (Phase 30.4d) — operator-visible scope selector.
+       In single-tenant deployments the dropdown collapses to a static
+       "All Tenants" pill. Wrapped in no-drag so clicks don't initiate
+       a window drag through the title bar. -->
+  <div class="shrink-0" style="--wails-draggable: no-drag;">
+    <TenantSwitcher />
   </div>
 
   <div class="w-px h-3.5 bg-border-primary shrink-0"></div>

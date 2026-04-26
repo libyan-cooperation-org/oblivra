@@ -23,9 +23,28 @@
   --color-warning: #b86000;
   --color-success: #147848;
   --color-info: #1878c8;
-  
+
   --color-accent: #1878c8;
   --color-accent-hover: #5aaef0;
+
+  /* ── Unified severity palette (Phase 30.4)
+     Five-level scale that maps every source's native severity onto a
+     single visual language. Used by HostDetail timeline, ActivityFeed,
+     log tables, and alert badges so operators see the same colour for
+     the same severity regardless of source (syslog, Windows, journald). */
+  --color-sev-debug:    #6a8aa8;   /* gray-blue: noise, hidden by default */
+  --color-sev-info:     #1878c8;   /* accent blue: normal operations */
+  --color-sev-warn:     #b86000;   /* amber: notable, not critical */
+  --color-sev-error:    #c02828;   /* red: failure, requires attention */
+  --color-sev-critical: #ff3838;   /* bright red: act now */
+
+  /* Tinted backgrounds for chips and timeline rails — keep saturation
+     low so the palette doesn't compete with body text. */
+  --color-sev-debug-bg:    rgba(106, 138, 168, 0.10);
+  --color-sev-info-bg:     rgba(24, 120, 200, 0.10);
+  --color-sev-warn-bg:     rgba(184, 96, 0, 0.12);
+  --color-sev-error-bg:    rgba(192, 40, 40, 0.12);
+  --color-sev-critical-bg: rgba(255, 56, 56, 0.16);
 
   /* ── Text ── */
   --color-text-primary: #bfd0e0;

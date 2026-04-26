@@ -26,4 +26,7 @@ export { default as ProgressBar } from './ProgressBar.svelte';
 export { default as LoadingSkeleton } from './LoadingSkeleton.svelte';
 export { default as PopOutButton } from './PopOutButton.svelte';
 export { default as LanguageSwitcher } from './LanguageSwitcher.svelte';
+export { default as ActivityFeed } from './ActivityFeed.svelte';
+export { default as TimeRangePicker } from './TimeRangePicker.svelte';
+export { default as TenantSwitcher } from './TenantSwitcher.svelte';
 export * from './decision.types';

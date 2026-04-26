@@ -40,6 +40,16 @@ class AppStore {
     showCommandPalette = $state(false);
     currentUser = $state<any>(null);
 
+    // ── Multi-tenant context (Phase 30.4d) ──────────────────────
+    // The tenant currently being viewed in the UI. `null` = "all
+    // tenants" (platform-admin perspective). Persisted to localStorage
+    // so the operator returns to the same tenant scope after reload.
+    // Backend requests can read this via window.__currentTenantId or
+    // the new bridge helper getCurrentTenantId() once a tenant is
+    // chosen — until that wiring lands the value drives UI scoping
+    // only (banner, breadcrumbs, ActivityFeed filter).
+    currentTenantId = $state<string | null>(null);
+
     // ── Layout chrome toggle ─────────────────────────────────────
     // `useGroupedNav = true` swaps the legacy `CommandRail.svelte` for
     // the new `AppSidebar.svelte` + `BottomDock.svelte` pair (v1.5.0
@@ -58,6 +68,13 @@ class AppStore {
 
         // Hydrate the layout-chrome preference now that `window` is ready.
         this.useGroupedNav = this._loadGroupedNavPref();
+
+        // Hydrate tenant scope. Falls back to null ("all tenants") if
+        // no preference is stored.
+        try {
+            const tid = localStorage.getItem('oblivra:currentTenantId');
+            if (tid) this.currentTenantId = tid;
+        } catch { /* private mode */ }
 
         subscribe('vault:unlocked', () => {
             this.vaultUnlocked = true;
@@ -194,6 +211,15 @@ class AppStore {
     setWorkspace(ws: Workspace) { this.workspace = ws; }
     toggleFocusMode() { this.focusMode = !this.focusMode; }
     toggleCommandPalette() { this.showCommandPalette = !this.showCommandPalette; }
+
+    /** Switch the active tenant context. Pass null for "all tenants". */
+    setCurrentTenant(id: string | null) {
+        this.currentTenantId = id;
+        try {
+            if (id) localStorage.setItem('oblivra:currentTenantId', id);
+            else    localStorage.removeItem('oblivra:currentTenantId');
+        } catch { /* private mode */ }
+    }
 
     /** Toggle the new grouped nav (sidebar + bottom dock) vs legacy CommandRail. */
     toggleGroupedNav() {
