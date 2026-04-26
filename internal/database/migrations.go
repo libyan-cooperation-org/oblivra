@@ -624,6 +624,29 @@ var migrations = []migration{
 		`,
 	},
 	{
+		// Phase 27.2.2 — DHCP lease ledger for temporal entity
+		// resolution. When alerts cite an IP, we need to map it back
+		// to the host that held the lease at the alert's timestamp,
+		// not whichever host happens to hold it now.
+		// See `internal/identity/lease.go` for the full contract.
+		version: 26,
+		name:    "create_dhcp_lease_log",
+		sql: `
+			CREATE TABLE IF NOT EXISTS dhcp_lease_log (
+				id          INTEGER PRIMARY KEY AUTOINCREMENT,
+				tenant_id   TEXT NOT NULL,
+				ip          TEXT NOT NULL,
+				hostname    TEXT,
+				mac         TEXT,
+				started_at  DATETIME NOT NULL,
+				ended_at    DATETIME,
+				source      TEXT
+			);
+			CREATE INDEX IF NOT EXISTS idx_dhcp_lease_lookup
+				ON dhcp_lease_log(tenant_id, ip, started_at, ended_at);
+		`,
+	},
+	{
 		// Phase 22.2 / Phase 30 — GDPR Article 30 evidence for the
 		// right-to-erasure workflow. When a tenant is wiped via
 		// CryptographicWipe, this immutable log records who did it,
@@ -631,7 +654,7 @@ var migrations = []migration{
 		// (so an auditor can prove the deletion was complete and
 		// non-tampered). Append-only by convention; no UPDATE/DELETE
 		// statements are issued against this table by application code.
-		version: 26,
+		version: 27,
 		name:    "create_tenant_deletion_log",
 		sql: `
 			CREATE TABLE IF NOT EXISTS tenant_deletion_log (

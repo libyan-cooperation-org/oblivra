@@ -1011,12 +1011,15 @@ func (p *parser) parseParse() (Command, error) {
 	}
 	// Optional source field — anything that isn't `as` and starts a
 	// new identifier is treated as the source field name.
-	if p.peek().Type == TokIdent && !p.matchIdent("as") {
+	// We must NOT use matchIdent("as") here because that consumes
+	// the token on match. Inspect with peek/EqualFold instead.
+	if p.peek().Type == TokIdent && !strings.EqualFold(p.peek().Val, "as") {
 		cmd.Field = NewFieldRef(p.advance().Val)
 	}
-	// Optional `as <output>` prefix.
+	// Optional `as <output>` prefix. matchIdent already consumes the
+	// `as` keyword on a successful match, so do NOT call advance()
+	// again before reading the prefix identifier.
 	if p.matchIdent("as") {
-		p.advance()
 		if p.peek().Type != TokIdent {
 			t := p.peek()
 			return nil, &ParseError{Position: t.Pos, Line: t.Line, Col: t.Col,
