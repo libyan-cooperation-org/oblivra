@@ -208,10 +208,14 @@
     <!-- Items strip -->
     {#if navigationStore.dockExpanded}
       <!-- tabindex on the scrollable container so keyboard users can
-           focus it and Arrow/Home/End scroll horizontally. -->
+           focus it and Arrow/Home/End scroll horizontally. role="toolbar"
+           is the semantically-correct interactive role (the children are
+           individually-focusable controls, like a real OS dock). -->
       <div
         class="dock-items"
-        role="list"
+        role="toolbar"
+        aria-label="Dock items"
+        aria-orientation="horizontal"
         tabindex="0"
         onwheel={onWheel}
         onkeydown={onItemsKeydown}

@@ -279,12 +279,12 @@
   <Modal open={showCreateModal} onClose={() => showCreateModal = false} title="New Suppression Rule">
     <div class="space-y-4">
       <div class="space-y-2">
-        <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Rule Label</label>
+        <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Rule Label</div>
         <Input bind:value={newRule.label} placeholder="e.g., Silence Dev Host Noise" />
       </div>
 
       <div class="space-y-2">
-        <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Description</label>
+        <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Description</div>
         <textarea 
           bind:value={newRule.description} 
           class="w-full bg-surface-light border border-white/10 rounded-lg p-3 text-sm focus:outline-none focus:border-primary/50 min-h-[80px]"
@@ -294,7 +294,7 @@
 
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
-          <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Target Detection</label>
+          <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Target Detection</div>
           <select 
             bind:value={newRule.rule_id}
             class="w-full bg-surface-light border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
@@ -306,7 +306,7 @@
           </select>
         </div>
         <div class="space-y-2">
-          <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Field to Match</label>
+          <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Field to Match</div>
           <select 
             bind:value={newRule.field}
             class="w-full bg-surface-light border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
@@ -319,7 +319,7 @@
       </div>
 
       <div class="space-y-2">
-        <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Value to Silence</label>
+        <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Value to Silence</div>
         <div class="flex gap-2">
           <div class="flex-1">
             <Input bind:value={newRule.value} placeholder={newRule.is_regex ? "Regex pattern..." : "Exact value..."} />
@@ -334,7 +334,7 @@
       </div>
 
       <div class="space-y-2">
-        <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Expiration (Optional)</label>
+        <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Expiration (Optional)</div>
         <Input type="datetime-local" bind:value={newRule.expires_at} />
       </div>
 

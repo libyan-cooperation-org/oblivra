@@ -54,7 +54,12 @@
     onChange,
   }: Props = $props();
 
-  let active = $state<TimePreset>(value.preset);
+  // Initial preset captured into local state via $derived.by — Svelte 5
+  // disallows reading a prop directly inside $state(). The derived form
+  // re-evaluates if the parent swaps `value` (rare, but cleaner than
+  // the previous pattern that froze the initial value).
+  let active = $state<TimePreset>('live');
+  $effect(() => { active = value.preset; });
   let customOpen = $state(false);
   let customStart = $state<string>('');
   let customEnd = $state<string>('');

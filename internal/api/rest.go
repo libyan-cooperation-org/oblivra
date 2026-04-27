@@ -155,6 +155,7 @@ func (s *DynamicHMACSigner) SignEntry(payload string) (string, error) {
 type RESTServer struct {
 	port     int
 	server   *http.Server
+	db       database.DatabaseStore // relational DB (settings, agent_registry, compliance_packages, login_lockouts)
 	siem     database.SIEMStore
 	pipeline ingest.IngestionPipeline
 	auth     *auth.APIKeyMiddleware
@@ -251,6 +252,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 
 	s := &RESTServer{
 		port:     port,
+		db:       db,
 		siem:     siem,
 		audit:    audit,
 		pipeline: pipeline,
@@ -1422,6 +1424,25 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}{count, until})
 		s.failedLoginsMu.Unlock()
 
+		// Persist the lockout state so a service restart can't be used to
+		// reset the counter. Write-through on every increment (cheap; only
+		// fires on failures, which are rare).
+		if s.db != nil {
+			lockedUntil := sql.NullTime{Time: until, Valid: !until.IsZero()}
+			ip := r.RemoteAddr
+			if _, err := s.db.DB().ExecContext(r.Context(),
+				`INSERT INTO login_lockouts (ip, email, failed_count, last_failed_at, locked_until)
+				 VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
+				 ON CONFLICT(ip) DO UPDATE SET
+				   email          = excluded.email,
+				   failed_count   = excluded.failed_count,
+				   last_failed_at = CURRENT_TIMESTAMP,
+				   locked_until   = excluded.locked_until`,
+				ip, req.Email, count, lockedUntil); err != nil {
+				s.log.Warn("[security] Could not persist login lockout: %v", err)
+			}
+		}
+
 		if justLocked {
 			s.appendAuditEntry(req.Email, "lockout", "system", "locked", r)
 		}
@@ -1432,6 +1453,10 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Success: clear failures
 	s.failedLogins.Delete(req.Email)
+	if s.db != nil {
+		_, _ = s.db.DB().ExecContext(r.Context(),
+			`DELETE FROM login_lockouts WHERE email = ?`, req.Email)
+	}
 
 	accessToken, refreshToken, err := s.generateTokens(user)
 	if err != nil {

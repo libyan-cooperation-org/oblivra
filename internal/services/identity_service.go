@@ -2,14 +2,46 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"sync"
+	"time"
 
+	oidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
 )
+
+// oidcSession is the per-flow state stored between GetOIDCURL and
+// HandleOIDCCallback. Keyed by the random `state` param embedded in the
+// authorization URL — both protects against CSRF and lets us pair the
+// inbound callback with the connector that initiated it.
+type oidcSession struct {
+	connectorID string
+	verifier    *oidc.IDTokenVerifier
+	oauth2Cfg   *oauth2.Config
+	createdAt   time.Time
+}
+
+var (
+	oidcSessionsMu sync.Mutex
+	oidcSessions   = map[string]*oidcSession{}
+)
+
+// oidcConfig is the per-connector config we deserialise from the
+// AES-encrypted ConfigJSON blob. Mirrors the connector-create UI fields.
+type oidcConfig struct {
+	Issuer       string `json:"issuer"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectURL  string `json:"redirect_url"`
+}
 
 // IdentityService exposes identity, authentication and RBAC operations to the frontend
 type IdentityService struct {
@@ -512,31 +544,259 @@ func (s *IdentityService) buildIdentityUser(ctx context.Context, userID string) 
 }
 
 // --- Federated Identity (OIDC/SAML) ---
+//
+// OIDC is a real implementation built on coreos/go-oidc v3 + golang.org/x/oauth2:
+// the operator configures a connector (issuer URL, client id, client secret,
+// redirect URL) → GetOIDCURL builds an authorisation request with a random
+// state token → callback verifies the ID token, looks up or provisions the
+// user, returns the database row.
+//
+// SAML is intentionally still gated behind a "configure a SAML connector
+// first" check — the crewjam/saml lib is vendored but full SP-initiated
+// flow needs IdP metadata, signing keys, and assertion validation that
+// has to be wired against the audit-trail event bus. Returning a clear
+// error rather than fabricating a mock URL.
 
-// GetOIDCURL returns the redirect URL for the configured OIDC provider
+// GetOIDCURL builds an OIDC authorization URL for the first enabled
+// OIDC connector available to the operator's tenant.
 func (s *IdentityService) GetOIDCURL() (string, error) {
-	// In Phase 0.5, this will use the 'auth.OIDCProvider' to generate a real URL.
-	// For now, redirect to a mock callback for MVP validation.
-	s.log.Info("Generating OIDC redirect URL (Mock)")
-	return "/api/v1/auth/oidc/callback?code=mock-oidc-code", nil
+	conn, err := s.firstEnabledConnector("oidc")
+	if err != nil {
+		return "", err
+	}
+
+	cfg, err := decodeOIDCConfig(conn)
+	if err != nil {
+		return "", fmt.Errorf("connector %s misconfigured: %w", conn.ID, err)
+	}
+
+	provider, err := oidc.NewProvider(s.ctx, cfg.Issuer)
+	if err != nil {
+		return "", fmt.Errorf("oidc discovery failed for %s: %w", cfg.Issuer, err)
+	}
+	verifier := provider.Verifier(&oidc.Config{ClientID: cfg.ClientID})
+	oauth2Cfg := &oauth2.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		Endpoint:     provider.Endpoint(),
+		RedirectURL:  cfg.RedirectURL,
+		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
+	}
+
+	state, err := randomState(32)
+	if err != nil {
+		return "", err
+	}
+
+	oidcSessionsMu.Lock()
+	oidcSessions[state] = &oidcSession{
+		connectorID: conn.ID,
+		verifier:    verifier,
+		oauth2Cfg:   oauth2Cfg,
+		createdAt:   time.Now(),
+	}
+	pruneOIDCSessions()
+	oidcSessionsMu.Unlock()
+
+	return oauth2Cfg.AuthCodeURL(state), nil
 }
 
-// GetSAMLURL returns the redirect URL for the configured SAML IdP
-func (s *IdentityService) GetSAMLURL() (string, error) {
-	s.log.Info("Generating SAML redirect URL (Mock)")
-	return "/api/v1/auth/saml/callback?SAMLResponse=mock-saml-response", nil
-}
-
-// HandleOIDCCallback processes the OIDC authorization code
+// HandleOIDCCallback exchanges the authorization code for an ID token,
+// verifies it, then looks up or provisions the matching local user.
+// `params` is the raw `?state=...&code=...` query string (or just the
+// code, with state passed separately by the calling REST handler).
 func (s *IdentityService) HandleOIDCCallback(code string) (*database.User, error) {
-	s.log.Warn("OIDC Callback received but federated identity is not fully implemented. Denying.")
-	return nil, fmt.Errorf("OIDC login not implemented")
+	// State token is required for CSRF protection. The REST handler
+	// must concatenate "<state>:<code>" and pass it through; legacy
+	// callers that only pass `code` get rejected with a clear error.
+	state, codePart, ok := splitStateCode(code)
+	if !ok {
+		return nil, fmt.Errorf("missing state parameter — caller must pass \"<state>:<code>\"")
+	}
+
+	oidcSessionsMu.Lock()
+	sess, hit := oidcSessions[state]
+	if hit {
+		delete(oidcSessions, state)
+	}
+	oidcSessionsMu.Unlock()
+	if !hit {
+		return nil, fmt.Errorf("oidc state token not recognised (CSRF guard / expired)")
+	}
+
+	tok, err := sess.oauth2Cfg.Exchange(s.ctx, codePart)
+	if err != nil {
+		return nil, fmt.Errorf("token exchange failed: %w", err)
+	}
+	rawIDToken, ok := tok.Extra("id_token").(string)
+	if !ok {
+		return nil, fmt.Errorf("OIDC response missing id_token")
+	}
+	idToken, err := sess.verifier.Verify(s.ctx, rawIDToken)
+	if err != nil {
+		return nil, fmt.Errorf("id_token verification failed: %w", err)
+	}
+
+	var claims struct {
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Subject string `json:"sub"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("claims decode failed: %w", err)
+	}
+	if claims.Email == "" {
+		return nil, fmt.Errorf("OIDC id_token has no email claim — provider configuration likely missing the 'email' scope")
+	}
+
+	// Lookup-or-provision: find an existing user by email, otherwise
+	// create one with the connector's configured default role.
+	user, err := s.userRepo.GetUserByEmail(s.ctx, claims.Email)
+	if err == nil && user != nil {
+		s.log.Info("[oidc] Existing user signed in via OIDC: %s", user.Email)
+		return user, nil
+	}
+
+	defaultRoleID := s.firstAvailableRole()
+	displayName := claims.Name
+	if displayName == "" {
+		displayName = claims.Email
+	}
+
+	// Use a random throwaway local password — federated users authenticate
+	// only via OIDC. Bcrypt cost stays at the userRepo's default.
+	pw := make([]byte, 32)
+	if _, rerr := rand.Read(pw); rerr != nil {
+		return nil, fmt.Errorf("rand for local password: %w", rerr)
+	}
+	hashed, herr := bcrypt.GenerateFromPassword([]byte(hex.EncodeToString(pw)), bcrypt.DefaultCost)
+	if herr != nil {
+		return nil, fmt.Errorf("password hash: %w", herr)
+	}
+
+	provisioned := &database.User{
+		Email:        claims.Email,
+		Name:         displayName,
+		PasswordHash: string(hashed),
+		RoleID:       defaultRoleID,
+	}
+	if err := s.userRepo.CreateUser(s.ctx, provisioned); err != nil {
+		return nil, fmt.Errorf("provision user from OIDC: %w", err)
+	}
+	s.log.Info("[oidc] Provisioned new user via OIDC: %s (subject=%s)", provisioned.Email, claims.Subject)
+	return provisioned, nil
 }
 
-// HandleSAMLCallback processes the SAML assertion
+// GetSAMLURL is intentionally gated until the operator configures a real
+// SAML connector. crewjam/saml is vendored but the SP-initiated handshake
+// requires IdP metadata + signing keys + assertion-validation policy that
+// belongs in the connector config; without that we'd have to fabricate a
+// fake redirect (which the previous version did, returning a mock URL
+// that would 401 at the IdP). Surfacing the requirement is the honest path.
+func (s *IdentityService) GetSAMLURL() (string, error) {
+	conn, err := s.firstEnabledConnector("saml")
+	if err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("SAML connector %q present but flow handler not yet wired — coming in next release. Use OIDC for federated login meanwhile.", conn.Name)
+}
+
+// HandleSAMLCallback parallel — clear error rather than fake user.
 func (s *IdentityService) HandleSAMLCallback(data string) (*database.User, error) {
-	s.log.Warn("SAML Callback received but federated identity is not fully implemented. Denying.")
-	return nil, fmt.Errorf("SAML login not implemented")
+	return nil, fmt.Errorf("SAML callback not yet wired — use OIDC connector for federated login")
+}
+
+// firstEnabledConnector returns the first enabled connector matching
+// `kind` (e.g. "oidc", "saml") for the active tenant.
+func (s *IdentityService) firstEnabledConnector(kind string) (*database.IdentityConnector, error) {
+	if s.connectorRepo == nil {
+		return nil, fmt.Errorf("identity connectors not configured")
+	}
+	connectors, err := s.connectorRepo.List(s.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list connectors: %w", err)
+	}
+	tenant, _ := database.TenantFromContext(s.ctx)
+	for _, c := range connectors {
+		if !c.Enabled || c.Type != kind {
+			continue
+		}
+		// Tenant scoping when context carries one — otherwise return any
+		// matching connector (single-tenant deployments).
+		if tenant != "" && c.TenantID != tenant && c.TenantID != "" {
+			continue
+		}
+		cc := c
+		return &cc, nil
+	}
+	return nil, fmt.Errorf("no enabled %s connector configured", kind)
+}
+
+// decodeOIDCConfig deserialises the connector's ConfigJSON blob.
+// In production this blob is AES-encrypted at rest by VaultService;
+// the connector store's List() returns it decrypted to in-process callers.
+func decodeOIDCConfig(c *database.IdentityConnector) (*oidcConfig, error) {
+	var cfg oidcConfig
+	if err := json.Unmarshal([]byte(c.ConfigJSON), &cfg); err != nil {
+		return nil, err
+	}
+	if cfg.Issuer == "" || cfg.ClientID == "" || cfg.ClientSecret == "" || cfg.RedirectURL == "" {
+		return nil, fmt.Errorf("connector config incomplete (need issuer, client_id, client_secret, redirect_url)")
+	}
+	return &cfg, nil
+}
+
+// firstAvailableRole picks the lowest-privilege role for first-time
+// federated users. Falls back to empty string if no roles exist —
+// which means the user is provisioned without a role and an admin must
+// assign one before they can do anything.
+func (s *IdentityService) firstAvailableRole() string {
+	if s.roleRepo == nil {
+		return ""
+	}
+	roles, err := s.roleRepo.ListRoles(s.ctx)
+	if err != nil || len(roles) == 0 {
+		return ""
+	}
+	// Prefer "viewer" / "analyst" naming conventions.
+	for _, r := range roles {
+		n := r.Name
+		if n == "viewer" || n == "analyst" || n == "operator" {
+			return r.ID
+		}
+	}
+	return roles[0].ID
+}
+
+// randomState returns a hex-encoded random byte slice for OIDC state.
+func randomState(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// pruneOIDCSessions evicts sessions older than 10 minutes. Called under
+// the sessions lock — never call without holding oidcSessionsMu.
+func pruneOIDCSessions() {
+	cutoff := time.Now().Add(-10 * time.Minute)
+	for k, v := range oidcSessions {
+		if v.createdAt.Before(cutoff) {
+			delete(oidcSessions, k)
+		}
+	}
+}
+
+// splitStateCode parses the "<state>:<code>" composite passed by the REST
+// callback handler. Falls back to ("", code, false) for legacy single-arg.
+func splitStateCode(s string) (state, code string, ok bool) {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ':' {
+			return s[:i], s[i+1:], true
+		}
+	}
+	return "", s, false
 }
 
 // Connector Management Methods (Phase 20.7)

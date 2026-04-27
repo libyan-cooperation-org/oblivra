@@ -282,7 +282,7 @@
         </div>
         <div class="p-6 space-y-4">
           <div class="space-y-2">
-            <label class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Rotation Frequency (Days)</label>
+            <div class="text-[10px] uppercase tracking-widest text-text-muted font-bold">Rotation Frequency (Days)</div>
             <div class="grid grid-cols-4 gap-2">
               {#each [30, 60, 90, 180] as days}
                 <button 

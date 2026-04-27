@@ -44,12 +44,14 @@
           <span class="text-[10px] uppercase tracking-widest font-bold">{g.title}</span>
         </div>
         <table class="w-full text-[11px]">
-          {#each g.items as it}
-            <tr class="border-b border-border-primary">
-              <td class="py-1.5 pr-3"><kbd class="bg-surface-2 border border-border-primary rounded px-1.5 py-0.5 font-mono text-[10px]">{it.keys}</kbd></td>
-              <td class="py-1.5 text-text-muted">{it.desc}</td>
-            </tr>
-          {/each}
+          <tbody>
+            {#each g.items as it}
+              <tr class="border-b border-border-primary">
+                <td class="py-1.5 pr-3"><kbd class="bg-surface-2 border border-border-primary rounded px-1.5 py-0.5 font-mono text-[10px]">{it.keys}</kbd></td>
+                <td class="py-1.5 text-text-muted">{it.desc}</td>
+              </tr>
+            {/each}
+          </tbody>
         </table>
       </div>
     {/each}

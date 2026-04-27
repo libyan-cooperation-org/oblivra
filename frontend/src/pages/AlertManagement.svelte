@@ -100,15 +100,9 @@
     return { pct, label, title: `${Math.round(elapsed / 60_000)}m elapsed of ${Math.round(sla / 60_000)}m SLA` };
   }
 
-  // ── Real action handlers (replacing notify-only stubs)
-  async function isolateHost(alert: any) {
-    if (!alert?.host) { appStore.notify('No host on alert', 'warning'); return; }
-    const agent = agentStore.agents.find((a) => a.id === alert.host || a.hostname === alert.host);
-    if (!agent) { appStore.notify(`No agent for host ${alert.host}`, 'error'); return; }
-    if (!confirm(`Isolate ${alert.host}? This blocks its outbound traffic.`)) return;
-    try { await agentStore.toggleQuarantine(agent.id, true); appStore.notify(`Host ${alert.host} isolated`, 'warning'); }
-    catch (e: any) { appStore.notify(`Isolation failed: ${e?.message ?? e}`, 'error'); }
-  }
+  // ── Real action handlers (replacing notify-only stubs).
+  // isolateHost is already defined above (Phase 30.2 wiring). Only the
+  // playbook + bulk handlers are net-new.
   async function runPlaybook(alert: any) {
     try {
       const { ListAvailableActions, ExecuteAction } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice');

@@ -107,7 +107,7 @@
     tabindex="-1"
   ></button>
 
-  <aside
+  <div
     bind:this={asideEl}
     class="fixed top-8 right-0 bottom-0 w-96 bg-surface-1 border-l border-border-primary z-50 flex flex-col shadow-2xl"
     role="dialog"
@@ -214,7 +214,7 @@
         </button>
       </footer>
     {/if}
-  </aside>
+  </div>
 {/if}
 
 <style>

@@ -160,7 +160,7 @@
     onclick={() => investigationStore.close()}
   ></button>
 
-  <aside
+  <div
     class="ip-panel"
     role="dialog"
     aria-modal="true"
@@ -277,7 +277,7 @@
         {/if}
       </section>
     </div>
-  </aside>
+  </div>
 {/if}
 
 <style>
