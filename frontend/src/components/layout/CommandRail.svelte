@@ -30,7 +30,7 @@
     plugins: '/plugins', executive: '/executive', settings: '/workspace',
     'ai-assistant': '/ai-assistant', 'mitre-heatmap': '/mitre-heatmap',
     license: '/license', team: '/team', hosts: '/hosts',
-    terminal: '/terminal', tunnels: '/tunnels', recordings: '/recordings',
+    terminal: '/shell', tunnels: '/tunnels', recordings: '/recordings',
     snippets: '/snippets', notes: '/notes', sync: '/sync',
     agents: '/agents', 'fleet-management': '/fleet-management',
     identity: '/identity', 'identity-admin': '/identity-admin', soc: '/soc',

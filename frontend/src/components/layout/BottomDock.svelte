@@ -43,7 +43,7 @@
     // overview / dashboards
     LayoutDashboard, TrendingUp, Monitor, Eye,
     // hosts / devices
-    Server, Terminal, Crosshair, FolderOpen, Cpu, HardDrive, Boxes,
+    Server, Terminal, TerminalSquare, Crosshair, FolderOpen, Cpu, HardDrive, Boxes,
     // network / geo
     Network, Cable, Wifi, Map,
     // identity / users
@@ -72,6 +72,7 @@
     network:  Network,
     identity: UserCog,
     hosts:    Server,
+    shell:    TerminalSquare,
     logs:     FileText,
     system:   Settings,
   };
@@ -81,7 +82,7 @@
   // (Phase 29 lesson: NEVER use `import * as` + string lookup against
   // tree-shakeable libs — Vite strips icons not referenced by name.)
   const ICON_MAP: Record<string, typeof IconType> = {
-    LayoutDashboard, Terminal, Crosshair, Zap, FolderOpen, Monitor, Eye,
+    LayoutDashboard, Terminal, TerminalSquare, Crosshair, Zap, FolderOpen, Monitor, Eye,
     Server, Cable, Code, StickyNote, Video,
     Database, Search, Bell, BellRing, Telescope, Globe, Sparkles, Grid3x3,
     Network, Map, HeartPulse, Users,

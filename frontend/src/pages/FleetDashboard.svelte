@@ -3,43 +3,114 @@
   Real-time visibility into the sovereign agent fleet.
 -->
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { PageLayout, Badge, Button, DataTable, Input, Tabs, PopOutButton } from '@components/ui';
   import { Activity, Terminal, ShieldAlert, MoreHorizontal, Monitor, Clock, ShieldCheck } from 'lucide-svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
+  import { appStore } from '@lib/stores/app.svelte';
   import { push } from '@lib/router.svelte';
 
   let searchQuery = $state('');
   let activeTab = $state('ALL HOSTS');
+  let now = $state(Date.now());
+  let lastSync = $state<Date | null>(null);
+  let tickTimer: ReturnType<typeof setInterval> | null = null;
 
-  const stats = $derived({
-    total: agentStore.agents.length,
-    online: agentStore.agents.filter(a => a.status === 'online').length,
-    critical: agentStore.agents.filter(a => a.severity === 'critical').length,
-    health: '98.2%'
+  // Health = online / total. Honest 0% when fleet empty rather than fake "98.2%".
+  const stats = $derived.by(() => {
+    const all = agentStore.agents ?? [];
+    const total = all.length;
+    const online = all.filter((a) => a.status === 'online' || a.status === 'active').length;
+    const critical = all.filter((a) => (a as any).severity === 'critical' || (a as any).quarantined).length;
+    const healthPct = total === 0 ? 0 : Math.round((online / total) * 100);
+    return { total, online, critical, health: total === 0 ? '—' : `${healthPct}%` };
   });
 
-  const filteredAgents = $derived(agentStore.agents.filter(a => {
-    const matchesSearch = a.hostname?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         a.remote_address?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTab = activeTab === 'ALL HOSTS' || a.status?.toUpperCase() === activeTab;
-    return matchesSearch && matchesTab;
-  }));  const tabItems = [
+  const filteredAgents = $derived(
+    (agentStore.agents ?? []).filter((a) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        (a.hostname ?? '').toLowerCase().includes(q) ||
+        (a.remote_address ?? '').toLowerCase().includes(q);
+      const matchesTab = activeTab === 'ALL HOSTS' || (a.status ?? '').toUpperCase() === activeTab;
+      return matchesSearch && matchesTab;
+    }),
+  );
+
+  const tabItems = [
     { id: 'ALL HOSTS', label: 'ALL HOSTS' },
-    { id: 'ONLINE', label: 'ONLINE' },
-    { id: 'OFFLINE', label: 'OFFLINE' }
+    { id: 'ONLINE',    label: 'ONLINE' },
+    { id: 'OFFLINE',   label: 'OFFLINE' },
   ];
 
-  function handleAction(agentId: string, action: string) {
-    console.log(`Executing ${action} on ${agentId}`);
+  function fmtAgo(d: Date | null): string {
+    if (!d) return '—';
+    const sec = Math.floor((now - d.getTime()) / 1000);
+    if (sec < 60) return `${sec}s ago`;
+    if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+    return `${Math.floor(sec / 3600)}h ago`;
   }
+
+  function exportList() {
+    const csv = [
+      'id,hostname,address,status,os,arch,version',
+      ...filteredAgents.map((a) =>
+        [a.id, a.hostname, a.remote_address, a.status, a.os, a.arch, a.version]
+          .map((x) => `"${(x ?? '').toString().replace(/"/g, '""')}"`)
+          .join(','),
+      ),
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `oblivra-fleet-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    appStore.notify(`Exported ${filteredAgents.length} agents`, 'success');
+  }
+
+  function deployAgent() {
+    push('/agents');
+  }
+
+  function openTerminalForAgent(agentId: string, hostname: string) {
+    // Pivot to /shell so the operator can spawn a session for this host.
+    appStore.notify(`Opening shell for ${hostname || agentId}`, 'info');
+    push('/shell');
+  }
+
+  async function isolate(agentId: string) {
+    if (!confirm(`Quarantine agent ${agentId}? This blocks its outbound traffic.`)) return;
+    try {
+      await agentStore.toggleQuarantine(agentId, true);
+      appStore.notify(`Agent ${agentId} isolated`, 'warning');
+    } catch (e: any) {
+      appStore.notify(`Isolation failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  onMount(() => {
+    if (typeof agentStore.init === 'function') {
+      const r = agentStore.init();
+      if (r && typeof (r as any).then === 'function') void (r as Promise<unknown>).then(() => (lastSync = new Date()));
+      else lastSync = new Date();
+    } else {
+      lastSync = new Date();
+    }
+    tickTimer = setInterval(() => (now = Date.now()), 1000);
+  });
+  onDestroy(() => {
+    if (tickTimer) clearInterval(tickTimer);
+  });
 </script>
 
 <PageLayout title="Fleet Management" subtitle="Real-time orchestration of the sovereign agent mesh">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
       <Input variant="search" placeholder="Filter agents..." bind:value={searchQuery} class="w-64" />
-      <Button variant="secondary" size="sm">EXPORT LIST</Button>
-      <Button variant="primary" size="sm">DEPLOY AGENT</Button>
+      <Button variant="secondary" size="sm" onclick={exportList}>EXPORT LIST</Button>
+      <Button variant="primary"   size="sm" onclick={deployAgent}>DEPLOY AGENT</Button>
       <PopOutButton route="/fleet" title="Fleet Management" />
     </div>
   {/snippet}
@@ -74,9 +145,8 @@
         <div class="px-4 py-2 border-b border-border-primary flex items-center justify-between shrink-0">
             <Tabs tabs={tabItems} bind:active={activeTab} />
             <div class="flex items-center gap-4 text-[8px] font-mono text-text-muted">
->
-                <span>Last Sync: 14s ago</span>
-                <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+                <span>Last Sync: {fmtAgo(lastSync)}</span>
+                <span class="w-2 h-2 rounded-full {lastSync ? 'bg-success animate-pulse' : 'bg-text-muted'}"></span>
             </div>
         </div>
 
@@ -129,23 +199,24 @@
                         <span class="text-[8px] font-mono text-text-muted">v{row.version || '1.0'}</span>
                     {:else if col.key === 'id'}
                         <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
+                            <button
                                 class="p-1 hover:bg-surface-3 rounded-sm text-accent border border-accent/20 transition-colors"
-                                title="Terminal"
-                                onclick={() => handleAction(row.id, 'terminal')}
+                                title="Open terminal for this host"
+                                onclick={() => openTerminalForAgent(row.id, row.hostname)}
                             >
                                 <Terminal size={12} />
                             </button>
-                            <button 
+                            <button
                                 class="p-1 hover:bg-surface-3 rounded-sm text-error border border-error/20 transition-colors"
-                                title="Isolate"
-                                onclick={() => handleAction(row.id, 'isolate')}
+                                title="Isolate (quarantine)"
+                                onclick={() => isolate(row.id)}
                             >
                                 <ShieldAlert size={12} />
                             </button>
-                            <button 
+                            <button
                                 class="p-1 hover:bg-surface-3 rounded-sm text-text-muted border border-border-primary transition-colors"
-                                title="More"
+                                title="Open host detail"
+                                onclick={() => push(`/host/${encodeURIComponent(row.id)}`)}
                             >
                                 <MoreHorizontal size={12} />
                             </button>
@@ -160,16 +231,16 @@
     <div class="bg-surface-2 border-t border-border-primary px-3 py-1.5 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-6">
             <div class="flex items-center gap-2 text-[8px] font-mono text-text-muted uppercase">
-                <Activity size={10} class="text-success" />
-                <span>Sync Pipeline: Nominal</span>
+                <Activity size={10} class={stats.online > 0 ? 'text-success' : 'text-text-muted'} />
+                <span>Sync Pipeline: {stats.online > 0 ? 'Nominal' : 'Idle'}</span>
             </div>
             <div class="flex items-center gap-2 text-[8px] font-mono text-text-muted uppercase">
                 <Clock size={10} class="text-accent" />
-                <span>Next Heartbeat: 4s</span>
+                <span>Last Sync: {fmtAgo(lastSync)}</span>
             </div>
             <div class="flex items-center gap-2 text-[8px] font-mono text-text-muted uppercase">
-                <ShieldCheck size={10} class="text-success" />
-                <span>Integrity: 100%</span>
+                <ShieldCheck size={10} class={stats.critical === 0 ? 'text-success' : 'text-warning'} />
+                <span>Integrity: {stats.health}</span>
             </div>
         </div>
         <div class="text-[8px] font-mono text-text-muted uppercase tracking-[0.2em] opacity-40">

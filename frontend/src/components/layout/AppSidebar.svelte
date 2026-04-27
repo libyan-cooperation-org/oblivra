@@ -23,6 +23,7 @@
     Network,
     UserCog,
     Server,
+    TerminalSquare,
     FileText,
     Settings,
     PinOff,
@@ -42,6 +43,7 @@
     network:  Network,
     identity: UserCog,
     hosts:    Server,
+    shell:    TerminalSquare,
     logs:     FileText,
     system:   Settings,
   };

@@ -293,7 +293,7 @@ class AppStore {
                 }
                 this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
-                push('/terminal');
+                push('/shell');
             }
         } catch (e: any) {
             this.notify('Failed to start local shell', 'error', e.message);
@@ -318,7 +318,7 @@ class AppStore {
             if (sessionId) {
                 this.setActiveSession(sessionId);
                 this.setActiveNavTab('terminal');
-                push('/terminal');
+                push('/shell');
             }
         } catch (e: any) {
             this.notify(`Connection failed to ${host.label}`, 'error', e.message);
@@ -389,7 +389,7 @@ class AppStore {
         await this.popOut('/siem', 'OBLIVRA | SIEM Operations');
         
         // 2. Terminal Console
-        setTimeout(() => this.popOut('/terminal', 'OBLIVRA | Command Console'), 500);
+        setTimeout(() => this.popOut('/shell', 'OBLIVRA | Command Console'), 500);
         
         // 3. Threat Graph
         setTimeout(() => this.popOut('/graph', 'OBLIVRA | Threat Graph'), 1000);

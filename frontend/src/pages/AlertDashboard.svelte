@@ -3,25 +3,67 @@
   Real-time view of security alerts with filtering and investigation tools.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { KPI, Badge, DataTable, PageLayout, Button, Input, PopOutButton } from '@components/ui';
+  import { push } from '@lib/router.svelte';
+  import { IS_BROWSER } from '@lib/context';
 
   let searchQuery = $state('');
-  
+  // Track new-alert count since the page mounted so the "today" trend is real.
+  let baselineCount = $state(0);
+
   const filteredAlerts = $derived(
-    alertStore.alerts.filter(a =>
+    alertStore.alerts.filter((a) =>
       a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.host.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    ),
   );
 
   const stats = $derived.by(() => ({
-    total: alertStore.alerts.length,
-    critical: alertStore.alerts.filter(a => a.severity === 'critical').length,
-    high: alertStore.alerts.filter(a => a.severity === 'high').length,
-    open: alertStore.alerts.filter(a => a.status === 'open').length,
+    total:    alertStore.alerts.length,
+    critical: alertStore.alerts.filter((a) => a.severity === 'critical').length,
+    high:     alertStore.alerts.filter((a) => a.severity === 'high').length,
+    open:     alertStore.alerts.filter((a) => a.status === 'open').length,
+    delta:    Math.max(0, alertStore.alerts.length - baselineCount),
   }));
+
+  // Mean Time To Detect — proper computation needs sigma-rule trigger
+  // timestamps from the backend, which we don't have a Wails RPC for yet.
+  // Instead of fabricating "4.2s" we surface "—" honestly.
+  const mttd = '—';
+
+  // Try to resolve an alert via IncidentService.UpdateIncidentStatus.
+  // Falls back to a notify if the alert isn't tied to an incident.
+  async function resolveAlert(alertID: string) {
+    try {
+      if (IS_BROWSER) {
+        appStore.notify('Resolve via API not yet wired in browser mode', 'info');
+        return;
+      }
+      const { UpdateIncidentStatus } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice'
+      );
+      await UpdateIncidentStatus(alertID, 'resolved', 'Resolved from alert dashboard');
+      appStore.notify(`Alert ${alertID} resolved`, 'success');
+      if (typeof alertStore.refresh === 'function') void alertStore.refresh();
+    } catch (e: any) {
+      appStore.notify(`Resolve failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  function investigate(alertID: string, hostID: string) {
+    // Pivot to incident timeline if we can; otherwise drop into a host-scoped
+    // SIEM search.
+    push(`/timeline/${encodeURIComponent(alertID)}/alert/${Date.now()}`);
+  }
+
+  onMount(() => {
+    if (typeof alertStore.init === 'function') alertStore.init();
+    // Snapshot baseline count after first paint so deltas read sensibly.
+    setTimeout(() => (baselineCount = alertStore.alerts.length), 50);
+  });
 
   const columns = [
     { key: 'timestamp', label: 'Timestamp', width: '140px' },
@@ -37,8 +79,17 @@
   {#snippet toolbar()}
     <div class="flex items-center gap-3">
       <Input variant="search" placeholder="Filter incidents..." bind:value={searchQuery} class="w-64" />
-      <Button variant="secondary" size="sm" onclick={() => alertStore.refresh()}>Refresh</Button>
-      <Button variant="cta" size="sm">Bulk Resolve</Button>
+      <Button variant="secondary" size="sm" onclick={() => alertStore.refresh?.()}>Refresh</Button>
+      <Button
+        variant="cta"
+        size="sm"
+        onclick={() => {
+          const open = alertStore.alerts.filter((a) => a.status === 'open');
+          if (open.length === 0) { appStore.notify('No open alerts to resolve', 'info'); return; }
+          if (!confirm(`Resolve ${open.length} open alerts?`)) return;
+          Promise.all(open.map((a) => resolveAlert(a.id)));
+        }}
+      >Bulk Resolve</Button>
       <PopOutButton route="/alerts" title="Security Alerts" />
     </div>
   {/snippet}
@@ -46,10 +97,10 @@
   <div class="flex flex-col h-full gap-6">
     <!-- KPI Overview -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Total Detected" value={stats.total} trend="stable" trendValue="+12 today" />
-      <KPI label="Critical Payload" value={stats.critical} variant="critical" trend="up" trendValue="High Risk" />
-      <KPI label="Mean Time to Det." value="4.2s" trend="down" trendValue="-0.5s" variant="success" />
-      <KPI label="Pending Analysis" value={stats.open} variant="accent" trend="stable" trendValue="Assigning" />
+      <KPI label="Total Detected" value={stats.total} trend={stats.delta > 0 ? 'up' : 'stable'} trendValue={stats.delta > 0 ? `+${stats.delta} since open` : 'no change'} />
+      <KPI label="Critical Payload" value={stats.critical} variant={stats.critical > 0 ? 'critical' : 'muted'} trend={stats.critical > 0 ? 'up' : 'stable'} trendValue={stats.critical > 0 ? 'Active' : 'Quiet'} />
+      <KPI label="Mean Time to Det." value={mttd} trend="stable" trendValue="metric pending" variant="muted" />
+      <KPI label="Pending Analysis" value={stats.open} variant={stats.open > 0 ? 'accent' : 'muted'} trend="stable" trendValue={stats.open > 0 ? 'Awaiting triage' : 'Clear'} />
     </div>
 
     <!-- Alerts Table -->
@@ -74,8 +125,8 @@
             <span class="text-[10px] text-text-muted font-mono tabular-nums">{String(value).split(' ')[1]}</span>
           {:else if col.key === 'action'}
             <div class="flex items-center gap-1 justify-end">
-              <Button variant="ghost" size="sm" onclick={() => appStore.notify(`Investigating ${row.id}`, 'info')}>Investigate</Button>
-              <Button variant="ghost" size="sm" onclick={() => appStore.notify(`Alert ${row.id} resolved`, 'success')}>Resolve</Button>
+              <Button variant="ghost" size="sm" onclick={() => investigate(row.id, row.host)}>Investigate</Button>
+              <Button variant="ghost" size="sm" onclick={() => resolveAlert(row.id)}>Resolve</Button>
             </div>
           {:else}
             <span class="text-[11px] text-text-secondary">{value}</span>

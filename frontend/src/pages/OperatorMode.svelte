@@ -6,7 +6,7 @@
   import { onMount } from 'svelte';
   import { PageLayout, Badge, Button, KPI } from '@components/ui';
   import { ShieldAlert, Zap, MoreHorizontal, Terminal as TerminalIcon, Search, ShieldCheck, Activity, Lock, Database } from 'lucide-svelte';
-  import XTerm from '@components/terminal/XTerm.svelte';
+  import Terminal from '@components/shell/Terminal.svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte.ts';
@@ -28,16 +28,10 @@
     alertStore.alerts.filter(a => a.host === agentID || a.host === agent?.hostname)
   );
 
-  // Use existing terminal session or create a new one
-  let sessionId = $state(appStore.activeSessionId || 'local-default');
-
   onMount(() => {
     const id = readNavParam('id');
     if (id) {
         agentID = id;
-    }
-    if (appStore.sessions.length === 0) {
-      appStore.connectToLocal();
     }
 
     // Listen for global keybinds dispatched by App.svelte's Ctrl+Shift+I/E
@@ -78,19 +72,57 @@
 
   async function captureEvidence() {
     if (!agentID) return;
-    appStore.notify(`Forensic acquisition started for ${agentID}`, 'info');
-    // Integration with ForensicsService would go here
+    appStore.notify(`Forensic acquisition starting for ${agentID}…`, 'info');
+    try {
+      const { AcquireMemoryDump } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice'
+      );
+      // We don't have an incident ID yet — pass agentID as the incident
+      // tag so the captured evidence is at least attributable.
+      const item = await AcquireMemoryDump(`host:${agentID}`);
+      appStore.notify(`Memory dump sealed (${(item as any)?.id ?? 'pending'})`, 'success');
+      void loadEvidence();
+    } catch (e: any) {
+      appStore.notify(`Forensic capture failed: ${e?.message ?? e}`, 'error');
+    }
   }
 
   function pivotToSIEM() {
     appStore.navigate('/siem-search', { query: `host.id == "${agentID}"` });
   }
 
-  const evidence = [
-    { id: 'EVD-044', name: 'HOST-FIN-044 · mem dump', size: '2.1 GB', ts: '00:54Z', sealed: true },
-    { id: 'EVD-045', name: 'proc_tree.json', size: '44 KB', ts: '00:54Z', sealed: true },
-    { id: 'EVD-046', name: 'netconn_capture.pcap', size: '18 MB', ts: '00:54Z', sealed: true },
-  ];
+  // Real evidence list (was hardcoded). Pulled from ForensicsService.
+  type Evidence = { id: string; name: string; size: string; ts: string; sealed: boolean };
+  let evidence = $state<Evidence[]>([]);
+  async function loadEvidence() {
+    if (!agentID) return;
+    try {
+      const { ListEvidence } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice'
+      );
+      const list = ((await ListEvidence(`host:${agentID}`)) ?? []) as any[];
+      evidence = list.map((e) => ({
+        id: e.id ?? '',
+        name: e.name ?? e.evidence_type ?? 'evidence',
+        size: typeof e.size_bytes === 'number' ? fmtSize(e.size_bytes) : '—',
+        ts: (e.created_at ?? '').slice(11, 16) + 'Z',
+        sealed: !!e.sealed_at,
+      }));
+    } catch {
+      // If ForensicsService isn't reachable yet, leave the list empty
+      // rather than show fake "EVD-044" rows.
+      evidence = [];
+    }
+  }
+  function fmtSize(b: number): string {
+    if (b < 1024) return `${b}B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)}KB`;
+    if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)}MB`;
+    return `${(b / 1024 / 1024 / 1024).toFixed(1)}GB`;
+  }
+  $effect(() => {
+    if (agentID) void loadEvidence();
+  });
 </script>
 
 <PageLayout title="Operator Mode" subtitle="Tactical response orchestration and forensic control">
@@ -137,7 +169,7 @@
                 </div>
             </div>
             <div class="flex-1 min-h-0 bg-[#030608]">
-                <XTerm sessionId={sessionId} />
+                <Terminal />
             </div>
         </div>
 

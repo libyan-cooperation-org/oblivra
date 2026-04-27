@@ -68,14 +68,44 @@
           <Input label="API Key / Token" type="password" placeholder="••••••••••••••••" bind:value={apiToken} />
           
           <div class="pt-2 flex justify-end gap-2">
-            <Button variant="secondary" size="sm">Test Connection</Button>
-            <Button variant="cta" size="sm">Save Server Config</Button>
+            <Button variant="secondary" size="sm" onclick={async () => {
+              try {
+                const res = await fetch(serverUrl + '/healthz', { headers: apiToken ? { 'X-API-Key': apiToken } : {} });
+                appStore.notify(res.ok ? `Connected (HTTP ${res.status})` : `Server returned ${res.status}`, res.ok ? 'success' : 'warning');
+              } catch (e: any) {
+                appStore.notify(`Connection failed: ${e?.message ?? e}`, 'error');
+              }
+            }}>Test Connection</Button>
+            <Button variant="cta" size="sm" onclick={() => {
+              try { localStorage.setItem('oblivra:serverUrl', serverUrl); if (apiToken) localStorage.setItem('oblivra:apiKey', apiToken); appStore.notify('Server config saved', 'success'); }
+              catch { appStore.notify('Could not persist (localStorage unavailable)', 'warning'); }
+            }}>Save Server Config</Button>
+          </div>
+        </div>
+      {:else if activeTab === 'security'}
+        <div class="p-4 bg-surface-1 border border-border-primary rounded-md flex flex-col gap-4">
+          <h3 class="text-xs font-bold uppercase tracking-widest text-text-heading">Security</h3>
+          <p class="text-[11px] text-text-muted">
+            Vault, MFA, and identity controls live in their dedicated pages. Use the buttons below.
+          </p>
+          <div class="flex gap-2">
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/vault')}>Open Vault</Button>
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/identity-admin')}>Identity Admin</Button>
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/secrets')}>Secret Manager</Button>
           </div>
         </div>
       {:else}
-        <div class="flex flex-col items-center justify-center h-full py-20 text-center opacity-40">
-          <span class="text-4xl mb-4">🛠</span>
-          <div class="text-sm font-bold text-text-heading">{activeTab} settings under migration</div>
+        <div class="p-4 bg-surface-1 border border-border-primary rounded-md flex flex-col gap-4">
+          <h3 class="text-xs font-bold uppercase tracking-widest text-text-heading">Advanced</h3>
+          <p class="text-[11px] text-text-muted">
+            Diagnostics, telemetry retention, kill-switch and air-gap mode controls live behind dedicated pages.
+          </p>
+          <div class="flex gap-2 flex-wrap">
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/monitoring')}>Pipeline Health</Button>
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/sync')}>Sync</Button>
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/license')}>License</Button>
+            <Button variant="secondary" size="sm" onclick={() => appStore.navigate('/data-destruction')}>Disaster Controls</Button>
+          </div>
         </div>
       {/if}
     </div>

@@ -1,69 +1,99 @@
 <!--
-  OBLIVRA — Team Dashboard (Svelte 5)
-  Collaboration and access control management for SOC teams.
+  Team Dashboard — members + activity from TeamService.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState } from '@components/ui';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Badge, Button, DataTable, PopOutButton } from '@components/ui';
+  import { Users, RefreshCw, UserPlus } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const mockTeam = [
-    { id: 'u1', name: 'Maverick', role: 'Global Admin', last_active: 'Now', status: 'online' },
-    { id: 'u2', name: 'Iceman', role: 'Security Analyst', last_active: '2m ago', status: 'online' },
-    { id: 'u3', name: 'Goose', role: 'Auditor', last_active: '4h ago', status: 'offline' },
-    { id: 'u4', name: 'Viper', role: 'SOC Lead', last_active: '1d ago', status: 'offline' },
-  ];
+  let teamName = $state('');
+  let members = $state<any[]>([]);
+  let activity = $state<any[]>([]);
+  let loading = $state(false);
 
-  const columns = [
-    { key: 'name', label: 'Team Member' },
-    { key: 'role', label: 'Role', width: '150px' },
-    { key: 'last_active', label: 'Last Active', width: '120px' },
-    { key: 'status', label: 'Status', width: '100px' },
-  ];
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) return;
+      const svc = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/teamservice');
+      teamName = ((await svc.GetTeamName()) ?? '') as string;
+      members  = ((await svc.ListMembers()) ?? []) as any[];
+      activity = ((await svc.ListActivity()) ?? []) as any[];
+    } catch (e: any) {
+      appStore.notify(`Team load failed: ${e?.message ?? e}`, 'error');
+    } finally { loading = false; }
+  }
+
+  async function addMember() {
+    const email = prompt('Email:'); if (!email) return;
+    const name  = prompt('Name:', email) ?? email;
+    const role  = prompt('Role (analyst | admin | viewer):', 'analyst') ?? 'analyst';
+    try {
+      const { AddMember } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/teamservice');
+      await AddMember(email, name, role);
+      appStore.notify(`Invited ${email}`, 'success');
+      void refresh();
+    } catch (e: any) {
+      appStore.notify(`Invite failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  onMount(refresh);
 </script>
 
-<PageLayout title="Team Collaboration" subtitle="Manage permissions, roles, and real-time analyst presence">
+<PageLayout title={teamName ? `Team · ${teamName}` : 'Team Dashboard'} subtitle="Operators and recent activity">
   {#snippet toolbar()}
-    <Button variant="secondary" size="sm" icon="+">Invite Member</Button>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <Button variant="primary" size="sm" icon={UserPlus} onclick={addMember}>Invite</Button>
+    <PopOutButton route="/team" title="Team" />
   {/snippet}
 
-  <div class="flex flex-col h-full gap-5">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Team Size" value={mockTeam.length} variant="default" />
-      <KPI label="Active Now" value={mockTeam.filter(t => t.status === 'online').length} variant="success" />
-      <KPI label="Pending Invites" value="1" variant="warning" />
-      <KPI label="Org Tier" value="Enterprise" variant="accent" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+      <KPI label="Members" value={members.length.toString()} variant="accent" />
+      <KPI label="Activity (24h)" value={activity.length.toString()} variant="muted" />
+      <KPI label="Team" value={teamName || '—'} variant="muted" />
     </div>
 
-    <div class="bg-surface-1 border border-border-primary rounded-md overflow-hidden">
-      <DataTable data={mockTeam} {columns} striped>
-        {#snippet render({ value, col, row })}
-          {#if col.key === 'status'}
-            <Badge variant={value === 'online' ? 'success' : 'muted'} dot>
-              {value}
-            </Badge>
-          {:else if col.key === 'name'}
-            <div class="flex items-center gap-3">
-              <div class="w-7 h-7 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-[10px] font-bold text-accent">
-                {value.charAt(0)}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+      <section class="flex flex-col bg-surface-1 border border-border-primary rounded-md min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <Users size={14} class="text-accent" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Members</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#each members as m (m.id ?? m.email)}
+            <div class="px-3 py-2 border-b border-border-primary flex items-center gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="text-[11px] font-bold truncate">{m.name ?? m.email}</div>
+                <div class="text-[10px] text-text-muted truncate">{m.email}</div>
               </div>
-              <span class="font-bold text-text-heading">{value}</span>
+              <Badge variant="info" size="xs">{m.role ?? '—'}</Badge>
             </div>
           {:else}
-            {value}
-          {/if}
-        {/snippet}
-      </DataTable>
-    </div>
+            <div class="p-8 text-center text-sm text-text-muted">{loading ? 'Loading…' : 'No team members.'}</div>
+          {/each}
+        </div>
+      </section>
 
-    <!-- Security Policy Notice -->
-    <div class="p-4 bg-accent/5 border border-accent/20 rounded-md">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="text-accent text-xs">🛡️</span>
-        <h4 class="text-[10px] font-bold uppercase tracking-widest text-accent">Identity Policy</h4>
-      </div>
-      <p class="text-[11px] text-text-muted leading-relaxed">
-        This workspace requires <span class="text-text-primary font-bold">Hardware MFA (U2F)</span> for all members with Administrator roles. 
-        Auto-revocation is active for sessions inactive for more than 4 hours.
-      </p>
+      <section class="flex flex-col bg-surface-1 border border-border-primary rounded-md min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <span class="text-[10px] uppercase tracking-widest font-bold">Recent Activity</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#each activity.slice(0, 100) as e, i (e.id ?? i)}
+            <div class="px-3 py-1.5 border-b border-border-primary text-[11px]">
+              <span class="font-mono text-[10px] text-text-muted mr-2">{(e.timestamp ?? '').slice(11, 19)}</span>
+              <span class="font-bold">{e.actor ?? '—'}</span>
+              <span class="text-text-muted">{e.action ?? e.event ?? '—'}</span>
+            </div>
+          {:else}
+            <div class="p-8 text-center text-sm text-text-muted">No recorded activity.</div>
+          {/each}
+        </div>
+      </section>
     </div>
   </div>
 </PageLayout>

@@ -24,7 +24,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
   // ── Pages
   import Dashboard from '@pages/Dashboard.svelte';
-  import TerminalPage from '@pages/TerminalPage.svelte';
+  import ShellPage from '@pages/ShellPage.svelte';
   import RecordingsPage from '@pages/RecordingsPage.svelte';
   import SIEMPanel from '@pages/SIEMPanel.svelte';
   import AlertDashboard from '@pages/AlertDashboard.svelte';
@@ -162,7 +162,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // Operations & Terminal
     { path: '/ops',              component: OpsCenter },
-    { path: '/terminal',         component: TerminalPage },
+    { path: '/shell',            component: ShellPage },
     { path: '/ssh',              component: SSHBookmarks },
     { path: '/tunnels',          component: TunnelsPage },
     { path: '/recordings',       component: RecordingsPage },
@@ -325,8 +325,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
           appStore.navigate(route);
         });
         on(rt, 'menu:new-terminal', () => {
-          appStore.navigate('/terminal');
-          appStore.connectToLocal?.();
+          // The new Workspace at /shell auto-spawns a local PTY in onMount;
+          // a separate connectToLocal() pre-warm is no longer needed.
+          appStore.navigate('/shell');
         });
         on(rt, 'menu:command-palette', () => {
           appStore.showCommandPalette = true;

@@ -1,90 +1,91 @@
 <!--
-  OBLIVRA — Simulation Panel (Svelte 5)
-  Orchestrating autonomous adversary simulations and resilience drills.
+  Simulation Panel — adversary simulation playbook runner.
+  Bound to PlaybookService.RunPlaybook (atomic-red-team-style scenarios
+  are stored as playbooks server-side; the panel just lets the operator
+  pick + run + watch).
 -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable, PopOutButton} from '@components/ui';
-  import { Play, Activity, Target, RefreshCw, Layers } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, Badge, PopOutButton } from '@components/ui';
+  import { Swords, Play, Skull } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
+  import { push } from '@lib/router.svelte';
 
-  const simulations: Record<string, any>[] = [
-    { id: 'S-201', name: 'Ransomware Beaconing', agent: 'L-01', state: 'active', coverage: '94%' },
-    { id: 'S-202', name: 'Credential Harvesting', agent: 'M-04', state: 'standby', coverage: '82%' },
-    { id: 'S-203', name: 'Identity Lateral Mov', agent: 'M-02', state: 'complete', coverage: '100%' },
-  ];
+  type Action = { id?: string; name?: string; description?: string; kind?: string };
+  let scenarios = $state<Action[]>([]);
+  let running = $state<string | null>(null);
+  let loading = $state(false);
+
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) { scenarios = []; return; }
+      const { ListAvailableActions } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice'
+      );
+      const all = ((await ListAvailableActions()) ?? []) as Action[];
+      // Heuristic: simulation-flavoured actions tend to be tagged "sim" /
+      // "redteam" / "purple". Fall back to all if no taxonomy.
+      const sim = all.filter((a) => /sim|red.?team|purple|atomic|attack/i.test(`${a.kind ?? ''} ${a.name ?? ''}`));
+      scenarios = sim.length > 0 ? sim : all;
+    } finally { loading = false; }
+  }
+
+  async function run(id: string, name: string) {
+    if (!confirm(`Run simulation "${name}"? This may trigger detections.`)) return;
+    running = id;
+    try {
+      const { ExecuteAction } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice'
+      );
+      await ExecuteAction(id, { mode: 'simulation' });
+      appStore.notify(`Simulation "${name}" dispatched`, 'success');
+    } catch (e: any) {
+      appStore.notify(`Run failed: ${e?.message ?? e}`, 'error');
+    } finally { running = null; }
+  }
+
+  onMount(refresh);
 </script>
 
-<PageLayout title="Simulation Orchestration" subtitle="Adversary emulation: Running autonomous resilience drills and validating containment logic against the OBLIVRA sovereign fleet">
+<PageLayout title="Adversary Simulation" subtitle="Resilience drills and detection-validation playbooks">
   {#snippet toolbar()}
-     <Button variant="secondary" size="sm">Recalibrate Tactics</Button>
-     <Button variant="primary" size="sm" icon="💀">Deploy Scenario</Button>
-      <PopOutButton route="/simulation" title="Attack Simulation" />
-    {/snippet}
+    <Button variant="secondary" size="sm" onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <Button variant="primary" size="sm" onclick={() => push('/purple-team')}>Purple Team</Button>
+    <PopOutButton route="/simulation" title="Simulation" />
+  {/snippet}
 
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Active Drills" value="1" trend="stable" trendValue="Nominal" />
-      <KPI label="Logic Validation" value="98%" trend="stable" trendValue="Verified" variant="success" />
-      <KPI label="Simulation Depth" value="L9" trend="stable" trendValue="Advanced" variant="accent" />
-      <KPI label="Fleet Coverage" value="100%" trend="stable" trendValue="Optimal" variant="success" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+      <KPI label="Available Scenarios" value={scenarios.length.toString()} variant="accent" />
+      <KPI label="Active Runs" value={running ? '1' : '0'} variant={running ? 'warning' : 'muted'} />
+      <KPI label="Engine" value={IS_BROWSER ? 'Browser (no exec)' : 'Desktop'} variant="muted" />
     </div>
 
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Simulation Registry -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-premium">
-         <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            Adversary Emulation Ledger
-         </div>
-         <div class="flex-1 overflow-auto">
-            <DataTable data={simulations} columns={[
-              { key: 'name', label: 'Scenario Identity' },
-              { key: 'agent', label: 'Emu-Agent', width: '100px' },
-              { key: 'coverage', label: 'Logic Coverage', width: '120px' },
-              { key: 'state', label: 'Runtime', width: '100px' },
-              { key: 'action', label: '', width: '80px' }
-            ]} compact>
-              {#snippet render({ col: column, row })}
-                {#if column.key === 'state'}
-                   <Badge variant={row.state === 'active' ? 'accent' : row.state === 'complete' ? 'success' : 'muted'} dot={row.state === 'active'}>{row.state.toUpperCase()}</Badge>
-                {:else if column.key === 'name'}
-                   <div class="flex items-center gap-2">
-                      <Layers size={14} class="text-accent opacity-70" />
-                      <span class="text-[11px] font-bold text-text-heading">{row.name}</span>
-                   </div>
-                {:else if column.key === 'action'}
-                   <div class="flex gap-2">
-                      <Button variant="ghost" size="xs"><Play size={12} /></Button>
-                      <Button variant="ghost" size="xs"><RefreshCw size={12} /></Button>
-                   </div>
-                {:else}
-                  <span class="text-[11px] text-text-secondary">{row[column.key]}</span>
-                {/if}
-              {/snippet}
-            </DataTable>
-         </div>
-      </div>
-
-      <!-- Simulation Insights -->
-      <div class="flex flex-col gap-6">
-         <div class="bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col items-center justify-center text-center gap-4 relative overflow-hidden group border-dashed shadow-sm">
-            <Target size={48} class="text-error opacity-40 animate-pulse" />
-            <div class="relative z-10">
-               <h4 class="text-xs font-bold text-text-heading uppercase tracking-widest">Resilience Threshold</h4>
-               <p class="text-[10px] text-text-muted mt-2 max-w-[150px]">OBLIVRA validates your SOAR logic by emulating advanced TTPs in isolated memory blocks.</p>
-            </div>
-         </div>
-
-         <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4 space-y-4">
-            <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2 flex items-center gap-2">
-               <Activity size={12} />
-               Tactical Success Velocity
-            </div>
-            <div class="flex-1 h-32 flex items-end justify-between px-2 gap-1 font-mono">
-               {#each Array(10) as _}
-                  <div class="flex-1 bg-accent/20 rounded-t-sm border-x border-t border-accent/10" style="height: {30 + Math.random() * 60}%"></div>
-               {/each}
-            </div>
-         </div>
-      </div>
+    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 overflow-auto">
+      {#each scenarios as s (s.id ?? s.name)}
+        <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-2">
+          <div class="flex items-start gap-2">
+            <Swords size={14} class="text-accent shrink-0" />
+            <div class="font-bold text-[12px] flex-1 truncate">{s.name ?? s.id ?? '—'}</div>
+            <Badge variant="info" size="xs">{s.kind ?? 'sim'}</Badge>
+          </div>
+          {#if s.description}
+            <div class="text-[10px] text-text-muted line-clamp-2">{s.description}</div>
+          {/if}
+          <div class="mt-auto pt-2">
+            <Button variant="cta" size="sm" onclick={() => run(s.id ?? s.name ?? '', s.name ?? s.id ?? '')} disabled={running === (s.id ?? s.name)}>
+              {running === (s.id ?? s.name) ? 'Running…' : 'Run scenario'}
+              <Play size={10} class="ml-1" />
+            </Button>
+          </div>
+        </div>
+      {:else}
+        <div class="md:col-span-3 text-center text-sm text-text-muted py-12">
+          {loading ? 'Loading…' : 'No simulation scenarios registered. Drop YAML playbooks under sigma/playbooks/.'}
+        </div>
+      {/each}
     </div>
   </div>
 </PageLayout>

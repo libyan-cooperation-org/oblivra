@@ -37,6 +37,7 @@ export type NavGroupId =
   | 'network'
   | 'identity'
   | 'hosts'
+  | 'shell'
   | 'logs'
   | 'system';
 
@@ -77,6 +78,7 @@ class NavigationStore {
     network: null,
     identity: null,
     hosts: null,
+    shell: null,
     logs: null,
     system: null,
   });

@@ -1,108 +1,131 @@
 <!--
-  OBLIVRA — Compliance Center (Svelte 5)
-  Governance and Regulatory alignment: SOC2, HIPAA, NIST monitoring.
+  Compliance Center — list compliance packs, evaluate, view reports.
+  Bound to ComplianceService.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button, PopOutButton} from '@components/ui';
-  import { CheckCircle, FileText } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Badge, Button, DataTable, PopOutButton } from '@components/ui';
+  import { ClipboardCheck, Play, FileText, RefreshCw } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const frameworks = [
-    { id: 'F-SOC2', name: 'SOC2 Type II', coverage: '94%', controls: 42, status: 'compliant' },
-    { id: 'F-NIST', name: 'NIST 800-53', coverage: '82%', controls: 120, status: 'drift_detected' },
-    { id: 'F-HIPAA', name: 'HIPAA Security', coverage: '100%', controls: 28, status: 'compliant' },
-  ];
+  type Pack = { id?: string; name?: string; framework?: string; controls?: number; passing?: number };
+  type Report = { id?: string; report_type?: string; generated_at?: string; status?: string; size_bytes?: number };
 
-  const columns = [
-    { key: 'name', label: 'Framework' },
-    { key: 'coverage', label: 'Coverage', width: '140px' },
-    { key: 'controls', label: 'Controls', width: '100px' },
-    { key: 'status', label: 'State', width: '140px' },
-    { key: 'action', label: '', width: '60px' },
-  ];
+  let packs = $state<Pack[]>([]);
+  let reports = $state<Report[]>([]);
+  let loading = $state(false);
+
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) { packs = []; reports = []; return; }
+      const svc = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/complianceservice'
+      );
+      const [p, r] = await Promise.all([svc.ListCompliancePacks(), svc.ListReports()]);
+      packs = (p ?? []) as Pack[];
+      reports = (r ?? []) as Report[];
+    } catch (e: any) {
+      appStore.notify(`Compliance load failed: ${e?.message ?? e}`, 'error');
+    } finally { loading = false; }
+  }
+
+  async function evaluate(packID: string) {
+    appStore.notify(`Evaluating ${packID}…`, 'info');
+    try {
+      const { EvaluatePack } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/complianceservice'
+      );
+      const result = await EvaluatePack(packID);
+      appStore.notify(`Evaluated ${packID}`, 'success');
+      void refresh();
+    } catch (e: any) {
+      appStore.notify(`Evaluate failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  async function generateReport() {
+    const reportType = prompt('Report type (soc2 | hipaa | iso27001):', 'soc2');
+    if (!reportType) return;
+    const start = Math.floor((Date.now() - 30 * 86400_000) / 1000);
+    const end = Math.floor(Date.now() / 1000);
+    try {
+      const { GenerateReport } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/complianceservice'
+      );
+      await GenerateReport(reportType, start, end);
+      appStore.notify(`Report ${reportType} generated`, 'success');
+      void refresh();
+    } catch (e: any) {
+      appStore.notify(`Report failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  onMount(refresh);
+
+  let stats = $derived({
+    packs: packs.length,
+    reports: reports.length,
+    overallPct: packs.length === 0 ? 0
+      : Math.round(packs.reduce((s, p) => s + (p.controls ? (p.passing ?? 0) / p.controls : 0), 0) / packs.length * 100),
+  });
 </script>
 
-<PageLayout title="Governance & Compliance" subtitle="Framework alignment and regulatory continuous monitoring">
+<PageLayout title="Compliance Center" subtitle="SOC2 / HIPAA / NIST evaluation and audit reports">
   {#snippet toolbar()}
-    <Button variant="secondary" size="sm">Evidence Locker</Button>
-    <Button variant="primary" size="sm">Standard Audit</Button>
-      <PopOutButton route="/compliance" title="Compliance Center" />
-    {/snippet}
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <Button variant="primary" size="sm" icon={FileText} onclick={generateReport}>Generate Report</Button>
+    <PopOutButton route="/compliance" title="Compliance Center" />
+  {/snippet}
 
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Overall Compliance" value="92%" trend="up" trendValue="+4%" variant="success" />
-      <KPI label="Failed Controls" value="3" trend="up" trendValue="Action Req." variant="critical" />
-      <KPI label="Next Audit" value="12d" trend="stable" trendValue="Scheduled" />
-      <KPI label="Evidence Coverage" value="98%" trend="stable" trendValue="Optimal" variant="success" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+      <KPI label="Active Packs"     value={stats.packs.toString()}      variant="accent" />
+      <KPI label="Compliance Score" value={`${stats.overallPct}%`}      variant={stats.overallPct >= 90 ? 'success' : stats.overallPct >= 70 ? 'warning' : 'critical'} />
+      <KPI label="Stored Reports"   value={stats.reports.toString()}    variant="muted" />
     </div>
 
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Frameworks Table -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-card">
-         <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            Active Compliance Frameworks
-         </div>
-         <div class="flex-1 overflow-auto">
-            <DataTable data={frameworks} {columns} compact>
-              {#snippet render({ col, row, value })}
-                {#if col.key === 'status'}
-                   <Badge variant={row.status === 'compliant' ? 'success' : 'warning'}>
-                     {String(value).replace('_', ' ')}
-                   </Badge>
-                {:else if col.key === 'coverage'}
-                   <div class="flex items-center gap-2">
-                      <div class="flex-1 bg-surface-3 h-1 rounded-full overflow-hidden min-w-[40px]">
-                         <div class="bg-success h-full" style="width: {value}"></div>
-                      </div>
-                      <span class="text-[11px] font-mono font-bold">{value}</span>
-                   </div>
-                {:else if col.key === 'name'}
-                   <div class="flex items-center gap-2 font-bold text-text-heading text-[11px]">
-                      <FileText size={14} class="text-accent" />
-                      {value}
-                   </div>
-                {:else if col.key === 'action'}
-                   <Button variant="ghost" size="xs">Audit</Button>
-                {:else}
-                  <span class="text-[11px] text-text-secondary">{value}</span>
-                {/if}
-              {/snippet}
-            </DataTable>
-         </div>
-      </div>
-
-      <!-- Compliance Health -->
-      <div class="flex flex-col gap-6">
-         <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-4 shadow-card">
-            <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2">Top Drift Factors</div>
-            <div class="space-y-4">
-               <div>
-                  <div class="flex justify-between text-[10px] mb-1">
-                     <span class="text-text-secondary">Untracked Shadow Identity</span>
-                     <span class="font-bold text-error">Critical</span>
-                  </div>
-                  <div class="w-full bg-surface-3 h-1 rounded-full overflow-hidden">
-                     <div class="bg-error h-full" style="width: 80%"></div>
-                  </div>
-               </div>
-               <div>
-                  <div class="flex justify-between text-[10px] mb-1">
-                     <span class="text-text-secondary">Manual Access Review Outdated</span>
-                     <span class="font-bold text-warning">Warning</span>
-                  </div>
-                  <div class="w-full bg-surface-3 h-1 rounded-full overflow-hidden">
-                     <div class="bg-warning h-full" style="width: 40%"></div>
-                  </div>
-               </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+      <section class="flex flex-col bg-surface-1 border border-border-primary rounded-md min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <ClipboardCheck size={14} class="text-accent" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Frameworks</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#each packs as p (p.id)}
+            {@const ratio = p.controls && p.controls > 0 ? Math.round(((p.passing ?? 0) / p.controls) * 100) : 0}
+            <div class="border-b border-border-primary px-3 py-2 flex items-center gap-3">
+              <div class="flex-1">
+                <div class="text-[11px] font-bold">{p.name ?? p.id ?? '—'}</div>
+                <div class="text-[10px] text-text-muted">{p.framework ?? '—'} · {p.passing ?? 0}/{p.controls ?? 0}</div>
+              </div>
+              <span class="font-mono text-[10px] {ratio >= 90 ? 'text-success' : ratio >= 70 ? 'text-warning' : 'text-error'}">{ratio}%</span>
+              <Button variant="ghost" size="xs" onclick={() => evaluate(p.id ?? '')}><Play size={10} /></Button>
             </div>
-         </div>
+          {:else}
+            <div class="p-8 text-center text-sm text-text-muted">{loading ? 'Loading…' : 'No compliance packs registered.'}</div>
+          {/each}
+        </div>
+      </section>
 
-         <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col items-center justify-center text-center gap-3">
-            <CheckCircle size={32} class="text-success opacity-40" />
-            <span class="text-xs font-bold text-text-heading mt-2">CONTINUOUS ATTESTATION</span>
-            <p class="text-[9px] text-text-muted max-w-[180px]">Autonomous evidence collection is active. All SOC actions are hash-linked to regulatory requirements.</p>
-         </div>
-      </div>
+      <section class="flex flex-col bg-surface-1 border border-border-primary rounded-md min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <FileText size={14} class="text-accent" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Recent Reports</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#each reports as r (r.id)}
+            <div class="border-b border-border-primary px-3 py-2">
+              <div class="text-[11px] font-bold">{r.report_type ?? r.id}</div>
+              <div class="text-[10px] text-text-muted font-mono">{r.generated_at?.slice(0, 19) ?? '—'}</div>
+              {#if r.status}<Badge variant={r.status === 'sealed' ? 'success' : 'info'} size="xs">{r.status}</Badge>{/if}
+            </div>
+          {:else}
+            <div class="p-8 text-center text-sm text-text-muted">No reports generated yet.</div>
+          {/each}
+        </div>
+      </section>
     </div>
   </div>
 </PageLayout>

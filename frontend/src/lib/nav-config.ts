@@ -126,8 +126,19 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'hosts',            route: '/hosts',            label: 'Asset Inventory', icon: 'HardDrive',   description: 'Discovered assets' },
       { id: 'agents',           route: '/agents',           label: 'Agent Console',  icon: 'Cpu',          description: 'Per-agent control', context: 'browser', badgeKey: 'agents' },
       { id: 'operator',         route: '/operator',         label: 'Operator Mode',  icon: 'Crosshair',    description: 'SIEM-aware shell context', context: 'desktop' },
-      { id: 'terminal',         route: '/terminal',         label: 'Terminal',       icon: 'Terminal',     description: 'PTY sessions', context: 'desktop' },
       { id: 'ssh',              route: '/ssh',              label: 'SSH Bookmarks',  icon: 'Server',       description: 'Vaulted hosts', context: 'desktop' },
+    ],
+  },
+  {
+    id: 'shell',
+    label: 'Shell',
+    icon: 'TerminalSquare',
+    subtitle: 'Local & remote terminals',
+    items: [
+      { id: 'shell',            route: '/shell',            label: 'Shell Workspace', icon: 'TerminalSquare', description: 'Multi-pane local + SSH terminals', context: 'desktop' },
+      { id: 'shell-recordings', route: '/recordings',       label: 'Recordings',      icon: 'Video',          description: 'Replay past shell sessions', context: 'desktop' },
+      { id: 'shell-snippets',   route: '/snippets',         label: 'Snippets',        icon: 'Code',           description: 'Saved shell commands', context: 'desktop' },
+      { id: 'shell-tunnels',    route: '/tunnels',          label: 'Port Forwards',   icon: 'Cable',          description: 'SSH tunnels', context: 'desktop' },
     ],
   },
   {

@@ -1,162 +1,172 @@
 <!--
-  OBLIVRA — Agent Console (Svelte 5)
-  Deep inspection, process management and forensic control for specific agents.
+  Agent Console — per-agent deep view: status, processes, quarantine, kill.
+  Bound to AgentService + agentStore.
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { KPI, PageLayout, Badge, Button, DataTable, Toggle } from '@components/ui';
-  import { Lock, Globe, RefreshCw, Activity } from 'lucide-svelte';
-  import { appStore } from '@lib/stores/app.svelte';
+  import { PageLayout, Badge, Button, KPI, DataTable, PopOutButton } from '@components/ui';
+  import { Cpu, Terminal as TerminalIcon, ShieldAlert, Skull, RefreshCw } from 'lucide-svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
+  import { appStore } from '@lib/stores/app.svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { push } from '@lib/router.svelte';
 
-  // Read the agent ID injected by appStore.navigate('agent-console', { id: '...' })
-  function readNavParam(key: string): string {
-    try {
-      const raw = sessionStorage.getItem('oblivra:nav_params');
-      if (!raw) return '';
-      return (JSON.parse(raw)[key] as string) ?? '';
-    } catch { return ''; }
+  let selectedID = $state<string | null>(null);
+  let processes = $state<any[]>([]);
+  let loadingProcs = $state(false);
+
+  const selected = $derived(agentStore.agents.find((a) => a.id === selectedID) ?? null);
+
+  async function refreshAgents() {
+    if (typeof agentStore.init === 'function') await agentStore.init();
   }
 
-  let agentID = $state(readNavParam('id'));
-  const agent = $derived(agentStore.agents.find(a => a.id === agentID || a.hostname === agentID));
+  async function loadProcesses(id: string) {
+    loadingProcs = true;
+    try {
+      if (IS_BROWSER) { processes = []; return; }
+      const { RequestProcessInventory } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice'
+      );
+      const list = (await RequestProcessInventory(id)) as any[];
+      processes = list ?? [];
+    } catch (e: any) {
+      appStore.notify(`Process inventory failed: ${e?.message ?? e}`, 'error');
+      processes = [];
+    } finally { loadingProcs = false; }
+  }
 
-  // Process list — telemetry integration
-  const processes = $derived(agentStore.processes);
-
-  onMount(() => {
-    const id = readNavParam('id');
-    if (id) {
-        agentID = id;
-        agentStore.fetchProcessInventory(id);
+  async function killProcess(pid: number) {
+    if (!selectedID) return;
+    if (!confirm(`Kill PID ${pid} on ${selected?.hostname ?? selectedID}?`)) return;
+    try {
+      const { KillProcess } = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice'
+      );
+      await KillProcess(selectedID, pid);
+      appStore.notify(`PID ${pid} terminated`, 'success');
+      await loadProcesses(selectedID);
+    } catch (e: any) {
+      appStore.notify(`Kill failed: ${e?.message ?? e}`, 'error');
     }
-    agentStore.refresh();
+  }
+
+  async function quarantine(enabled: boolean) {
+    if (!selectedID) return;
+    if (enabled && !confirm('Quarantine this host (block outbound traffic)?')) return;
+    try {
+      await agentStore.toggleQuarantine(selectedID, enabled);
+      appStore.notify(enabled ? 'Host quarantined' : 'Host released', 'warning');
+    } catch (e: any) {
+      appStore.notify(`Quarantine toggle failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  $effect(() => {
+    if (selectedID) void loadProcesses(selectedID);
   });
 
-  let quarantine = $state(false);
-
-  async function refreshAll() {
-    agentStore.refresh();
-    if (agentID) agentStore.fetchProcessInventory(agentID);
-  }
-
-  async function toggleQuarantine() {
-    try {
-      const targetState = !quarantine;
-      await agentStore.toggleQuarantine(agentID, targetState);
-      quarantine = targetState;
-      appStore.notify(
-        `Agent ${agentID} ${quarantine ? 'isolated' : 'restored'}`,
-        quarantine ? 'warning' : 'success'
-      );
-    } catch (err: any) {
-      appStore.notify(`Quarantine failed: ${err}`, 'error');
-    }
-  }
-
-  async function killProc(pid: number) {
-    if (!agentID) return;
-    try {
-      await agentStore.killProcess(agentID, pid);
-      appStore.notify(`Kill directive sent for PID ${pid}`, 'info');
-      // No need to manually filter processes, the next inventory update will handle it
-    } catch (err: any) {
-      appStore.notify(`Kill failed: ${err}`, 'error');
-    }
-  }
-
-  const columns = [
-    { key: 'pid', label: 'PID', width: '80px' },
-    { key: 'name', label: 'Process / Thread' },
-    { key: 'cpu', label: 'CPU', width: '80px' },
-    { key: 'user', label: 'Identity', width: '100px' },
-    { key: 'risk', label: 'Risk', width: '80px' },
-    { key: 'actions', label: '', width: '60px' },
-  ];
+  onMount(() => {
+    void refreshAgents();
+    if (agentStore.agents.length > 0) selectedID = agentStore.agents[0].id;
+  });
 </script>
 
-<PageLayout title={agent ? `Agent: ${agent.hostname}` : agentID ? `Agent: ${agentID}` : 'Agent Console'} subtitle="Real-time telemetry and atomic control for endpoint">
+<PageLayout title="Agent Console" subtitle="Per-host deep inspection and tactical control">
   {#snippet toolbar()}
-    <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/30 rounded-full">
-            <div class="w-1.5 h-1.5 rounded-full {agent?.status === 'online' ? 'bg-accent animate-pulse' : 'bg-text-muted'}"></div>
-            <span class="text-[9px] font-bold text-accent uppercase tracking-widest">{agent?.status === 'online' ? 'Live Stream Active' : 'Disconnected'}</span>
-        </div>
-        <Button variant="secondary" size="sm" onclick={refreshAll}>
-            <RefreshCw size={14} class="mr-1 inline align-middle {agentStore.loading ? 'animate-spin' : ''}" />
-            Refresh
-        </Button>
-    </div>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refreshAgents}>Refresh</Button>
+    <PopOutButton route="/agents" title="Agent Console" />
   {/snippet}
 
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Agent OS" value={agent?.version || 'N/A'} trend="stable" />
-      <KPI label="Last Heartbeat" value={agent?.last_seen ? new Date(agent.last_seen).toLocaleTimeString() : 'Never'} trend="stable" variant="success" />
-      <KPI label="Remote IP" value={agent?.remote_address || '0.0.0.0'} trend="stable" variant="accent" />
-      <KPI label="Status" value={agent?.status || 'Offline'} variant={agent?.status === 'online' ? 'success' : 'critical'} />
-    </div>
+  <div class="flex h-full gap-4 -m-2">
+    <!-- Sidebar: agent list -->
+    <aside class="w-64 shrink-0 bg-surface-1 border border-border-primary rounded-md flex flex-col">
+      <div class="p-3 border-b border-border-primary">
+        <span class="text-[10px] uppercase tracking-widest font-bold">Agents</span>
+        <span class="text-[10px] text-text-muted ml-2">{agentStore.agents.length}</span>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+        {#each agentStore.agents as a (a.id)}
+          <button
+            class="w-full text-left px-3 py-2 border-b border-border-primary hover:bg-surface-2 {selectedID === a.id ? 'bg-surface-2' : ''}"
+            onclick={() => (selectedID = a.id)}
+          >
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 rounded-full {a.status === 'online' ? 'bg-success' : 'bg-text-muted'}"></span>
+              <span class="text-[11px] font-bold truncate">{a.hostname || a.id}</span>
+            </div>
+            <div class="text-[9px] font-mono text-text-muted truncate">{a.remote_address ?? '—'}</div>
+          </button>
+        {/each}
+        {#if agentStore.agents.length === 0}
+          <div class="p-4 text-center text-[11px] text-text-muted">No agents registered.</div>
+        {/if}
+      </div>
+    </aside>
 
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Process Monitor -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-card">
-         <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted font-mono">
-            Process Inventory & Resource Attribution
-         </div>
-          <div class="flex-1 overflow-auto">
-            {#if processes.length > 0}
-               <DataTable data={processes} columns={columns as any} compact>
-                 {#snippet render({ col, row, value })}
-                   {#if col.key === 'risk'}
-                      <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'medium' ? 'warning' : 'muted'}>
-                        {value}
-                      </Badge>
-                   {:else if col.key === 'name'}
-                      <code class="text-[11px] font-bold text-text-heading">{value}</code>
-                   {:else if (col.key as any) === 'actions'}
-                      <Button variant="danger" size="sm" onclick={() => killProc(row.pid)}>Kill</Button>
-                   {:else}
-                     <span class="text-[11px] text-text-secondary">{value}</span>
-                   {/if}
-                 {/snippet}
-               </DataTable>
-            {:else}
-               <div class="flex flex-col items-center justify-center h-full opacity-40 p-12 text-center">
-                  <Activity size={32} class="mb-2 text-text-muted" />
-                  <span class="text-[10px] uppercase font-bold tracking-widest">No Active Telemetry</span>
-                  <span class="text-[9px] mt-1">Waiting for agent to stream process inventory...</span>
-               </div>
-            {/if}
+    <!-- Main -->
+    <section class="flex-1 flex flex-col gap-4 min-w-0">
+      {#if !selected}
+        <div class="bg-surface-1 border border-border-primary rounded-md p-12 text-center text-sm text-text-muted">
+          Pick an agent on the left to inspect.
+        </div>
+      {:else}
+        <!-- KPIs -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
+          <KPI label="Status" value={selected.status ?? '—'} variant={selected.status === 'online' ? 'success' : 'muted'} />
+          <KPI label="OS" value={selected.os ?? '—'} variant="muted" />
+          <KPI label="Address" value={selected.remote_address ?? '—'} variant="muted" />
+          <KPI label="Processes" value={processes.length.toString()} variant={loadingProcs ? 'muted' : 'accent'} />
+        </div>
+
+        <!-- Action toolbar -->
+        <div class="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" size="sm" icon={TerminalIcon} onclick={() => push('/shell')}>Open Shell</Button>
+          <Button variant="warning"   size="sm" icon={ShieldAlert} onclick={() => quarantine(true)}>Isolate</Button>
+          <Button variant="ghost"     size="sm" onclick={() => quarantine(false)}>Release</Button>
+          <Button variant="ghost"     size="sm" icon={RefreshCw} onclick={() => loadProcesses(selectedID!)}>{loadingProcs ? 'Loading…' : 'Refresh procs'}</Button>
+        </div>
+
+        <!-- Process table -->
+        <div class="flex-1 min-h-0 bg-surface-1 border border-border-primary rounded-md overflow-hidden">
+          <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+            <Cpu size={14} class="text-accent" />
+            <span class="text-[10px] uppercase tracking-widest font-bold">Process Inventory</span>
           </div>
-      </div>
-
-      <!-- Control Sidebar -->
-      <div class="flex flex-col gap-6">
-         <div class="bg-surface-1 border border-border-primary rounded-md p-4 space-y-4">
-            <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2">Atomic Containment</div>
-            <div class="flex justify-between items-center">
-               <div class="flex flex-col">
-                  <span class="text-xs font-bold text-text-heading">Quarantine Agent</span>
-                  <span class="text-[9px] text-text-muted">Isolate from all network traffic</span>
-               </div>
-               <div onclick={toggleQuarantine} role="presentation">
-                 <Toggle bind:checked={quarantine} />
-               </div>
-            </div>
-            <Button variant="secondary" class="w-full flex items-center justify-center gap-2">
-               <Lock size={12} class="text-accent" />
-               Freeze Filesystem
-            </Button>
-         </div>
-
-         <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-3">
-            <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2">Network Topology (Edge)</div>
-            <div class="flex-1 flex flex-col justify-center items-center opacity-30 gap-2">
-               <Globe size={48} />
-               <span class="text-[10px] uppercase font-bold tracking-widest">Scanning Meshes...</span>
-            </div>
-         </div>
-      </div>
-    </div>
+          {#if processes.length === 0}
+            <div class="p-12 text-center text-sm text-text-muted">{loadingProcs ? 'Querying agent…' : 'No process data.'}</div>
+          {:else}
+            <DataTable
+              data={processes}
+              columns={[
+                { key: 'pid',  label: 'PID',  width: '80px' },
+                { key: 'name', label: 'Name' },
+                { key: 'user', label: 'User', width: '120px' },
+                { key: 'cpu',  label: '%CPU', width: '70px' },
+                { key: 'mem',  label: '%MEM', width: '70px' },
+                { key: 'kill', label: '',     width: '60px' },
+              ]}
+              compact
+            >
+              {#snippet render({ col, row })}
+                {#if col.key === 'pid'}
+                  <span class="font-mono text-[10px]">{row.pid ?? '—'}</span>
+                {:else if col.key === 'name'}
+                  <span class="font-mono text-[11px]">{row.name ?? row.command ?? '—'}</span>
+                {:else if col.key === 'cpu' || col.key === 'mem'}
+                  <span class="font-mono text-[10px] text-text-muted">{(row[col.key] ?? 0).toFixed?.(1) ?? row[col.key] ?? '—'}</span>
+                {:else if col.key === 'kill'}
+                  <button class="rounded p-1 text-error hover:bg-error/10" title="Kill" onclick={() => killProcess(row.pid)}>
+                    <Skull size={11} />
+                  </button>
+                {:else}
+                  <span class="text-[11px]">{row[col.key] ?? '—'}</span>
+                {/if}
+              {/snippet}
+            </DataTable>
+          {/if}
+        </div>
+      {/if}
+    </section>
   </div>
 </PageLayout>

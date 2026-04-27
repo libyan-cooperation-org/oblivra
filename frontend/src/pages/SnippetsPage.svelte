@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { KPI, Badge, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
   import { appStore } from '@lib/stores/app.svelte';
+  import { shellStore } from '@lib/stores/shell.svelte';
   import { IS_BROWSER } from '@lib/context';
 
   interface Snippet {
@@ -80,7 +81,7 @@
   }
 
   async function run(id: string) {
-    const sessionId = appStore.activeSessionId;
+    const sessionId = shellStore.activeSessionID;
     if (!sessionId) { appStore.notify('No active terminal session', 'warning', 'Open a shell first.'); return; }
     try {
       const { ExecuteSnippet } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/snippetservice');
@@ -104,7 +105,7 @@
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
       <KPI label="Saved Snippets"  value={snippets.length}  trend="stable" />
-      <KPI label="Active Session"  value={appStore.activeSessionId ? 'Ready' : 'None'} variant={appStore.activeSessionId ? 'success' : 'muted'} />
+      <KPI label="Active Session"  value={shellStore.activeSessionID ? 'Ready' : 'None'} variant={shellStore.activeSessionID ? 'success' : 'muted'} />
       <KPI label="Mode"            value={IS_BROWSER ? 'Browser (read-only)' : 'Desktop'} variant="accent" />
     </div>
 

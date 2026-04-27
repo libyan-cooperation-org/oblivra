@@ -127,7 +127,7 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
 
     // ── Desktop-only ──────────────────────────────────────────────────────
     {
-        path: '/terminal',
+        path: '/shell',
         availability: 'desktop',
         unavailableReason: 'Local PTY terminal requires the desktop binary. In browser mode, use the Fleet page to connect to hosts.',
     },

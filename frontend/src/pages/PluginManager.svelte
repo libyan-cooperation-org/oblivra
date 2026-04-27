@@ -1,64 +1,95 @@
 <!--
-  OBLIVRA — Plugin Manager (Svelte 5)
-  Dynamic integration of third-party security modules and extensions.
+  Plugin Manager — bound to PluginService.
 -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button, EmptyState, SearchBar, PopOutButton} from '@components/ui';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Badge, Button, PopOutButton } from '@components/ui';
+  import { Puzzle, RefreshCw, Power, PowerOff } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const mockPlugins = [
-    { id: 'p1', name: 'Suricata Bridge', version: '2.1.0', author: 'OBLIVRA Core', status: 'active', type: 'Ingestion' },
-    { id: 'p2', name: 'Slack Notifications', version: '1.0.5', author: 'Community', status: 'active', type: 'Notification' },
-    { id: 'p3', name: 'VirusTotal Enricher', version: '3.4.2', author: 'OBLIVRA Core', status: 'disabled', type: 'Intel' },
-    { id: 'p4', name: 'DarkTrace Connector', version: '0.9.0', author: 'DarkTrace', status: 'error', type: 'NDR' },
-  ];
+  type Plugin = { id?: string; name?: string; description?: string; version?: string; active?: boolean; kind?: string };
+  let plugins = $state<Plugin[]>([]);
+  let loading = $state(false);
 
-  let searchQuery = $state('');
-  const filtered = $derived(mockPlugins.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())));
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) return;
+      const { GetPlugins } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/pluginservice');
+      plugins = ((await GetPlugins()) ?? []) as Plugin[];
+    } catch (e: any) {
+      appStore.notify(`Plugin load failed: ${e?.message ?? e}`, 'error');
+    } finally { loading = false; }
+  }
 
-  const columns = [
-    { key: 'name', label: 'Plugin Name' },
-    { key: 'type', label: 'Type', width: '120px' },
-    { key: 'version', label: 'Version', width: '100px' },
-    { key: 'author', label: 'Author', width: '150px' },
-    { key: 'status', label: 'Status', width: '120px' },
-  ];
+  async function toggle(p: Plugin) {
+    if (!p.id) return;
+    try {
+      const { Activate, Deactivate } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/pluginservice');
+      if (p.active) await Deactivate(p.id);
+      else await Activate(p.id);
+      appStore.notify(`${p.name} ${p.active ? 'deactivated' : 'activated'}`, 'success');
+      void refresh();
+    } catch (e: any) {
+      appStore.notify(`Toggle failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  async function reload() {
+    try {
+      const { Refresh } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/pluginservice');
+      await Refresh();
+      appStore.notify('Plugins reloaded', 'success');
+      void refresh();
+    } catch (e: any) {
+      appStore.notify(`Reload failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  onMount(refresh);
+
+  let stats = $derived({
+    total: plugins.length,
+    active: plugins.filter((p) => p.active).length,
+  });
 </script>
 
-<PageLayout title="Extensibility & Plugins" subtitle="Manage external integrations and proprietary security modules">
+<PageLayout title="Plugin Manager" subtitle="Third-party integrations and modules">
   {#snippet toolbar()}
-    <SearchBar bind:value={searchQuery} placeholder="Search plugins..." compact />
-    <Button variant="primary" size="sm" icon="+">Install Plugin</Button>
-      <PopOutButton route="/plugins" title="Plugin Manager" />
-    {/snippet}
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={reload}>Reload</Button>
+    <Button variant="primary" size="sm" onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <PopOutButton route="/plugins" title="Plugins" />
+  {/snippet}
 
-  <div class="flex flex-col h-full gap-5">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-      <KPI title="Installed" value={mockPlugins.length} trend="Library" />
-      <KPI title="Active Hooks" value="42" trend="Synced" variant="accent" />
-      <KPI title="Registry Status" value="Online" trend="Authenticated" variant="success" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 shrink-0">
+      <KPI label="Installed" value={stats.total.toString()} variant="accent" />
+      <KPI label="Active" value={stats.active.toString()} variant={stats.active > 0 ? 'success' : 'muted'} />
+      <KPI label="Inactive" value={(stats.total - stats.active).toString()} variant="muted" />
     </div>
 
-    {#if mockPlugins.length > 0}
-      <DataTable data={filtered} {columns} striped>
-        {#snippet render({ value, col })}
-          {#if col.key === 'status'}
-            <Badge variant={value === 'active' ? 'success' : value === 'disabled' ? 'muted' : 'critical'} dot>
-              {value}
-            </Badge>
-          {:else if col.key === 'name'}
-            <div class="flex flex-col">
-              <span class="font-bold text-text-heading">{value}</span>
-              <span class="text-[9px] text-text-muted">Compatible with Wails v3</span>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 overflow-auto flex-1 min-h-0">
+      {#each plugins as p (p.id ?? p.name)}
+        <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-2">
+          <div class="flex items-start gap-2">
+            <Puzzle size={14} class="text-accent shrink-0" />
+            <div class="flex-1 min-w-0">
+              <div class="font-bold text-[12px] truncate">{p.name ?? p.id}</div>
+              {#if p.version}<div class="text-[9px] font-mono text-text-muted">v{p.version}</div>{/if}
             </div>
-          {:else if col.key === 'type'}
-            <span class="text-[10px] uppercase font-bold text-text-muted">{value}</span>
-          {:else}
-            {value}
-          {/if}
-        {/snippet}
-      </DataTable>
-    {:else}
-      <EmptyState title="No plugins installed" description="Browse the OBLIVRA Marketplace to find integrations for your security stack." icon="🧩" />
-    {/if}
+            <Badge variant={p.active ? 'success' : 'muted'} size="xs">{p.active ? 'on' : 'off'}</Badge>
+          </div>
+          {#if p.description}<div class="text-[10px] text-text-muted line-clamp-3">{p.description}</div>{/if}
+          <div class="mt-auto pt-2">
+            <Button variant={p.active ? 'ghost' : 'cta'} size="sm" onclick={() => toggle(p)}>
+              {#if p.active}<PowerOff size={11} class="mr-1" />Deactivate{:else}<Power size={11} class="mr-1" />Activate{/if}
+            </Button>
+          </div>
+        </div>
+      {:else}
+        <div class="md:col-span-3 text-center text-sm text-text-muted py-12">{loading ? 'Loading…' : 'No plugins installed.'}</div>
+      {/each}
+    </div>
   </div>
 </PageLayout>

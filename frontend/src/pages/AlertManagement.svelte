@@ -77,17 +77,30 @@
   let selectedSeverities = $state(['CRITICAL', 'HIGH']);
   let selectedAlert = $state<any>(null);
 
-  const stats = $derived({
-    total: alertStore.alerts.length,
-    critical: alertStore.alerts.filter(a => a.severity === 'critical').length,
-    unassigned: alertStore.alerts.filter(a => !a.action).length,
-    mttr: '14.2m',
-    fpRate: '8.4%',
-    open: alertStore.alerts.filter(a => a.status === 'open').length,
-    ack: alertStore.alerts.filter(a => a.status === 'acknowledged').length,
-    investigating: alertStore.alerts.filter(a => a.status === 'investigating').length,
-    closed: alertStore.alerts.filter(a => a.status === 'closed').length,
-    suppressed: alertStore.alerts.filter(a => a.status === 'suppressed').length
+  const stats = $derived.by(() => {
+    const all = alertStore.alerts ?? [];
+    const total = all.length;
+    const closed = all.filter((a) => a.status === 'closed').length;
+    const suppressed = all.filter((a) => a.status === 'suppressed').length;
+    // FP-rate is honest: suppressed-as-fraction-of-(closed+suppressed). When
+    // the operator has triaged nothing yet, show "—" so we don't flash a
+    // misleading "0%" or "100%".
+    const triaged = closed + suppressed;
+    const fpRate = triaged === 0 ? '—' : `${Math.round((suppressed / triaged) * 100)}%`;
+    return {
+      total,
+      critical: all.filter((a) => a.severity === 'critical').length,
+      unassigned: all.filter((a) => !a.action).length,
+      // MTTR needs incident-resolution timestamps the backend doesn't expose
+      // yet; surface "—" rather than fake "14.2m".
+      mttr: '—',
+      fpRate,
+      open: all.filter((a) => a.status === 'open').length,
+      ack: all.filter((a) => a.status === 'acknowledged').length,
+      investigating: all.filter((a) => a.status === 'investigating').length,
+      closed,
+      suppressed,
+    };
   });
 
   const tabItems = $derived([
@@ -145,12 +158,12 @@
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Total Open</div>
             <div class="text-xl font-mono font-bold text-text-heading">{stats.open}</div>
-            <div class="text-[9px] text-text-muted mt-1">+31 vs prev 4h</div>
+            <div class="text-[9px] text-text-muted mt-1">{stats.total} total in window</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Critical</div>
             <div class="text-xl font-mono font-bold text-error">{stats.critical}</div>
-            <div class="text-[9px] text-error/80 mt-1 animate-pulse">▲ SLA BREACH RISK</div>
+            <div class="text-[9px] text-error/80 mt-1 {stats.critical > 0 ? 'animate-pulse' : ''}">{stats.critical > 0 ? '▲ ATTENTION REQUIRED' : '— stable'}</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Unassigned</div>
@@ -160,7 +173,7 @@
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Avg MTTR</div>
             <div class="text-xl font-mono font-bold text-text-heading">{stats.mttr}</div>
-            <div class="text-[9px] text-success mt-1">▼ -2.1m vs SLA</div>
+            <div class="text-[9px] text-text-muted mt-1">metric pending</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">False Positive</div>

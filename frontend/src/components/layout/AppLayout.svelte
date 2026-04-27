@@ -16,7 +16,7 @@
   import BottomDock from './BottomDock.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import AddHostModal from '@components/sidebar/AddHostModal.svelte';
-  import TransferDrawer from '@components/terminal/TransferDrawer.svelte';
+  import TransferDrawer from '@components/transfers/TransferDrawer.svelte';
   import SystemBanner from '@components/ui/SystemBanner.svelte';
 
   interface Props {

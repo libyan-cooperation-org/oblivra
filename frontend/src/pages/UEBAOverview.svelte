@@ -1,184 +1,132 @@
 <!--
-  OBLIVRA — UEBA Overview (Svelte 5)
-  Real-time behavioral intelligence and anomaly orchestration.
+  UEBA Overview — anomaly + profile feed from UEBAService.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, ProgressBar, PopOutButton } from '@components/ui';
-  import { User, Monitor, Activity, Radar } from 'lucide-svelte';
-  import { uebaStore } from '@lib/stores/ueba.svelte';
   import { onMount } from 'svelte';
+  import { PageLayout, Badge, Button, KPI, DataTable, PopOutButton } from '@components/ui';
+  import { Users, AlertTriangle, RefreshCw, TrendingUp } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { push } from '@lib/router.svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const highRiskEntities = $derived(uebaStore.profiles);
-  const anomalies = $derived(uebaStore.anomalies);
-  const stats = $derived(uebaStore.stats);
+  type Anomaly = {
+    id?: string; user_id?: string; entity?: string; score?: number;
+    description?: string; severity?: string; detected_at?: string;
+  };
+  type Profile = {
+    user_id?: string; baseline?: any; risk_score?: number; last_seen?: string;
+  };
 
-  onMount(() => {
-    uebaStore.refresh();
-  });
+  let anomalies = $state<Anomaly[]>([]);
+  let profiles = $state<Profile[]>([]);
+  let loading = $state(false);
+
+  const stats = $derived.by(() => ({
+    anomalies: anomalies.length,
+    high: anomalies.filter((a) => (a.severity ?? '').toLowerCase() === 'high' || (a.score ?? 0) >= 0.8).length,
+    profiles: profiles.length,
+    avgRisk: profiles.length === 0 ? 0
+      : Math.round(profiles.reduce((s, p) => s + (p.risk_score ?? 0), 0) / profiles.length * 100),
+  }));
+
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) { anomalies = []; profiles = []; return; }
+      const ueba = await import(
+        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/uebaservice'
+      );
+      const [an, pr] = await Promise.all([ueba.GetAnomalies(), ueba.GetProfiles()]);
+      anomalies = (an ?? []) as Anomaly[];
+      profiles = (pr ?? []) as Profile[];
+    } catch (e: any) {
+      appStore.notify(`UEBA load failed: ${e?.message ?? e}`, 'error');
+    } finally { loading = false; }
+  }
+
+  onMount(refresh);
 </script>
 
-<PageLayout title="Behavioral Intelligence" subtitle="Autonomous anomaly scoring and peer group analysis engine">
+<PageLayout title="User & Entity Behaviour Analytics" subtitle="Detected anomalies and risky-user profiles">
   {#snippet toolbar()}
-    <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm" onclick={() => uebaStore.refresh()} loading={uebaStore.loading}>BASELINE STATUS</Button>
-      <Button variant="primary" size="sm">DOWNLOAD AUDIT</Button>
-      <PopOutButton route="/ueba" title="UEBA Overview" />
-    </div>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <PopOutButton route="/ueba" title="UEBA Overview" />
   {/snippet}
 
-  <div class="flex flex-col h-full gap-0 -m-6">
-    <!-- METRIC STRIP -->
-    <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">High Risk Entities</div>
-            <div class="text-xl font-mono font-bold text-error">{stats.high_risk_entities}</div>
-            <div class="text-[9px] text-error mt-1">▲ Critical baseline breach</div>
-        </div>
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Total Entities</div>
-            <div class="text-xl font-mono font-bold text-text-heading">{stats.total_entities}</div>
-            <div class="text-[9px] text-text-muted mt-1">Global fleet total</div>
-        </div>
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Anomaly Ingest</div>
-            <div class="text-xl font-mono font-bold text-accent">{stats.anomalies_24h}/24h</div>
-            <div class="text-[9px] text-success mt-1">ML Engine optimized</div>
-        </div>
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Baselines Active</div>
-            <div class="text-xl font-mono font-bold text-text-heading">{stats.baselines_active}</div>
-            <div class="text-[9px] text-success mt-1">Continuous profiling</div>
-        </div>
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
+      <KPI label="Live Anomalies"   value={stats.anomalies.toString()} variant={stats.anomalies > 0 ? 'critical' : 'muted'} />
+      <KPI label="High Severity"    value={stats.high.toString()}      variant={stats.high > 0 ? 'critical' : 'muted'} />
+      <KPI label="Profiled Users"   value={stats.profiles.toString()}  variant="accent" />
+      <KPI label="Avg Risk Score"   value={`${stats.avgRisk}%`}        variant={stats.avgRisk >= 60 ? 'warning' : 'muted'} />
     </div>
 
-    <!-- MAIN BODY -->
-    <div class="flex-1 flex min-h-0">
-        <!-- LEFT: ENTITY LIST -->
-        <div class="flex-1 flex flex-col min-w-0">
-            <div class="bg-surface-1 border-b border-border-primary p-3 flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-2">
-                    <Radar size={14} class="text-accent" />
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Behavioral Risk Ledger</span>
-                </div>
-                <div class="flex bg-surface-2 border border-border-primary rounded-sm overflow-hidden h-6">
-                    <button class="px-2 text-[8px] font-mono font-bold bg-surface-3 text-accent border-r border-border-primary uppercase">All</button>
-                    <button class="px-2 text-[8px] font-mono font-bold text-text-muted uppercase">Users</button>
-                    <button class="px-2 text-[8px] font-mono font-bold text-text-muted uppercase">Hosts</button>
-                </div>
-            </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+      <section class="lg:col-span-2 flex flex-col bg-surface-1 border border-border-primary rounded-md min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <AlertTriangle size={14} class="text-warning" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Recent Anomalies</span>
+          <span class="ml-auto text-[10px] text-text-muted">{anomalies.length}</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#if anomalies.length === 0}
+            <div class="p-6 text-sm text-text-muted text-center">{loading ? 'Loading…' : 'No anomalies detected.'}</div>
+          {:else}
+            <DataTable
+              data={anomalies}
+              columns={[
+                { key: 'severity',    label: 'Sev',    width: '70px' },
+                { key: 'entity',      label: 'Entity', width: '140px' },
+                { key: 'description', label: 'Anomaly' },
+                { key: 'score',       label: 'Score',  width: '70px' },
+                { key: 'detected_at', label: 'Time',   width: '140px' },
+              ]}
+              compact
+            >
+              {#snippet render({ col, row })}
+                {#if col.key === 'severity'}
+                  <Badge variant={(row.severity ?? '').toLowerCase() === 'high' ? 'critical' : (row.severity ?? '').toLowerCase() === 'medium' ? 'warning' : 'info'} size="xs">
+                    {row.severity ?? '—'}
+                  </Badge>
+                {:else if col.key === 'entity'}
+                  <span class="font-mono text-[10px] text-accent">{row.entity ?? row.user_id ?? '—'}</span>
+                {:else if col.key === 'score'}
+                  <span class="font-mono text-[10px] {(row.score ?? 0) >= 0.8 ? 'text-error' : (row.score ?? 0) >= 0.5 ? 'text-warning' : 'text-text-muted'}">{row.score?.toFixed(2) ?? '—'}</span>
+                {:else if col.key === 'detected_at'}
+                  <span class="font-mono text-[10px] text-text-muted">{row.detected_at?.slice(0, 19) ?? '—'}</span>
+                {:else}
+                  <span class="text-[11px]">{row[col.key] ?? '—'}</span>
+                {/if}
+              {/snippet}
+            </DataTable>
+          {/if}
+        </div>
+      </section>
 
-            <div class="flex-1 overflow-auto mask-fade-bottom">
-                <DataTable 
-                    data={highRiskEntities} 
-                    columns={[
-                        { key: 'id', label: 'ENTITY' },
-                        { key: 'peer_group', label: 'PEER GROUP', width: '120px' },
-                        { key: 'deviations', label: 'ANOMALIES', width: '100px' },
-                        { key: 'risk', label: 'SCORE', width: '140px' },
-                        { key: 'actions', label: '', width: '80px' }
-                    ]} 
-                    compact
-                >
-                    {#snippet render({ col, row })}
-                        {#if col.key === 'id'}
-                            <div class="flex items-center gap-2 py-0.5">
-                                {#if row.type === 'user'}
-                                    <User size={12} class="text-accent" />
-                                {:else}
-                                    <Monitor size={12} class="text-text-muted" />
-                                {/if}
-                                <span class="text-[11px] font-bold text-text-secondary leading-tight">{row.id}</span>
-                            </div>
-                        {:else if col.key === 'peer_group'}
-                            <span class="text-[10px] font-mono text-text-muted">{row.peer_group}</span>
-                        {:else if col.key === 'deviations'}
-                            <Badge variant={row.deviations > 5 ? 'warning' : 'muted'} size="xs" class="font-mono">{row.deviations}</Badge>
-                        {:else if col.key === 'risk'}
-                            <div class="flex items-center gap-2 w-full">
-                                <ProgressBar value={row.risk} variant={row.risk > 80 ? 'error' : row.risk > 40 ? 'warning' : 'success'} size="xs" />
-                                <span class="text-[10px] font-mono text-text-muted w-8">{row.risk}</span>
-                            </div>
-                        {:else if col.key === 'actions'}
-                            <Button variant="ghost" size="xs" class="h-6 px-2 text-[8px] font-mono">PROFILE</Button>
-                        {/if}
-                    {/snippet}
-                </DataTable>
-            </div>
+      <section class="flex flex-col bg-surface-1 border border-border-primary rounded-md min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <TrendingUp size={14} class="text-accent" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Top Risk Users</span>
         </div>
-
-        <!-- RIGHT: LIVE ANOMALY FEED -->
-        <div class="w-96 bg-surface-2 border-l border-border-primary flex flex-col shrink-0">
-            <div class="px-3 py-2 bg-surface-3 border-b border-border-primary flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <Activity size={14} class="text-error" />
-                    <span class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-heading">Real-time Deviations</span>
-                </div>
-                <div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
-            </div>
-            
-            <div class="flex-1 overflow-auto p-3 space-y-3">
-                {#each anomalies as anomaly}
-                    <div class="bg-surface-1 border border-border-primary p-3 rounded-sm space-y-3 hover:border-error transition-colors cursor-pointer group">
-                        <div class="flex items-start justify-between">
-                            <div class="flex flex-col">
-                                <span class="text-[11px] font-bold text-text-heading uppercase tracking-tighter">{anomaly.signal}</span>
-                                <span class="text-[8px] font-mono text-text-muted uppercase">{anomaly.time} · {anomaly.entity}</span>
-                            </div>
-                            <div class="px-1.5 py-0.5 rounded-sm bg-error/10 border border-error/20 text-[9px] font-mono font-black text-error">
-                                {anomaly.score}%
-                            </div>
-                        </div>
-                        <div class="p-2 bg-surface-2 border border-border-primary rounded-sm text-[9px] font-mono text-text-muted italic">
-                            Evidence: {anomaly.evidence}
-                        </div>
-                        <div class="flex gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="flex-1 px-2 py-1 bg-surface-3 border border-border-primary text-[8px] font-mono text-text-muted hover:text-text-secondary">CORRELATE</button>
-                            <button class="flex-1 px-2 py-1 bg-error/10 border border-error/20 text-[8px] font-mono text-error hover:bg-error/20">INVESTIGATE</button>
-                        </div>
-                    </div>
-                {/each}
-            </div>
-
-            <!-- RISK DISTRIBUTION CHART (SIMULATED) -->
-            <div class="h-48 border-t border-border-primary bg-surface-3 p-4 space-y-3">
-                <span class="text-[8px] font-mono font-bold text-text-muted uppercase tracking-widest">Global Risk Distribution</span>
-                <div class="flex-1 flex items-end gap-1.5 pt-4">
-                    {#each [20, 35, 60, 85, 45, 25, 15] as h, i}
-                        <div class="flex-1 {i === 3 ? 'bg-error' : 'bg-accent/40'} border-t border-white/5 rounded-t-sm" style="height: {h}%"></div>
-                    {/each}
-                </div>
-                <div class="flex justify-between text-[8px] font-mono text-text-muted uppercase pt-1">
-                    <span>LOW</span>
-                    <span>NOMINAL</span>
-                    <span>HIGH</span>
-                </div>
-            </div>
+        <div class="flex-1 overflow-auto p-2">
+          {#if profiles.length === 0}
+            <div class="p-4 text-sm text-text-muted text-center">{loading ? 'Loading…' : 'No profiles yet.'}</div>
+          {:else}
+            {#each profiles.slice().sort((a, b) => (b.risk_score ?? 0) - (a.risk_score ?? 0)).slice(0, 20) as p (p.user_id)}
+              <button
+                class="w-full text-left px-2 py-1.5 rounded-md hover:bg-surface-2 flex items-center gap-2"
+                onclick={() => push(`/ueba-overview?user=${encodeURIComponent(p.user_id ?? '')}`)}
+              >
+                <Users size={11} class="text-text-muted" />
+                <span class="font-mono text-[11px] flex-1 truncate">{p.user_id ?? '—'}</span>
+                <span class="font-mono text-[10px] {(p.risk_score ?? 0) >= 0.8 ? 'text-error' : (p.risk_score ?? 0) >= 0.5 ? 'text-warning' : 'text-text-muted'}">
+                  {Math.round((p.risk_score ?? 0) * 100)}
+                </span>
+              </button>
+            {/each}
+          {/if}
         </div>
-    </div>
-
-    <!-- STATUS BAR -->
-    <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0">
-        <div class="flex items-center gap-1.5">
-            <span>ENGINE:</span>
-            <span class="text-success font-bold">OPTIMIZED</span>
-        </div>
-        <span class="text-border-primary">|</span>
-        <div class="flex items-center gap-1.5">
-            <span>MODELS:</span>
-            <span class="text-accent font-bold">142 ACTIVE</span>
-        </div>
-        <span class="text-border-primary">|</span>
-        <div class="flex items-center gap-1.5">
-            <span>PEER_GROUPS:</span>
-            <span class="text-success font-bold">1.2K CALCULATED</span>
-        </div>
-        <div class="ml-auto uppercase tracking-widest opacity-60">UEBA_CORE v1.14.2</div>
+      </section>
     </div>
   </div>
 </PageLayout>
-
-<style>
-  .overflow-auto {
-    mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
-  }
-</style>

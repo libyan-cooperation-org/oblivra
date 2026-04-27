@@ -1,75 +1,48 @@
 <!--
-  OBLIVRA — Sync & Cloud Edge (Svelte 5)
-  Orchestration of encrypted cross-device synchronization and peer-to-peer relay.
+  Sync — bound to SyncService.
 -->
 <script lang="ts">
-  import { KPI, Badge, PageLayout, Button, Spinner } from '@components/ui';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, PopOutButton } from '@components/ui';
+  import { RefreshCw } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
 
+  let lastSync = $state<Date | null>(null);
   let syncing = $state(false);
-  let lastSync = $state('2m ago');
 
-  function triggerSync() {
+  async function sync() {
     syncing = true;
-    setTimeout(() => {
-      syncing = false;
-      lastSync = 'Just now';
-    }, 2000);
+    try {
+      if (IS_BROWSER) { appStore.notify('Sync only in desktop', 'warning'); return; }
+      const { Sync } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/syncservice');
+      await Sync();
+      lastSync = new Date();
+      appStore.notify('Sync complete', 'success');
+    } catch (e: any) {
+      appStore.notify(`Sync failed: ${e?.message ?? e}`, 'error');
+    } finally { syncing = false; }
   }
+
+  onMount(() => { void sync(); });
 </script>
 
-<PageLayout title="Workspace Sync" subtitle="End-to-end encrypted synchronization across your fleet and devices">
-  <div class="flex flex-col h-full gap-8 max-w-4xl">
-    
-    <!-- Hero Status -->
-    <div class="bg-surface-1 border border-border-primary rounded-lg p-8 flex flex-col items-center text-center gap-6 relative overflow-hidden">
-      <!-- Background pulse -->
-      <div class="absolute inset-0 bg-accent/5 animate-pulse"></div>
-      
-      <div class="relative w-20 h-20 rounded-full border-4 border-accent/20 flex items-center justify-center bg-surface-2 shadow-glow-accent/20">
-        {#if syncing}
-          <div class="absolute inset-0 animate-spin border-4 border-accent border-t-transparent rounded-full"></div>
-          <span class="text-2xl">🔄</span>
-        {:else}
-          <span class="text-3xl text-accent">☁️</span>
-        {/if}
-      </div>
+<PageLayout title="Sync" subtitle="Cross-instance synchronization">
+  {#snippet toolbar()}
+    <Button variant="primary" size="sm" icon={RefreshCw} onclick={sync} disabled={syncing}>{syncing ? 'Syncing…' : 'Sync now'}</Button>
+    <PopOutButton route="/sync" title="Sync" />
+  {/snippet}
 
-      <div class="relative">
-        <h2 class="text-xl font-bold text-text-heading">Synchronized</h2>
-        <p class="text-xs text-text-muted mt-1">Your configuration, vault, and snippets are up to date across 3 devices.</p>
-      </div>
-
-      <div class="relative flex gap-4">
-        <Button variant="cta" size="sm" onclick={triggerSync} disabled={syncing}>
-          {#if syncing} <Spinner size="sm" /> {:else} Force Sync Now {/if}
-        </Button>
-        <Button variant="secondary" size="sm">Manage Devices</Button>
-      </div>
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Last Sync" value={lastSync ? lastSync.toLocaleTimeString() : '—'} variant={lastSync ? 'success' : 'muted'} />
+      <KPI label="Status" value={syncing ? 'In progress' : (lastSync ? 'Idle' : 'Never run')} variant={syncing ? 'accent' : 'muted'} />
+      <KPI label="Mode" value={IS_BROWSER ? 'Browser (no sync)' : 'Desktop'} variant="muted" />
     </div>
 
-    <!-- Sync Metadata -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <KPI title="Encrypted Payload" value="1.4 MB" trend="Optimized" />
-      <KPI title="Last Handshake" value={lastSync} trend="Relay: AMS" variant="success" />
-    </div>
-
-    <!-- Device List -->
-    <div class="flex flex-col gap-4">
-      <h3 class="text-xs font-bold uppercase tracking-widest text-text-muted">Linked Terminal Instances</h3>
-      <div class="flex flex-col gap-2">
-        {#each ['Macbook Pro (M3)', 'Ubuntu Workstation', 'iPhone 15 Pro'] as device}
-          <div class="bg-surface-1 border border-border-primary rounded px-4 py-3 flex justify-between items-center group hover:border-accent/40 transition-colors">
-            <div class="flex items-center gap-3">
-              <span class="text-lg opacity-40">💻</span>
-              <div class="flex flex-col">
-                <span class="text-xs font-bold text-text-heading">{device}</span>
-                <span class="text-[9px] text-text-muted">Last seen: {Math.floor(Math.random() * 10)}m ago</span>
-              </div>
-            </div>
-            <Badge variant="success">Online</Badge>
-          </div>
-        {/each}
-      </div>
+    <div class="bg-surface-1 border border-border-primary rounded-md p-6 text-sm text-text-muted">
+      <p class="mb-2">SyncService coordinates encrypted state replication between this OBLIVRA instance and its peers (e.g., a backup HQ + an on-call laptop).</p>
+      <p>Conflicts are surfaced via <code class="bg-surface-2 px-1 rounded">QueueUpdate</code> / <code class="bg-surface-2 px-1 rounded">ResolveConflict</code> RPCs; the conflict-resolution UI is part of the next phase. For now this page exposes the manual trigger.</p>
     </div>
   </div>
 </PageLayout>

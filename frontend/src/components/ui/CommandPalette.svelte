@@ -33,7 +33,7 @@
     { id: 'health',               label: 'Health Monitor',        sublabel: 'Platform health & metrics',              path: '/monitoring',           section: 'OBS' },
     { id: 'recordings',           label: 'Recordings',            sublabel: 'Session recording library',              path: '/recordings',           section: 'OBS' },
     // Operate
-    { id: 'terminal',             label: 'Terminal',              sublabel: 'Active shell sessions',                  path: '/terminal',             section: 'OPS' },
+    { id: 'terminal',             label: 'Terminal',              sublabel: 'Active shell sessions',                  path: '/shell',             section: 'OPS' },
     { id: 'ssh',                  label: 'SSH Bookmarks',         sublabel: 'Saved SSH connections',                  path: '/ssh',                  section: 'OPS' },
     { id: 'tunnels',              label: 'Tunnels',               sublabel: 'Port-forward & reverse tunnels',         path: '/tunnels',              section: 'OPS' },
     { id: 'hosts',                label: 'Hosts',                 sublabel: 'Infrastructure management',              path: '/hosts',                section: 'OPS' },
@@ -161,7 +161,7 @@
   const quickNav = [
     { label: 'Dashboard',     path: '/dashboard',    id: 'dashboard',    section: 'OBS'   },
     { label: 'Alerts',        path: '/alerts',       id: 'alerts',       section: 'OBS'   },
-    { label: 'Terminal',      path: '/terminal',     id: 'terminal',     section: 'OPS'   },
+    { label: 'Terminal',      path: '/shell',     id: 'terminal',     section: 'OPS'   },
     { label: 'SIEM',          path: '/siem',         id: 'siem',         section: 'OBS'   },
     { label: 'Threat Hunter', path: '/threat-hunter',id: 'threat-hunter',section: 'INTEL' },
     { label: 'War Mode',      path: '/war-mode',     id: 'war-mode',     section: 'GOV'   },
