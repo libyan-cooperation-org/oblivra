@@ -1,66 +1,89 @@
-<!--
-  OBLIVRA — SOAR Panel (Svelte 5)
-  Security Orchestration, Automation, and Response dashboard.
--->
+<!-- SOAR Panel — playbook + incident orchestration. Bound to PlaybookService + IncidentService. -->
 <script lang="ts">
-  import { KPI, Badge, PageLayout, Button, DataTable, PopOutButton} from '@components/ui';
-  import { Zap, Play } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Badge, Button, DataTable, PopOutButton } from '@components/ui';
+  import { Zap, Play, RefreshCw } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
+  import { push } from '@lib/router.svelte';
 
-  const playbooks: Record<string, any>[] = [
-    { name: 'Brute Force Auto-Contain', status: 'active', triggers: 142, success: '98%' },
-    { name: 'Phishing URI Enrichment', status: 'active', triggers: 890, success: '100%' },
-    { name: 'Crypto-Mining Kill Switch', status: 'paused', triggers: 5, success: '80%' },
-    { name: 'Identity Drift Correction', status: 'testing', triggers: 0, success: 'N/A' },
-  ];
+  let actions = $state<any[]>([]);
+  let openInc = $state<any[]>([]);
+  let loading = $state(false);
+
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) return;
+      const pb = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice');
+      const ic = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
+      const [a, i] = await Promise.all([pb.ListAvailableActions(), ic.ListIncidents('open', '', 50)]);
+      actions = (a ?? []) as any[];
+      openInc = (i ?? []) as any[];
+    } finally { loading = false; }
+  }
+
+  async function dispatch(actionID: string, incidentID: string) {
+    try {
+      const { RunPlaybook } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice');
+      await RunPlaybook(actionID, incidentID);
+      appStore.notify(`Dispatched ${actionID} on ${incidentID}`, 'success');
+    } catch (e: any) { appStore.notify(`Dispatch failed: ${e?.message ?? e}`, 'error'); }
+  }
+  onMount(refresh);
 </script>
 
-<PageLayout title="SOAR Orchestrator" subtitle="Automated signal response and playbook execution engine">
+<PageLayout title="SOAR — Response" subtitle="Orchestrate response actions across open incidents">
   {#snippet toolbar()}
-    <Button variant="primary" size="sm">New Playbook</Button>
-      <PopOutButton route="/soar" title="SOAR Panel" />
-    {/snippet}
-
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Automation Rate" value="84%" trend="up" trendValue="+5%" variant="success" />
-      <KPI label="Time Saved (MoMD)" value="122h" trend="stable" trendValue="Productive" variant="accent" />
-      <KPI label="Active Playbooks" value={playbooks.filter(p => p.status === 'active').length} trend="stable" trendValue="Nominal" />
-      <KPI label="Failure Rate" value="0.2%" trend="stable" trendValue="Low" variant="success" />
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <Button variant="primary" size="sm" onclick={() => push('/playbook-builder')}>Playbook Builder</Button>
+    <PopOutButton route="/response" title="SOAR" />
+  {/snippet}
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Available Actions" value={actions.length.toString()} variant="accent" />
+      <KPI label="Open Incidents" value={openInc.length.toString()} variant={openInc.length > 0 ? 'warning' : 'muted'} />
+      <KPI label="Mode" value={IS_BROWSER ? 'Browser' : 'Desktop'} variant="muted" />
     </div>
-
-    <div class="flex-1 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col">
-       <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-text-muted">
-          Active Playbook Library
-       </div>
-       <div class="flex-1 overflow-auto">
-          <DataTable data={playbooks} columns={[
-            { key: 'name', label: 'Playbook Logic' },
-            { key: 'status', label: 'Status', width: '100px' },
-            { key: 'triggers', label: 'Executions', width: '100px' },
-            { key: 'success', label: 'Efficiency', width: '100px' },
-            { key: 'action', label: '', width: '100px' }
-          ]} compact>
-            {#snippet render({ col: column, row })}
-              {#if column.key === 'status'}
-                 <Badge variant={row.status === 'active' ? 'success' : row.status === 'paused' ? 'warning' : 'info'}>{row.status}</Badge>
-              {:else if column.key === 'name'}
-                 <div class="flex items-center gap-2">
-                    <Zap size={14} class={row.status === 'active' ? 'text-accent' : 'text-text-muted'} />
-                    <span class="text-[11px] font-bold text-text-heading">{row.name}</span>
-                 </div>
-              {:else if column.key === 'triggers'}
-                 <span class="text-[11px] font-mono text-text-secondary">{row.triggers}</span>
-              {:else if column.key === 'action'}
-                 <div class="flex gap-2">
-                    <Button variant="ghost" size="xs">Edit</Button>
-                    <Button variant="ghost" size="xs" class="text-accent"><Play size={12} /></Button>
-                 </div>
-              {:else}
-                <span class="text-[11px] text-text-secondary">{row[column.key]}</span>
-              {/if}
-            {/snippet}
-          </DataTable>
-       </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
+      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <Zap size={14} class="text-accent" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Actions</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#each actions as a (a.id ?? a.name)}
+            <div class="px-3 py-2 border-b border-border-primary text-[11px]">
+              <div class="font-mono text-accent truncate">{a.name ?? a.id}</div>
+              {#if a.description}<div class="text-[10px] text-text-muted truncate">{a.description}</div>{/if}
+            </div>
+          {/each}
+        </div>
+      </div>
+      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <span class="text-[10px] uppercase tracking-widest font-bold">Open Incidents</span>
+        </div>
+        <DataTable data={openInc} columns={[
+          { key: 'id',       label: 'ID',     width: '120px' },
+          { key: 'title',    label: 'Title' },
+          { key: 'severity', label: 'Sev',    width: '70px' },
+          { key: 'run',      label: '',       width: '70px' },
+        ]} compact>
+          {#snippet render({ col, row })}
+            {#if col.key === 'id'}<span class="font-mono text-[10px] text-accent">{row.id}</span>
+            {:else if col.key === 'severity'}<Badge variant={row.severity === 'critical' ? 'critical' : 'warning'} size="xs">{row.severity}</Badge>
+            {:else if col.key === 'run'}
+              <Button variant="ghost" size="xs" onclick={() => {
+                if (actions.length === 0) { appStore.notify('No actions available', 'warning'); return; }
+                const id = actions[0].id ?? actions[0].name;
+                if (id) void dispatch(id, row.id);
+              }}><Play size={10} /></Button>
+            {:else}<span class="text-[11px]">{row[col.key] ?? '—'}</span>{/if}
+          {/snippet}
+        </DataTable>
+        {#if openInc.length === 0}<div class="p-8 text-center text-sm text-text-muted">{loading ? 'Loading…' : 'No open incidents.'}</div>{/if}
+      </div>
     </div>
   </div>
 </PageLayout>

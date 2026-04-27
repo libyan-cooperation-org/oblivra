@@ -1,94 +1,63 @@
-<!--
-  OBLIVRA — Configuration Risk (Svelte 5)
-  System compliance and configuration drift: Assessing the security posture of platform-wide settings.
--->
+<!-- Configuration Risk — bound to ComplianceService + RuntimeTrustService. -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, DataTable } from '@components/ui';
-  import { Shield, Activity, Settings, AlertTriangle } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, PopOutButton } from '@components/ui';
+  import { AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { push } from '@lib/router.svelte';
 
-  const risks: Record<string, any>[] = [
-    { id: 'CR-01', name: 'Open SSH Root Auth', severity: 'High', status: 'vulnerable', domain: 'Operations' },
-    { id: 'CR-02', name: 'Weak Vault Entropy', severity: 'Critical', status: 'warning', domain: 'Security' },
-    { id: 'CR-03', name: 'Unsigned Script Exec', severity: 'Medium', status: 'baseline', domain: 'Orchestration' },
-  ];
+  let trustIdx = $state<number | null>(null);
+  let pillars = $state<Record<string, number>>({});
+  let packs = $state<any[]>([]);
+
+  async function refresh() {
+    if (IS_BROWSER) return;
+    try {
+      const trust = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/runtimetrustservice');
+      trustIdx = (await trust.CalculateTrustIndex()) as number;
+      pillars = ((await trust.GetPillarScores()) ?? {}) as Record<string, number>;
+      const cmp = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/complianceservice');
+      packs = ((await cmp.ListCompliancePacks()) ?? []) as any[];
+    } catch {}
+  }
+  onMount(refresh);
+
+  let pillarsLow = $derived(Object.entries(pillars).filter(([_, v]) => v < 0.5));
+  let cmpFail = $derived(packs.filter((p) => p.controls && p.passing < p.controls).length);
 </script>
 
-<PageLayout title="Configuration Risk" subtitle="Platform posture assessment: Identifying configuration drift and regulatory non-compliance across the fleet">
+<PageLayout title="Configuration Risk" subtitle="Drift, posture, and trust attestation">
   {#snippet toolbar()}
-     <Button variant="secondary" size="sm">Baseline All Nodes</Button>
-     <Button variant="primary" size="sm" icon="🛡️">Remediate Critical</Button>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>Refresh</Button>
+    <PopOutButton route="/config-risk" title="Config Risk" />
   {/snippet}
-
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Risk Factor" value="0.22" trend="down" trendValue="-0.04" variant="success" />
-      <KPI label="Active Vulnerabilities" value="3" trend="stable" trendValue="Critical" variant="critical" />
-      <KPI label="Compliance Score" value="94%" trend="stable" trendValue="Optimized" variant="success" />
-      <KPI label="OBLIVRA Posture" value="HARDENED" trend="stable" trendValue="NOMINAL" variant="success" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Trust Index" value={trustIdx !== null ? trustIdx.toFixed(2) : '—'} variant={(trustIdx ?? 0) >= 0.8 ? 'success' : 'warning'} />
+      <KPI label="Failing Pillars" value={pillarsLow.length.toString()} variant={pillarsLow.length > 0 ? 'critical' : 'success'} />
+      <KPI label="Failing Compliance" value={cmpFail.toString()} variant={cmpFail > 0 ? 'warning' : 'muted'} />
     </div>
-
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Risk Inventory -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col shadow-premium">
-         <div class="p-3 bg-surface-2 border-b border-border-primary flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            Configuration Posture Registry
-         </div>
-         <div class="flex-1 overflow-auto">
-            <DataTable data={risks} columns={[
-              { key: 'name', label: 'Security Metric' },
-              { key: 'severity', label: 'Gravity', width: '100px' },
-              { key: 'domain', label: 'Domain', width: '120px' },
-              { key: 'status', label: 'Compliance', width: '120px' },
-              { key: 'action', label: '', width: '60px' }
-            ]} compact>
-              {#snippet render({ col: column, row })}
-                {#if column.key === 'status'}
-                   <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full {row.status === 'vulnerable' ? 'bg-error animate-pulse' : row.status === 'warning' ? 'bg-warning' : 'bg-success'}"></div>
-                      <span class="text-[10px] font-bold uppercase">{row.status}</span>
-                   </div>
-                {:else if column.key === 'severity'}
-                    <Badge variant={row.severity === 'Critical' ? 'critical' : row.severity === 'High' ? 'warning' : 'info'}>{row.severity.toUpperCase()}</Badge>
-                {:else if column.key === 'name'}
-                   <div class="flex items-center gap-2">
-                      <Settings size={14} class="text-accent opacity-70" />
-                      <span class="text-[11px] font-bold text-text-heading">{row.name}</span>
-                   </div>
-                {:else if column.key === 'action'}
-                   <Button variant="ghost" size="xs"><Shield size={12} /></Button>
-                {:else}
-                  <span class="text-[11px] text-text-secondary">{row[column.key]}</span>
-                {/if}
-              {/snippet}
-            </DataTable>
-         </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 min-h-0">
+      <div class="bg-surface-1 border border-border-primary rounded-md p-4">
+        <div class="flex items-center gap-2 mb-3"><AlertTriangle size={14} class="text-warning" /><span class="text-[10px] uppercase tracking-widest font-bold">Pillars Below Threshold</span></div>
+        {#if pillarsLow.length === 0}
+          <div class="text-center text-sm text-text-muted py-6">All pillars OK.</div>
+        {:else}
+          {#each pillarsLow as [name, v]}
+            <div class="flex justify-between py-1 border-b border-border-primary text-[11px]">
+              <span class="font-mono">{name}</span><span class="font-mono text-error">{(v * 100).toFixed(0)}%</span>
+            </div>
+          {/each}
+        {/if}
       </div>
-
-      <!-- Posture Visuals -->
-      <div class="flex flex-col gap-6">
-         <div class="bg-surface-1 border border-border-primary rounded-md p-6 flex flex-col items-center justify-center text-center gap-4 border-dashed shadow-sm">
-            <AlertTriangle size={48} class="text-warning opacity-40" />
-            <h4 class="text-xs font-bold text-text-heading uppercase tracking-widest">Configuration Drift</h4>
-            <p class="text-[10px] text-text-muted max-w-[150px]">OBLIVRA monitors disk and memory configuration in real-time to prevent unauthorized persistence mechanisms.</p>
-         </div>
-
-         <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4 space-y-4">
-            <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2 flex items-center gap-2">
-               <Activity size={12} />
-               Platform Resilience
-            </div>
-            <div class="space-y-4">
-                {#each Array(3) as _, i}
-                   <div class="flex gap-3 items-start opacity-70">
-                      <div class="w-1 h-1 rounded-full bg-accent mt-2"></div>
-                      <div class="flex flex-col">
-                         <span class="text-[10px] font-bold text-text-heading">Compliance Block {i+1} verified</span>
-                         <span class="text-[8px] text-text-muted font-mono">0.0ms drift detected</span>
-                      </div>
-                   </div>
-                {/each}
-            </div>
-         </div>
+      <div class="bg-surface-1 border border-border-primary rounded-md p-4">
+        <div class="flex items-center gap-2 mb-3"><ShieldCheck size={14} class="text-accent" /><span class="text-[10px] uppercase tracking-widest font-bold">Quick Pivots</span></div>
+        <div class="grid grid-cols-1 gap-2">
+          <Button variant="secondary" size="sm" onclick={() => push('/trust')}>Runtime Trust →</Button>
+          <Button variant="secondary" size="sm" onclick={() => push('/compliance')}>Compliance Center →</Button>
+          <Button variant="secondary" size="sm" onclick={() => push('/temporal-integrity')}>Temporal Integrity →</Button>
+          <Button variant="secondary" size="sm" onclick={() => push('/governance')}>Governance →</Button>
+        </div>
       </div>
     </div>
   </div>

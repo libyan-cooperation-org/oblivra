@@ -1,90 +1,52 @@
-<!--
-  OBLIVRA — Network Map (Svelte 5)
-  Geospatial network visualization: Mapping platform presence across global zones.
--->
+<!-- Network Map — agent geo + flows. Uses agentStore + NDRService.GetLiveTraffic. -->
 <script lang="ts">
-  import { KPI, PageLayout, Button, Chart, PopOutButton } from '@components/ui';
-  import type { EChartsOption } from 'echarts';
-  import { ndrStore } from '@lib/stores/ndr.svelte';
   import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, PopOutButton } from '@components/ui';
+  import { Map as MapIcon, RefreshCw, ExternalLink } from 'lucide-svelte';
+  import { agentStore } from '@lib/stores/agent.svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { push } from '@lib/router.svelte';
+
+  let flows = $state<any[]>([]);
+
+  async function refreshFlows() {
+    if (IS_BROWSER) return;
+    try {
+      const { GetLiveTraffic } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/ndrservice');
+      flows = ((await GetLiveTraffic()) ?? []) as any[];
+    } catch {}
+  }
 
   onMount(() => {
-    ndrStore.refresh();
+    if (typeof agentStore.init === 'function') agentStore.init();
+    void refreshFlows();
   });
 
-  const chartOption = $derived<EChartsOption>({
-    backgroundColor: 'transparent',
-    tooltip: { trigger: 'item', formatter: '{b}' },
-    geo: {
-      map: 'world',
-      roam: true,
-      label: { show: false },
-      itemStyle: { areaColor: '#1a1b26', borderColor: '#33467c' },
-      emphasis: { 
-        label: { show: false },
-        itemStyle: { areaColor: '#24283b' } 
-      },
-    },
-    series: [
-      {
-        type: 'effectScatter',
-        coordinateSystem: 'geo',
-        data: ndrStore.flows.map(f => ({
-            name: f.source_ip,
-            value: [0, 0, 100] // Placeholder for real coords
-        })),
-        symbolSize: 8,
-        showEffectOn: 'render',
-        rippleEffect: { brushType: 'stroke' },
-        label: { formatter: '{b}', position: 'right', show: false },
-        itemStyle: { color: '#7aa2f7', shadowBlur: 10, shadowColor: '#7aa2f7' },
-        zlevel: 1,
-      },
-    ],
-  });
+  let agents = $derived(agentStore.agents ?? []);
+  let geoCount = $derived(new Set(agents.map((a: any) => a.country ?? a.region).filter(Boolean)).size);
 </script>
 
-<PageLayout title="Global Geospatial Map" subtitle="Mapping real-time platform presence and cross-border data flows">
+<PageLayout title="Network Map" subtitle="Fleet geography and live flows">
   {#snippet toolbar()}
-     <Button variant="secondary" size="sm">Animate Flows</Button>
-     <Button variant="primary" size="sm">Zone Re-allocate</Button>
-     <PopOutButton route="/network-map" title="Network Map" />
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refreshFlows}>Refresh</Button>
+    <PopOutButton route="/network-map" title="Network Map" />
   {/snippet}
-
-  <div class="flex flex-col h-full gap-5">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-      <KPI label="Active Zones" value="14" trend="stable" trendValue="Global" />
-      <KPI label="Ingress Points" value="412" trend="stable" trendValue="Nominal" variant="success" />
-      <KPI label="Mean Latency" value="112ms" trend="stable" trendValue="Optimal" variant="success" />
-      <KPI label="Encryption Level" value="v3.1" trend="stable" trendValue="Hardened" variant="accent" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Agents" value={agents.length.toString()} variant="accent" />
+      <KPI label="Distinct Regions" value={geoCount.toString()} variant="muted" />
+      <KPI label="Active Flows" value={flows.length.toString()} variant={flows.length > 0 ? 'warning' : 'muted'} />
     </div>
-
-    <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4 relative overflow-hidden shadow-card">
-       <div class="absolute inset-0 opacity-[0.02] pointer-events-none"
-         style="background-image: linear-gradient(#7aa2f7 1px, transparent 1px), linear-gradient(90deg, #7aa2f7 1px, transparent 1px); background-size: 60px 60px;">
-       </div>
-       
-       <div class="h-full w-full relative z-10">
-          <Chart option={chartOption} />
-       </div>
-
-       <div class="absolute bottom-6 right-6 flex flex-col gap-2 z-20">
-          <div class="bg-surface-2/80 border border-border-secondary p-4 rounded-md shadow-lg flex flex-col gap-2 min-w-[200px]">
-             <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2">Mesh Density</div>
-             <div class="flex justify-between items-center text-[11px] text-text-secondary">
-                <span>North America</span>
-                <span class="font-bold text-accent">High</span>
-             </div>
-             <div class="flex justify-between items-center text-[11px] text-text-secondary">
-                <span>European Core</span>
-                <span class="font-bold text-accent">Critical</span>
-             </div>
-             <div class="flex justify-between items-center text-[11px] text-text-secondary">
-                <span>Asia Pacific</span>
-                <span class="font-bold text-text-primary">Moderate</span>
-             </div>
-          </div>
-       </div>
+    <div class="bg-surface-1 border border-border-primary rounded-md p-6 flex-1 flex flex-col items-center justify-center gap-4">
+      <MapIcon size={36} class="text-accent opacity-30" />
+      <div class="text-sm text-text-muted text-center max-w-md">
+        Geo-rendered topology lives on the dedicated map pages. Pick:
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 w-full max-w-2xl">
+        <Button variant="secondary" size="sm" onclick={() => push('/threat-map')}>Threat Map<ExternalLink size={9} class="ml-1" /></Button>
+        <Button variant="secondary" size="sm" onclick={() => push('/fleet-map')}>Fleet Map<ExternalLink size={9} class="ml-1" /></Button>
+        <Button variant="secondary" size="sm" onclick={() => push('/topology')}>Connection Graph<ExternalLink size={9} class="ml-1" /></Button>
+      </div>
     </div>
   </div>
 </PageLayout>

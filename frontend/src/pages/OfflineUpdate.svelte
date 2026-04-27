@@ -1,101 +1,82 @@
-<!--
-  OBLIVRA — Offline Update (Svelte 5)
-  Secure, air-gapped platform updates and signature verification.
--->
+<!-- Offline Update — bound to UpdaterService. -->
 <script lang="ts">
-  import { KPI, PageLayout, Badge, Button, Input, Spinner } from '@components/ui';
-  import { ShieldCheck, Download, Package, Activity, Zap, FileCode, CheckCircle2 } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, PopOutButton } from '@components/ui';
+  import { Download, Upload, RefreshCw, CheckCircle2 } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
   import { appStore } from '@lib/stores/app.svelte';
 
-  let verifying = $state(false);
-  let status = $state('ready'); // ready, verifying, complete
+  let info = $state<any>(null);
+  let busy = $state<string | null>(null);
 
-  function startUpdate() {
-     verifying = true;
-     setTimeout(() => {
-        verifying = false;
-        status = 'complete';
-        appStore.notify('OFFLINE UPDATE APPLIED: Platform signature re-verified.', 'success');
-     }, 3000);
+  async function checkUpdate() {
+    busy = 'check';
+    try {
+      if (IS_BROWSER) return;
+      const { CheckForUpdate } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/updaterservice');
+      info = await CheckForUpdate();
+      appStore.notify((info as any)?.has_update ? `Update ${(info as any).version} available` : 'Up to date', (info as any)?.has_update ? 'info' : 'success');
+    } catch (e: any) { appStore.notify(`Check failed: ${e?.message ?? e}`, 'error'); }
+    finally { busy = null; }
   }
+  async function applyUpdate() {
+    if (!confirm('Apply downloaded update? Service will restart.')) return;
+    busy = 'apply';
+    try {
+      const { ApplyUpdate } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/updaterservice');
+      await ApplyUpdate();
+      appStore.notify('Update applied', 'success');
+    } catch (e: any) { appStore.notify(`Apply failed: ${e?.message ?? e}`, 'error'); }
+    finally { busy = null; }
+  }
+  async function exportBundle() {
+    const dir = prompt('Output directory for offline bundle:', './oblivra-offline'); if (!dir) return;
+    busy = 'export';
+    try {
+      const { CreateOfflineBundle } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/updaterservice');
+      await CreateOfflineBundle(dir);
+      appStore.notify(`Bundle written to ${dir}`, 'success');
+    } catch (e: any) { appStore.notify(`Export failed: ${e?.message ?? e}`, 'error'); }
+    finally { busy = null; }
+  }
+  async function importBundle() {
+    const path = prompt('Path to offline-update bundle:'); if (!path) return;
+    busy = 'import';
+    try {
+      const { ImportOfflineBundle } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/updaterservice');
+      await ImportOfflineBundle(path);
+      appStore.notify('Bundle imported', 'success');
+    } catch (e: any) { appStore.notify(`Import failed: ${e?.message ?? e}`, 'error'); }
+    finally { busy = null; }
+  }
+  onMount(checkUpdate);
 </script>
 
-<PageLayout title="Offline Update" subtitle="Air-gapped capability orchestration: Manually installing signed update packages and capability blocks">
+<PageLayout title="Offline Update" subtitle="Air-gapped platform updates and signature verification">
   {#snippet toolbar()}
-    <Badge variant="info">AIR-GAP MODE: ACTIVE</Badge>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={checkUpdate} disabled={busy === 'check'}>{busy === 'check' ? 'Checking…' : 'Check'}</Button>
+    <PopOutButton route="/offline-update" title="Offline Update" />
   {/snippet}
-
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI title="Current Version" value="v4.2.0" trend="Hardened" variant="success" />
-      <KPI title="Update Channel" value="OFFLINE" trend="Air-Gapped" />
-      <KPI title="Signature Root" value="HARDWARE" trend="Verified" variant="success" />
-      <KPI title="Last Update" value="12d ago" trend="Nominal" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Current" value={(info?.current_version ?? '—').toString()} variant="muted" />
+      <KPI label="Latest" value={(info?.latest_version ?? info?.version ?? '—').toString()} variant={info?.has_update ? 'warning' : 'muted'} />
+      <KPI label="Status" value={info?.has_update ? 'Update available' : info ? 'Up to date' : '—'} variant={info?.has_update ? 'warning' : 'success'} />
     </div>
-
-    <div class="flex-1 min-h-0 flex flex-col items-center justify-center p-12 bg-surface-1 border border-border-primary rounded-md shadow-premium relative overflow-hidden group">
-       <!-- Background Grid -->
-       <div class="absolute inset-0 opacity-[0.03] pointer-events-none grayscale" style="background-image: radial-gradient(#7aa2f7 1px, transparent 1px); background-size: 40px 40px;"></div>
-
-       {#if status === 'ready'}
-          <div class="max-w-md w-full flex flex-col items-center gap-8 text-center relative z-10">
-             <div class="w-24 h-24 rounded-full bg-surface-2 border-4 border-accent/20 flex items-center justify-center shadow-glow-accent/5">
-                <Package size={48} class="text-accent opacity-40 group-hover:opacity-100 transition-opacity" />
-             </div>
-             
-             <div class="space-y-2">
-                <h3 class="text-xl font-bold text-text-heading uppercase tracking-widest">Signed Package Ingest</h3>
-                <p class="text-[11px] text-text-muted leading-relaxed">
-                   Upload an `.oblv` update package for offline installation. OBLIVRA will cryptographically verify the package signature against the hardware root of trust before execution.
-                </p>
-             </div>
-
-             <div class="w-full flex flex-col gap-4">
-                <div class="p-8 border-2 border-dashed border-border-primary rounded-md bg-surface-2 hover:border-accent transition-colors cursor-pointer">
-                   <span class="text-[10px] font-bold text-text-muted uppercase tracking-widest">Drop .oblv package here</span>
-                </div>
-                <Button variant="primary" size="lg" class="w-full font-bold uppercase tracking-widest" onclick={startUpdate} disabled={verifying}>
-                   {#if verifying} <Spinner size="sm" class="mr-2" /> VERIFYING... {:else} VERIFY & INSTALL {/if}
-                </Button>
-             </div>
-          </div>
-       {:else if status === 'complete'}
-          <div class="max-w-md w-full flex flex-col items-center gap-8 text-center relative z-10 animate-fade-in">
-             <div class="w-24 h-24 rounded-full bg-success/20 border-4 border-success/40 flex items-center justify-center shadow-glow-success/20">
-                <CheckCircle2 size={48} class="text-success" />
-             </div>
-             <div class="space-y-2">
-                <h3 class="text-xl font-bold text-text-heading uppercase tracking-widest">Update Successful</h3>
-                <p class="text-[11px] text-text-muted">Platform signature verified. Version v4.2.1 is now active across the local node.</p>
-             </div>
-             <Button variant="secondary" size="sm" onclick={() => status = 'ready'}>Return to Ingest</Button>
-          </div>
-       {/if}
-    </div>
-
-    <!-- Security Metadata -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-       <div class="bg-surface-1 border border-border-primary p-4 rounded-md flex justify-between items-center">
-          <div class="flex gap-3 items-center">
-             <ShieldCheck size={18} class="text-success" />
-             <span class="text-xs font-bold text-text-heading uppercase tracking-widest">Root Key Verified</span>
-          </div>
-          <Badge variant="success">OK</Badge>
-       </div>
-       <div class="bg-surface-1 border border-border-primary p-4 rounded-md flex justify-between items-center">
-          <div class="flex gap-3 items-center">
-             <FileCode size={18} class="text-accent" />
-             <span class="text-xs font-bold text-text-heading uppercase tracking-widest">ED25519 Signature</span>
-          </div>
-          <Badge variant="accent">VALID</Badge>
-       </div>
-       <div class="bg-surface-1 border border-border-primary p-4 rounded-md flex justify-between items-center">
-          <div class="flex gap-3 items-center">
-             <Activity size={18} class="text-accent" />
-             <span class="text-xs font-bold text-text-heading uppercase tracking-widest">Integrity Hash</span>
-          </div>
-          <Badge variant="secondary">MATCH</Badge>
-       </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-2">
+        <div class="flex items-center gap-2"><Download size={14} class="text-accent" /><span class="text-xs font-bold uppercase">Apply Update</span></div>
+        <p class="text-[11px] text-text-muted">Apply the latest verified update bundle. Service will restart.</p>
+        <Button variant="cta" size="sm" onclick={applyUpdate} disabled={!info?.has_update || busy === 'apply'}>{busy === 'apply' ? 'Applying…' : 'Apply Update'}</Button>
+      </div>
+      <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-2">
+        <div class="flex items-center gap-2"><Upload size={14} class="text-accent" /><span class="text-xs font-bold uppercase">Offline Bundle</span></div>
+        <p class="text-[11px] text-text-muted">Build a bundle for air-gapped deployment, or import one received offline.</p>
+        <div class="flex gap-2">
+          <Button variant="secondary" size="sm" onclick={exportBundle} disabled={busy === 'export'}>{busy === 'export' ? '…' : 'Build bundle'}</Button>
+          <Button variant="secondary" size="sm" onclick={importBundle} disabled={busy === 'import'}>{busy === 'import' ? '…' : 'Import bundle'}</Button>
+        </div>
+      </div>
     </div>
   </div>
 </PageLayout>

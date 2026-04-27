@@ -1,186 +1,49 @@
-<!--
-  OBLIVRA — Ops Center (Svelte 5)
-  The Command and Control Hub: Managing clusters and active operator mission-sets.
--->
+<!-- Ops Center — operator command-and-control hub. Mixes real stores. -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, PopOutButton } from '@components/ui';
-  import { Terminal, Cpu, Zap } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Button, PopOutButton } from '@components/ui';
+  import { Monitor, RefreshCw, Activity } from 'lucide-svelte';
+  import { agentStore } from '@lib/stores/agent.svelte';
+  import { alertStore } from '@lib/stores/alerts.svelte';
+  import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
+  import { push } from '@lib/router.svelte';
 
-  interface CommandEntry {
-    time: string;
-    target: string;
-    cmd: string;
-    status: string;
-  }
-
-  interface LogEntry {
-    time: string;
-    level: string;
-    msg: string;
-  }
-
-  const commandQueue: CommandEntry[] = [];
-  const systemLogs: LogEntry[] = [];
+  onMount(() => {
+    if (typeof agentStore.init === 'function') agentStore.init();
+    if (typeof alertStore.init === 'function') alertStore.init();
+    diagnosticsStore.init();
+  });
 </script>
 
-<PageLayout title="Operations Center" subtitle="Master command & control of all managed endpoints">
+<PageLayout title="Ops Center" subtitle="Command-and-control hub">
   {#snippet toolbar()}
-    <div class="flex items-center gap-2">
-      <div class="flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/40 rounded-sm">
-        <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-        <span class="text-[9px] font-mono text-accent font-bold uppercase tracking-widest">Operator Online</span>
-      </div>
-      <Button variant="primary" size="sm">NEW MISSION</Button>
-      <PopOutButton route="/ops" title="Operations Center" />
-    </div>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={() => { agentStore.init?.(); alertStore.init?.(); }}>Refresh</Button>
+    <PopOutButton route="/ops" title="Ops Center" />
   {/snippet}
-
-  <div class="flex flex-col h-full gap-0 -m-6">
-    <!-- METRIC STRIP -->
-    <div class="grid grid-cols-4 gap-px bg-border-primary border-b border-border-primary shrink-0">
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Active Sessions</div>
-            <div class="text-xl font-mono font-bold text-accent">0</div>
-            <div class="text-[9px] text-success mt-1">▲ Encrypted Tunnel active</div>
-        </div>
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">CPU Load (Cluster)</div>
-            <div class="text-xl font-mono font-bold text-text-heading">0%</div>
-            <div class="text-[9px] text-text-muted mt-1">Mean across 0 nodes</div>
-        </div>
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Vault Latency</div>
-            <div class="text-xl font-mono font-bold text-success">0ms</div>
-            <div class="text-[9px] text-success mt-1">Zero-lag sync</div>
-        </div>
-        <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Operator Auth</div>
-            <div class="text-xl font-mono font-bold text-text-heading">LEVEL 5</div>
-            <div class="text-[9px] text-text-muted mt-1">Full access granted</div>
-        </div>
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <KPI label="Fleet" value={agentStore.agents.length.toString()} variant="accent" />
+      <KPI label="Active Alerts" value={alertStore.alerts.length.toString()} variant={alertStore.alerts.length > 0 ? 'warning' : 'muted'} />
+      <KPI label="EPS" value={diagnosticsStore.eps.toString()} variant="muted" />
+      <KPI label="Health" value={diagnosticsStore.healthGrade} variant={diagnosticsStore.healthGrade.startsWith('A') ? 'success' : 'warning'} />
     </div>
-
-    <!-- MAIN BODY -->
-    <div class="flex-1 flex min-h-0">
-        <!-- LEFT: CONSOLE / LOGS -->
-        <div class="flex-1 flex flex-col min-w-0 bg-black/20">
-            <div class="bg-surface-1 border-b border-border-primary p-3 flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-2">
-                    <Terminal size={14} class="text-accent" />
-                    <span class="text-[10px] font-mono font-bold uppercase tracking-widest text-text-heading">Global Audit Trail & Debug Console</span>
-                </div>
-                <div class="flex gap-2">
-                    <Button variant="secondary" size="xs">CLEAR CONSOLE</Button>
-                    <Button variant="secondary" size="xs">EXPORT LOGS</Button>
-                </div>
-            </div>
-
-            <div class="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed selection:bg-accent/30 mask-fade-bottom">
-                {#each systemLogs as log}
-                    <div class="flex gap-4 py-1 group hover:bg-white/5 transition-colors px-2 rounded-sm">
-                        <span class="text-text-muted opacity-40 shrink-0">{log.time}</span>
-                        <span class="uppercase font-bold shrink-0 w-12 {log.level === 'error' ? 'text-error' : log.level === 'warn' ? 'text-warning' : 'text-accent'}">[{log.level}]</span>
-                        <span class="text-text-secondary">{log.msg}</span>
-                    </div>
-                {/each}
-                <div class="mt-4 flex gap-2 items-center text-accent animate-pulse">
-                    <span>❯</span>
-                    <span class="w-2 h-4 bg-accent"></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- RIGHT: COMMAND QUEUE & SYSTEM -->
-        <div class="w-96 bg-surface-2 border-l border-border-primary flex flex-col shrink-0">
-            <!-- CMD QUEUE -->
-            <div class="flex-1 flex flex-col min-h-0">
-                <div class="px-3 py-2 bg-surface-3 border-b border-border-primary flex items-center gap-2">
-                    <Zap size={14} class="text-warning" />
-                    <span class="text-[9px] font-mono font-bold uppercase tracking-widest text-text-heading">Agent Command Queue</span>
-                </div>
-                <div class="flex-1 overflow-auto p-3 space-y-2">
-                    {#each commandQueue as cmd}
-                        <div class="bg-surface-1 border border-border-primary p-3 rounded-sm space-y-2 group hover:border-accent transition-colors">
-                            <div class="flex justify-between items-start">
-                                <span class="text-[10px] font-bold text-text-heading uppercase tracking-tight">{cmd.target}</span>
-                                <Badge variant={cmd.status === 'completed' ? 'success' : cmd.status === 'running' ? 'warning' : 'info'} size="xs" class="text-[7px]">
-                                    {cmd.status.toUpperCase()}
-                                </Badge>
-                            </div>
-                            <code class="block text-[10px] font-mono text-accent bg-black/20 p-1.5 rounded-sm overflow-hidden truncate">
-                                {cmd.cmd}
-                            </code>
-                            <div class="text-[8px] font-mono text-text-muted uppercase">
-                                Initialized: {cmd.time}
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            </div>
-
-            <!-- SYSTEM RESOURCES -->
-            <div class="h-64 border-t border-border-primary bg-surface-3 p-4 flex flex-col gap-4">
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-mono font-bold text-success">0/0</span>
-                    <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Cluster Vital Signs</span>
-                    <Cpu size={14} class="text-text-muted" />
-                </div>
-                <div class="space-y-4">
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between text-[8px] font-mono uppercase">
-                            <span class="text-text-muted">CPU Cluster Mean</span>
-                            <span class="text-text-heading">0%</span>
-                        </div>
-                        <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                            <div class="h-full bg-success" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between text-[8px] font-mono uppercase">
-                            <span class="text-text-muted">Memory Allocation</span>
-                            <span class="text-text-heading">0 GB</span>
-                        </div>
-                        <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                            <div class="h-full bg-accent" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between text-[8px] font-mono uppercase">
-                            <span class="text-text-muted">I/O Wait (Avg)</span>
-                            <span class="text-text-heading">0.0ms</span>
-                        </div>
-                        <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                            <div class="h-full bg-success" style="width: 0%"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <Button variant="secondary" onclick={() => push('/dashboard')}><Monitor class="mr-1" size={12} />Dashboard</Button>
+      <Button variant="secondary" onclick={() => push('/cases')}>Incidents</Button>
+      <Button variant="secondary" onclick={() => push('/operator')}>Operator Mode</Button>
+      <Button variant="secondary" onclick={() => push('/war-mode')}>War Mode</Button>
+      <Button variant="secondary" onclick={() => push('/agents')}>Agent Console</Button>
+      <Button variant="secondary" onclick={() => push('/fleet')}>Fleet</Button>
+      <Button variant="secondary" onclick={() => push('/response')}>SOAR</Button>
+      <Button variant="secondary" onclick={() => push('/ransomware')}>Ransomware Shield</Button>
     </div>
-
-    <!-- STATUS BAR -->
-    <div class="bg-surface-2 border-t border-border-primary px-3 py-1 flex items-center gap-4 text-[8px] font-mono text-text-muted shrink-0">
-        <div class="flex items-center gap-1.5">
-            <span>OPERATOR:</span>
-            <span class="text-accent font-black uppercase">UNAUTHENTICATED</span>
-        </div>
-        <span class="text-border-primary">|</span>
-        <div class="flex items-center gap-1.5">
-            <span>TERMINAL:</span>
-            <span class="text-success font-bold">PTY_CONNECTED</span>
-        </div>
-        <span class="text-border-primary">|</span>
-        <div class="flex items-center gap-1.5">
-            <span>CLUSTER:</span>
-            <span class="text-success font-bold">SYNC_NOMINAL</span>
-        </div>
-        <div class="ml-auto uppercase tracking-widest opacity-60">OPS_CORE v1.4.1</div>
+    <div class="flex-1 bg-surface-1 border border-border-primary rounded-md p-4">
+      <div class="flex items-center gap-2 mb-3"><Activity size={14} class="text-accent" /><span class="text-[10px] uppercase tracking-widest font-bold">Live System Pulse</span></div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="bg-surface-2 rounded p-3"><div class="text-[10px] text-text-muted uppercase">Goroutines</div><div class="font-mono text-lg">{diagnosticsStore.snapshot?.runtime.goroutines ?? '—'}</div></div>
+        <div class="bg-surface-2 rounded p-3"><div class="text-[10px] text-text-muted uppercase">Heap (MB)</div><div class="font-mono text-lg">{diagnosticsStore.snapshot?.runtime.heap_alloc_mb ?? '—'}</div></div>
+        <div class="bg-surface-2 rounded p-3"><div class="text-[10px] text-text-muted uppercase">Query P99 (ms)</div><div class="font-mono text-lg">{diagnosticsStore.snapshot?.query.p99_query_ms ?? '—'}</div></div>
+      </div>
     </div>
   </div>
 </PageLayout>
-
-<style>
-  .overflow-auto {
-    mask-image: linear-gradient(to bottom, transparent 0px, black 12px, black calc(100% - 16px), transparent 100%);
-  }
-</style>

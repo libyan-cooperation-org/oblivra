@@ -1,86 +1,88 @@
-<!--
-  OBLIVRA — Chain of Custody (Svelte 5)
-  Interactive tracking of digital evidence artifacts and handling history.
--->
+<!-- Chain of Custody — bound to ForensicsService.GetChainOfCustody / ListEvidence. -->
 <script lang="ts">
-  import { KPI, Badge, DataTable, PageLayout, Button } from '@components/ui';
-  import { FileArchive, ArrowRight, User } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { PageLayout, KPI, Badge, Button, DataTable, PopOutButton } from '@components/ui';
+  import { Link, RefreshCw } from 'lucide-svelte';
+  import { IS_BROWSER } from '@lib/context';
+  import { appStore } from '@lib/stores/app.svelte';
 
-  const evidence: Record<string, any>[] = [
-    { id: 'E-401', name: 'mem_dump_prod_01.bin', collector: 'maverick', size: '4.2 GB', protocol: 'SFTP-SEC', integrity: 'verified' },
-    { id: 'E-402', name: 'bash_history_operator.log', collector: 'iceman', size: '12 KB', protocol: 'LOCAL', integrity: 'verified' },
-    { id: 'E-403', name: 'secrets.gpg.bak', collector: 'system', size: '840 Bytes', protocol: 'SHADOW-COPY', integrity: 'warning' },
-  ];
+  let evidence = $state<any[]>([]);
+  let custodyByItem = $state<Record<string, any[]>>({});
+  let selected = $state<string | null>(null);
+  let loading = $state(false);
+
+  async function refresh() {
+    loading = true;
+    try {
+      if (IS_BROWSER) return;
+      const svc = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
+      evidence = ((await svc.ListEvidence('')) ?? []) as any[];
+    } finally { loading = false; }
+  }
+
+  async function loadCustody(itemID: string) {
+    selected = itemID;
+    try {
+      const { GetChainOfCustody } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
+      const c = ((await GetChainOfCustody(itemID)) ?? []) as any[];
+      custodyByItem = { ...custodyByItem, [itemID]: c };
+    } catch (e: any) {
+      appStore.notify(`Custody load failed: ${e?.message ?? e}`, 'error');
+    }
+  }
+
+  onMount(refresh);
 </script>
 
-<PageLayout title="Chain of Custody" subtitle="Formal tracking of forensic evidence acquisition and transfer">
+<PageLayout title="Chain of Custody" subtitle="Forensic evidence handling trail">
   {#snippet toolbar()}
-    <Button variant="secondary" size="sm">Download Bundle</Button>
-    <Button variant="cta" size="sm">Acquire Artifact</Button>
+    <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh}>{loading ? 'Loading…' : 'Refresh'}</Button>
+    <PopOutButton route="/chain-of-custody" title="Custody" />
   {/snippet}
-
-  <div class="flex flex-col h-full gap-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <KPI label="Managed Artifacts" value={evidence.length} trend="stable" trendValue="Active" />
-      <KPI label="Total Forensic Mass" value="4.20 GB" trend="stable" trendValue="High Density" variant="warning" />
-      <KPI label="Verification Score" value="99.2%" trend="stable" trendValue="Optimal" variant="success" />
+  <div class="flex flex-col h-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <KPI label="Evidence Items" value={evidence.length.toString()} variant="accent" />
+      <KPI label="Sealed" value={evidence.filter((e) => e.sealed_at).length.toString()} variant="muted" />
+      <KPI label="Mode" value={IS_BROWSER ? 'Browser (read-only)' : 'Desktop'} variant="muted" />
     </div>
-
-    <div class="flex-1 min-h-0 bg-surface-1 border border-border-primary rounded-md overflow-hidden flex flex-col">
-      <div class="p-3 bg-surface-2 border-b border-border-primary text-[10px] font-bold uppercase tracking-widest text-text-muted">Evidence Registry</div>
-      <div class="flex-1 overflow-auto">
-        <DataTable data={evidence} columns={[
-          { key: 'name', label: 'Artifact Name' },
-          { key: 'size', label: 'Volume', width: '100px' },
-          { key: 'collector', label: 'Acquired By', width: '120px' },
-          { key: 'protocol', label: 'Transport', width: '120px' },
-          { key: 'integrity', label: 'State', width: '100px' }
-        ]} compact>
-          {#snippet render({ col: column, row })}
-            {#if column.key === 'integrity'}
-               <Badge variant={row.integrity === 'verified' ? 'success' : 'warning'}>{row.integrity}</Badge>
-            {:else if column.key === 'name'}
-               <div class="flex items-center gap-2">
-                 <FileArchive size={14} class="text-accent" />
-                 <span class="text-[11px] font-bold text-text-heading">{row.name}</span>
-               </div>
-            {:else if column.key === 'collector'}
-               <div class="flex items-center gap-1.5 font-bold text-[10px] text-text-secondary">
-                  <User size={12} class="opacity-40" />
-                  {row.collector}
-               </div>
-            {:else}
-              <span class="text-[11px] text-text-secondary">{row[column.key]}</span>
-            {/if}
-          {/snippet}
-        </DataTable>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
+      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <Link size={14} class="text-accent" />
+          <span class="text-[10px] uppercase tracking-widest font-bold">Evidence Items</span>
+        </div>
+        <div class="flex-1 overflow-auto">
+          {#each evidence as e (e.id)}
+            <button class="w-full text-left px-3 py-2 border-b border-border-primary hover:bg-surface-2 {selected === e.id ? 'bg-surface-2' : ''}" onclick={() => loadCustody(e.id)}>
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold flex-1 truncate">{e.name ?? e.evidence_type ?? e.id}</span>
+                {#if e.sealed_at}<Badge variant="success" size="xs">sealed</Badge>{/if}
+              </div>
+              <div class="text-[10px] font-mono text-text-muted truncate">{e.id}</div>
+            </button>
+          {:else}
+            <div class="p-8 text-center text-sm text-text-muted">{loading ? 'Loading…' : 'No evidence items.'}</div>
+          {/each}
+        </div>
       </div>
-    </div>
-
-    <!-- Handover History -->
-    <div class="bg-surface-1 border border-border-primary rounded-md p-4 flex flex-col gap-4">
-      <div class="flex justify-between items-center border-b border-border-primary pb-2">
-        <div class="text-[10px] font-bold text-text-muted uppercase tracking-widest">Digital Handover Log</div>
-        <Badge variant="accent" size="xs">SECURE STREAM</Badge>
-      </div>
-      
-      <div class="flex items-center gap-6 overflow-x-auto py-2">
-         {#each Array(4) as _, i}
-            <div class="flex items-center gap-3 shrink-0">
-               <div class="flex flex-col items-center">
-                  <div class="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center border border-border-primary shadow-sm">
-                    <User size={14} class="text-text-muted" />
-                  </div>
-                  <span class="text-[9px] font-bold mt-1 text-text-muted">Node {i+1}</span>
-               </div>
-               {#if i < 3}
-                 <div class="flex flex-col items-center gap-1">
-                    <ArrowRight size={14} class="text-accent opacity-50" />
-                    <span class="text-[8px] font-mono text-success">SIGNED</span>
-                 </div>
-               {/if}
-            </div>
-         {/each}
+      <div class="bg-surface-1 border border-border-primary rounded-md flex flex-col min-h-0">
+        <div class="flex items-center gap-2 p-3 border-b border-border-primary">
+          <span class="text-[10px] uppercase tracking-widest font-bold">Custody Log</span>
+        </div>
+        <div class="flex-1 overflow-auto p-3">
+          {#if !selected}
+            <div class="text-center text-sm text-text-muted py-8">Pick an item to view its custody chain.</div>
+          {:else}
+            {#each custodyByItem[selected] ?? [] as ev, i (ev.id ?? i)}
+              <div class="border-b border-border-primary py-2 text-[11px]">
+                <span class="font-mono text-[10px] text-text-muted mr-2">{(ev.timestamp ?? '').slice(0, 19)}</span>
+                <span class="font-bold">{ev.actor ?? '—'}</span>
+                <span class="text-text-muted">{ev.action ?? ev.event ?? '—'}</span>
+                {#if ev.notes}<div class="text-[10px] text-text-muted ml-4">{ev.notes}</div>{/if}
+              </div>
+            {/each}
+          {/if}
+        </div>
       </div>
     </div>
   </div>
