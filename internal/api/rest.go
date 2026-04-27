@@ -482,13 +482,21 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	s.initSecurityRoutes(mux)
 	var handler http.Handler = mux
 
-	// Wrap entire mux with Authentication middleware if provided, BUT exclude
-	// the login and OIDC endpoints which must be accessible to anonymous users.
+	// Wrap entire mux with Authentication middleware if provided, BUT exclude:
+	//   - /auth/login, /auth/oidc, /auth/refresh - anonymous user flows.
+	//   - /healthz, /readyz                       - kube-style probes.
+	//   - /agent/register, /agent/ingest -
+	//       agent endpoints authenticate via HMAC fleet-secret + timestamp
+	//       inside the handler (VerifyHMAC). Routing them through
+	//       APIKeyMiddleware would force agents to send a session token they
+	//       cannot have, since they pre-date any user session.
 	finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/api/v1/auth/login") ||
 			strings.HasPrefix(path, "/api/v1/auth/oidc") ||
 			strings.HasPrefix(path, "/api/v1/auth/refresh") ||
+			strings.HasPrefix(path, "/api/v1/agent/register") ||
+			strings.HasPrefix(path, "/api/v1/agent/ingest") ||
 			path == "/healthz" || path == "/readyz" {
 			mux.ServeHTTP(w, r)
 			return
