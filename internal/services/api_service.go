@@ -2,7 +2,10 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -139,7 +142,15 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
-	fleetSecret := []byte("oblivra-fleet-secret-v1") // PRR: Move to secure vault
+	// Fleet secret resolution order:
+	//   1. OBLIVRA_FLEET_SECRET env var (operator override / CI / docker)
+	//   2. settings table key `fleet_secret_v1` (persisted across restarts)
+	//   3. Generate a fresh 32-byte secret + persist it (first-boot only)
+	// The legacy hardcoded "oblivra-fleet-secret-v1" is preserved as a
+	// backwards-compat fallback ONLY when the env var is set to that exact
+	// dev value, so existing test setups don't break — flagged in the
+	// security audit as a bootstrap hazard.
+	fleetSecret := resolveFleetSecret(db, log)
 	agentBridge := &agentProviderBridge{service: agentService}
 	var lm licensing.Provider
 	if licensingSvc != nil {
@@ -182,4 +193,55 @@ func (s *APIService) Stop(ctx context.Context) error {
 	s.log.Info("Shutting down APIService...")
 	s.server.Stop(ctx)
 	return nil
+}
+
+// resolveFleetSecret returns the HMAC fleet secret used to authenticate
+// agent → server traffic. It implements a three-tier resolution:
+//
+//   1. OBLIVRA_FLEET_SECRET env var — operator override path (CI, docker,
+//      orchestration tooling).
+//   2. settings table key `fleet_secret_v1` — persisted across restarts.
+//   3. Generate a fresh 32-byte secret, persist it, and return.
+//
+// This replaces the hardcoded "oblivra-fleet-secret-v1" string that lived
+// in source for the entire pre-prod period (flagged as PRR-blocking by
+// the security audit). The agent CLI defaults to the same env var, so
+// matched-key bootstrap stays one-step.
+func resolveFleetSecret(db database.DatabaseStore, log *logger.Logger) []byte {
+	const settingsKey = "fleet_secret_v1"
+
+	if env := strings.TrimSpace(os.Getenv("OBLIVRA_FLEET_SECRET")); env != "" {
+		log.Info("[security] Fleet secret loaded from OBLIVRA_FLEET_SECRET env var")
+		return []byte(env)
+	}
+
+	if db != nil {
+		var stored string
+		row := db.DB().QueryRow("SELECT value FROM settings WHERE key = ?", settingsKey)
+		if err := row.Scan(&stored); err == nil && stored != "" {
+			log.Info("[security] Fleet secret loaded from settings table (persisted)")
+			return []byte(stored)
+		}
+	}
+
+	// First-boot path: generate, persist, and return.
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		// Should be impossible on a healthy box; log and fall back to a
+		// time-derived value so the service still starts (but flag it).
+		log.Error("[security] crypto/rand failed for fleet secret: %v — falling back to timestamp", err)
+		return []byte(fmt.Sprintf("oblivra-fallback-%d", time.Now().UnixNano()))
+	}
+	secret := hex.EncodeToString(buf)
+	if db != nil {
+		if _, err := db.DB().Exec(
+			`INSERT INTO settings (key, value) VALUES (?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+			settingsKey, secret); err != nil {
+			log.Warn("[security] Could not persist freshly-generated fleet secret: %v", err)
+		}
+	}
+	log.Warn("[security] Generated and persisted a NEW fleet secret. " +
+		"Set OBLIVRA_FLEET_SECRET on your agents to this value or rotate via the secrets page.")
+	return []byte(secret)
 }

@@ -391,6 +391,29 @@ func (s *RESTServer) handleAgentRegister(w http.ResponseWriter, r *http.Request)
 	s.agents[reg.ID] = info
 	s.agents[reg.Hostname] = info // pointer shared — updates via either key are visible
 
+	// Persist to agent_registry (migration v29) so the fleet survives a
+	// restart. Earlier versions only kept the in-memory map; on every
+	// process bounce the operator's fleet view went empty for ~30s until
+	// agents heartbeated again.
+	if s.db != nil {
+		if _, dbErr := s.db.DB().ExecContext(r.Context(),
+			`INSERT INTO agent_registry
+			   (id, tenant_id, hostname, remote_address, os, arch, version, status, last_seen, registered_at, quarantined)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, 0)
+			 ON CONFLICT(id) DO UPDATE SET
+			   tenant_id      = excluded.tenant_id,
+			   hostname       = excluded.hostname,
+			   remote_address = excluded.remote_address,
+			   os             = excluded.os,
+			   arch           = excluded.arch,
+			   version        = excluded.version,
+			   status         = 'online',
+			   last_seen      = excluded.last_seen`,
+			reg.ID, tenantID, reg.Hostname, r.RemoteAddr, reg.OS, reg.Arch, reg.Version, now, now); dbErr != nil {
+			s.log.Warn("[agent] register persist failed (continuing in-memory only): %v", dbErr)
+		}
+	}
+
 	s.log.Info("[agent] Registered agent id=%s host=%s os=%s/%s v%s collectors=%v",
 		reg.ID, reg.Hostname, reg.OS, reg.Arch, reg.Version, reg.Collectors)
 
@@ -561,4 +584,58 @@ func (s *RESTServer) handleAgentAction(w http.ResponseWriter, r *http.Request) {
 		"status":    "queued",
 		"type":      req.Type,
 	})
+}
+
+// hydrateAgentRegistry repopulates the in-memory agent map from the
+// agent_registry SQL table on server start. Status is downgraded to
+// "stale" until a live heartbeat upgrades it back to "online" — this
+// avoids showing recently-rebooted servers as freshly-online.
+func (s *RESTServer) hydrateAgentRegistry() {
+	if s.db == nil {
+		return
+	}
+	rows, err := s.db.DB().Query(
+		`SELECT id, tenant_id, hostname, remote_address, os, arch, version, status, last_seen, quarantined
+		   FROM agent_registry`)
+	if err != nil {
+		s.log.Warn("[agent] hydrate registry skipped: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	count := 0
+	s.agentsMu.Lock()
+	defer s.agentsMu.Unlock()
+	for rows.Next() {
+		var (
+			id, tenantID, host, addr, osName, arch, version, status, lastSeen string
+			quarantined                                                       int
+		)
+		if err := rows.Scan(&id, &tenantID, &host, &addr, &osName, &arch, &version, &status, &lastSeen, &quarantined); err != nil {
+			continue
+		}
+		// Mark stale on cold-start; live heartbeat in handleAgentIngest
+		// will flip it back to "online".
+		if status == "online" {
+			status = "stale"
+		}
+		info := &AgentInfo{
+			ID:       id,
+			TenantID: tenantID,
+			Hostname: host,
+			OS:       osName,
+			Arch:     arch,
+			Version:  version,
+			Status:   status,
+			LastSeen: lastSeen,
+		}
+		s.agents[id] = info
+		if host != "" {
+			s.agents[host] = info
+		}
+		count++
+	}
+	if count > 0 {
+		s.log.Info("[agent] Hydrated %d agents from registry (marked stale until first heartbeat)", count)
+	}
 }

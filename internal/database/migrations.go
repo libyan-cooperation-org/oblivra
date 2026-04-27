@@ -671,6 +671,70 @@ var migrations = []migration{
 			CREATE INDEX IF NOT EXISTS idx_tenant_deletion_log_when ON tenant_deletion_log(deleted_at);
 		`,
 	},
+	{
+		// Compliance audit packages — generated SOC2/HIPAA/etc reports.
+		// Until v28 these were held in a process-local map and lost on restart;
+		// now durable per-tenant + searchable.
+		version: 28,
+		name:    "create_compliance_packages",
+		sql: `
+			CREATE TABLE IF NOT EXISTS compliance_packages (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				framework TEXT NOT NULL,
+				generated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				records INTEGER DEFAULT 0,
+				integrity_proof TEXT NOT NULL,
+				download_url TEXT,
+				from_ts TEXT,
+				to_ts TEXT
+			);
+			CREATE INDEX IF NOT EXISTS idx_compliance_packages_tenant ON compliance_packages(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_compliance_packages_when ON compliance_packages(generated_at);
+		`,
+	},
+	{
+		// Agent registry — was process-local; now durable so the fleet
+		// reappears across restarts. The columns mirror the in-memory
+		// agent struct that handleAgentRegister populates today.
+		version: 29,
+		name:    "create_agent_registry",
+		sql: `
+			CREATE TABLE IF NOT EXISTS agent_registry (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				hostname TEXT,
+				remote_address TEXT,
+				os TEXT,
+				arch TEXT,
+				version TEXT,
+				status TEXT DEFAULT 'online',
+				last_seen DATETIME,
+				registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				quarantined INTEGER DEFAULT 0,
+				metadata TEXT
+			);
+			CREATE INDEX IF NOT EXISTS idx_agent_registry_tenant ON agent_registry(tenant_id);
+			CREATE INDEX IF NOT EXISTS idx_agent_registry_status ON agent_registry(status);
+		`,
+	},
+	{
+		// Failed-login lockout state — was sync.Map, lost on restart.
+		// Persisting so a malicious actor can't bounce the process to
+		// reset their lockout timer (audit finding).
+		version: 30,
+		name:    "create_login_lockouts",
+		sql: `
+			CREATE TABLE IF NOT EXISTS login_lockouts (
+				ip TEXT PRIMARY KEY,
+				email TEXT,
+				failed_count INTEGER DEFAULT 0,
+				last_failed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				locked_until DATETIME
+			);
+			CREATE INDEX IF NOT EXISTS idx_login_lockouts_until ON login_lockouts(locked_until);
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

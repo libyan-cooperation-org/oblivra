@@ -72,6 +72,90 @@
     appStore.notify('Evidence capture requested', 'info');
   }
 
+  // ── Per-row risk score + SLA timer (replacing the hardcoded 97/72 + 08:12)
+  // Severity → base risk weight; rule-engine ideally returns a real
+  // 0-100 risk score, but until then derive a sane proxy.
+  function riskFor(alert: any): number {
+    if (typeof alert?.risk_score === 'number') return Math.round(alert.risk_score);
+    const sev = (alert?.severity ?? '').toLowerCase();
+    const base = sev === 'critical' ? 95 : sev === 'high' ? 75 : sev === 'medium' ? 50 : 25;
+    // Bump if status === open and host has multiple concurrent alerts.
+    const sameHost = (alertStore.alerts ?? []).filter((a) => a.host === alert.host).length;
+    return Math.min(100, base + Math.min(5, sameHost - 1));
+  }
+
+  // SLA model: critical = 30min, high = 4h, medium = 24h, low = 72h.
+  // pct = elapsed / sla * 100. Title = "X of Y" string.
+  function slaFor(alert: any): { pct: number; label: string; title: string } {
+    const t0 = alert?.timestamp ? Date.parse(alert.timestamp) : Date.now();
+    const sevMap: Record<string, number> = { critical: 30 * 60_000, high: 4 * 3600_000, medium: 24 * 3600_000, low: 72 * 3600_000 };
+    const sla = sevMap[(alert?.severity ?? 'medium').toLowerCase()] ?? sevMap.medium;
+    const elapsed = Math.max(0, Date.now() - t0);
+    const pct = Math.round((elapsed / sla) * 100);
+    const remaining = Math.max(0, sla - elapsed);
+    const m = Math.floor(remaining / 60_000);
+    const h = Math.floor(m / 60);
+    const rest = m % 60;
+    const label = remaining === 0 ? 'BREACHED' : h > 0 ? `${h}h ${rest}m` : `${m}m`;
+    return { pct, label, title: `${Math.round(elapsed / 60_000)}m elapsed of ${Math.round(sla / 60_000)}m SLA` };
+  }
+
+  // ── Real action handlers (replacing notify-only stubs)
+  async function isolateHost(alert: any) {
+    if (!alert?.host) { appStore.notify('No host on alert', 'warning'); return; }
+    const agent = agentStore.agents.find((a) => a.id === alert.host || a.hostname === alert.host);
+    if (!agent) { appStore.notify(`No agent for host ${alert.host}`, 'error'); return; }
+    if (!confirm(`Isolate ${alert.host}? This blocks its outbound traffic.`)) return;
+    try { await agentStore.toggleQuarantine(agent.id, true); appStore.notify(`Host ${alert.host} isolated`, 'warning'); }
+    catch (e: any) { appStore.notify(`Isolation failed: ${e?.message ?? e}`, 'error'); }
+  }
+  async function runPlaybook(alert: any) {
+    try {
+      const { ListAvailableActions, ExecuteAction } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice');
+      const actions = ((await ListAvailableActions()) ?? []) as any[];
+      if (actions.length === 0) { appStore.notify('No response actions available', 'warning'); return; }
+      const action = actions.find((a) => /isolate|contain|response/i.test(a.name ?? a.id ?? '')) ?? actions[0];
+      await ExecuteAction(action.id ?? action.name, { alert_id: alert.id, host: alert.host });
+      appStore.notify(`Playbook "${action.name ?? action.id}" dispatched`, 'success');
+    } catch (e: any) { appStore.notify(`Playbook failed: ${e?.message ?? e}`, 'error'); }
+  }
+
+  async function bulkAck() {
+    const list = filteredAlerts.filter((a) => a.status === 'open');
+    if (list.length === 0) { appStore.notify('No open alerts to ACK', 'info'); return; }
+    if (!confirm(`Acknowledge ${list.length} alerts?`)) return;
+    try {
+      const { UpdateIncidentStatus } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
+      await Promise.all(list.map((a) => UpdateIncidentStatus(a.id, 'acknowledged', 'Bulk ACK from alert console').catch(() => null)));
+      appStore.notify(`Acknowledged ${list.length} alerts`, 'success');
+      void alertStore.refresh?.();
+    } catch (e: any) { appStore.notify(`Bulk ACK failed: ${e?.message ?? e}`, 'error'); }
+  }
+  async function bulkAssign() {
+    const owner = prompt('Assign selected alerts to (operator email):');
+    if (!owner) return;
+    const list = filteredAlerts.filter((a) => !a.action || (a.action as any)?.owner !== owner);
+    if (list.length === 0) { appStore.notify('Nothing to reassign', 'info'); return; }
+    try {
+      const { AssignIncident } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
+      await Promise.all(list.map((a) => AssignIncident(a.id, owner).catch(() => null)));
+      appStore.notify(`Assigned ${list.length} alerts to ${owner}`, 'success');
+      void alertStore.refresh?.();
+    } catch (e: any) { appStore.notify(`Bulk assign failed: ${e?.message ?? e}`, 'error'); }
+  }
+  async function bulkFalsePositive() {
+    const list = filteredAlerts;
+    if (list.length === 0) return;
+    const reason = prompt(`Mark ${list.length} alerts as false positive. Reason?`);
+    if (!reason) return;
+    try {
+      const { UpdateIncidentStatus } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
+      await Promise.all(list.map((a) => UpdateIncidentStatus(a.id, 'suppressed', `False positive: ${reason}`).catch(() => null)));
+      appStore.notify(`${list.length} marked as false positive`, 'warning');
+      void alertStore.refresh?.();
+    } catch (e: any) { appStore.notify(`Bulk FP failed: ${e?.message ?? e}`, 'error'); }
+  }
+
   let searchQuery = $state('');
   let activeTab = $state('OPEN');
   let selectedSeverities = $state(['CRITICAL', 'HIGH']);
@@ -147,7 +231,7 @@
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
       <Input variant="search" placeholder="Search alerts..." bind:value={searchQuery} class="w-64" />
-      <Button variant="primary" size="sm" onclick={() => appStore.notify('Manual alert creation disabled', 'warning')}>Create Alert</Button>
+      <Button variant="primary" size="sm" onclick={() => push('/suppression')}>Detection Rules</Button>
       <PopOutButton route="/alert-management" title="Alert Management" />
     </div>
   {/snippet}
@@ -198,9 +282,9 @@
         </div>
 
         <div class="ml-auto flex gap-2">
-            <Button variant="secondary" size="xs" class="text-[9px] font-mono" onclick={() => appStore.notify('Bulk ACK triggered', 'info')}>ACK SELECTED</Button>
-            <Button variant="secondary" size="xs" class="text-[9px] font-mono">ASSIGN</Button>
-            <Button variant="danger" size="xs" class="text-[9px] font-mono" onclick={() => appStore.notify('Marked as False Positive', 'error')}>FALSE POS.</Button>
+            <Button variant="secondary" size="xs" class="text-[9px] font-mono" onclick={bulkAck}>ACK SELECTED</Button>
+            <Button variant="secondary" size="xs" class="text-[9px] font-mono" onclick={bulkAssign}>ASSIGN</Button>
+            <Button variant="danger" size="xs" class="text-[9px] font-mono" onclick={bulkFalsePositive}>FALSE POS.</Button>
         </div>
     </div>
 
@@ -275,15 +359,17 @@
                             <span class="text-[10px] font-mono text-text-muted opacity-60">—</span>
                         {/if}
                     {:else if col.label === 'RISK'}
-                        <div class="px-1.5 py-0.5 rounded-sm font-mono text-[9px] font-bold text-center {row.severity === 'critical' ? 'bg-error/10 text-error' : 'bg-warning/10 text-warning'}">
-                            {row.severity === 'critical' ? '97' : '72'}
+                        {@const score = riskFor(row)}
+                        <div class="px-1.5 py-0.5 rounded-sm font-mono text-[9px] font-bold text-center {score >= 80 ? 'bg-error/10 text-error' : score >= 50 ? 'bg-warning/10 text-warning' : 'bg-info/10 text-info'}">
+                            {score}
                         </div>
                     {:else if col.label === 'SLA'}
-                        <div class="flex flex-col gap-0.5">
+                        {@const sla = slaFor(row)}
+                        <div class="flex flex-col gap-0.5" title={sla.title}>
                             <div class="w-full h-0.5 bg-border-primary rounded-full overflow-hidden">
-                                <div class="h-full bg-error" style="width: 85%"></div>
+                                <div class="h-full {sla.pct >= 90 ? 'bg-error' : sla.pct >= 60 ? 'bg-warning' : 'bg-success'}" style:width="{Math.min(100, sla.pct)}%"></div>
                             </div>
-                            <span class="text-[8px] font-mono text-error animate-pulse">08:12</span>
+                            <span class="text-[8px] font-mono {sla.pct >= 90 ? 'text-error animate-pulse' : sla.pct >= 60 ? 'text-warning' : 'text-text-muted'}">{sla.label}</span>
                         </div>
                     {:else if col.label === 'STATUS'}
                         <Badge 
@@ -295,9 +381,9 @@
                         </Badge>
                     {:else if col.label === ''}
                         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="p-1 hover:bg-surface-3 rounded-sm text-error border border-error/20" title="Isolate Host"><ShieldAlert size={12} /></button>
-                            <button class="p-1 hover:bg-surface-3 rounded-sm text-accent border border-accent/20" title="Run Playbook"><Zap size={12} /></button>
-                            <button class="p-1 hover:bg-surface-3 rounded-sm text-text-muted border border-border-primary" title="More"><MoreHorizontal size={12} /></button>
+                            <button class="p-1 hover:bg-surface-3 rounded-sm text-error border border-error/20" title="Isolate host" onclick={(e) => { e.stopPropagation(); void isolateHost(row); }}><ShieldAlert size={12} /></button>
+                            <button class="p-1 hover:bg-surface-3 rounded-sm text-accent border border-accent/20" title="Run playbook" onclick={(e) => { e.stopPropagation(); void runPlaybook(row); }}><Zap size={12} /></button>
+                            <button class="p-1 hover:bg-surface-3 rounded-sm text-text-muted border border-border-primary" title="Open in detail" onclick={(e) => { e.stopPropagation(); investigate(row); }}><MoreHorizontal size={12} /></button>
                         </div>
                     {/if}
                 {/snippet}

@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -525,7 +526,12 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 // Start spawns the HTTP listener in the background
 func (s *RESTServer) Start() {
 	s.log.Info("[REST] Starting headless API server on port %d", s.port)
-	
+
+	// Rehydrate the agent map from agent_registry so the fleet view is
+	// populated immediately on restart (rather than waiting up to a
+	// heartbeat interval for live re-registration).
+	s.hydrateAgentRegistry()
+
 	if s.certManager != nil {
 		// Initial load
 		if err := s.certManager.Load(); err == nil {
@@ -2403,10 +2409,10 @@ func (s *RESTServer) handleAuditLog(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"entries": logs})
 }
 
-// compliancePackagesMu + compliancePackages stores generated packages in memory
-// compliancePackagesMu + compliancePackages stores generated packages in memory
-var compliancePackagesMu sync.RWMutex
-var compliancePackages = make(map[string][]map[string]interface{})
+// Compliance audit packages are persisted in the `compliance_packages`
+// SQL table (migration v28). The previous in-memory map was lost on every
+// restart, breaking audit-trail durability — flagged as a high-severity
+// persistence bug in the database audit.
 
 // GET /api/v1/audit/packages
 func (s *RESTServer) handleAuditPackages(w http.ResponseWriter, r *http.Request) {
@@ -2415,12 +2421,44 @@ func (s *RESTServer) handleAuditPackages(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	tenant, _ := database.TenantFromContext(r.Context())
-	if tenant == "" { tenant = "GLOBAL" }
-	
-	compliancePackagesMu.RLock()
-	pkgs := make([]map[string]interface{}, len(compliancePackages[tenant]))
-	copy(pkgs, compliancePackages[tenant])
-	compliancePackagesMu.RUnlock()
+	if tenant == "" {
+		tenant = "GLOBAL"
+	}
+	rows, err := s.db.DB().QueryContext(r.Context(),
+		`SELECT id, framework, generated_at, records, integrity_proof, download_url, from_ts, to_ts
+		   FROM compliance_packages
+		  WHERE tenant_id = ?
+		  ORDER BY generated_at DESC`, tenant)
+	if err != nil {
+		s.log.Error("[compliance] list failed: %v", err)
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"packages": []any{}})
+		return
+	}
+	defer rows.Close()
+	pkgs := []map[string]interface{}{}
+	for rows.Next() {
+		var id, framework, gen, proof, url string
+		var records int
+		var from, to sql.NullString
+		if err := rows.Scan(&id, &framework, &gen, &records, &proof, &url, &from, &to); err != nil {
+			continue
+		}
+		pkg := map[string]interface{}{
+			"id":              id,
+			"framework":       framework,
+			"generated_at":    gen,
+			"records":         records,
+			"integrity_proof": proof,
+			"download_url":    url,
+		}
+		if from.Valid {
+			pkg["from"] = from.String
+		}
+		if to.Valid {
+			pkg["to"] = to.String
+		}
+		pkgs = append(pkgs, pkg)
+	}
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"packages": pkgs})
 }
 
@@ -2443,31 +2481,36 @@ func (s *RESTServer) handleAuditPackageGenerate(w http.ResponseWriter, r *http.R
 		req.Framework = "SOC2"
 	}
 
-	// Count audit entries in scope
 	count, _ := s.audit.Count(r.Context())
 
-	// Build package metadata
 	id := fmt.Sprintf("CP-%s-%d", req.Framework, time.Now().Unix())
 	proof := fmt.Sprintf("%x", sha256Hash([]byte(id+req.Framework+req.From+req.To)))
-
-	pkg := map[string]interface{}{
-		"id":              id,
-		"framework":       req.Framework,
-		"generated_at":    time.Now().Format(time.RFC3339),
-		"records":         count,
-		"integrity_proof": proof,
-		"download_url":    fmt.Sprintf("/api/v1/audit/packages/%s/download", id),
-	}
+	generatedAt := time.Now().Format(time.RFC3339)
+	downloadURL := fmt.Sprintf("/api/v1/audit/packages/%s/download", id)
 
 	tenant, _ := database.TenantFromContext(r.Context())
-	if tenant == "" { tenant = "GLOBAL" }
+	if tenant == "" {
+		tenant = "GLOBAL"
+	}
 
-	compliancePackagesMu.Lock()
-	compliancePackages[tenant] = append(compliancePackages[tenant], pkg)
-	compliancePackagesMu.Unlock()
+	if _, err := s.db.DB().ExecContext(r.Context(),
+		`INSERT INTO compliance_packages
+		   (id, tenant_id, framework, generated_at, records, integrity_proof, download_url, from_ts, to_ts)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, tenant, req.Framework, generatedAt, count, proof, downloadURL, req.From, req.To); err != nil {
+		s.log.Error("[compliance] persist failed: %v", err)
+		http.Error(w, "persist failed", http.StatusInternalServerError)
+		return
+	}
 
-
-	s.jsonResponse(w, http.StatusCreated, pkg)
+	s.jsonResponse(w, http.StatusCreated, map[string]interface{}{
+		"id":              id,
+		"framework":       req.Framework,
+		"generated_at":    generatedAt,
+		"records":         count,
+		"integrity_proof": proof,
+		"download_url":    downloadURL,
+	})
 }
 
 // sha256Hash is a local helper to avoid import cycle.
