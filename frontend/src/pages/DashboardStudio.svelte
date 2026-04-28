@@ -22,6 +22,38 @@
 
   let isPreview = $state(false);
 
+  // Audit fix — widget IDs and the dashboard ID used to come from
+  // `Math.random().toString(36)`, which (a) is not a UUID and (b)
+  // collides far more often than its 9-char width suggests under
+  // Svelte 5's frequent re-render. We use crypto.randomUUID() with a
+  // fallback for environments that don't expose it (Wails/WebView2 on
+  // some Win versions). The dashboard ID is computed ONCE at script
+  // load — previously it was inside template interpolation and so
+  // every reactive tick re-rolled it, so a "save" + "reopen" cycle
+  // could never round-trip to the same ID.
+  function freshId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    // Fallback: 16 bytes from getRandomValues, render as 8-char hex.
+    const bytes = new Uint8Array(8);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(bytes);
+    } else {
+      // Last-resort: tag with process timestamp so collisions are at
+      // least timing-bound. Math.random alone is not enough.
+      const t = Date.now();
+      for (let i = 0; i < 8; i++) bytes[i] = (t >>> (i * 4)) & 0xff;
+    }
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Stable dashboard ID — set once on script load. Previously this was
+  // re-rolled on every render in template interpolation, so an operator
+  // who saved the dashboard would see a new ID after the next reactive
+  // pass and not know what they actually persisted.
+  const dashboardId = `DASH-${freshId().slice(0, 8).toUpperCase()}`;
+
   async function refreshWidget(w: Widget) {
     w.loading = true;
     try {
@@ -36,7 +68,7 @@
 
   function addWidget() {
     widgets.push({
-      id: Math.random().toString(36).substr(2, 9),
+      id: freshId(),
       title: 'New Metric',
       type: 'kpi',
       query: 'events | count',
@@ -76,7 +108,7 @@
             class="bg-transparent border-none text-text-heading font-black text-lg focus:ring-0 w-full p-0"
             placeholder="Untitled Dashboard"
           />
-          <p class="text-[10px] text-text-muted font-mono uppercase tracking-widest mt-1">ID: DASH-{Math.random().toString(36).substr(2, 6).toUpperCase()}</p>
+          <p class="text-[10px] text-text-muted font-mono uppercase tracking-widest mt-1">ID: {dashboardId}</p>
         </div>
       </div>
       <div class="flex items-center gap-4">

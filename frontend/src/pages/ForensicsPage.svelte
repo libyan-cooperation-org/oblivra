@@ -6,6 +6,7 @@
   import { KPI, Badge, DataTable, PageLayout, Button, Tabs, Spinner } from '@components/ui';
   import { onMount } from 'svelte';
   import { IS_BROWSER } from '@lib/context';
+  import { apiFetch } from '@lib/apiClient';
 
   const forensicsTabs = [
     { id: 'artifacts', label: 'Artifact Collection', icon: '🔍' },
@@ -17,28 +18,46 @@
   let activeTab = $state('artifacts');
   let artifacts = $state<any[]>([]);
   let loading = $state(false);
+  let loadError = $state<string | null>(null);
 
+  // Audit fix — browser mode used to populate `artifacts` with four
+  // FAKE items (`MALICIOUS.EXE-A1B2C3D4.pf` RiskScore=85, etc.) and
+  // the Suspicious-Files KPI was hardcoded "2". Forensic evidence is
+  // a chain-of-custody artefact; presenting fictitious entries to a
+  // responder could push them to act on phantom IOCs. We now hit the
+  // real `/api/v1/forensics/evidence` endpoint and surface the actual
+  // (possibly empty) locker contents — schemas accommodate either the
+  // REST shape (snake_case) or Wails shape (PascalCase).
   async function loadForensics() {
-    if (IS_BROWSER) {
-        artifacts = [
-            { id: 'a1', Type: 'Prefetch', Name: 'MALICIOUS.EXE-A1B2C3D4.pf', Source: 'C:\\Windows\\Prefetch', RiskScore: 85, CollectedAt: '10m ago' },
-            { id: 'a2', Type: 'Shimcache', Name: 'N/A', Source: 'Registry', RiskScore: 45, CollectedAt: '15m ago' },
-            { id: 'a3', Type: 'MFT', Name: '$MFT', Source: 'C:\\$MFT', RiskScore: 5, CollectedAt: '1h ago' },
-            { id: 'a4', Type: 'Amcache', Name: 'Amcache.hve', Source: 'C:\\Windows\\AppCompat\\Programs', RiskScore: 98, CollectedAt: '5m ago' },
-        ];
-        return;
-    }
     loading = true;
+    loadError = null;
     try {
-        const { ListEvidence } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
-        const items = await ListEvidence(""); // All evidence
-        artifacts = items || [];
-    } catch (err) {
-        console.error('Forensics load failed', err);
+      if (IS_BROWSER) {
+        const res = await apiFetch('/api/v1/forensics/evidence');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        artifacts = (body.evidence ?? []) as any[];
+        return;
+      }
+      const { ListEvidence } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/forensicsservice');
+      const items = await ListEvidence(''); // All evidence
+      artifacts = (items ?? []) as any[];
+    } catch (err: any) {
+      console.error('Forensics load failed', err);
+      loadError = String(err?.message ?? err);
     } finally {
-        loading = false;
+      loading = false;
     }
   }
+
+  // Suspicious-files count is derived, not invented. Threshold matches
+  // the table's "HIGH"/"CRITICAL" split (≥70).
+  const suspiciousCount = $derived.by(() => {
+    return artifacts.filter((a: any) => {
+      const r = Number(a.RiskScore ?? a.risk_score ?? 0);
+      return r >= 70;
+    }).length;
+  });
 
   onMount(() => {
     loadForensics();
@@ -61,8 +80,8 @@
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
       <KPI label="Artifacts Found" value={artifacts.length} variant="default" />
-      <KPI label="Suspicious Files" value="2" variant="critical" />
-      <KPI label="Imaging State" value="Idle" variant="accent" />
+      <KPI label="Suspicious Files" value={suspiciousCount.toString()} variant={suspiciousCount > 0 ? 'critical' : 'muted'} sublabel={suspiciousCount > 0 ? 'risk ≥ 70' : 'No high-risk items'} />
+      <KPI label="Imaging State" value="Idle" sublabel="No imaging job in flight" variant="muted" />
     </div>
 
     <div class="flex-1 min-h-0 flex flex-col bg-surface-1 border border-border-primary rounded-md overflow-hidden relative">
@@ -74,7 +93,21 @@
       <Tabs tabs={forensicsTabs} bind:active={activeTab} />
 
       <div class="p-4 flex-1">
+        {#if loadError}
+          <div class="mb-3 px-3 py-2 text-[11px] font-mono text-error bg-error/10 border border-error/30 rounded">
+            Evidence load failed: {loadError}
+          </div>
+        {/if}
         {#if activeTab === 'artifacts'}
+          {#if !loading && artifacts.length === 0}
+            <div class="flex flex-col items-center justify-center h-full opacity-50 py-12">
+              <span class="text-4xl mb-4">🗃️</span>
+              <div class="text-sm font-bold text-text-heading">No evidence collected yet</div>
+              <p class="text-[10px] text-text-muted mt-1 max-w-[260px] text-center">
+                Trigger an artefact acquisition or wait for an automated capture to populate this view.
+              </p>
+            </div>
+          {:else}
           <DataTable data={artifacts} {columns} compact striped>
             {#snippet render({ value, col, row }: any)}
               {#if col.key === 'risk'}
@@ -92,10 +125,12 @@
               {/if}
             {/snippet}
           </DataTable>
+          {/if}
         {:else}
           <div class="flex flex-col items-center justify-center h-full opacity-40 py-12">
             <span class="text-4xl mb-4">🧪</span>
-            <div class="text-sm font-bold text-text-heading">{activeTab} module is loading...</div>
+            <div class="text-sm font-bold text-text-heading">{activeTab} module not yet available</div>
+            <p class="text-[10px] text-text-muted mt-1">This tab will activate once the corresponding service is wired.</p>
           </div>
         {/if}
       </div>

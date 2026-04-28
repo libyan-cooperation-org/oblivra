@@ -16,12 +16,16 @@
   let lastSync = $state<Date | null>(null);
   let tickTimer: ReturnType<typeof setInterval> | null = null;
 
-  // Health = online / total. Honest 0% when fleet empty rather than fake "98.2%".
+  // Health = online / total. Honest 0% when fleet empty rather than
+  // fake "98.2%". Audit fix — `(a as any).severity` / `(a as any).quarantined`
+  // casts used to silently mask schema drift; AgentDTO now has typed
+  // `quarantined`/`severity` fields populated by agent.svelte.ts so
+  // we read them properly. If the backend renames a field, tsc fails.
   const stats = $derived.by(() => {
     const all = agentStore.agents ?? [];
     const total = all.length;
     const online = all.filter((a) => a.status === 'online' || a.status === 'active').length;
-    const critical = all.filter((a) => (a as any).severity === 'critical' || (a as any).quarantined).length;
+    const critical = all.filter((a) => a.severity === 'critical' || a.quarantined === true).length;
     const healthPct = total === 0 ? 0 : Math.round((online / total) * 100);
     return { total, online, critical, health: total === 0 ? '—' : `${healthPct}%` };
   });

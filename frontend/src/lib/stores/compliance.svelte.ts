@@ -2,8 +2,14 @@
  * OBLIVRA — Compliance Store (Svelte 5 runes)
  *
  * Orchestrates regulatory control monitoring and evidence validation.
+ *
+ * Audit fix — `refresh()` previously gated the fetch on `IS_BROWSER`,
+ * which left desktop operators staring at an empty CompliancePage
+ * (no controls, all KPIs zero) because the desktop branch silently
+ * fell through. apiFetch retargets `/api/*` to the in-process REST
+ * listener on desktop (apiClient.ts:50), so we can drop the gate
+ * entirely and rely on a single transport.
  */
-import { IS_BROWSER } from '@lib/context';
 import { apiFetch } from '@lib/apiClient';
 
 export interface ComplianceControl {
@@ -35,18 +41,21 @@ export class ComplianceStore {
   async refresh() {
     this.loading = true;
     try {
-        if (IS_BROWSER) {
-            const res = await apiFetch('/api/v1/compliance/status');
-            if (res.ok) {
-                const data = await res.json();
-                this.controls = data.controls;
-                this.stats = data.stats;
-            }
-        }
+      const res = await apiFetch('/api/v1/compliance/status');
+      if (res.ok) {
+        const data = await res.json();
+        // Defensive: backend may return null for either field if the
+        // compliance evaluator hasn't run a pass yet. Don't blow away
+        // existing populated state with `undefined`.
+        if (Array.isArray(data.controls)) this.controls = data.controls;
+        if (data.stats && typeof data.stats === 'object') this.stats = data.stats;
+      } else {
+        console.warn('[ComplianceStore] /api/v1/compliance/status returned', res.status);
+      }
     } catch (e) {
-        console.error('[ComplianceStore] Refresh failed:', e);
+      console.error('[ComplianceStore] Refresh failed:', e);
     } finally {
-        this.loading = false;
+      this.loading = false;
     }
   }
 

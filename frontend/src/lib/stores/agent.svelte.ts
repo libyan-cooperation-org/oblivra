@@ -16,6 +16,11 @@ export interface AgentDTO {
   trust_level: string;
   watchdog_active: boolean;
   severity?: string;
+  // Audit fix — `quarantined` was previously read off the raw response
+  // via `(a as any).quarantined` casts on FleetDashboard, masking the
+  // schema drift if the backend renamed the field. Keep it optional —
+  // some response paths (e.g. agentless probes) don't carry it.
+  quarantined?: boolean;
 }
 
 export interface ProcessSnapshot {
@@ -75,7 +80,14 @@ export class AgentStore {
         arch: a.arch || a.Arch,
         collectors: a.collectors || a.Collectors || [],
         trust_level: a.trust_level || a.TrustLevel || 'unverified',
-        watchdog_active: a.watchdog_active || a.WatchdogActive || false
+        watchdog_active: a.watchdog_active || a.WatchdogActive || false,
+        // Map `quarantined` through so consumers (FleetDashboard,
+        // IncidentResponse) don't have to `as any` the field.
+        // The backend uses `quarantined` (snake_case) over the agent
+        // fleet endpoint and `Quarantined` (PascalCase) over Wails;
+        // accept either, default false.
+        quarantined: Boolean(a.quarantined ?? a.Quarantined ?? false),
+        severity: a.severity ?? a.Severity ?? undefined,
       }));
       this.error = null;
     } catch (err: any) {

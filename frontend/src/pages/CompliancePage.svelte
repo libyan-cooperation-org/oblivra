@@ -11,6 +11,33 @@
   const controls = $derived(complianceStore.controls);
   const stats = $derived(complianceStore.stats);
 
+  // Audit fix — the sidebar's "Compliance by Framework" used to render
+  // hardcoded scores `[['NIST 800-53', 98], ['SOC2', 82], ['ISO 27001', 100], ['GDPR', 45]]`.
+  // Auditors saw fictional posture that contradicted the real ledger
+  // table just to its left. We now derive the per-framework breakdown
+  // from the actual controls — average `coverage` weighted equally, which
+  // matches the Big-4-style "control compliance score" auditors expect.
+  type FrameworkScore = { framework: string; pct: number; total: number };
+  const frameworkScores = $derived.by<FrameworkScore[]>(() => {
+    const groups = new Map<string, { sum: number; n: number }>();
+    for (const c of controls ?? []) {
+      const fw = String(c.framework ?? '').trim();
+      if (!fw) continue;
+      const cov = Number(c.coverage ?? 0);
+      const cur = groups.get(fw) ?? { sum: 0, n: 0 };
+      cur.sum += cov;
+      cur.n += 1;
+      groups.set(fw, cur);
+    }
+    return [...groups.entries()]
+      .map(([framework, { sum, n }]) => ({
+        framework,
+        pct: n === 0 ? 0 : Math.round(sum / n),
+        total: n,
+      }))
+      .sort((a, b) => b.pct - a.pct);
+  });
+
   onMount(() => {
     complianceStore.refresh();
   });
@@ -109,17 +136,24 @@
             <div class="p-4 border-b border-border-primary space-y-4">
                 <span class="text-[9px] font-mono font-bold text-text-muted uppercase tracking-widest">Compliance by Framework</span>
                 <div class="space-y-3">
-                    {#each [['NIST 800-53', 98], ['SOC2', 82], ['ISO 27001', 100], ['GDPR', 45]] as [fw, val]}
-                        <div class="space-y-1.5">
-                            <div class="flex justify-between text-[8px] font-mono uppercase">
-                                <span class="text-text-muted">{fw}</span>
-                                <span class="text-text-heading font-bold">{val}%</span>
-                            </div>
-                            <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
-                                <div class="h-full {Number(val) > 90 ? 'bg-success' : Number(val) > 70 ? 'bg-warning' : 'bg-error'}" style="width: {val}%"></div>
-                            </div>
+                    {#if frameworkScores.length === 0}
+                        <div class="text-[10px] text-text-muted italic">
+                            {complianceStore.loading ? 'Loading framework breakdown…' : 'No control data — frameworks will appear once a compliance pass runs.'}
                         </div>
-                    {/each}
+                    {:else}
+                        {#each frameworkScores as fs (fs.framework)}
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between text-[8px] font-mono uppercase">
+                                    <span class="text-text-muted">{fs.framework}</span>
+                                    <span class="text-text-heading font-bold">{fs.pct}%</span>
+                                </div>
+                                <div class="h-1 bg-surface-1 rounded-full overflow-hidden">
+                                    <div class="h-full {fs.pct > 90 ? 'bg-success' : fs.pct > 70 ? 'bg-warning' : 'bg-error'}" style="width: {fs.pct}%"></div>
+                                </div>
+                                <div class="text-[8px] font-mono text-text-muted">{fs.total} control{fs.total === 1 ? '' : 's'}</div>
+                            </div>
+                        {/each}
+                    {/if}
                 </div>
             </div>
 
