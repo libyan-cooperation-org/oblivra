@@ -75,7 +75,7 @@ jobs:
           output-file: vuln-scan.sarif
 
       - name: Upload SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: vuln-scan.sarif
@@ -121,7 +121,7 @@ jobs:
           # flag-day rejection of pre-existing findings.
           args: '-no-fail -fmt=sarif -out=gosec.sarif -exclude=G104,G304,G601 ./...'
       - name: Upload gosec SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: gosec.sarif
