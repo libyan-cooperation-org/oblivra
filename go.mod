@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/blevesearch/bleve/v2 v2.5.3
-	github.com/coreos/go-oidc/v3 v3.17.0
+	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/creack/pty v1.1.24
 	github.com/crewjam/saml v0.5.1
 	github.com/dgraph-io/badger/v4 v4.2.0
@@ -36,7 +36,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	golang.org/x/crypto v0.50.0
 	golang.org/x/net v0.52.0
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sys v0.43.0
 	golang.org/x/text v0.36.0
 	golang.org/x/time v0.15.0
@@ -91,7 +91,7 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.8.0 // indirect
 	github.com/go-git/go-git/v5 v5.17.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
