@@ -8,11 +8,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/agent"
+	oblio "github.com/kingknull/oblivrashell/internal/io"
 	"github.com/kingknull/oblivrashell/internal/logger"
+	"github.com/kingknull/oblivrashell/internal/tamper"
 )
 
 var (
@@ -42,6 +45,9 @@ func main() {
 
 	tenantID       := flag.String("tenant-id",     os.Getenv("OBLIVRA_TENANT_ID"), "Tenant identifier for multi-tenant isolation")
 	triggerTamper  := flag.Bool("trigger-tamper",   false,            "Simulate a self-tampering attempt on startup for watchdog verification")
+	// New flags wiring the I/O plugin framework + tamper-evidence subsystem.
+	ioConfig       := flag.String("io-config",      "",               "Path to YAML inputs/outputs config (Slice 1-5). Leave empty to skip the pluggable pipeline.")
+	tamperDisable  := flag.Bool("tamper-disable",   false,            "Disable agent oplog forwarding + heartbeat. Strongly discouraged outside lab.")
 	flag.Parse()
 
 	if *showVersion {
@@ -126,6 +132,49 @@ func main() {
 		a.TriggerWatchdogSelfTest()
 	}
 
+	// ── I/O Pipeline (Slices 1-5) ─────────────────────────────────────────────
+	// When --io-config is set, parse the YAML and start a pluggable pipeline
+	// alongside the legacy collectors. Both run together — operators migrate
+	// individual collectors to the new framework at their own pace.
+	if *ioConfig != "" {
+		if err := startIOPipeline(ctx, *ioConfig, l); err != nil {
+			l.Warn("I/O pipeline disabled: %v", err)
+		}
+	}
+
+	// ── Tamper-evidence subsystem (Layers 1+2+3) ─────────────────────────────
+	// Ships agent log → server, sends 30s heartbeats, maintains hash chain.
+	// Disabled with --tamper-disable for lab use; in any other environment
+	// missing tamper-evidence is a security regression worth being loud about.
+	if *tamperDisable {
+		l.Warn("⚠ Tamper-evidence subsystem DISABLED via --tamper-disable. " +
+			"Agent oplog won't ship to server; heartbeats won't fire. " +
+			"DO NOT USE IN PRODUCTION.")
+	} else {
+		serverURL := *serverAddr
+		if !strings.HasPrefix(serverURL, "http") {
+			scheme := "https"
+			if *insecure {
+				scheme = "http"
+			}
+			serverURL = scheme + "://" + serverURL
+		}
+		ts, err := tamper.NewSubsystem(tamper.Config{
+			AgentID:     a.ID(),
+			ServerURL:   serverURL,
+			FleetSecret: cfg.FleetSecret,
+			LogPath:     finalLogPath,
+			VerifyTLS:   !cfg.InsecureTLS,
+		}, l)
+		if err != nil {
+			l.Warn("Tamper subsystem not started: %v", err)
+		} else if err := ts.Start(ctx); err != nil {
+			l.Warn("Tamper subsystem failed to start: %v", err)
+		} else {
+			defer ts.Stop()
+		}
+	}
+
 	// Emit the "Connected" log line that the troubleshooting guide expects
 	l.Info("Connected to server: %s", *serverAddr)
 
@@ -145,4 +194,70 @@ func defaultDataDir() string {
 		return `C:\ProgramData\oblivra\agent`
 	}
 	return "/var/lib/oblivra/agent"
+}
+
+// startIOPipeline loads the YAML config at `path`, instantiates every
+// declared input + output via the registry, wires them through the
+// pipeline, and starts it. The pipeline runs alongside the legacy
+// agent collectors — both write into the existing agent → server
+// transport, so events from `file` / `syslog` / `hec` inputs flow
+// upstream identically to the legacy collectors.
+//
+// Returns an error if the file fails to parse or any plugin can't
+// construct. On success the pipeline outlives this function (its
+// goroutines run until the parent ctx is cancelled).
+func startIOPipeline(ctx context.Context, path string, log *logger.Logger) error {
+	cfg, err := oblio.LoadConfig(path)
+	if err != nil {
+		return fmt.Errorf("load %s: %w", path, err)
+	}
+
+	pipe := oblio.NewPipeline(log)
+	for _, inCfg := range cfg.Inputs {
+		in, err := oblio.NewInput(inCfg, log)
+		if err != nil {
+			return fmt.Errorf("input: %w", err)
+		}
+		pipe.AddInput(in)
+	}
+	for _, outCfg := range cfg.Outputs {
+		out, err := oblio.NewOutput(outCfg, log)
+		if err != nil {
+			return fmt.Errorf("output: %w", err)
+		}
+		pipe.AddOutput(out)
+	}
+	if err := pipe.Start(ctx); err != nil {
+		return err
+	}
+	log.Info("I/O pipeline started from %s (%d inputs, %d outputs)",
+		path, len(cfg.Inputs), len(cfg.Outputs))
+
+	// Hot-reload watcher — operator edits the YAML, fsnotify fires,
+	// we (today) just log the change. Full hot-reload (diff-and-restart-
+	// only-changed-plugins) is a Phase 34 follow-up; for now operators
+	// restart the agent to apply config changes.
+	go func() {
+		w, err := oblio.NewWatcher(path, log)
+		if err != nil {
+			log.Warn("config watcher disabled: %v", err)
+			return
+		}
+		defer w.Stop()
+		go w.Watch()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case newCfg := <-w.C():
+				if newCfg == nil {
+					continue
+				}
+				log.Info("[io] config change detected: %d inputs, %d outputs " +
+					"(restart agent to apply — hot-reload coming Phase 34)",
+					len(newCfg.Inputs), len(newCfg.Outputs))
+			}
+		}
+	}()
+	return nil
 }

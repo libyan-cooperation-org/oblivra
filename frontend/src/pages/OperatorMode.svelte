@@ -6,7 +6,9 @@
   import { onMount } from 'svelte';
   import { PageLayout, Badge, Button, KPI } from '@components/ui';
   import { ShieldAlert, Zap, MoreHorizontal, Terminal as TerminalIcon, Search, ShieldCheck, Activity, Lock, Database } from 'lucide-svelte';
-  import Terminal from '@components/shell/Terminal.svelte';
+  // Terminal component removed — shell subsystem deleted Phase 33,
+  // replacement pending. The terminal slot below shows a placeholder
+  // until the new shell ships.
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte.ts';
@@ -168,8 +170,18 @@
                     <Badge variant="muted" class="text-[8px]">⌃D</Badge>
                 </div>
             </div>
-            <div class="flex-1 min-h-0 bg-[#030608]">
-                <Terminal />
+            <div class="flex-1 min-h-0 bg-[#030608] flex items-center justify-center">
+                <!-- Shell subsystem is being replaced (Phase 33). The
+                     SIEM-aware host context still renders in the
+                     sidebar; the terminal slot will return when the
+                     new shell ships. -->
+                <div class="text-center px-6 py-12 max-w-md">
+                    <TerminalIcon size={32} class="mx-auto text-text-muted/40 mb-3" />
+                    <div class="text-[var(--fs-label)] uppercase tracking-widest text-text-muted font-mono mb-2">Shell offline</div>
+                    <p class="text-[var(--fs-body)] text-text-secondary leading-relaxed">
+                        The shell subsystem is being rebuilt. Pivots, alert context, and host metadata still work — only the live PTY is offline.
+                    </p>
+                </div>
             </div>
         </div>
 

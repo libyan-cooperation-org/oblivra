@@ -187,6 +187,36 @@ func (s *APIService) SetSettings(set *SettingsService) {
 	s.server.SetSettings(set)
 }
 
+// SetTLSState wires the security.TLSGuardrails into the REST server
+// so /api/v1/tls/state can serve the chrome banner. The interface
+// shape (`IsTLSOff() bool`) matches api.TLSStateProvider; we accept
+// `any` here to dodge the import-cycle dance.
+func (s *APIService) SetTLSState(p api.TLSStateProvider) {
+	if s == nil || s.server == nil || p == nil {
+		return
+	}
+	s.server.SetTLSState(p)
+}
+
+// SetIOConfig wires the I/O config provider into the REST server so
+// /api/v1/io/config and /api/v1/io/stats serve the /connectors UI.
+func (s *APIService) SetIOConfig(p api.IOConfigProvider) {
+	if s == nil || s.server == nil || p == nil {
+		return
+	}
+	s.server.SetIOConfig(p)
+}
+
+// StartHeartbeatScanner kicks off the missed-heartbeat sweeper inside
+// the REST server (Tamper Path 1, Layer 3). One goroutine, ticks
+// every 60s, emits tamper:detected events for stale agents.
+func (s *APIService) StartHeartbeatScanner(ctx context.Context) {
+	if s == nil || s.server == nil {
+		return
+	}
+	s.server.StartHeartbeatScanner(ctx)
+}
+
 // Startup boots the headless REST API in the background
 func (s *APIService) Start(ctx context.Context) error {
 	s.ctx = ctx

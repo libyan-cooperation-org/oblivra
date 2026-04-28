@@ -14,6 +14,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import { navigationStore } from '@lib/stores/navigation.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
   import PivotCrumb from '@components/layout/PivotCrumb.svelte';
+  import TLSBanner from '@components/layout/TLSBanner.svelte';
   import CrisisDecisionPanel from '@components/layout/CrisisDecisionPanel.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import TenantFastSwitcher from '@components/ui/TenantFastSwitcher.svelte';
@@ -27,7 +28,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
   // ── Pages
   import Dashboard from '@pages/Dashboard.svelte';
-  import ShellPage from '@pages/ShellPage.svelte';
+  // ShellPage import removed — shell subsystem deleted in Phase 33,
+  // pending replacement. The /shell route now falls through to the
+  // wildcard DevelopmentPage placeholder.
   import RecordingsPage from '@pages/RecordingsPage.svelte';
   import SIEMPanel from '@pages/SIEMPanel.svelte';
   import AlertDashboard from '@pages/AlertDashboard.svelte';
@@ -104,6 +107,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import DashboardStudio from '@pages/DashboardStudio.svelte';
   import DSRConsole from '@pages/DSRConsole.svelte';
   import IdentityConnectors from '@pages/IdentityConnectors.svelte';
+  import AuditLog from '@pages/AuditLog.svelte';
+  import Connectors from '@pages/Connectors.svelte';
+  import Integrity from '@pages/Integrity.svelte';
   import ProfileWizard from '@components/onboarding/ProfileWizard.svelte';
 
   // ── Types
@@ -185,7 +191,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // Operations & Terminal
     { path: '/ops',              component: OpsCenter },
-    { path: '/shell',            component: ShellPage },
+    // /shell removed — shell subsystem deleted Phase 33; pending replacement.
     { path: '/ssh',              component: SSHBookmarks },
     { path: '/tunnels',          component: TunnelsPage },
     { path: '/recordings',       component: RecordingsPage },
@@ -256,6 +262,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/identity-admin', component: IdentityAdmin },
     { path: '/identity-connectors', component: IdentityConnectors },
     { path: '/dsr', component: DSRConsole },
+    { path: '/audit',          component: AuditLog },
     { path: '/admin',          component: MultiTenantAdmin },
     { path: '/shortcuts',      component: KeyboardMap },
     { path: '/secrets',        component: SecretManager },
@@ -273,6 +280,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/risk',           component: ConfigRisk },
     { path: '/entity',         component: EntityView },
     { path: '/ai-assistant',   component: AIAssistantPage },
+    { path: '/development',    component: DevelopmentPage },
+    { path: '/connectors',     component: Connectors },
+    { path: '/integrity',      component: Integrity },
 
     // Fallback
     { path: '*', component: DevelopmentPage },
@@ -358,9 +368,13 @@ import Sidebar from '@components/layout/CommandRail.svelte';
           appStore.navigate(route);
         });
         on(rt, 'menu:new-terminal', () => {
-          // The new Workspace at /shell auto-spawns a local PTY in onMount;
-          // a separate connectToLocal() pre-warm is no longer needed.
-          appStore.navigate('/shell');
+          // /shell route is offline pending shell-subsystem replacement
+          // (Phase 33). Surface a notice instead of navigating to a 404.
+          appStore.notify(
+            'Shell workspace is offline',
+            'info',
+            'The shell subsystem is being rebuilt. Use /operator for SIEM-aware host context until the new shell ships.',
+          );
         });
         on(rt, 'menu:command-palette', () => {
           appStore.showCommandPalette = true;
@@ -436,6 +450,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       // desktop (still hits the embedded REST server on localhost).
       const { threatIntelStore } = await import('@lib/stores/threatIntel.svelte');
       threatIntelStore.start();
+
+      // Tamper-evidence integrity counts (Tamper Path 1). Drives the
+      // Tactical Hub KPI tile + Crisis auto-arm threshold.
+      const { integrityStore } = await import('@lib/stores/integrity.svelte');
+      integrityStore.start();
 
       // In pop-out mode the spawned window starts at "/?popout=1&route=X"
       // — navigate to the requested route now that the router store is up.
@@ -577,6 +596,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
       <div class="relative flex flex-1 flex-col overflow-hidden">
         <TopBar />
+
+        <!-- TLS plaintext banner — auto-hides when TLS is on. Sits
+             above the pivot trail so operators see the security
+             posture before the navigation crumb. -->
+        <TLSBanner />
 
         <!-- Pivot trail — auto-hides when the trail is empty. -->
         <PivotCrumb />

@@ -6,7 +6,9 @@
   import { onMount } from 'svelte';
   import { KPI, Badge, PageLayout, Button, EmptyState, SearchBar } from '@components/ui';
   import { appStore } from '@lib/stores/app.svelte';
-  import { shellStore } from '@lib/stores/shell.svelte';
+  // shellStore was removed Phase 33. Snippet execute paths that
+  // depended on an active terminal session are stubbed until the new
+  // shell registers a replacement (see `run()` below).
   import { IS_BROWSER } from '@lib/context';
 
   interface Snippet {
@@ -81,15 +83,27 @@
   }
 
   async function run(id: string) {
-    const sessionId = shellStore.activeSessionID;
-    if (!sessionId) { appStore.notify('No active terminal session', 'warning', 'Open a shell first.'); return; }
+    // Snippet execution requires an active shell session. The shell
+    // subsystem is being rebuilt (Phase 33); until the replacement
+    // ships there's no session to target. Surface the gap so the
+    // operator knows why the action is paused, and copy the snippet
+    // to the clipboard as a fallback.
+    appStore.notify(
+      'Shell offline — snippet copied to clipboard',
+      'info',
+      'Run it manually until the new shell ships.',
+    );
     try {
-      const { ExecuteSnippet } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/snippetservice');
-      await ExecuteSnippet(id, sessionId, {}, false);
-      appStore.notify('Snippet executed', 'success');
-    } catch (e: any) {
-      appStore.notify('Execute failed', 'error', e?.message);
-    }
+      const snippet = snippets.find((s) => s.ID === id);
+      if (snippet?.Command) {
+        await navigator.clipboard?.writeText?.(snippet.Command);
+      }
+    } catch { /* clipboard denied */ }
+    return;
+    // Re-enable once the new shell registers a session-id provider:
+    // const sessionId = newShellStore.activeSessionID;
+    // const { ExecuteSnippet } = await import('@wailsjs/.../snippetservice');
+    // await ExecuteSnippet(id, sessionId, {}, false);
   }
 
   onMount(load);
@@ -105,7 +119,7 @@
   <div class="flex flex-col h-full gap-5">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
       <KPI label="Saved Snippets"  value={snippets.length}  trend="stable" />
-      <KPI label="Active Session"  value={shellStore.activeSessionID ? 'Ready' : 'None'} variant={shellStore.activeSessionID ? 'success' : 'muted'} />
+      <KPI label="Active Session"  value="Offline" variant="muted" sublabel="Shell rebuild in progress" />
       <KPI label="Mode"            value={IS_BROWSER ? 'Browser (read-only)' : 'Desktop'} variant="accent" />
     </div>
 

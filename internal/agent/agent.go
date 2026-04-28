@@ -142,6 +142,12 @@ type Agent struct {
 	restartMgr *RestartManager
 }
 
+// ID returns the agent's stable identifier. Resolved once at startup
+// from the data directory's agentid file (or generated and persisted
+// if missing). Used by Tamper subsystem (oplog + heartbeat) and by
+// the I/O pipeline as the default `host` field on every event.
+func (a *Agent) ID() string { return a.cfg.AgentID }
+
 // Collector defines the interface for data collection plugins.
 type Collector interface {
 	Name() string

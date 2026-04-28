@@ -7,6 +7,7 @@
   import { Users, UserPlus, RefreshCw, Trash2 } from 'lucide-svelte';
   import { IS_BROWSER } from '@lib/context';
   import { appStore } from '@lib/stores/app.svelte';
+  import { apiFetch } from '@lib/apiClient';
 
   type User = { id?: string; email?: string; name?: string; role_id?: string; role?: string; mfa_enabled?: boolean; created_at?: string };
   type Role = { id?: string; name?: string; description?: string; permissions?: string[] };
@@ -18,7 +19,26 @@
   async function refresh() {
     loading = true;
     try {
-      if (IS_BROWSER) { users = []; roles = []; return; }
+      if (IS_BROWSER) {
+        // Audit fix — browser mode now consumes the real
+        // /api/v1/users + /api/v1/roles endpoints (wired in
+        // commit 641907f). Previously this branch silently
+        // returned empty arrays and the page showed "No users yet"
+        // even when 50 users existed in the DB.
+        const [uRes, rRes] = await Promise.all([
+          apiFetch('/api/v1/users'),
+          apiFetch('/api/v1/roles'),
+        ]);
+        if (uRes.ok) {
+          const body = await uRes.json();
+          users = (body.users ?? body.identities ?? []) as User[];
+        }
+        if (rRes.ok) {
+          const body = await rRes.json();
+          roles = (body.roles ?? []) as Role[];
+        }
+        return;
+      }
       const svc = await import(
         '@wailsjs/github.com/kingknull/oblivrashell/internal/services/identityservice'
       );

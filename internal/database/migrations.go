@@ -785,6 +785,65 @@ var migrations = []migration{
 			CREATE INDEX IF NOT EXISTS idx_evidence_ts_height ON evidence_timestamps(chain_height);
 		`,
 	},
+	{
+		// agent_oplog (Tamper Path 1, Layer 1) — agents ship their
+		// own diagnostic log lines here so the central server has a
+		// write-once copy. An attacker who pwns the host and `rm`s
+		// /var/log/oblivra-agent.log can't erase events that already
+		// reached the server.
+		//
+		// The table is append-only by convention (no UPDATE paths in
+		// code; CryptoWipe is the only deletion path, and it's audit-
+		// logged). The `UNIQUE(agent_id, batch_seq)` does idempotency
+		// (retries are safe) AND gap-detection (a missing batch_seq is
+		// suspicious — recorded as agent:sequence_gap in tamper rules).
+		version: 33,
+		name:    "create_agent_oplog",
+		sql: `
+			CREATE TABLE IF NOT EXISTS agent_oplog (
+				id            INTEGER PRIMARY KEY AUTOINCREMENT,
+				agent_id      TEXT NOT NULL,
+				batch_seq     INTEGER NOT NULL,
+				ts            TEXT NOT NULL,
+				level         TEXT NOT NULL,
+				source        TEXT,
+				message       TEXT NOT NULL,
+				received_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+				prev_hash     TEXT,
+				UNIQUE(agent_id, batch_seq, ts, message)
+			);
+			CREATE INDEX IF NOT EXISTS idx_agent_oplog_received ON agent_oplog(received_at DESC);
+			CREATE INDEX IF NOT EXISTS idx_agent_oplog_agent_seq ON agent_oplog(agent_id, batch_seq);
+		`,
+	},
+	{
+		// agent_heartbeats (Tamper Path 1, Layer 3) — most-recent-only
+		// table (one row per agent, replaced on each heartbeat). Used
+		// by the missed-heartbeat scanner: a sweep every 60s flags
+		// agents whose latest heartbeat is older than 90s.
+		//
+		// Carries the size + inode of the agent's local log file plus
+		// its last hash chain hash; tamper rules detect:
+		//   • log_truncated  — log_file_size shrank between heartbeats
+		//   • log_inode_changed — log file rotated (legitimate but logged)
+		//   • time_skew      — wall_clock differs from server > 60s
+		version: 34,
+		name:    "create_agent_heartbeats",
+		sql: `
+			CREATE TABLE IF NOT EXISTS agent_heartbeats (
+				agent_id          TEXT PRIMARY KEY,
+				received_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+				wall_clock        TEXT NOT NULL,
+				uptime_s          INTEGER NOT NULL,
+				log_file_inode    INTEGER NOT NULL,
+				log_file_size     INTEGER NOT NULL,
+				last_hash         TEXT,
+				prev_log_size     INTEGER,
+				prev_log_inode    INTEGER,
+				skew_seconds      REAL
+			);
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

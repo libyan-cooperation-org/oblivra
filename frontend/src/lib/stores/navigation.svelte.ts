@@ -24,53 +24,64 @@ const STORAGE_KEY = 'oblivra:nav';
 // etc. which no longer exist; rather than migrate the IDs we drop the
 // stored prefs on first load — the operator just lands on the new
 // 'overview' default and re-pins anything they care about.
-const SCHEMA_VERSION = 3;  // Phase 32: 8 groups → 5 groups
+const SCHEMA_VERSION = 4;  // Phase 33: 5 groups → 6 groups + subsections
 
-// SOC investigation-first taxonomy (per Phase 31 redesign spec).
-// Phase 32: collapsed from 8 to 5 groups per UIUX_IMPROVEMENTS.md
-// (working memory holds 5±2). Each group corresponds to *the operator's
-// current intent*, not feature taxonomy:
+// SOC investigation-first taxonomy.
+// Phase 33 (Path A): 6 sidebar groups, each with 2-3 BottomDock
+// subsections. Each top-level group answers one operator question:
 //
-//   siem        → "what is the system reporting?" — alerts, search, hunt
-//   operations  → "what am I doing on a host?"    — shell, ssh, fleet
-//   investigate → "what happened?"                 — cases, timeline, forensics
-//   govern      → "is the platform in order?"      — compliance, identity, DSR
-//   admin       → "configure the platform"         — settings, plugins, sync
+//   siem    → "what is the system reporting?"  — triage + hunt + dashboards
+//   invest  → "what happened?"                 — cases, timeline, lineage
+//   respond → "what should I do?"              — SOAR, forensics, evidence
+//   fleet   → "what's running?"                — assets, network, shell
+//   govern  → "is the platform in order?"      — identity, compliance, secrets
+//   admin   → "configure the platform"         — settings, dashboards, help
 //
-// Old IDs (overview/security/network/identity/hosts/shell/logs/system)
-// are migrated below in the persistence reader so the operator's last
-// active group survives the schema bump.
+// Old IDs (Phase 32 5-group set + the legacy 8-group set before that)
+// are migrated below so persisted state survives the schema bump.
 export type NavGroupId =
   | 'siem'
-  | 'operations'
-  | 'investigate'
+  | 'invest'
+  | 'respond'
+  | 'fleet'
   | 'govern'
   | 'admin';
 
 /**
- * Migrate legacy 8-group NavGroupId values into the new 5-group schema.
+ * Migrate legacy NavGroupId values into the current 6-group schema.
  *
  * Mapping table (locked — do not change without bumping SCHEMA_VERSION):
  *
- *   legacy id  → new id
- *   ─────────  ─────────────
- *   overview   → siem        (Mission Control lives at the top of SIEM)
- *   security   → siem        (alerts, hunt, intel — SIEM-native)
- *   logs       → siem        (search, live tail, saved queries)
- *   shell      → operations  (terminal lives here)
- *   hosts      → operations  (fleet, agents)
- *   network    → operations  (NDR, tunnels, topology)
- *   identity   → govern      (users, SSO, DSR)
- *   system     → admin       (settings, plugins, license, sync)
+ *   legacy id     → current id
+ *   ───────────   ─────────────
+ *   Phase 32 set:
+ *   operations    → fleet      (shell + SSH + hosts + network all moved here)
+ *   investigate   → invest     (renamed; cases/timeline stay)
  *
- *   already-new id → returned unchanged
- *   unknown id     → 'siem'  (most-trafficked default)
+ *   Pre-Phase-32 (8-group) set:
+ *   overview      → siem       (Mission Control lives at the top of SIEM)
+ *   security      → siem       (alerts, hunt, intel — SIEM-native)
+ *   logs          → siem       (search, live tail, saved queries)
+ *   shell         → fleet      (terminal lives under FLEET → Shell)
+ *   hosts         → fleet      (assets, agents)
+ *   network       → fleet      (topology, NDR, tunnels)
+ *   identity      → govern     (users, SSO, DSR)
+ *   system        → admin      (settings, plugins, license, sync)
+ *
+ *   already-current id → returned unchanged
+ *   unknown id         → 'siem' (most-trafficked default)
  *
  * Exported so we can unit-test the mapping table without spinning up
  * the Svelte rune runtime.
  */
 export function migrateLegacyGroup(id: string): NavGroupId {
   switch (id) {
+    // Phase 32 → Phase 33
+    case 'operations':
+      return 'fleet';
+    case 'investigate':
+      return 'invest';
+    // Pre-Phase-32 (8-group)
     case 'overview':
     case 'logs':
     case 'security':
@@ -78,15 +89,16 @@ export function migrateLegacyGroup(id: string): NavGroupId {
     case 'shell':
     case 'hosts':
     case 'network':
-      return 'operations';
+      return 'fleet';
     case 'identity':
       return 'govern';
     case 'system':
       return 'admin';
   }
-  // Already a new id (or unknown — fall back to siem so the operator
-  // lands on the most-trafficked group).
-  if (id === 'siem' || id === 'operations' || id === 'investigate' || id === 'govern' || id === 'admin') {
+  // Already a current id, or unknown — fall back to siem so the operator
+  // lands on the most-trafficked group.
+  if (id === 'siem' || id === 'invest' || id === 'respond' ||
+      id === 'fleet' || id === 'govern' || id === 'admin') {
     return id;
   }
   return 'siem';
@@ -129,11 +141,12 @@ class NavigationStore {
   // Last route opened inside each group, so re-clicking a group restores
   // the operator's last view rather than always landing on the first item.
   lastRouteByGroup = $state<Record<NavGroupId, string | null>>({
-    siem:        null,
-    operations:  null,
-    investigate: null,
-    govern:      null,
-    admin:       null,
+    siem:    null,
+    invest:  null,
+    respond: null,
+    fleet:   null,
+    govern:  null,
+    admin:   null,
   });
 
   private _initialized = false;

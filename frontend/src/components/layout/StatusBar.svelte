@@ -2,7 +2,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { shellStore } from '@lib/stores/shell.svelte';
+  // shellStore was removed Phase 33 alongside the shell subsystem.
+  // Active-session + active-host indicators are stubbed until the new
+  // shell ships and registers a replacement store.
   import { APP_CONTEXT } from '@lib/context';
   import { subscribe } from '@lib/bridge';
 
@@ -14,21 +16,12 @@
   let ingestEPS = $state<number | null>(null); // null = not yet received
   let loaded    = $state(false);
 
-  // Active session count comes from the new shell workspace (every leaf in
-  // every tab is one live PTY/SSH session). The legacy appStore.sessions
-  // array is unused after Stage 2 of the Blacknode shell migration.
-  const activeCount   = $derived(shellStore.sessionCount);
+  // Shell-derived indicators are zeroed pending the new shell subsystem.
+  // The status bar still renders — it just shows 0 sessions / no active
+  // host until the replacement registers a session-count store.
+  const activeCount   = $derived(0);
   const transferCount = $derived(appStore.transfers.filter((t: any) => t.status === 'active' || t.status === 'pending').length);
-  const activeHost    = $derived.by(() => {
-    // Walk the shell workspace: active tab → active leaf → leafMeta.title.
-    // Returns null when no shell is open or none is focused, so the
-    // status bar collapses cleanly.
-    const tab = shellStore.tabs.find((t) => t.id === shellStore.activeTabID);
-    if (!tab || !tab.activeLeafID) return null;
-    const meta = tab.leafMeta[tab.activeLeafID];
-    if (!meta) return null;
-    return { label: meta.title };
-  });
+  const activeHost    = $derived<{ label: string } | null>(null);
 
   // Display strings — dashes while loading, never raw zeros on first paint
   const epsDisplay    = $derived(!loaded ? '—' : (ingestEPS ?? 0).toLocaleString());

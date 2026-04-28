@@ -12,6 +12,7 @@
   import { agentStore } from '@lib/stores/agent.svelte';
   import { KPI, Badge, Button, PageLayout, DataTable, PopOutButton, ActivityFeed } from '@components/ui';
   import DeltaTile from '@components/dash/DeltaTile.svelte';
+  import { integrityStore } from '@lib/stores/integrity.svelte';
   import { push } from '@lib/router.svelte';
 
   // Frontend-tracked uptime — backend has no per-session uptime RPC, so we
@@ -115,10 +116,11 @@
   {/snippet}
 
   <div class="flex flex-col h-full gap-4">
-    <!-- CORE KPI STRIP + delta tile (Phase 32). Six columns so the
-         delta tile fits alongside the five KPIs without breaking the
-         existing layout at lg+. Below lg the delta wraps to its own row. -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 shrink-0">
+    <!-- CORE KPI STRIP + delta tile + tamper indicator (7 cols). The
+         tamper tile is muted when count == 0 so it's easy to ignore
+         until a heartbeat misses or a log truncates. Drives the eye to
+         it in critical when > 0. -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 shrink-0">
       <KPI label="Global Risk Score"
            value={riskScore.toFixed(1)}
            trend={riskScore >= 5 ? 'up' : 'down'}
@@ -140,6 +142,21 @@
            trendPolarity="neutral"
            sublabel="Since dashboard mount" />
       <DeltaTile />
+      <KPI
+        label="Tamper Indicators"
+        value={(integrityStore.counts.tampered + integrityStore.counts.dark).toString()}
+        sublabel={integrityStore.counts.tampered > 0
+          ? `${integrityStore.counts.tampered} tampered · ${integrityStore.counts.dark} dark`
+          : integrityStore.counts.dark > 0
+            ? `${integrityStore.counts.dark} dark agent${integrityStore.counts.dark === 1 ? '' : 's'}`
+            : 'all agents healthy'}
+        variant={integrityStore.counts.tampered > 0
+          ? 'critical'
+          : integrityStore.counts.dark > 0
+            ? 'warning'
+            : 'muted'}
+        trendPolarity="up-bad"
+      />
     </div>
 
     <!-- MAIN GRID -->

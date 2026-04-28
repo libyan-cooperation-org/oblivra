@@ -19,8 +19,9 @@
 <script lang="ts">
   import {
     Shield,
-    TerminalSquare,
     Folder,
+    Zap,
+    Server,
     Scale,
     Settings,
     PinOff,
@@ -32,15 +33,16 @@
   import { push } from '@lib/router.svelte';
   import { IS_BROWSER, IS_DESKTOP, IS_HYBRID } from '@lib/context';
 
-  // Map icon names → component refs (Phase 32 — 5 groups). Keeping this
-  // local (rather than computing from lucide-svelte by string) preserves
-  // Vite tree-shaking.
+  // Map icon names → component refs (Phase 33 — 6 groups). Local
+  // mapping preserves Vite tree-shaking; new groups need their icon
+  // added here AND mirrored in nav-config.ts NavGroup.icon for tooltips.
   const GROUP_ICONS: Record<NavGroupId, typeof IconType> = {
-    siem:        Shield,
-    operations:  TerminalSquare,
-    investigate: Folder,
-    govern:      Scale,
-    admin:       Settings,
+    siem:    Shield,
+    invest:  Folder,
+    respond: Zap,
+    fleet:   Server,
+    govern:  Scale,
+    admin:   Settings,
   };
 
   // Filter pinned items by current platform context, since a desktop-only

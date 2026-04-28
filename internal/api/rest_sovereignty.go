@@ -1,18 +1,20 @@
 package api
 
-// Sovereignty score (Phase 32, marketing + operational signal).
+// Sovereignty score (marketing + operational signal).
 //
 // GET /api/v1/sovereignty/score
 //
-// Combines four signals into a single 0–100 number:
+// Combines five signals into a single 0–100 number (each pillar
+// weighted at 20):
 //
-//   1. On-prem deployment (this binary is running locally → +25)
-//   2. TPM-rooted custody (forensic signer is hardware → +25)
-//   3. Air-gap readiness (no required outbound to cloud feeds → +25)
-//   4. Key material residency (vault keys local → +25)
+//   1. On-prem deployment (this binary is running locally)
+//   2. TPM-rooted custody (forensic signer is hardware)
+//   3. Air-gap readiness (no required outbound to cloud feeds)
+//   4. Key material residency (vault keys local)
+//   5. Encryption-in-transit (TLS on)
 //
 // The aggregate is rendered in the chrome as a small badge ("🔒 92")
-// and on the executive dash as a full tile with the four sub-scores.
+// and on the executive dash as a full tile with all five sub-scores.
 // CISOs reviewing this tile can answer "where does my data go?" in
 // one glance.
 //
@@ -54,6 +56,7 @@ func (s *RESTServer) handleSovereigntyScore(w http.ResponseWriter, r *http.Reque
 		s.componentTPM(),
 		s.componentAirGap(),
 		s.componentKeyResidency(),
+		s.componentTLS(),
 	}
 
 	earned := 0
@@ -88,7 +91,7 @@ func (s *RESTServer) componentOnPrem() SovereigntyComponent {
 			Name:   "On-premises deployment",
 			OK:     false,
 			Reason: "OBLIVRA_HOSTED=1 — running on shared infrastructure",
-			Weight: 25,
+			Weight: 20,
 			Earned: 0,
 		}
 	}
@@ -96,8 +99,8 @@ func (s *RESTServer) componentOnPrem() SovereigntyComponent {
 		Name:   "On-premises deployment",
 		OK:     true,
 		Reason: "Single-binary on operator-controlled host",
-		Weight: 25,
-		Earned: 25,
+		Weight: 20,
+		Earned: 20,
 	}
 }
 
@@ -109,7 +112,7 @@ func (s *RESTServer) componentTPM() SovereigntyComponent {
 			Name:   "TPM-rooted chain-of-custody",
 			OK:     false,
 			Reason: "Forensics provider not initialised",
-			Weight: 25,
+			Weight: 20,
 			Earned: 0,
 		}
 	}
@@ -122,16 +125,16 @@ func (s *RESTServer) componentTPM() SovereigntyComponent {
 			Name:   "TPM-rooted chain-of-custody",
 			OK:     false,
 			Reason: "Hardware TPM not detected — running with software signer",
-			Weight: 25,
-			Earned: 10, // partial credit for software signing
+			Weight: 20,
+			Earned: 8, // partial credit for software signing
 		}
 	}
 	return SovereigntyComponent{
 		Name:   "TPM-rooted chain-of-custody",
 		OK:     true,
 		Reason: "Hardware TPM 2.0 active — evidence is hardware-signed",
-		Weight: 25,
-		Earned: 25,
+		Weight: 20,
+		Earned: 20,
 	}
 }
 
@@ -145,16 +148,16 @@ func (s *RESTServer) componentAirGap() SovereigntyComponent {
 			Name:   "Air-gap readiness",
 			OK:     false,
 			Reason: "OBLIVRA_AIRGAP=0 — outbound feeds enabled",
-			Weight: 25,
-			Earned: 10,
+			Weight: 20,
+			Earned: 8,
 		}
 	}
 	return SovereigntyComponent{
 		Name:   "Air-gap readiness",
 		OK:     true,
 		Reason: "No required outbound calls; can run fully disconnected",
-		Weight: 25,
-		Earned: 25,
+		Weight: 20,
+		Earned: 20,
 	}
 }
 
@@ -167,7 +170,7 @@ func (s *RESTServer) componentKeyResidency() SovereigntyComponent {
 			Name:   "Key material residency",
 			OK:     false,
 			Reason: "OBLIVRA_KMS_ENDPOINT set — keys live in remote KMS",
-			Weight: 25,
+			Weight: 20,
 			Earned: 0,
 		}
 	}
@@ -175,7 +178,29 @@ func (s *RESTServer) componentKeyResidency() SovereigntyComponent {
 		Name:   "Key material residency",
 		OK:     true,
 		Reason: "Vault keys stored locally; no third-party KMS dependency",
-		Weight: 25,
-		Earned: 25,
+		Weight: 20,
+		Earned: 20,
+	}
+}
+
+// TLS pillar (Slice 3 guardrail #3): TLS-off deducts 20 of 20.
+// Reads from the same TLSStateProvider that drives /api/v1/tls/state
+// so the badge in the chrome and the score stay coherent.
+func (s *RESTServer) componentTLS() SovereigntyComponent {
+	if s.tlsState != nil && s.tlsState.IsTLSOff() {
+		return SovereigntyComponent{
+			Name:   "Encryption-in-transit (TLS)",
+			OK:     false,
+			Reason: "tls.mode=off — fleet HMAC + payloads in plaintext. Compliance frameworks require TLS.",
+			Weight: 20,
+			Earned: 0,
+		}
+	}
+	return SovereigntyComponent{
+		Name:   "Encryption-in-transit (TLS)",
+		OK:     true,
+		Reason: "TLS enabled — agent traffic encrypted end-to-end",
+		Weight: 20,
+		Earned: 20,
 	}
 }

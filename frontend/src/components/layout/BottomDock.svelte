@@ -66,15 +66,14 @@
   import { push } from '@lib/router.svelte';
   import { IS_BROWSER, IS_DESKTOP, IS_HYBRID } from '@lib/context';
 
+  // Phase 33 — 6 groups. Same icon shape as AppSidebar.GROUP_ICONS.
   const GROUP_HEADER_ICONS: Record<NavGroupId, typeof IconType> = {
-    overview: LayoutDashboard,
-    security: Shield,
-    network:  Network,
-    identity: UserCog,
-    hosts:    Server,
-    shell:    TerminalSquare,
-    logs:     FileText,
-    system:   Settings,
+    siem:    Shield,
+    invest:  FolderOpen,
+    respond: Zap,
+    fleet:   Server,
+    govern:  Scale,
+    admin:   Settings,
   };
 
   // Static lookup. Strings here MUST match `icon` field in nav-config.ts.
@@ -95,19 +94,29 @@
     Activity, Radar, Shield, Scale, FileText, AlertTriangle,
   };
 
-  // Reactive: which group is showing right now, and which items belong
-  // to it (filtered by platform context).
+  // Reactive: which group is showing right now. Phase 33 — each group
+  // has subsections; we filter each subsection's items by platform
+  // context, then drop subsections that wind up empty after filtering.
   const activeGroup = $derived(getGroup(navigationStore.activeGroup));
 
-  const visibleItems = $derived.by<NavItem[]>(() => {
+  function isVisibleByContext(it: NavItem): boolean {
+    const ctx = it.context ?? 'both';
+    if (ctx === 'both') return true;
+    if (ctx === 'desktop') return IS_DESKTOP || IS_HYBRID;
+    if (ctx === 'browser') return IS_BROWSER || IS_HYBRID;
+    return true;
+  }
+
+  type VisibleSubsection = { label: string; subtitle?: string; items: NavItem[] };
+  const visibleSubsections = $derived.by<VisibleSubsection[]>(() => {
     if (!activeGroup) return [];
-    return activeGroup.items.filter((it) => {
-      const ctx = it.context ?? 'both';
-      if (ctx === 'both') return true;
-      if (ctx === 'desktop') return IS_DESKTOP || IS_HYBRID;
-      if (ctx === 'browser') return IS_BROWSER || IS_HYBRID;
-      return true;
-    });
+    return activeGroup.subsections
+      .map((sec) => ({
+        label: sec.label,
+        subtitle: sec.subtitle,
+        items: sec.items.filter(isVisibleByContext),
+      }))
+      .filter((sec) => sec.items.length > 0);
   });
 
   function activate(item: NavItem) {
@@ -205,12 +214,12 @@
       </button>
     </header>
 
-    <!-- Items strip -->
+    <!-- Items strip — subsection-aware (Phase 33).
+         Each subsection renders as: a thin section header with the
+         subsection label + a horizontal card row beneath. The whole
+         dock body is a single horizontally-scrolling region; we just
+         interleave the subsection headers between card groups. -->
     {#if navigationStore.dockExpanded}
-      <!-- tabindex on the scrollable container so keyboard users can
-           focus it and Arrow/Home/End scroll horizontally. role="toolbar"
-           is the semantically-correct interactive role (the children are
-           individually-focusable controls, like a real OS dock). -->
       <div
         class="dock-items"
         role="toolbar"
@@ -220,49 +229,61 @@
         onwheel={onWheel}
         onkeydown={onItemsKeydown}
       >
-        {#each visibleItems as item (item.id)}
-          {@const Icon = lookupIcon(item.icon)}
-          {@const isActive = appStore.activeNavTab === item.id}
-          {@const pinned = navigationStore.isPinned(item.id)}
-          <!-- Two sibling buttons inside a card container — must NOT
-               nest <button> inside <button> (invalid HTML). -->
-          <div
-            role="listitem"
-            class="dock-item"
-            class:active={isActive}
-            oncontextmenu={(e) => togglePin(e, item)}
-            title="{item.label}{item.description ? ' — ' + item.description : ''}"
-          >
-            <button
-              type="button"
-              class="dock-item-activate"
-              onclick={() => activate(item)}
-            >
-              <span class="dock-item-icon" aria-hidden="true">
-                <Icon size={16} strokeWidth={1.6} />
-              </span>
-              <span class="dock-item-text">
-                <span class="dock-item-label">{item.label}</span>
-                {#if item.description}
-                  <span class="dock-item-desc">{item.description}</span>
-                {/if}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="dock-item-pin"
-              class:pinned
-              aria-label={pinned ? 'Unpin' : 'Pin'}
-              title={pinned ? 'Unpin (or right-click)' : 'Pin (or right-click)'}
-              onclick={(e) => togglePin(e, item)}
-            >
-              {#if pinned}
-                <Pin size={11} strokeWidth={1.8} />
-              {:else}
-                <PinOff size={11} strokeWidth={1.8} />
+        {#each visibleSubsections as sec, secIdx (sec.label + secIdx)}
+          {#if visibleSubsections.length > 1}
+            <!-- Subsection vertical separator (skip before the first). -->
+            {#if secIdx > 0}
+              <div class="dock-section-divider" aria-hidden="true"></div>
+            {/if}
+            <div class="dock-section-label" title={sec.subtitle ?? ''}>
+              <span class="dock-section-label-text">{sec.label}</span>
+              {#if sec.subtitle}
+                <span class="dock-section-label-sub">{sec.subtitle}</span>
               {/if}
-            </button>
-          </div>
+            </div>
+          {/if}
+          {#each sec.items as item (item.id)}
+            {@const Icon = lookupIcon(item.icon)}
+            {@const isActive = appStore.activeNavTab === item.id}
+            {@const pinned = navigationStore.isPinned(item.id)}
+            <div
+              role="listitem"
+              class="dock-item"
+              class:active={isActive}
+              oncontextmenu={(e) => togglePin(e, item)}
+              title="{item.label}{item.description ? ' — ' + item.description : ''}"
+            >
+              <button
+                type="button"
+                class="dock-item-activate"
+                onclick={() => activate(item)}
+              >
+                <span class="dock-item-icon" aria-hidden="true">
+                  <Icon size={16} strokeWidth={1.6} />
+                </span>
+                <span class="dock-item-text">
+                  <span class="dock-item-label">{item.label}</span>
+                  {#if item.description}
+                    <span class="dock-item-desc">{item.description}</span>
+                  {/if}
+                </span>
+              </button>
+              <button
+                type="button"
+                class="dock-item-pin"
+                class:pinned
+                aria-label={pinned ? 'Unpin' : 'Pin'}
+                title={pinned ? 'Unpin (or right-click)' : 'Pin (or right-click)'}
+                onclick={(e) => togglePin(e, item)}
+              >
+                {#if pinned}
+                  <Pin size={11} strokeWidth={1.8} />
+                {:else}
+                  <PinOff size={11} strokeWidth={1.8} />
+                {/if}
+              </button>
+            </div>
+          {/each}
         {/each}
       </div>
     {/if}
@@ -404,6 +425,46 @@
   }
   .dock-items::-webkit-scrollbar-thumb:hover {
     background: var(--tx3);
+  }
+
+  /* ── Subsection separators (Phase 33) ─────────────────────── */
+  .dock-section-divider {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px 8px;
+    background: var(--b1);
+    flex-shrink: 0;
+  }
+  .dock-section-label {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    padding: 0 8px 0 4px;
+    flex-shrink: 0;
+    /* The label is a sticky-on-scroll affordance; it stays visible as
+       the operator scrolls deep into a long subsection. */
+    align-self: stretch;
+  }
+  .dock-section-label-text {
+    font-family: var(--mn);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--ac2);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .dock-section-label-sub {
+    font-family: var(--sn);
+    font-size: 9px;
+    color: var(--tx3);
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
   }
 
   .dock-item {

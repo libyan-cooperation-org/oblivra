@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { appStore, PROFILE_LABELS, PROFILE_PRESETS, type OperatorProfileId } from '@lib/stores/app.svelte';
+  import { appStore, PROFILE_LABELS, type OperatorProfileId } from '@lib/stores/app.svelte';
   import { Badge, PageLayout, Button, Tabs, Input } from '@components/ui';
   import { apiFetch } from '@lib/apiClient';
 
@@ -33,7 +33,6 @@
   let theme = $state(appStore.theme);
   let serverUrl = $state('https://api.oblivra.io');
   let apiToken = $state('');
-  let saving = $state(false);
 
   /** Pull a setting value from the server, falling back to localStorage. */
   async function loadSetting(key: string, fallback = ''): Promise<string> {
@@ -78,26 +77,21 @@
   });
 
   async function saveGeneral() {
-    saving = true;
-    try {
-      appStore.setWorkspace(workspaceName as any);
-      appStore.setTheme(theme);
-      // Persist server-side too so cross-device + tenant consistency.
-      const [a, b] = await Promise.all([
-        saveSetting('workspace_name', String(workspaceName)),
-        saveSetting('theme', String(theme)),
-      ]);
-      if (a && b) {
-        appStore.notify('General settings saved', 'success');
-      } else {
-        appStore.notify(
-          'Saved locally only',
-          'warning',
-          'Server unreachable — settings persisted to localStorage and will sync on next reconnect.',
-        );
-      }
-    } finally {
-      saving = false;
+    appStore.setWorkspace(workspaceName as any);
+    appStore.setTheme(theme);
+    // Persist server-side too so cross-device + tenant consistency.
+    const [a, b] = await Promise.all([
+      saveSetting('workspace_name', String(workspaceName)),
+      saveSetting('theme', String(theme)),
+    ]);
+    if (a && b) {
+      appStore.notify('General settings saved', 'success');
+    } else {
+      appStore.notify(
+        'Saved locally only',
+        'warning',
+        'Server unreachable — settings persisted to localStorage and will sync on next reconnect.',
+      );
     }
   }
 </script>
