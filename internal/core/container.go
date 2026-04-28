@@ -22,6 +22,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/ingest"
 	"github.com/kingknull/oblivrashell/internal/incident"
 	"github.com/kingknull/oblivrashell/internal/integrity"
+	oblio "github.com/kingknull/oblivrashell/internal/io"
 	"github.com/kingknull/oblivrashell/internal/lineage"
 	"github.com/kingknull/oblivrashell/internal/logger"
 	"github.com/kingknull/oblivrashell/internal/logsources"
@@ -245,12 +246,16 @@ func (c *Container) initSecurity(_ context.Context) error {
 
 	c.Security.IdentityService = services.NewIdentityService(userRepo, roleRepo, connectorRepo, c.Infra.RBAC, hwProvider, c.Infra.Bus, c.Log)
 	c.Security.IdentitySyncService = services.NewIdentitySyncService(connectorRepo, c.Security.IdentityService, c.Infra.TenantRepo, c.Log)
-	
-	// ReportService depends on AnalyticsService which is initialized in initSIEM/initIntel
-	// So we proxy the repo here and finish wiring in initIntel
-	c.Security.ReportService = services.NewReportService(reportRepo, nil, c.Infra.TenantRepo, c.Log)
-	
-	// Report Factory and Scheduler (Phase 20.10)
+
+	// Audit fix #4 — ReportService construction is DEFERRED until
+	// initIntel because it needs AnalyticsService which doesn't
+	// exist yet at this point. Previously we constructed it here
+	// with `nil` analytics, then unconditionally re-constructed it
+	// in initIntel — wasteful + confusing about which instance is
+	// live. We just leave the field nil here; initIntel populates it.
+	//
+	// Report Factory and Scheduler don't need AnalyticsService and
+	// can stay here.
 	c.Security.ReportFactory = analytics.NewReportFactory(reportRepo, oql.NewExecutor(), c.Infra.HotStore)
 	c.Security.ReportScheduler = analytics.NewReportScheduler(reportRepo, c.Security.ReportFactory, c.Log)
 	
@@ -347,16 +352,24 @@ func (c *Container) initIntel(_ context.Context) error {
 	c.Intel.RiskService = services.NewRiskService(c.Intel.RiskEngine, c.Infra.Bus, c.Log)
 	c.Intel.DecisionService = services.NewDecisionService(decision.NewDecisionEngine(c.Infra.Bus, c.Log), c.Log)
 	
-	// Wire AnalyticsService to ReportService
-	if c.Security.ReportService != nil {
-		// We use the already populated repo from initSecurity
-		c.Security.ReportService = services.NewReportService(
-			database.NewReportRepository(c.Infra.DB), 
-			c.Intel.AnalyticsService, 
-			c.Infra.TenantRepo, 
-			c.Log,
-		)
-	}
+	// Wire AnalyticsService to ReportService.
+	//
+	// Audit fix #4 — initSecurity used to construct ReportService
+	// with nil analytics here, and this block re-constructed it
+	// with the real analytics. The previous guard (`!= nil`) was
+	// only correct because of that double-construction. Now that
+	// initSecurity skips the placeholder, the guard would prevent
+	// us from EVER constructing ReportService — and the platform
+	// Registry would then call Dependencies() on a nil receiver
+	// and panic at boot. Flip the guard to construct unconditionally;
+	// AnalyticsService is guaranteed non-nil at this point because
+	// initIntel populates it three lines above.
+	c.Security.ReportService = services.NewReportService(
+		database.NewReportRepository(c.Infra.DB),
+		c.Intel.AnalyticsService,
+		c.Infra.TenantRepo,
+		c.Log,
+	)
 
 	c.Intel.CounterfactualService = services.NewCounterfactualService(nil, nil, c.Log)
 	c.Intel.LineageService = services.NewLineageService(lineage.NewLineageEngine(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
@@ -492,6 +505,61 @@ func (c *Container) initPlatform(ctx context.Context) error {
 	// `GET/PUT /api/v1/settings/{key}` is gated on this provider.
 	if c.Platform.APIService != nil && c.Product.SettingsService != nil {
 		c.Platform.APIService.SetSettings(c.Product.SettingsService)
+	}
+
+	// Phase 33 — Slice 3: TLS guardrails (warning loop + sovereignty
+	// deduction + production lockout). Read tls.mode from io-config
+	// when present, falling back to "on" by default.
+	tlsMode := "on"
+	if cfgPath := os.Getenv("OBLIVRA_IO_CONFIG"); cfgPath != "" {
+		if ioCfg, err := oblio.LoadConfig(cfgPath); err == nil {
+			tlsMode = ioCfg.TLS.Mode
+		}
+	}
+	if tlsGuards, err := security.NewTLSGuardrails(tlsMode, c.Log); err != nil {
+		c.Log.Error("[FATAL] %v", err)
+		os.Exit(1) // production lockout — must not boot
+	} else {
+		tlsGuards.Start(context.Background())
+		if c.Platform.APIService != nil {
+			c.Platform.APIService.SetTLSState(tlsGuards)
+		}
+	}
+
+	// Phase 33 — Slice 5: io.Pipeline + IOConfigProvider for the
+	// /connectors UI. The pipeline is server-side here (the agent's
+	// own pipeline lives in cmd/agent/main.go); operators can stand
+	// up syslog/HEC listeners on the server to ingest from network
+	// gear directly without an agent.
+	if c.Platform.APIService != nil {
+		ioPath := os.Getenv("OBLIVRA_IO_CONFIG")
+		if ioPath == "" {
+			ioPath = filepath.Join(os.Getenv("PROGRAMDATA"), "oblivra", "server-io.yml")
+			if runtime.GOOS != "windows" {
+				ioPath = "/etc/oblivra/server-io.yml"
+			}
+		}
+		ioProvider := services.NewIOConfigService(ioPath, c.Log)
+		c.Platform.APIService.SetIOConfig(ioProvider)
+		if err := ioProvider.StartPipeline(context.Background()); err != nil {
+			c.Log.Warn("[io] pipeline disabled: %v", err)
+		}
+	}
+
+	// Phase 33 — Tamper Path 1, Layer 3: missed-heartbeat scanner.
+	// Runs in the background, sweeping every 60s for agents whose
+	// last heartbeat is older than 90s. Emits tamper:detected bus
+	// events that flow through the existing alert pipeline.
+	if c.Platform.APIService != nil {
+		c.Platform.APIService.StartHeartbeatScanner(context.Background())
+	}
+
+	// Phase 33 — Crisis auto-arm: if ≥2 hosts go TAMPERED within 1h,
+	// auto-engage Crisis Mode (real-world ransomware behaviour:
+	// rolling pwn across the fleet). The crisis listener subscribes
+	// to tamper:detected events and counts unique agent_ids.
+	if c.Infra.Bus != nil {
+		startTamperCrisisWatcher(context.Background(), c.Infra.Bus, c.Log)
 	}
 
 	// DiagnosticsService: wire bus dropped counter from the event bus.

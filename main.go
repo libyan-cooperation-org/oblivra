@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -75,7 +76,10 @@ func bootcheckCmd(args []string) {
 		defer close(done)
 		defer func() {
 			if rec := recover(); rec != nil {
-				bootErr = fmt.Errorf("panic during boot: %v", rec)
+				// Include the stack trace so an operator running
+				// bootcheck in CI can diagnose nil-receiver panics
+				// without re-running with GOTRACEBACK=all.
+				bootErr = fmt.Errorf("panic during boot: %v\n%s", rec, debug.Stack())
 			}
 		}()
 		oblivraApp := app.New()

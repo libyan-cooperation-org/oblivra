@@ -77,8 +77,14 @@
 
   async function loadHistory() {
     if (IS_BROWSER) {
+        // Audit fix #8 — be honest. The browser-mode build has no
+        // wired AIService and the previous "Cognitive Core online"
+        // greeting + canned 1.2s `setTimeout` reply lied to the user
+        // about a working AI loop. Show the offline state explicitly
+        // so an operator sees they have to use the desktop shell to
+        // reach the model.
         chatHistory = [
-            { id: '1', Role: 'assistant', Content: 'Cognitive Core online. Tactical context baseline established for tenant [GLOBAL]. Analyzing last 24h signal drift...' }
+            { id: '1', Role: 'assistant', Content: 'AI Cortex is desktop-only. The browser/web build does not ship the inference bridge — open the OBLIVRA desktop app to run analyst, hunter, and response queries against the model.' }
         ];
         return;
     }
@@ -100,12 +106,20 @@
     loading = true;
 
     if (IS_BROWSER) {
-        setTimeout(() => {
-            chatHistory = [...chatHistory, { Role: 'assistant', Content: `Analysis phase initiated for: "${userMsg}". 
-Targeting: ${contextData.activeHost}.
-Correlation Result: No immediate IOC chains detected. Applying secondary heuristic pass...` }];
-            loading = false;
-        }, 1200);
+        // Audit fix #8 — no fake "Analysis phase initiated"
+        // setTimeout. The web build has no AI backend; tell the user
+        // honestly so they don't think the response was real (the
+        // previous canned reply happily quoted the operator's
+        // question back at them with fabricated correlation results).
+        chatHistory = [
+            ...chatHistory,
+            {
+                Role: 'assistant',
+                Content:
+                    'AI Cortex is unavailable in browser mode. Run this query from the OBLIVRA desktop app — the inference bridge ships with the desktop binary only.',
+            },
+        ];
+        loading = false;
         return;
     }
 

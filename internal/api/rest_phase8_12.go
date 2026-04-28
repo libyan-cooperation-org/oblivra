@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/licensing"
 )
 
@@ -545,38 +546,100 @@ func (s *RESTServer) handleRansomwareIsolate(w http.ResponseWriter, r *http.Requ
 
 // ── User/Role handlers (Phase 12) ────────────────────────────────────────────
 
-// GET /api/v1/users
+// GET /api/v1/users — returns the real users from IdentityService.
+//
+// Audit fix #2: previously this returned 3 hardcoded users
+// (admin@oblivra.io / analyst@... / auditor@...) regardless of
+// what was in the database. Operators believed they were looking at
+// real users. Now wired to s.identity.ListUsers().
 func (s *RESTServer) handleUsers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	if s.identity == nil {
-		// Return empty list rather than error — graceful degradation
-		s.jsonResponse(w, http.StatusOK, []interface{}{})
+		// Graceful degradation — no identity service wired. Empty list
+		// is honest; the UI shows "no users yet" rather than fake data.
+		s.jsonResponse(w, http.StatusOK, map[string]interface{}{"identities": []interface{}{}, "users": []interface{}{}})
 		return
 	}
-	// Use identity service via its interface — ListUsers not in IdentityProvider interface
-	// Respond with stub data; full implementation wires IdentityService.ListUsers()
-	s.jsonResponse(w, http.StatusOK, []map[string]interface{}{
-		{"id": "usr-1", "email": "admin@oblivra.io",   "name": "Admin",   "role_id": "admin",   "role_name": "Administrator", "tenant_id": "GLOBAL", "mfa_enabled": true, "created_at": time.Now().AddDate(-1, 0, 0).Format(time.RFC3339)},
-		{"id": "usr-2", "email": "analyst@oblivra.io", "name": "Analyst", "role_id": "analyst", "role_name": "Security Analyst", "tenant_id": "GLOBAL", "mfa_enabled": true, "created_at": time.Now().AddDate(0, -3, 0).Format(time.RFC3339)},
-		{"id": "usr-3", "email": "auditor@oblivra.io", "name": "Auditor", "role_id": "auditor", "role_name": "Compliance Auditor", "tenant_id": "GLOBAL", "mfa_enabled": false, "created_at": time.Now().AddDate(0, -1, 0).Format(time.RFC3339)},
+	users, err := s.identity.ListUsers(r.Context())
+	if err != nil {
+		s.respondError(w, r, http.StatusInternalServerError, "list users failed", "operation_failed", err)
+		return
+	}
+	// Map database.User → the shape identityStore expects (matches
+	// frontend Identity interface in identity.svelte.ts).
+	out := make([]map[string]interface{}, 0, len(users))
+	for _, u := range users {
+		out = append(out, map[string]interface{}{
+			"id":          u.ID,
+			"email":       u.Email,
+			"name":        u.Name,
+			// `User.RoleID` is the canonical role; the database has no
+			// separate display name. Frontend's identityStore expects
+			// both fields — surface the same value for both.
+			"role":        u.RoleID,
+			"role_id":     u.RoleID,
+			"role_name":   u.RoleID,
+			"tenant_id":   u.TenantID,
+			"mfa_enabled": u.IsMFAEnabled,
+			// `Active=false` means the SCIM provisioner has marked the
+			// user inactive (or the row was suspended via Identity
+			// Admin). The frontend store's `status` field reads this.
+			"suspended":  !u.Active,
+			"last_login": u.LastLoginAt,
+			"created_at": u.CreatedAt,
+		})
+	}
+	// Both "identities" (new shape) and "users" (legacy) keys so any
+	// frontend caller works without negotiation.
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"identities": out,
+		"users":      out,
 	})
 }
 
-// GET /api/v1/roles
+// GET /api/v1/roles — returns the canonical role table from auth.
+//
+// Audit fix #2: previously hardcoded 4 roles inline. The auth package
+// already exposes the canonical RoleAdmin / RoleAnalyst / RoleReadOnly
+// / RoleAgent constants — single source of truth lives there. We
+// surface them with their real permission scopes (sourced from the
+// auth.RoleAllows table once that lands; until then the descriptions
+// are sourced from internal/auth/apikey.go's role docs).
 func (s *RESTServer) handleRoles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.jsonResponse(w, http.StatusOK, []map[string]interface{}{
-		{"id": "admin",   "name": "Administrator",     "permissions": []string{"*"}},
-		{"id": "analyst", "name": "Security Analyst",  "permissions": []string{"siem:read", "alerts:write", "forensics:read", "playbooks:execute"}},
-		{"id": "auditor", "name": "Compliance Auditor","permissions": []string{"audit:read", "compliance:read", "evidence:read"}},
-		{"id": "viewer",  "name": "Read-Only Viewer",  "permissions": []string{"siem:read", "alerts:read"}},
-	})
+	roles := []map[string]interface{}{
+		{
+			"id":          string(auth.RoleAdmin),
+			"name":        "Administrator",
+			"description": "Full read/write across every endpoint, including settings, identity, suppression rules, and tenant lifecycle.",
+			"permissions": []string{"*"},
+		},
+		{
+			"id":          string(auth.RoleAnalyst),
+			"name":        "Security Analyst",
+			"description": "Triage, investigate, run playbooks, capture evidence. Cannot mutate platform settings or users.",
+			"permissions": []string{"siem:*", "alerts:*", "forensics:*", "playbooks:execute", "evidence:*", "agent:isolate"},
+		},
+		{
+			"id":          string(auth.RoleReadOnly),
+			"name":        "Read-Only Viewer",
+			"description": "Reads dashboards, alerts, evidence ledger. Cannot trigger any mutation. Compliance-officer use case.",
+			"permissions": []string{"*:read"},
+		},
+		{
+			"id":          string(auth.RoleAgent),
+			"name":        "Agent (machine identity)",
+			"description": "Reserved for fleet agents. HMAC-authenticated. Only allowed against /api/v1/agent/*.",
+			"permissions": []string{"agent:ingest", "agent:oplog", "agent:heartbeat"},
+		},
+	}
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{"roles": roles})
 }
 
 // ── Agent fleet list (Phase 7) ────────────────────────────────────────────────

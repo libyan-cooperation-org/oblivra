@@ -54,18 +54,58 @@ func (s *ForensicsService) Dependencies() []string {
 // Pass nil to skip TSA scheduling (e.g. in tests, or when external
 // timestamping isn't required for compliance posture).
 func NewForensicsService(store database.EvidenceStore, dbHandle database.DatabaseStore, v vault.Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
-	// Derive fallback HMAC key from vault; use sentinel if vault is locked
+	// Derive fallback HMAC key from vault; use sentinel ONLY if vault is
+	// unavailable. Audit fix #6 (Phase 33 hardening pass) — the previous
+	// code had `_ = v.AccessMasterKey(...)` which silently swallowed any
+	// access error and dropped to the hardcoded weak sentinel. That meant
+	// a transient vault read failure could downgrade evidence-locker
+	// signing to a publicly-known key WITHOUT a single line in the logs.
+	// We now (a) capture the access error, (b) log loudly at WARN level
+	// when we fall back, (c) emit a destructive_action-class audit event
+	// on the bus so the operator timeline shows the downgrade. Operators
+	// see a permanent breadcrumb instead of a silent compromise.
 	var fallbackKey []byte
-	if v != nil && v.IsUnlocked() {
-		_ = v.AccessMasterKey(func(key []byte) error {
+	var keySource string
+	var fallbackReason string
+	switch {
+	case v == nil:
+		fallbackReason = "vault provider not configured"
+	case !v.IsUnlocked():
+		fallbackReason = "vault is locked"
+	default:
+		if err := v.AccessMasterKey(func(key []byte) error {
 			fallbackKey = make([]byte, len(key))
 			copy(fallbackKey, key)
 			return nil
-		})
+		}); err != nil {
+			fallbackReason = "vault access failed: " + err.Error()
+			fallbackKey = nil
+		} else {
+			keySource = "vault"
+		}
 	}
 	if fallbackKey == nil {
+		// HARD FAIL-LOUD: this is a known-public sentinel. Anything signed
+		// with it is repudiable. We still allow startup so operators can
+		// log in and unlock the vault, but we shout about it.
 		h := sha256.Sum256([]byte("oblivra-evidence-default-key-change-me"))
 		fallbackKey = h[:]
+		keySource = "hardcoded-sentinel-INSECURE"
+		if log != nil {
+			log.Warn("[SECURITY] forensics: evidence-locker HMAC falling back to PUBLIC sentinel key — chain-of-custody is REPUDIABLE until vault is unlocked. Reason: %s",
+				fallbackReason)
+		}
+		if bus != nil {
+			bus.Publish("forensics:key_downgrade", map[string]any{
+				"reason":     fallbackReason,
+				"key_source": keySource,
+				"severity":   "critical",
+				"timestamp":  time.Now().UTC().Format(time.RFC3339),
+				"event_type": "destructive_action",
+			})
+		}
+	} else if log != nil {
+		log.Info("[forensics] evidence-locker HMAC keyed from %s", keySource)
 	}
 
 	// Create TPM-rooted signer (graceful HMAC fallback if no TPM)

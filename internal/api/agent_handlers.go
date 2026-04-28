@@ -82,6 +82,16 @@ func (s *RESTServer) handleAgentIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agentID := r.Header.Get("X-Agent-ID")
+
+	// Audit fix #1 — replay protection. Reject any (agent, ts, body)
+	// fingerprint we've seen in the last 60s. HMAC proves the request
+	// is from a trusted agent; replay cache proves it's a fresh one.
+	ts := r.Header.Get("X-Timestamp")
+	if s.replayCache != nil && s.replayCache.Seen(agentID, ts, body) {
+		s.log.Warn("[security] ingest replay rejected: agent=%s ts=%s", agentID, ts)
+		http.Error(w, "Unauthorized: replay detected", http.StatusUnauthorized)
+		return
+	}
 	s.agentsMu.RLock()
 	agent, ok := s.agents[agentID]
 	s.agentsMu.RUnlock()

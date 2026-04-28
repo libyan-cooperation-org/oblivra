@@ -52,7 +52,23 @@ func (s *RESTServer) handleEvidenceBulkSeal(w http.ResponseWriter, r *http.Reque
 		Reason     string `json:"reason"`
 		Crisis     bool   `json:"crisis"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body) // body is optional
+	// Audit fix #3 — body is optional, but a MALFORMED body must
+	// reject 400. Previously `_ = json.Decode(...)` swallowed parse
+	// errors silently, leaving incident_id="" which seals EVERY
+	// unsealed item. An attacker (analyst+) sending `{invalid}`
+	// could trigger an unintended platform-wide seal. Distinguish
+	// "no body at all" (legal) from "body was sent and is broken"
+	// (reject).
+	if r.ContentLength != 0 {
+		dec := json.NewDecoder(r.Body)
+		// DisallowUnknownFields catches typos like "incident_ID"
+		// that would silently broaden the seal scope.
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&body); err != nil {
+			http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
 	notes := body.Reason
 	if notes == "" {

@@ -225,6 +225,15 @@ type RESTServer struct {
 	suppression SuppressionProvider
 	// Phase 32 — Settings provider, same interface-vs-cycle dance.
 	settings SettingsProvider
+	// Slice 3 — TLS guardrail state for the chrome banner.
+	tlsState TLSStateProvider
+	// Slice 5 — I/O config provider (read/write the YAML config + stats).
+	ioConfig IOConfigProvider
+
+	// Audit fix #1 — replay-attack cache for agent endpoints. HMAC +
+	// 30s timestamp window doesn't prevent replay within the window;
+	// this cache rejects (agent_id, ts, body) fingerprints we've seen.
+	replayCache *ReplayCache
 
 	// Connection tracking
 	activeWS int64
@@ -411,6 +420,10 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/agent/ingest", s.handleAgentIngest)
 	mux.HandleFunc("/api/v1/agent/register", s.handleAgentRegister)
 	mux.HandleFunc("/api/v1/agent/fleet", s.handleAgentFleet)
+	// Tamper-evidence endpoints (Path 1, Layers 1 + 3 + 5).
+	mux.HandleFunc("/api/v1/agent/oplog", s.handleAgentOplog)
+	mux.HandleFunc("/api/v1/agent/heartbeat", s.handleAgentHeartbeat)
+	mux.HandleFunc("/api/v1/integrity", s.handleIntegrity)
 
 	// Lookup table endpoints (Phase 1.3)
 	mux.HandleFunc("/api/v1/lookups", s.handleLookupList)
@@ -502,6 +515,17 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// for the chrome badge + executive dash tile.
 	mux.HandleFunc("/api/v1/sovereignty/score", s.handleSovereigntyScore)
 
+	// TLS state (Slice 3) — anon-readable; drives the plaintext
+	// banner in the chrome. The auth-bypass list below MUST include
+	// this path or the banner can't render before login.
+	mux.HandleFunc("/api/v1/tls/state", s.handleTLSState)
+
+	// I/O config (Slice 5) — admin CRUD over the inputs/outputs YAML
+	// + pipeline stats for the /connectors UI.
+	mux.HandleFunc("/api/v1/io/config", s.handleIOConfig)
+	mux.HandleFunc("/api/v1/io/stats",  s.handleIOStats)
+	mux.HandleFunc("/api/v1/io/test",   s.handleIOTest)
+
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.stubHandler(s.handleUsers))
 	mux.HandleFunc("/api/v1/roles", s.stubHandler(s.handleRoles))
@@ -584,7 +608,10 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 			strings.HasPrefix(path, "/api/v1/auth/refresh") ||
 			strings.HasPrefix(path, "/api/v1/agent/register") ||
 			strings.HasPrefix(path, "/api/v1/agent/ingest") ||
+			path == "/api/v1/agent/oplog" ||
+			path == "/api/v1/agent/heartbeat" ||
 			path == "/api/v1/sovereignty/score" ||
+			path == "/api/v1/tls/state" ||
 			path == "/healthz" || path == "/readyz" {
 			mux.ServeHTTP(w, r)
 			return
@@ -606,6 +633,15 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: handler,
 	}
+
+	// Audit fix #1 — replay-attack cache. 60s TTL > 30s HMAC window
+	// so we never miss a replay due to clock-edge effects. Caps at
+	// 100k fingerprints; bursts beyond that evict oldest.
+	s.replayCache = NewReplayCache(60 * time.Second)
+
+	// Audit fix #5 — bounded growth for the per-IP / per-tenant /
+	// failed-login maps. 1h sweep, 24h TTL. See rate_limit_gc.go.
+	s.startRateLimitGC()
 
 	return s
 }
@@ -810,10 +846,15 @@ func (s *RESTServer) tenantRateLimitMiddleware(next http.Handler) http.Handler {
 			tenantID = "GLOBAL"
 		}
 		
-		limiterI, _ := s.tenantLimiters.LoadOrStore(tenantID, rate.NewLimiter(rate.Limit(20), 50))
-		limiter := limiterI.(*rate.Limiter)
+		// Audit fix #5 — entries are wrapped in *limiterEntry so the
+		// background GC (sweepRateLimiters) can evict tenants we
+		// haven't seen in 24h. The wrapper's touch() updates an
+		// atomic last-used timestamp without taking a mutex.
+		entryI, _ := s.tenantLimiters.LoadOrStore(tenantID, newLimiterEntry(rate.Limit(20), 50))
+		entry := entryI.(*limiterEntry)
+		entry.touch()
 
-		if !limiter.Allow() {
+		if !entry.limiter.Allow() {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -831,9 +872,15 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		}
 
 		// 1.5 Per-IP Rate Limiting (Defense-in-Depth)
+		// Audit fix #5 — wrap in *limiterEntry so the GC sweeper
+		// can drop limiters belonging to IPs we haven't seen in
+		// 24h. Without that wrapper the map grew without bound
+		// against any drip portscan.
 		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-		lim, _ := s.ipLimiters.LoadOrStore(ip, rate.NewLimiter(rate.Limit(5), 10)) // 5 req/sec per IP
-		if !lim.(*rate.Limiter).Allow() {
+		entryI, _ := s.ipLimiters.LoadOrStore(ip, newLimiterEntry(rate.Limit(5), 10)) // 5 req/sec per IP
+		entry := entryI.(*limiterEntry)
+		entry.touch()
+		if !entry.limiter.Allow() {
 			s.log.Warn("[SECURITY] Rate limit exceeded for IP: %s", ip)
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return

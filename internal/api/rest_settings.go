@@ -23,12 +23,37 @@ package api
 // ship to support without manual scrubbing.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/kingknull/oblivrashell/internal/auth"
 )
+
+// auditSettingKey returns a value safe to write into the audit log's
+// resource_id column. Audit fix #7 — for sensitive keys (anything
+// matching the isSensitiveSettingKey filter, e.g. `slack_webhook_token`,
+// `oidc_client_secret`) we replace the literal name with a deterministic
+// short hash. Non-sensitive keys (refresh_interval_secs, etc.) pass
+// through verbatim because they're useful for support-bundle review.
+//
+// Why deterministic hashing instead of redacting to a constant: an
+// auditor still needs to correlate "was this same secret touched twice
+// in a row" without learning which secret it is. Same input → same
+// 8-hex-character token, different secrets → almost-certainly distinct
+// tokens.  Reversing back to a name requires either knowing the
+// candidate set or running a brute force across the sensitive-key
+// vocabulary — fine for a forensic walk-through, hostile-to-quick-grep
+// for support-bundle skimmers.
+func auditSettingKey(key string) string {
+	if !isSensitiveSettingKey(key) {
+		return key
+	}
+	h := sha256.Sum256([]byte(key))
+	return "secret:" + hex.EncodeToString(h[:4]) // 8 hex chars
+}
 
 // Sensitive-key fragments that trigger redaction on export. Kept in
 // sync with services/settings_service.go's isSensitiveKey but lives
@@ -114,7 +139,12 @@ func (s *RESTServer) handleSettingByKey(w http.ResponseWriter, r *http.Request, 
 		// excluded from the audit row — settings can hold credentials
 		// (token, smtp_password, slack_webhook). The settings service
 		// already log-redacts; we mirror that here.
-		s.appendAuditEntry(connectorActor(r), "settings.set", key,
+		//
+		// Audit fix #7 — also hash sensitive KEY NAMES via
+		// auditSettingKey(), so a support-bundle viewer can't grep
+		// out the inventory of integrations we hold credentials for.
+		s.appendAuditEntry(connectorActor(r), "settings.set",
+			auditSettingKey(key),
 			"len="+itoa(len(body.Value)), r)
 		s.jsonResponse(w, http.StatusOK, map[string]any{"ok": true, "key": key})
 
