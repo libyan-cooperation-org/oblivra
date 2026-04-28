@@ -23,7 +23,7 @@
 <script lang="ts">
   import { alertStore, type Alert } from '@lib/stores/alerts.svelte';
   import { shellStore } from '@lib/stores/shell.svelte';
-  import { Bell, Filter, X } from 'lucide-svelte';
+  import { Bell, Filter } from 'lucide-svelte';
   import { Badge } from '@components/ui';
 
   /**
@@ -55,8 +55,11 @@
     const pidMatch = (a.description ?? '').match(/\bpid[=:\s]+(\d{2,7})\b/i);
     const pid = pidMatch?.[1] ?? '?';
 
-    // Find the first matching suggestion.
-    const haystack = `${a.title ?? ''} ${a.category ?? ''} ${a.description ?? ''}`;
+    // Find the first matching suggestion. Alert type doesn't carry a
+    // formal `category` field so we fall back to scanning title +
+    // description; the detection engine puts MITRE / category hints in
+    // the description blob anyway.
+    const haystack = `${a.title ?? ''} ${(a as any).category ?? ''} ${a.description ?? ''}`;
     let suggestion: { cmd: string; rationale: string } | null = null;
     for (const s of SUGGESTIONS) {
       if (s.match.test(haystack)) {
@@ -85,10 +88,9 @@
       // the rail still expands details on a normal click below.
       return;
     }
-    shellStore.pendingTerminalInsert = {
-      sessionID,
-      text: buildInjection(a),
-    };
+    // Use the public helper — it stamps a uuid so concurrent injects
+    // are distinguishable on the Terminal.svelte $effect side.
+    shellStore.insertIntoTerminal(sessionID, buildInjection(a));
   }
 
   function onAlertClick(a: Alert, e: MouseEvent) {

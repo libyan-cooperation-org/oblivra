@@ -164,17 +164,24 @@ func Recommend(f NBAFacts) RecommendedAction {
 		add(ActionEvidenceCapt, 0.10, "")
 	}
 	if f.IsRepeatOffender {
-		// A noisy rule is more likely to be tuning issue than a real
-		// breach — bias toward suppression review, away from quarantine.
-		add(ActionSuppressFP, 0.30, "Repeat-firing rule (noise)")
-		add(ActionQuarantineHost, -0.20, "")
+		// A noisy rule is more likely a tuning issue than a real
+		// breach — bias hard toward suppression review, away from
+		// containment. We add 0.55 (not 0.30) so suppression wins
+		// even against medium-severity baselines that already gave
+		// investigate ~0.45.
+		add(ActionSuppressFP, 0.55, "Repeat-firing rule (noise)")
+		add(ActionQuarantineHost, -0.30, "")
+		add(ActionInvestigate, -0.20, "")
 	}
 	if f.HostIsCritical || f.IsFromCrownJewel {
 		// Containing a tier-1 host has high blast radius — push
 		// toward evidence + escalation, not unilateral quarantine.
-		add(ActionEvidenceCapt, 0.20, "Tier-1 / crown-jewel host")
+		// Penalty must exceed the execution-tactic boost (0.15) so
+		// quarantine never wins on a crown-jewel host even with a
+		// critical-severity baseline.
+		add(ActionEvidenceCapt, 0.25, "Tier-1 / crown-jewel host")
 		add(ActionEscalateT3, 0.20, "")
-		add(ActionQuarantineHost, -0.10, "")
+		add(ActionQuarantineHost, -0.30, "")
 	}
 	if f.UserIsService {
 		// Service-account alerts often need human verification before

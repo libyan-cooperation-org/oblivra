@@ -125,11 +125,28 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   const popoutMode = params?.get('popout') === '1';
   const popoutRoute = params?.get('route') ?? '/';
 
-  const isMobile = $derived(screenWidth < 640);
+  // UIUX_IMPROVEMENTS.md P2 #16 — three viewport bands instead of two:
+  //   < 768  → mobile  (BottomNav, no sidebar, single-column KPIs)
+  //   < 1024 → tablet  (icon-only sidebar, BottomDock labels hidden)
+  //   ≥ 1024 → desktop (full chrome)
+  // 768 was 640 originally, but real-world phones in landscape (e.g.
+  // iPhone 14 Pro at 852 px) stayed in mobile mode and broke the
+  // 12-col grid. Bumping the floor and adding a tablet step covers
+  // the whole device space.
+  const isMobile = $derived(screenWidth < 768);
+  const isTablet = $derived(screenWidth >= 768 && screenWidth < 1024);
 
   function handleResize() {
     screenWidth = window.innerWidth;
   }
+
+  // Push the breakpoint band onto <body data-vp> so CSS / pages can
+  // react without prop-drilling.
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    const band = isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop';
+    document.body.setAttribute('data-vp', band);
+  });
 
   $effect(() => {
     if (!mainEl) return;
@@ -626,6 +643,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
            'fullscreen-takeover' affordance still has /war-mode for the
            commander persona. -->
       <CrisisDecisionPanel />
+
+      <!-- Tenant fast switcher — Cmd+T (or Ctrl+Alt+T on Win/Linux)
+           when the profile sets tenantChrome=switcher-bar. Self-gates
+           on profile so non-MSP users don't see surprise modals. -->
+      <TenantFastSwitcher />
     </div>
   {:else if error}
     <ErrorScreen message={error} />

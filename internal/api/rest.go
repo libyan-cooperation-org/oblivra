@@ -90,6 +90,27 @@ type FusionProvider interface {
 	GetCampaignTimeline(ctx context.Context, entityID string) (*detection.CampaignTimeline, error)
 }
 
+// SuppressionProvider exposes the alert-suppression mutation surface
+// without forcing the api package to import services (which would
+// create an import cycle — services already depends on api). The
+// container.go is the only seam where the concrete
+// `*services.SuppressionService` is plugged in via SetSuppression.
+type SuppressionProvider interface {
+	CreateRule(ctx context.Context, rule *database.SuppressionRule) (string, error)
+	ListRules(ctx context.Context) ([]database.SuppressionRule, error)
+}
+
+// SettingsProvider exposes key/value settings persistence — same
+// interface-vs-cycle pattern as SuppressionProvider. Sensitive keys
+// (anything matching password / token / secret / webhook /
+// credential / private_key) are vault-encrypted at rest by the
+// concrete service; this interface is plaintext-in / plaintext-out
+// from the caller's perspective.
+type SettingsProvider interface {
+	Get(key string) (string, error)
+	Set(key string, value string) error
+}
+
 // UEBAProvider allows the REST API to fetch behavioral analytics without importing the services package.
 type UEBAProvider interface {
 	GetProfiles() []*ueba.EntityProfile
@@ -198,6 +219,12 @@ type RESTServer struct {
 	// Phase 6.5 — Evidence Locker
 	evidence *forensics.EvidenceLocker
 	audit      *database.AuditRepository
+
+	// Phase 32 — Suppression provider (set via SetSuppression after
+	// construction to avoid an import cycle with internal/services).
+	suppression SuppressionProvider
+	// Phase 32 — Settings provider, same interface-vs-cycle dance.
+	settings SettingsProvider
 
 	// Connection tracking
 	activeWS int64
@@ -326,6 +353,10 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// Next-Best-Action recommender (Phase 32) — returns the
 	// pre-highlighted action the triage drawer should show.
 	mux.HandleFunc("/api/v1/alerts/recommend", s.handleAlertRecommend)
+	// Per-alert suppression (Phase 32 follow-up): operator's `x`
+	// keystroke promotes a transient localStorage suppression to a
+	// durable SuppressionRule. Path: /api/v1/alerts/{id}/suppress.
+	mux.HandleFunc("/api/v1/alerts/", s.handleAlertSubresource)
 
 	// Authentication endpoints
 	mux.HandleFunc("/api/v1/auth/login", s.handleLogin)
@@ -412,6 +443,20 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/forensics/evidence", s.handleEvidenceList)
 	mux.HandleFunc("/api/v1/forensics/evidence/", s.handleEvidenceItem) // /{id}, /{id}/verify, /{id}/seal
 	mux.HandleFunc("/api/v1/forensics/export", s.handleEvidenceExport)
+	// Phase 32: bulk seal — seals every unsealed item (optionally
+	// scoped to an incident_id). Powers the Crisis Decision Panel's
+	// "Seal evidence now" button.
+	mux.HandleFunc("/api/v1/evidence/seal", s.handleEvidenceBulkSeal)
+	// Crisis-lifecycle audit ping. Frontend's crisisStore POSTs here on
+	// arm and stand-down so the destructive-action audit trail captures
+	// every state transition. See rest_crisis_audit.go.
+	mux.HandleFunc("/api/v1/crisis/state", s.handleCrisisState)
+
+	// Settings (Phase 32) — key/value persistence. Plain key path
+	// dispatches to per-key get/set; `_export` returns a redacted
+	// dump. Sensitive keys are vault-encrypted at rest by the concrete
+	// SettingsService; the REST surface deals in plaintext.
+	mux.HandleFunc("/api/v1/settings/", s.handleSettingsRoot)
 
 	// Audit / Regulator Portal (Phase 6.6)
 	mux.HandleFunc("/api/v1/audit/log", s.handleAuditLog)
@@ -563,6 +608,20 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	}
 
 	return s
+}
+
+// SetSuppression wires a SuppressionProvider into the REST server.
+// Called from internal/core/container.go after the SuppressionService
+// is constructed; we use a setter rather than a constructor argument
+// to dodge the api ↔ services import cycle.
+func (s *RESTServer) SetSuppression(p SuppressionProvider) {
+	s.suppression = p
+}
+
+// SetSettings wires a SettingsProvider — same setter pattern as
+// SetSuppression. See container.go for the hook-up.
+func (s *RESTServer) SetSettings(p SettingsProvider) {
+	s.settings = p
 }
 
 // Start spawns the HTTP listener in the background
@@ -794,8 +853,16 @@ func (s *RESTServer) secureMiddleware(next http.Handler) http.Handler {
 		// X-Tenant-Id used by apiFetch (Phase 30.4d).
 		origin := r.Header.Get("Origin")
 		allowedOrigins := map[string]bool{
+			// macOS / Linux WebKit2GTK
 			"https://wails.localhost": true,
 			"wails://wails":           true,
+			"wails://wails.localhost": true,
+			// Windows WebView2 — Wails v3 serves the asset bundle at
+			// `http://wails.localhost` (not https). Without this entry
+			// the desktop frontend's apiFetch calls land cross-origin
+			// against the REST listener on 127.0.0.1:8080 and the
+			// browser blocks the response. See apiFetch's getApiBase.
+			"http://wails.localhost":  true,
 		}
 		// SEC-35: Allow localhost:3000 ONLY in debug mode to prevent DNS rebinding in production
 		if os.Getenv("OBLIVRA_DEBUG") == "true" {

@@ -168,6 +168,25 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	}
 }
 
+// SetSuppression plumbs the SuppressionService into the REST server.
+// Called by container.go after both services are constructed; we go
+// through APIService rather than directly into RESTServer because
+// container's seam is at the service-level wiring layer.
+func (s *APIService) SetSuppression(sup *SuppressionService) {
+	if s == nil || s.server == nil || sup == nil {
+		return
+	}
+	s.server.SetSuppression(sup)
+}
+
+// SetSettings wires the SettingsService into the REST server.
+func (s *APIService) SetSettings(set *SettingsService) {
+	if s == nil || s.server == nil || set == nil {
+		return
+	}
+	s.server.SetSettings(set)
+}
+
 // Startup boots the headless REST API in the background
 func (s *APIService) Start(ctx context.Context) error {
 	s.ctx = ctx
@@ -204,6 +223,15 @@ func (s *APIService) Start(ctx context.Context) error {
 		"agent:released",
 		"ransomware:host_isolated",
 		"licensing:bypass_attempt",
+		// Phase 32 — crisis-mode lifecycle. Both arming and standing
+		// down are operator-visible state changes worth sealing in
+		// the audit trail, especially the `armed` event since the
+		// platform auto-lifts the alert noise floor while crisis is
+		// active and operators may later question why their queue
+		// looked unusually quiet.
+		"crisis:armed",
+		"crisis:stand_down",
+		"evidence:bulk_sealed",
 	} {
 		evType := et
 		s.bus.Subscribe(eventbus.EventType(evType), func(event eventbus.Event) {

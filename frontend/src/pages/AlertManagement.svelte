@@ -131,9 +131,11 @@
    * the selection to the next visible alert so the cursor doesn't sit
    * on a now-hidden row.
    */
-  function suppressAndNotify(alert: any) {
+  async function suppressAndNotify(alert: any) {
     if (!alert) return;
     const idx = filteredAlerts.findIndex((a) => a.id === alert.id);
+
+    // Optimistic local-side suppression — the row vanishes instantly.
     alertStore.suppressAlert(alert.id);
     appStore.notify(
       `Suppressed: ${(alert.title ?? '').slice(0, 48)}`,
@@ -144,6 +146,23 @@
     // Cursor advance — pick the next still-visible alert.
     const next = filteredAlerts[idx] ?? filteredAlerts[idx - 1];
     if (next) selectedAlert = next; else selectedAlert = null;
+
+    // Best-effort cross-device persistence via SuppressionService.
+    // We don't block the UI on this — if the server is offline the
+    // localStorage suppression still does the right thing locally.
+    try {
+      const { apiFetch } = await import('@lib/apiClient');
+      await apiFetch(`/api/v1/alerts/${encodeURIComponent(alert.id)}/suppress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'this_alert',
+          reason: 'Operator FP suppression (x keystroke)',
+        }),
+      });
+    } catch (e) {
+      console.warn('[suppress] cross-device persistence failed:', e);
+    }
   }
 
   // Global `x` key — suppress the currently-selected alert. Doesn't

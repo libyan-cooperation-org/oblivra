@@ -27,12 +27,12 @@
   --color-accent: #1878c8;
   --color-accent-hover: #5aaef0;
 
-  /* ── Phase 31 token cleanup — see UIUX_IMPROVEMENTS.md P0 #1.
-     Aliases that components were already using as if they existed. We
-     define them here so the silent fallbacks (inherited / black) get
-     replaced with the intended colour. The legacy short aliases below
-     in :root remain for ergonomic compactness; new code should prefer
-     these `--color-*` names. */
+  /* ── Token cleanup — components were already using these aliases as
+     if they existed; we define them here so the silent fallbacks
+     (inherited / black) get replaced with the intended colour. The
+     legacy short aliases below in :root remain for ergonomic
+     compactness; new code should prefer these `--color-*` names.
+     History: see frontend/CHANGELOG.md. */
   --color-text-1: #bfd0e0;        /* alias of --color-text-primary */
   --color-text-2: #6a8aa8;        /* alias of --color-text-secondary */
   --color-text-3: #3a5570;        /* alias of --color-text-muted */
@@ -49,7 +49,7 @@
   --color-accent-warning: #b86000;
   --color-accent-danger: #c02828;
 
-  /* ── Unified severity palette (Phase 30.4)
+  /* ── Unified severity palette ──
      Five-level scale that maps every source's native severity onto a
      single visual language. Used by HostDetail timeline, ActivityFeed,
      log tables, and alert badges so operators see the same colour for
@@ -122,6 +122,22 @@
   }
 }
 
+/* ─ Viewport-band hooks (UIUX_IMPROVEMENTS.md P2 #16) ─
+   App.svelte sets `body[data-vp="mobile|tablet|desktop"]` from the
+   resize observer. Components that need to react to viewport without
+   reading the store can use these selectors. */
+
+/* Tablet: hide AppSidebar text labels — icon-only mode. */
+body[data-vp="tablet"] .nav-label,
+body[data-vp="tablet"] .dock-card-subtitle {
+  display: none;
+}
+
+/* Tablet: collapse BottomDock cards to icon-only. */
+body[data-vp="tablet"] .dock-card {
+  padding: 0.5rem;
+}
+
 /* ── Global Patch v1.1 — ergonomic short aliases ──
    These are the legacy short forms used in inline styles across older
    components (Button, Badge, KPI, AppSidebar, StatusBar). They are
@@ -173,7 +189,7 @@
   --mn: 'IBM Plex Mono', monospace;
   --sn: 'IBM Plex Sans', sans-serif;
 
-  /* ─ Phase 31 typography ramp (UIUX_IMPROVEMENTS.md P0 #2) ─
+  /* ─ Typography ramp ──
      Replaces the scattered `text-[8px]` / `text-[9px]` / `text-[10px]`
      hardcodes. Comfortable mode is the new default; toggle to compact
      by setting `body[data-density="compact"]`. */
@@ -215,11 +231,23 @@ body[data-density="compact"] {
     overflow: hidden;
   }
 
-  /* 1. SCROLLBAR — 4px, visible thumb */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  /* 1. SCROLLBAR — auto-growing thumb (UIUX_IMPROVEMENTS.md P2 #11).
+     4 px is too thin to grab on Windows trackpad-less mice. We start at
+     6 px so it's reachable without hover, and grow to 10 px on hover so
+     the operator can drag it confidently. The 8 px thumb that the spec
+     suggested feels heavy on a clean SOC dash; 6/10 is the sweet spot. */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2a3d55; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb {
+    background: #2a3d55;
+    border-radius: 3px;
+    transition: background-color 120ms ease;
+  }
   ::-webkit-scrollbar-thumb:hover { background: #3a5570; }
+  /* Grow on container hover so the operator gets a bigger target the
+     instant their cursor enters a scrollable region. */
+  *:hover > ::-webkit-scrollbar,
+  *:hover::-webkit-scrollbar { width: 10px; height: 10px; }
 
   /* 5. FOCUS OUTLINES */
   *:focus-visible {
@@ -307,7 +335,7 @@ body[data-density="compact"] {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Phase 24.2 — Arabic / RTL support.
+   Arabic / RTL support.
    Most layout uses Tailwind logical-property classes (start/end, *-rtl-*)
    so the visual layout flips automatically. The rules below patch the
    handful of places we still hardcode `left/right` margins or borders.

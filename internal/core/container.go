@@ -481,6 +481,19 @@ func (c *Container) initPlatform(ctx context.Context) error {
 
 	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Platform.LicensingService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
+	// Phase 32: wire SuppressionService into the REST server via setter
+	// (avoids a circular import — api ← services ← api). The endpoint
+	// `POST /api/v1/alerts/{id}/suppress` is gated on this provider.
+	if c.Platform.APIService != nil && c.Security.SuppressionService != nil {
+		c.Platform.APIService.SetSuppression(c.Security.SuppressionService)
+	}
+
+	// Phase 32: wire SettingsService into the REST server. The endpoint
+	// `GET/PUT /api/v1/settings/{key}` is gated on this provider.
+	if c.Platform.APIService != nil && c.Product.SettingsService != nil {
+		c.Platform.APIService.SetSettings(c.Product.SettingsService)
+	}
+
 	// DiagnosticsService: wire bus dropped counter from the event bus.
 	busDropped := func() uint64 {
 		return c.Infra.Bus.DroppedCount()

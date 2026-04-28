@@ -56,12 +56,32 @@
       return;
     }
     try {
-      const { apiPostJSON } = await import('@lib/apiClient');
+      const { apiFetch } = await import('@lib/apiClient');
       // Existing endpoint — see rest_phase8_12.go handleRansomwareIsolate.
-      const res = await apiPostJSON('/api/v1/ransomware/isolate', {
-        host_id: agent.id,
+      const res = await apiFetch('/api/v1/ransomware/isolate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_id: agent.id }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // Distinguish licensing tier blocks from real failures so the
+        // commander knows whether to call ops vs. call procurement.
+        // The backend's respondError returns { code: "feature_gate" }
+        // for tier-blocked endpoints (see rest.go checkFeature).
+        if (res.status === 403) {
+          let envelope: any = null;
+          try { envelope = await res.clone().json(); } catch { /* not JSON */ }
+          if (envelope?.code === 'feature_gate') {
+            appStore.notify(
+              `Host isolation requires Sovereign tier`,
+              'warning',
+              'Ransomware-Defense feature is gated by license tier. Open License page for upgrade options.',
+            );
+            return;
+          }
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
       appStore.notify(`Quarantined ${host}`, 'success');
     } catch (e: any) {
       appStore.notify(`Isolate ${host} failed`, 'error', e?.message ?? String(e));
@@ -70,14 +90,40 @@
 
   async function sealEvidence() {
     try {
-      // No "seal current" endpoint exists yet; instead, jump to the
-      // evidence ledger so the operator can review what's seal-able
-      // and choose. The page itself uses /api/v1/forensics/evidence/{id}/seal
-      // for the per-item action.
-      push('/evidence?crisis=1&reason=' + encodeURIComponent(crisisStore.reason ?? 'crisis'));
-      appStore.notify('Open evidence ledger to seal current package', 'info');
+      const { apiFetch } = await import('@lib/apiClient');
+      const res = await apiFetch('/api/v1/evidence/seal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          crisis: true,
+          reason: crisisStore.reason ?? 'Crisis-mode evidence seal',
+        }),
+      });
+      if (!res.ok) {
+        if (res.status === 503) {
+          // Evidence locker not initialised — surface the cause.
+          appStore.notify(
+            'Evidence locker not initialised',
+            'warning',
+            'No items to seal. Capture evidence first via the per-host Forensics page.',
+          );
+          return;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const body = await res.json();
+      const n = body.sealed_count ?? 0;
+      if (n === 0) {
+        appStore.notify('No unsealed evidence found', 'info', 'Nothing to seal — the locker is empty or every item is already sealed.');
+      } else {
+        appStore.notify(
+          `Sealed ${n} evidence item${n === 1 ? '' : 's'}`,
+          'success',
+          'TPM-rooted custody chain extended. View under Evidence Ledger.',
+        );
+      }
     } catch (e: any) {
-      appStore.notify('Open evidence failed', 'error', e?.message ?? String(e));
+      appStore.notify('Seal evidence failed', 'error', e?.message ?? String(e));
     }
   }
 </script>
@@ -139,7 +185,7 @@
         <Button variant="secondary" size="sm" onclick={() => push('/war-mode')}>
           <Eye size={11} class="mr-1.5" /> Open war-room view
         </Button>
-        <Button variant="critical" size="sm" onclick={() => crisisStore.standDown()}>
+        <Button variant="danger" size="sm" onclick={() => crisisStore.standDown()}>
           <ShieldAlert size={11} class="mr-1.5" /> Stand down
         </Button>
       </div>

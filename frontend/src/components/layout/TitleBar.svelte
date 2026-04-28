@@ -225,8 +225,9 @@
 
   <div class="w-px h-3.5 bg-border-primary shrink-0"></div>
 
-  <!-- Sovereign status -->
-  <div class="flex items-center gap-1.5 shrink-0">
+  <!-- Sovereign status — hidden below xl so the chrome doesn't run
+       the window-controls off the right edge on narrower viewports. -->
+  <div class="hidden xl:flex items-center gap-1.5 shrink-0">
     <div class="w-1.5 h-1.5 rounded-full bg-success shrink-0"></div>
     <span class="text-[9px] font-mono text-text-muted uppercase tracking-wider">Sovereign Cloud</span>
   </div>
@@ -262,17 +263,20 @@
     </div>
   {/if}
 
-  <!-- Centered command search — fills the drag area but doesn't drag itself -->
-  <div class="flex-1 flex justify-center">
+  <!-- Centered command search — fills the drag area but is allowed to
+       shrink (min-w-0) so the right-edge window controls always fit.
+       Without min-w-0, flex-1 children won't shrink below their content
+       width, which on a busy chrome pushes the close button off-screen. -->
+  <div class="flex-1 min-w-0 flex justify-center">
     <button
       type="button"
-      class="flex items-center bg-surface-3 border border-border-primary rounded-sm px-2.5 h-[20px] gap-2 w-[240px]
+      class="flex items-center bg-surface-3 border border-border-primary rounded-sm px-2.5 h-[20px] gap-2 max-w-[240px] w-full min-w-[100px]
              hover:border-border-hover transition-colors cursor-pointer"
       onclick={() => appStore.toggleCommandPalette()}
       style="--wails-draggable: no-drag;"
     >
-      <span class="text-text-muted text-[8px] font-mono tracking-wide opacity-60">Search commands…</span>
-      <span class="ml-auto text-text-muted text-[8px] font-mono opacity-40">⌃K</span>
+      <span class="text-text-muted text-[8px] font-mono tracking-wide opacity-60 truncate">Search commands…</span>
+      <span class="ml-auto text-text-muted text-[8px] font-mono opacity-40 shrink-0">⌃K</span>
     </button>
   </div>
 
@@ -295,17 +299,25 @@
     {/if}
   </button>
 
-  <!-- Operator -->
+  <!-- Operator — name hidden below lg so the chrome stays compact;
+       initials chip stays visible at every breakpoint. -->
   <div class="flex items-center gap-2 shrink-0">
-    <span class="text-[9px] font-mono text-text-muted">OPERATOR ·</span>
-    <span class="text-[9px] font-mono text-text-heading font-semibold uppercase tracking-tight">K. MAVERICK</span>
+    <span class="hidden lg:inline text-[9px] font-mono text-text-muted">OPERATOR ·</span>
+    <span class="hidden lg:inline text-[9px] font-mono text-text-heading font-semibold uppercase tracking-tight">K. MAVERICK</span>
     <div class="w-5 h-5 rounded-sm flex items-center justify-center text-[9px] font-bold font-mono
                 bg-accent/15 border border-accent/30 text-accent-hover">KM</div>
   </div>
 
-  <!-- Global Desktop Actions (Pop-out, etc) -->
+  <!-- Global Desktop Actions + window controls.
+       Anchored to the right edge with `shrink-0` so a narrow viewport
+       can't push them off — earlier symptom: the close button was
+       invisible on a 1280-wide window because the search bar refused
+       to shrink. The vertical separator before the controls helps the
+       eye find them as a logical group. -->
   {#if !IS_BROWSER}
     <div class="flex items-center shrink-0 ml-auto">
+      <!-- SOC mode (multi-monitor pop-out shortcut) — label only on
+           lg+ to keep the chrome compact on smaller windows. -->
       <button
         class="h-8 px-2 flex items-center justify-center gap-1.5 text-text-muted hover:text-accent hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer group"
         onclick={() => appStore.launchSOCExperience()}
@@ -313,7 +325,7 @@
         style="--wails-draggable: no-drag;"
       >
         <Layout class="w-3.5 h-3.5" />
-        <span class="text-[9px] font-mono font-bold tracking-widest hidden lg:block opacity-60 group-hover:opacity-100">SOC MODE</span>
+        <span class="text-[9px] font-mono font-bold tracking-widest hidden xl:block opacity-60 group-hover:opacity-100">SOC MODE</span>
       </button>
 
       <button
@@ -327,36 +339,42 @@
       </button>
 
       {#if platform !== 'mac'}
+        <!-- Visible separator + window controls. Bumped icon size
+             from 14 px → 16 px so they're unmistakable as window
+             controls (the previous version was easy to miss against
+             the dark header). The close button keeps its red-on-hover
+             behaviour to match Windows native conventions. -->
+        <span class="w-px h-4 bg-border-primary mx-1 shrink-0" aria-hidden="true"></span>
         <button
-          class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
+          class="h-8 w-11 flex items-center justify-center text-text-secondary hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
           onclick={windowMinimize}
           aria-label="Minimize window"
           title="Minimize"
           style="--wails-draggable: no-drag;"
         >
-          <Minus class="w-3.5 h-3.5" />
+          <Minus class="w-4 h-4" />
         </button>
         <button
-          class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
+          class="h-8 w-11 flex items-center justify-center text-text-secondary hover:text-text-heading hover:bg-surface-2 transition-colors border-none bg-transparent cursor-pointer"
           onclick={windowToggleMax}
           aria-label={isMaximised ? 'Restore window' : 'Maximize window'}
           title={isMaximised ? 'Restore' : 'Maximize'}
           style="--wails-draggable: no-drag;"
         >
           {#if isMaximised}
-            <Restore class="w-3.5 h-3.5" />
+            <Restore class="w-4 h-4" />
           {:else}
-            <Square class="w-3.5 h-3.5" />
+            <Square class="w-4 h-4" />
           {/if}
         </button>
         <button
-          class="h-8 w-10 flex items-center justify-center text-text-muted hover:text-white hover:bg-error transition-colors border-none bg-transparent cursor-pointer"
+          class="h-8 w-11 flex items-center justify-center text-text-secondary hover:text-white hover:bg-error transition-colors border-none bg-transparent cursor-pointer"
           onclick={windowClose}
           aria-label="Close window"
           title="Close"
           style="--wails-draggable: no-drag;"
         >
-          <X class="w-3.5 h-3.5" />
+          <X class="w-4 h-4" />
         </button>
       {/if}
     </div>

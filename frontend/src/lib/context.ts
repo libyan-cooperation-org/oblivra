@@ -28,15 +28,23 @@ export type AppContext = 'desktop' | 'browser' | 'hybrid';
  * Fallbacks for older Wails v2 globals are also kept.
  */
 function detectContext(): AppContext {
+    if (typeof window === 'undefined') return 'browser';
+
+    const w = window as any;
+
     const isWails =
-        // Wails v3 Linux/macOS: WebKit2GTK IPC (synchronous, always present)
-        !!(window as any).webkit?.messageHandlers?.external
+        // Wails v3 Linux/macOS: WebKit2GTK IPC (synchronous, always present
+        // before any JS runs).
+        !!w.webkit?.messageHandlers?.external
         // Wails v3 Windows: WebView2 IPC
-        || !!(window as any).chrome?.webview
+        || !!w.chrome?.webview
+        // Wails v3 globals — `_wails` (single underscore) is the v3
+        // namespace; v2 used double-underscore. We check both.
+        || !!w._wails
+        || !!w.__WAILS__
         // Wails v2 legacy globals
-        || !!(window as any).__WAILS__
-        || !!(window as any).runtime
-        || !!(window as any).wails;
+        || !!w.runtime
+        || !!w.wails;
 
     if (!isWails) return 'browser';
     const remoteServer = localStorage.getItem('oblivra:remote_server');

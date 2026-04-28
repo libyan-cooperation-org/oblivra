@@ -90,9 +90,15 @@ class CrisisStore {
     } catch (e) {
       console.warn('[crisis] noise-floor lift failed:', e);
     }
+
+    // Audit-trail every state transition. The frontend can't reach the
+    // in-process eventbus directly, so we ping the dedicated REST seam
+    // (rest_crisis_audit.go) — best-effort, never blocks UI.
+    void this._pingAudit(true, reason);
   }
 
   standDown() {
+    const prevReason = this.reason;
     this.active  = false;
     this.reason  = null;
     this.armedAt = null;
@@ -105,6 +111,26 @@ class CrisisStore {
         appStore.setProfileRule('alertNoiseFloor', this._preArmNoiseFloor);
       } catch { /* store may be torn down */ }
       this._preArmNoiseFloor = null;
+    }
+
+    void this._pingAudit(false, prevReason ?? '');
+  }
+
+  /**
+   * Best-effort REST ping so the backend audit trail captures crisis
+   * lifecycle transitions. Failures are swallowed — a network blip
+   * during arming must never prevent the UI from entering crisis mode.
+   */
+  private async _pingAudit(active: boolean, reason: string) {
+    try {
+      const { apiFetch } = await import('@lib/apiClient');
+      await apiFetch('/api/v1/crisis/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active, reason }),
+      });
+    } catch (e) {
+      console.warn('[crisis] audit ping failed:', e);
     }
   }
 }

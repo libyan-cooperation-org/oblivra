@@ -26,17 +26,59 @@
  * native fetch API.
  */
 import { appStore } from './stores/app.svelte';
+import { IS_DESKTOP, IS_HYBRID } from './context';
 
 /**
- * apiFetch — drop-in replacement for window.fetch that attaches
- * X-Tenant-Id automatically when a tenant is selected. Falls back
- * to a plain fetch when no tenant scope is set ("All Tenants" admin
- * view).
+ * Desktop-mode REST base URL.
  *
- * The header name `X-Tenant-Id` matches the convention used by the
- * Go REST middleware in `internal/api/rest.go` — the existing
- * tenant resolver reads from this header before falling back to
- * URL or session derivation.
+ * In Wails desktop mode the frontend is served by the embedded asset
+ * handler at `http://wails.localhost/...`, but the REST API listens
+ * on a separate port (default 8080, set in
+ * `internal/services/api_service.go::NewAPIService`). The asset
+ * handler does NOT proxy `/api/*` to the REST mux — relative-URL
+ * fetches just 404 against the asset FS.
+ *
+ * To keep relative-URL `apiFetch('/api/v1/...')` calls working from
+ * either context, we rewrite the URL in desktop mode to point at
+ * `http://127.0.0.1:8080` (the REST listener). Browser mode is
+ * unaffected because the page is already served from the same origin
+ * as the REST API.
+ *
+ * Hybrid mode follows the operator's configured remote-server URL
+ * stored in `oblivra:remote_server` localStorage (see context.ts).
+ */
+function getApiBase(): string {
+  if (IS_DESKTOP) return 'http://127.0.0.1:8080';
+  if (IS_HYBRID) {
+    try {
+      const remote = localStorage.getItem('oblivra:remote_server');
+      if (remote && remote.trim() !== '') return remote.trim().replace(/\/$/, '');
+    } catch { /* private mode */ }
+  }
+  return ''; // browser — same-origin
+}
+
+/**
+ * Resolve `/api/...`-prefixed URLs to the REST base. Absolute URLs
+ * (http(s)://...) and non-API relative URLs pass through unchanged.
+ */
+function resolveURL(input: RequestInfo | URL): RequestInfo | URL {
+  if (typeof input !== 'string') return input;
+  if (!input.startsWith('/api/')) return input;
+  const base = getApiBase();
+  if (!base) return input;
+  return base + input;
+}
+
+/**
+ * apiFetch — drop-in replacement for window.fetch that:
+ *   1. retargets `/api/*` URLs to the REST listener in desktop / hybrid mode
+ *   2. attaches the operator's currently-selected `X-Tenant-Id`
+ *   3. auto-handles 401/403 by bouncing to /login (audit fix High-7)
+ *
+ * The tenant header name matches the Go REST middleware in
+ * `internal/api/rest.go` — the existing resolver reads from this
+ * header before falling back to URL or session derivation.
  */
 export function apiFetch(
   input: RequestInfo | URL,
@@ -54,7 +96,9 @@ export function apiFetch(
   // cookie. Callers can override by passing `credentials` explicitly.
   const credentials = init.credentials ?? 'include';
 
-  return fetch(input, { ...init, headers, credentials }).then((res) => {
+  const target = resolveURL(input);
+
+  return fetch(target, { ...init, headers, credentials }).then((res) => {
     // Audit fix High-7: auto-handle 401/403 by clearing local
     // session and bouncing to /login. Without this, an expired
     // session leaves the UI showing stale data + getting silent

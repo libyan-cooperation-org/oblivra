@@ -18,13 +18,10 @@
 -->
 <script lang="ts">
   import {
-    LayoutDashboard,
     Shield,
-    Network,
-    UserCog,
-    Server,
     TerminalSquare,
-    FileText,
+    Folder,
+    Scale,
     Settings,
     PinOff,
     type Icon as IconType,
@@ -35,17 +32,15 @@
   import { push } from '@lib/router.svelte';
   import { IS_BROWSER, IS_DESKTOP, IS_HYBRID } from '@lib/context';
 
-  // Map icon names → component refs. Keeping this local (rather than
-  // computing from lucide-svelte by string) preserves Vite tree-shaking.
+  // Map icon names → component refs (Phase 32 — 5 groups). Keeping this
+  // local (rather than computing from lucide-svelte by string) preserves
+  // Vite tree-shaking.
   const GROUP_ICONS: Record<NavGroupId, typeof IconType> = {
-    overview: LayoutDashboard,
-    security: Shield,
-    network:  Network,
-    identity: UserCog,
-    hosts:    Server,
-    shell:    TerminalSquare,
-    logs:     FileText,
-    system:   Settings,
+    siem:        Shield,
+    operations:  TerminalSquare,
+    investigate: Folder,
+    govern:      Scale,
+    admin:       Settings,
   };
 
   // Filter pinned items by current platform context, since a desktop-only

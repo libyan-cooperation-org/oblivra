@@ -21,7 +21,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { alertStore, type Alert } from '@lib/stores/alerts.svelte';
-  import { Badge, Button } from '@components/ui';
+  import { Badge } from '@components/ui';
   import { Sunrise, X, ChevronRight } from 'lucide-svelte';
   import { push } from '@lib/router.svelte';
 

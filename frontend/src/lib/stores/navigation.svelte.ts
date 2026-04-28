@@ -24,22 +24,73 @@ const STORAGE_KEY = 'oblivra:nav';
 // etc. which no longer exist; rather than migrate the IDs we drop the
 // stored prefs on first load — the operator just lands on the new
 // 'overview' default and re-pins anything they care about.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;  // Phase 32: 8 groups → 5 groups
 
 // SOC investigation-first taxonomy (per Phase 31 redesign spec).
-// The 7 domains are organised by *what the operator is currently
-// looking at* — overview > security > network > identity > hosts >
-// logs > system — NOT by feature taxonomy. Switching domains sets
-// the active CONTEXT for the rest of the UI.
+// Phase 32: collapsed from 8 to 5 groups per UIUX_IMPROVEMENTS.md
+// (working memory holds 5±2). Each group corresponds to *the operator's
+// current intent*, not feature taxonomy:
+//
+//   siem        → "what is the system reporting?" — alerts, search, hunt
+//   operations  → "what am I doing on a host?"    — shell, ssh, fleet
+//   investigate → "what happened?"                 — cases, timeline, forensics
+//   govern      → "is the platform in order?"      — compliance, identity, DSR
+//   admin       → "configure the platform"         — settings, plugins, sync
+//
+// Old IDs (overview/security/network/identity/hosts/shell/logs/system)
+// are migrated below in the persistence reader so the operator's last
+// active group survives the schema bump.
 export type NavGroupId =
-  | 'overview'
-  | 'security'
-  | 'network'
-  | 'identity'
-  | 'hosts'
-  | 'shell'
-  | 'logs'
-  | 'system';
+  | 'siem'
+  | 'operations'
+  | 'investigate'
+  | 'govern'
+  | 'admin';
+
+/**
+ * Migrate legacy 8-group NavGroupId values into the new 5-group schema.
+ *
+ * Mapping table (locked — do not change without bumping SCHEMA_VERSION):
+ *
+ *   legacy id  → new id
+ *   ─────────  ─────────────
+ *   overview   → siem        (Mission Control lives at the top of SIEM)
+ *   security   → siem        (alerts, hunt, intel — SIEM-native)
+ *   logs       → siem        (search, live tail, saved queries)
+ *   shell      → operations  (terminal lives here)
+ *   hosts      → operations  (fleet, agents)
+ *   network    → operations  (NDR, tunnels, topology)
+ *   identity   → govern      (users, SSO, DSR)
+ *   system     → admin       (settings, plugins, license, sync)
+ *
+ *   already-new id → returned unchanged
+ *   unknown id     → 'siem'  (most-trafficked default)
+ *
+ * Exported so we can unit-test the mapping table without spinning up
+ * the Svelte rune runtime.
+ */
+export function migrateLegacyGroup(id: string): NavGroupId {
+  switch (id) {
+    case 'overview':
+    case 'logs':
+    case 'security':
+      return 'siem';
+    case 'shell':
+    case 'hosts':
+    case 'network':
+      return 'operations';
+    case 'identity':
+      return 'govern';
+    case 'system':
+      return 'admin';
+  }
+  // Already a new id (or unknown — fall back to siem so the operator
+  // lands on the most-trafficked group).
+  if (id === 'siem' || id === 'operations' || id === 'investigate' || id === 'govern' || id === 'admin') {
+    return id;
+  }
+  return 'siem';
+}
 
 interface PersistedShape {
   v: number;                  // schema version (forward-compat)
@@ -54,11 +105,16 @@ function readPersisted(): PersistedShape | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedShape;
-    // Refuse stale schema; future migrations bump SCHEMA_VERSION.
-    if (parsed.v !== SCHEMA_VERSION) return null;
+    // Schema-aware migration: v < SCHEMA_VERSION rewrites the active
+    // group through migrateLegacyGroup so a 7-group preference survives
+    // the collapse to 5 groups instead of dropping to the default.
     if (typeof parsed.activeGroup !== 'string') return null;
     if (!Array.isArray(parsed.pinned)) return null;
-    return parsed;
+    return {
+      ...parsed,
+      v: SCHEMA_VERSION,
+      activeGroup: migrateLegacyGroup(parsed.activeGroup),
+    };
   } catch {
     return null;
   }
@@ -66,21 +122,18 @@ function readPersisted(): PersistedShape | null {
 
 class NavigationStore {
   // ── State ────────────────────────────────────────────────────────
-  activeGroup = $state<NavGroupId>('overview');
+  activeGroup = $state<NavGroupId>('siem');
   pinned = $state<string[]>([]);
   dockExpanded = $state<boolean>(true);
 
   // Last route opened inside each group, so re-clicking a group restores
   // the operator's last view rather than always landing on the first item.
   lastRouteByGroup = $state<Record<NavGroupId, string | null>>({
-    overview: null,
-    security: null,
-    network: null,
-    identity: null,
-    hosts: null,
-    shell: null,
-    logs: null,
-    system: null,
+    siem:        null,
+    operations:  null,
+    investigate: null,
+    govern:      null,
+    admin:       null,
   });
 
   private _initialized = false;

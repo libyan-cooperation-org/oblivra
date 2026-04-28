@@ -9,7 +9,7 @@
 // logic on the server means a single binary upgrade rolls the change
 // to every operator instantly.
 
-import { apiPostJSON } from './apiClient';
+import { apiFetch } from './apiClient';
 
 export type NBAAction =
   | 'quarantine_host'
@@ -58,11 +58,13 @@ export const ACTION_LABEL: Record<NBAAction, string> = {
 
 /**
  * Map an action to the variant the Button should render with. Matches
- * the colour rules in the design system: containment / destructive →
- * critical; investigative → primary; passive → secondary.
+ * the design system's colour rules. Note: Button uses `danger` (not
+ * `critical`) for destructive variants — the design tokens align but
+ * the prop name diverges. Containment / destructive → danger;
+ * investigative → primary; passive → secondary.
  */
-export const ACTION_VARIANT: Record<NBAAction, 'critical' | 'primary' | 'secondary' | 'cta'> = {
-  quarantine_host:  'critical',
+export const ACTION_VARIANT: Record<NBAAction, 'danger' | 'primary' | 'secondary' | 'cta'> = {
+  quarantine_host:  'danger',
   evidence_capture: 'primary',
   escalate_tier_3:  'cta',
   investigate_host: 'primary',
@@ -71,9 +73,18 @@ export const ACTION_VARIANT: Record<NBAAction, 'critical' | 'primary' | 'seconda
 };
 
 export async function recommend(facts: NBAFacts): Promise<RecommendedAction> {
-  const res = await apiPostJSON('/api/v1/alerts/recommend', facts);
+  // Use apiFetch directly so we own the Response handling — the
+  // apiPostJSON helper throws on non-2xx, which we'd rather surface
+  // as a soft fallback than as an exception bubbling into a triage
+  // drawer mid-keystroke.
+  const res = await apiFetch('/api/v1/alerts/recommend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(facts),
+  });
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`);
+    const txt = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}: ${txt}`);
   }
   return (await res.json()) as RecommendedAction;
 }

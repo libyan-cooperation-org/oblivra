@@ -11,6 +11,7 @@
   import { diagnosticsStore } from '@lib/stores/diagnostics.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
   import { KPI, Badge, Button, PageLayout, DataTable, PopOutButton, ActivityFeed } from '@components/ui';
+  import DeltaTile from '@components/dash/DeltaTile.svelte';
   import { push } from '@lib/router.svelte';
 
   // Frontend-tracked uptime — backend has no per-session uptime RPC, so we
@@ -114,24 +115,31 @@
   {/snippet}
 
   <div class="flex flex-col h-full gap-4">
-    <!-- CORE KPI STRIP -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 shrink-0">
+    <!-- CORE KPI STRIP + delta tile (Phase 32). Six columns so the
+         delta tile fits alongside the five KPIs without breaking the
+         existing layout at lg+. Below lg the delta wraps to its own row. -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 shrink-0">
       <KPI label="Global Risk Score"
            value={riskScore.toFixed(1)}
            trend={riskScore >= 5 ? 'up' : 'down'}
+           trendPolarity="up-bad"
            variant={riskVariant} />
       <KPI label="Active Threats"
            value={stats.total.toString()}
+           trendPolarity="up-bad"
            sublabel="{stats.critical} critical · {stats.high} high" />
       <KPI label="Ingest Rate (EPS)"
            value={fmtEPS(stats.eps)}
+           trendPolarity="up-good"
            sublabel={peakEPS > 0 ? `Peak: ${fmtEPS(peakEPS)} EPS` : 'Peak: tracking…'} />
       <KPI label="Platform Health"
            value={stats.health}
            variant={stats.health.startsWith('A') ? 'success' : stats.health === 'PENDING' ? 'muted' : 'warning'} />
       <KPI label="Session Uptime"
            value={fmtUptime()}
+           trendPolarity="neutral"
            sublabel="Since dashboard mount" />
+      <DeltaTile />
     </div>
 
     <!-- MAIN GRID -->

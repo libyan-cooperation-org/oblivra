@@ -17,12 +17,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { Badge, Button } from '@components/ui';
-  import { ChevronRight, Clock, Cpu, Network, ShieldAlert, ShieldCheck, Eye, FileText, Zap, X } from 'lucide-svelte';
+  import { Clock, Cpu, Network, FileText, Zap, X } from 'lucide-svelte';
+  import CrownJewelToggle from '@components/hosts/CrownJewelToggle.svelte';
   import { recommend, fallbackRecommendation, ACTION_LABEL, ACTION_VARIANT, type RecommendedAction, type NBAAction } from '@lib/nba';
-  import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
-  import { alertStore } from '@lib/stores/alerts.svelte';
   import { sessionContext } from '@lib/stores/sessionContext.svelte';
+  import { crownJewels } from '@lib/stores/crownJewels.svelte';
   import { push } from '@lib/router.svelte';
 
   interface Alert {
@@ -62,6 +62,10 @@
     const hostKnown = agentStore.agents.some(
       (ag) => ag.id === a.host || ag.hostname === a.host,
     );
+    // crown-jewel: server-tagged via raw, OR operator-tagged via the
+    // local crownJewels store (Phase 32 path until backend host-tag
+    // mutation lands in Phase 33).
+    const isCrownJewel = Boolean((a.raw ?? {}).crown_jewel) || crownJewels.has(a.host);
     return {
       alert_id: a.id,
       severity: a.severity,
@@ -75,9 +79,9 @@
       has_outbound_c2_beacon: Boolean((a.raw ?? {}).c2_beacon),
       is_first_time_binary: Boolean((a.raw ?? {}).first_time_binary),
       is_repeat_offender: Boolean((a.raw ?? {}).repeat_offender),
-      host_is_critical: Boolean((a.raw ?? {}).host_critical),
+      host_is_critical: Boolean((a.raw ?? {}).host_critical) || crownJewels.has(a.host),
       user_is_service: Boolean((a.raw ?? {}).user_is_service),
-      is_from_crown_jewel: Boolean((a.raw ?? {}).crown_jewel),
+      is_from_crown_jewel: isCrownJewel,
     };
   }
 
@@ -177,6 +181,11 @@
             <span class="flex items-center gap-1"><Network size={10} />{alert.category}</span>
           {/if}
         </div>
+        {#if alert.host}
+          <div class="pt-1">
+            <CrownJewelToggle hostId={alert.host} />
+          </div>
+        {/if}
       </div>
 
       <!-- Recommendation -->

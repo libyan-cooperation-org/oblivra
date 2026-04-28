@@ -530,6 +530,12 @@ func (s *RESTServer) handleRansomwareIsolate(w http.ResponseWriter, r *http.Requ
 		})
 	}
 
+	// Audit-log every isolation. Destructive actions must be sealed
+	// in audit_logs even if the source was Crisis Decision Panel
+	// (Phase 32 — close the audit gap on crisis-mode actions).
+	s.appendAuditEntry(connectorActor(r), "ransomware.isolate", req.HostID,
+		"Host network-isolated via REST", r)
+
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"status":      "isolated",
 		"host_id":     req.HostID,

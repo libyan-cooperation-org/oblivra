@@ -3,8 +3,10 @@
   Application configuration and system management.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { appStore, PROFILE_LABELS, PROFILE_PRESETS, type OperatorProfileId } from '@lib/stores/app.svelte';
   import { Badge, PageLayout, Button, Tabs, Input } from '@components/ui';
+  import { apiFetch } from '@lib/apiClient';
 
   const settingsTabs = [
     { id: 'general', label: 'General', icon: '⚙️' },
@@ -23,17 +25,80 @@
   ];
 
   let activeTab = $state('general');
-  
-  // Settings state
+
+  // Settings state — hydrated from /api/v1/settings/<key> on mount
+  // (server is the source of truth) and falls back to localStorage if
+  // the server is offline so the UI still feels alive.
   let workspaceName = $state(appStore.workspace);
   let theme = $state(appStore.theme);
   let serverUrl = $state('https://api.oblivra.io');
   let apiToken = $state('');
+  let saving = $state(false);
 
-  function saveGeneral() {
-    appStore.setWorkspace(workspaceName as any);
-    appStore.setTheme(theme);
-    appStore.notify('General settings saved', 'success');
+  /** Pull a setting value from the server, falling back to localStorage. */
+  async function loadSetting(key: string, fallback = ''): Promise<string> {
+    try {
+      const res = await apiFetch(`/api/v1/settings/${encodeURIComponent(key)}`);
+      if (res.ok) {
+        const body = await res.json();
+        return body.value ?? fallback;
+      }
+    } catch { /* offline — use fallback */ }
+    try {
+      return localStorage.getItem(`oblivra:setting:${key}`) ?? fallback;
+    } catch { return fallback; }
+  }
+
+  /** Persist a setting via REST + mirror to localStorage as a fallback. */
+  async function saveSetting(key: string, value: string): Promise<boolean> {
+    try { localStorage.setItem(`oblivra:setting:${key}`, value); } catch { /* quota */ }
+    try {
+      const res = await apiFetch(`/api/v1/settings/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  onMount(async () => {
+    // Hydrate from server. Errors fall through to the existing
+    // appStore / localStorage values so the UI stays responsive.
+    const [ws, th, sUrl] = await Promise.all([
+      loadSetting('workspace_name', String(appStore.workspace ?? '')),
+      loadSetting('theme', appStore.theme ?? 'dark'),
+      loadSetting('server_url', 'https://api.oblivra.io'),
+    ]);
+    if (ws) workspaceName = ws as any;
+    if (th) theme = th;
+    if (sUrl) serverUrl = sUrl;
+  });
+
+  async function saveGeneral() {
+    saving = true;
+    try {
+      appStore.setWorkspace(workspaceName as any);
+      appStore.setTheme(theme);
+      // Persist server-side too so cross-device + tenant consistency.
+      const [a, b] = await Promise.all([
+        saveSetting('workspace_name', String(workspaceName)),
+        saveSetting('theme', String(theme)),
+      ]);
+      if (a && b) {
+        appStore.notify('General settings saved', 'success');
+      } else {
+        appStore.notify(
+          'Saved locally only',
+          'warning',
+          'Server unreachable — settings persisted to localStorage and will sync on next reconnect.',
+        );
+      }
+    } finally {
+      saving = false;
+    }
   }
 </script>
 
@@ -281,9 +346,24 @@
                 appStore.notify(`Connection failed: ${e?.message ?? e}`, 'error');
               }
             }}>Test Connection</Button>
-            <Button variant="cta" size="sm" onclick={() => {
-              try { localStorage.setItem('oblivra:serverUrl', serverUrl); if (apiToken) localStorage.setItem('oblivra:apiKey', apiToken); appStore.notify('Server config saved', 'success'); }
-              catch { appStore.notify('Could not persist (localStorage unavailable)', 'warning'); }
+            <Button variant="cta" size="sm" onclick={async () => {
+              // Persist via the settings endpoint so cross-device sync
+              // works. The api_key value is auto-detected as sensitive
+              // by the SettingsService isSensitiveKey gate and gets
+              // vault-encrypted at rest.
+              const [a, b] = await Promise.all([
+                saveSetting('server_url', serverUrl),
+                apiToken ? saveSetting('api_key', apiToken) : Promise.resolve(true),
+              ]);
+              // Local mirror so connection-test paths that read from
+              // localStorage continue to work even when the server
+              // round-trip lags.
+              try { localStorage.setItem('oblivra:serverUrl', serverUrl); if (apiToken) localStorage.setItem('oblivra:apiKey', apiToken); } catch { /* quota */ }
+              if (a && b) {
+                appStore.notify('Server config saved', 'success');
+              } else {
+                appStore.notify('Server config saved locally only', 'warning', 'Backend unreachable — will sync on next reconnect.');
+              }
             }}>Save Server Config</Button>
           </div>
         </div>
