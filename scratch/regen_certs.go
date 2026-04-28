@@ -1,3 +1,11 @@
+//go:build ignore
+// +build ignore
+
+// Scratch script — manual run only:
+//   go run scratch/regen_certs.go
+// Excluded from `go build ./...` so the package's three main files
+// don't fight each other for the symbol `main`.
+
 package main
 
 import (

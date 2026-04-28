@@ -12,8 +12,10 @@ const target = document.getElementById('app');
 if (!target) throw new Error('Mount target #app not found');
 
 try {
-    const app = mount(App, { target });
-    // export default app;
+    // We don't need the mount return value — Svelte 5 attaches the
+    // component to `target` directly. The previous `const app = ...`
+    // tripped a no-unused-vars warning under tsc --noEmit.
+    mount(App, { target });
 } catch (e: any) {
     console.error("Mount error:", e);
     document.body.innerHTML = `<div style="color:red; padding:20px; font-family:sans-serif;">
