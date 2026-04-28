@@ -170,6 +170,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'suppression', route: '/suppression', label: 'Suppression Rules',  icon: 'EyeOff',         description: 'False-positive rules' },
       { id: 'admin',       route: '/admin',       label: 'Super Admin',        icon: 'ShieldHalf',     description: 'Tenant lifecycle' },
       { id: 'plugins',     route: '/plugins',     label: 'Integrations',       icon: 'Puzzle',         description: 'Plugin marketplace' },
+      { id: 'identity-connectors', route: '/identity-connectors', label: 'SSO Connectors', icon: 'KeyRound', description: 'OIDC + SAML federation' },
+      { id: 'dsr',         route: '/dsr',         label: 'Data Subject Requests', icon: 'Scale',       description: 'GDPR Art. 15 / 17 + CCPA' },
       { id: 'license',     route: '/license',     label: 'License',            icon: 'Award',          description: 'Feature flags' },
       { id: 'sync',        route: '/sync',        label: 'Sync',               icon: 'RefreshCw',      description: 'Cross-instance sync', context: 'desktop' },
       { id: 'ai-assistant', route: '/ai-assistant', label: 'AI Shell',         icon: 'Bot',            description: 'Ask the assistant' },

@@ -40,7 +40,7 @@
     {placeholder}
     oninput={handleInput}
     aria-label="Search"
-    class="w-full bg-surface-0 border border-border-primary rounded-sm text-text-primary font-[var(--font-ui)] outline-none transition-all duration-fast
+    class="w-full bg-surface-0 border border-border-primary rounded-sm text-text-primary font-sans outline-none transition-all duration-fast
       placeholder:text-text-muted
       focus:border-accent focus:shadow-glow
       {compact ? 'text-[11px] h-6 pl-7 pr-12' : 'text-xs h-7 pl-7 pr-14'}"

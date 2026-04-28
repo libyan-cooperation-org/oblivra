@@ -20,7 +20,7 @@
   <!-- Page header -->
   <div class="flex items-center justify-between px-6 py-4 border-b border-border-primary shrink-0">
     <div>
-      <h1 class="text-lg font-bold text-text-heading font-[var(--font-ui)]">{title}</h1>
+      <h1 class="text-[var(--fs-heading,14px)] font-bold text-text-heading font-sans">{title}</h1>
       {#if subtitle}
         <p class="text-[11px] text-text-muted font-mono mt-0.5">{subtitle}</p>
       {/if}

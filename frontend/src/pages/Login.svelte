@@ -5,11 +5,48 @@
 <script lang="ts">
   import { login } from '@lib/services/auth'; // I will create this service next
   import { toastStore } from '@lib/stores/toast.svelte';
+  import { IS_BROWSER } from '@lib/context';
 
   let email = $state('');
   let password = $state('');
   let loading = $state(false);
   let error = $state<string | null>(null);
+  let federating = $state<null | 'oidc' | 'saml'>(null);
+
+  // Federated SSO flows. Both call IdentityService to validate the
+  // operator-configured connector (returns the IdP redirect URL on
+  // success, a structured error if no connector exists). On success
+  // we navigate to the URL; on error we surface the actionable message
+  // (typically: "configure an OIDC/SAML connector first").
+  async function startSSO(kind: 'oidc' | 'saml') {
+    federating = kind;
+    error = null;
+    try {
+      if (IS_BROWSER) {
+        // Browser mode: existing REST handlers at /api/v1/auth/{kind}/login
+        // set a CSRF state cookie and 307-redirect to the configured IdP.
+        // Browser follows the redirect; the IdP eventually POSTs back to
+        // the matching /callback endpoint, which mints session tokens.
+        window.location.href = `/api/v1/auth/${kind}/login`;
+        return;
+      }
+      const svc = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/identityservice');
+      const url = kind === 'oidc'
+        ? ((await svc.GetOIDCURL()) as string)
+        : ((await svc.GetSAMLURL()) as string);
+      if (!url) throw new Error(`${kind.toUpperCase()} provider returned empty URL`);
+      window.location.href = url;
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      error = msg;
+      toastStore.add({
+        type: 'error',
+        title: `${kind.toUpperCase()} sign-in unavailable`,
+        message: msg,
+      });
+      federating = null;
+    }
+  }
 
   async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
@@ -90,11 +127,21 @@
     </form>
 
     <div class="mt-12 flex flex-col gap-4">
-      <button class="w-full border border-zinc-800 text-zinc-600 text-[10px] uppercase tracking-widest font-bold py-3 hover:border-zinc-500 hover:text-zinc-300 transition-all">
-        Single Sign-On (OIDC)
+      <button
+        type="button"
+        class="w-full border border-zinc-800 text-zinc-600 text-[10px] uppercase tracking-widest font-bold py-3 hover:border-zinc-500 hover:text-zinc-300 transition-all disabled:opacity-50"
+        onclick={() => startSSO('oidc')}
+        disabled={federating !== null}
+      >
+        {federating === 'oidc' ? 'Redirecting…' : 'Single Sign-On (OIDC)'}
       </button>
-      <button class="w-full border border-zinc-800 text-zinc-600 text-[10px] uppercase tracking-widest font-bold py-3 hover:border-zinc-500 hover:text-zinc-300 transition-all">
-        Federated Identity (SAML)
+      <button
+        type="button"
+        class="w-full border border-zinc-800 text-zinc-600 text-[10px] uppercase tracking-widest font-bold py-3 hover:border-zinc-500 hover:text-zinc-300 transition-all disabled:opacity-50"
+        onclick={() => startSSO('saml')}
+        disabled={federating !== null}
+      >
+        {federating === 'saml' ? 'Redirecting…' : 'Federated Identity (SAML)'}
       </button>
     </div>
 

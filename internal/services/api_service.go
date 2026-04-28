@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -246,16 +247,27 @@ func resolveFleetSecret(db database.DatabaseStore, log *logger.Logger) []byte {
 		return []byte(env)
 	}
 
+	// CRITICAL: NewAPIService is called early in container init — before
+	// the relational *sql.DB is necessarily open. The interface value
+	// `db` may be non-nil while `db.DB()` returns nil, which previously
+	// crashed startup. Treat nil as "DB not available yet" and skip the
+	// persisted-secret path; the operator must set OBLIVRA_FLEET_SECRET
+	// to get cross-restart agent auth, which is the documented prod path.
+	var sqlDB *sql.DB
 	if db != nil {
+		sqlDB = db.DB()
+	}
+
+	if sqlDB != nil {
 		var stored string
-		row := db.DB().QueryRow("SELECT value FROM settings WHERE key = ?", settingsKey)
+		row := sqlDB.QueryRow("SELECT value FROM settings WHERE key = ?", settingsKey)
 		if err := row.Scan(&stored); err == nil && stored != "" {
 			log.Info("[security] Fleet secret loaded from settings table (persisted)")
 			return []byte(stored)
 		}
 	}
 
-	// First-boot path: generate, persist, and return.
+	// First-boot path: generate, persist (if DB ready), and return.
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		// Should be impossible on a healthy box; log and fall back to a
@@ -264,13 +276,16 @@ func resolveFleetSecret(db database.DatabaseStore, log *logger.Logger) []byte {
 		return []byte(fmt.Sprintf("oblivra-fallback-%d", time.Now().UnixNano()))
 	}
 	secret := hex.EncodeToString(buf)
-	if db != nil {
-		if _, err := db.DB().Exec(
+	if sqlDB != nil {
+		if _, err := sqlDB.Exec(
 			`INSERT INTO settings (key, value) VALUES (?, ?)
 			 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 			settingsKey, secret); err != nil {
 			log.Warn("[security] Could not persist freshly-generated fleet secret: %v", err)
 		}
+	} else {
+		log.Warn("[security] Generated process-local fleet secret (DB not ready at boot). " +
+			"Agents will lose auth at server restart unless OBLIVRA_FLEET_SECRET is set in env.")
 	}
 	log.Warn("[security] Generated and persisted a NEW fleet secret. " +
 		"Set OBLIVRA_FLEET_SECRET on your agents to this value or rotate via the secrets page.")

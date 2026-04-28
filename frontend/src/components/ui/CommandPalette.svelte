@@ -204,7 +204,7 @@
           bind:value={query}
           onkeydown={handleKeydown}
           placeholder="Search pages, hosts, or actions..."
-          class="flex-1 bg-transparent border-none outline-none text-text-primary text-sm font-[var(--font-ui)] placeholder:text-text-muted"
+          class="flex-1 bg-transparent border-none outline-none text-text-primary text-sm font-sans placeholder:text-text-muted"
           role="searchbox"
           aria-autocomplete="list"
           aria-controls="palette-results"

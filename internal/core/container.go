@@ -323,7 +323,7 @@ func (c *Container) initSIEM(_ context.Context) error {
 	
 	c.SIEM.NDRService = services.NewNDRService(ndr.NewFlowCollector(c.Infra.Bus, c.Log), c.Infra.Bus, c.Log)
 	c.SIEM.UEBAService = services.NewUEBAService(uebapkg.NewUEBAService(database.NewHostRepository(c.Infra.DB, c.Infra.Vault), c.Infra.Bus, c.Infra.HotStore, c.Log), c.Infra.Bus, c.Log)
-	c.SIEM.ForensicsService = services.NewForensicsService(database.NewEvidenceRepository(c.Infra.DB), c.Infra.Vault, c.Infra.RBAC, c.Infra.Bus, c.Log)
+	c.SIEM.ForensicsService = services.NewForensicsService(database.NewEvidenceRepository(c.Infra.DB), c.Infra.DB, c.Infra.Vault, c.Infra.RBAC, c.Infra.Bus, c.Log)
 	c.SIEM.SourceManager = logsources.NewSourceManager(c.Log)
 	c.SIEM.LogSourceService = services.NewLogSourceService(c.SIEM.SourceManager, c.Infra.AnalyticsEngine, c.Infra.Bus, c.Security.ShellSanitizer, c.Log)
 	c.SIEM.AgentService = services.NewAgentService(c.SIEM.IngestService.AgentServer(), c.Infra.RBAC, c.Log)

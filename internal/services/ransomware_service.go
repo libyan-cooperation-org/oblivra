@@ -84,21 +84,30 @@ func (s *RansomwareService) ListIsolations() []IsolationRecordDTO {
 }
 
 // IsolateHost manually triggers network isolation for a host (analyst action).
-func (s *RansomwareService) IsolateHost(hostID, reason string) error {
+// `parentCtx` carries the operator's request context (Wails injects it as
+// the first arg automatically); we still cap with a 30s deadline for the
+// actual isolator call so a network hang doesn't pin the request goroutine.
+func (s *RansomwareService) IsolateHost(parentCtx context.Context, hostID, reason string) error {
 	if s.isolator == nil {
 		return fmt.Errorf("isolator not available")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 	return s.isolator.IsolateHost(ctx, hostID, reason, 0, false)
 }
 
 // RestoreHost removes isolation rules from a host (analyst action after validation).
-func (s *RansomwareService) RestoreHost(hostID string) error {
+func (s *RansomwareService) RestoreHost(parentCtx context.Context, hostID string) error {
 	if s.isolator == nil {
 		return fmt.Errorf("isolator not available")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 	return s.isolator.RestoreHost(ctx, hostID)
 }

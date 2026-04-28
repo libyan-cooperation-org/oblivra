@@ -67,7 +67,7 @@
       <tr class="border-b border-border-primary bg-surface-1">
         {#each columns as col}
           <th
-            class="font-[var(--font-mono)] text-[10px] font-bold uppercase tracking-wider text-text-muted text-left whitespace-nowrap select-none
+            class="font-mono text-[var(--fs-micro,10px)] font-bold uppercase tracking-wider text-text-muted text-left whitespace-nowrap select-none
               {compact ? 'px-2.5 py-1.5' : 'px-3 py-2'}
               {col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}
               {col.sortable !== false ? 'cursor-pointer hover:text-text-secondary hover:bg-surface-2 transition-colors duration-fast focus:outline-hidden focus:bg-surface-2' : ''}"
@@ -95,7 +95,7 @@
         <tr>
           <td
             colspan={columns.length}
-            class="text-center text-text-muted text-xs py-8 font-[var(--font-ui)]"
+            class="text-center text-text-muted text-xs py-8 font-sans"
           >
             {emptyMessage}
           </td>
@@ -114,7 +114,7 @@
           >
             {#each columns as col}
               <td
-                class="text-text-primary text-xs font-[var(--font-ui)]
+                class="text-text-primary text-xs font-sans
                   {compact ? 'px-2.5 py-1' : 'px-3 py-2'}
                   {col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}"
               >

@@ -27,8 +27,65 @@ class AlertStore {
   alerts = $state<Alert[]>([]);
   isLoading = $state(false);
 
+  /**
+   * Operator-side suppression — IDs the operator hit `x` on. Clears
+   * the alert from the queue immediately so the operator can move on,
+   * with a 5-second undo window via toast. Persisted to localStorage
+   * so a page reload doesn't undo the suppression.
+   *
+   * Distinct from server-side SuppressionRules (which match on
+   * pattern). This is a per-id mute that doesn't affect future alerts.
+   * Pattern-based rules require backend wiring (Phase 33).
+   */
+  suppressedIds = $state<Set<string>>(new Set());
+
   constructor() {
     this.init();
+    this.hydrateSuppressions();
+  }
+
+  private hydrateSuppressions() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('oblivra:suppressedAlertIds');
+      if (raw) {
+        const arr = JSON.parse(raw) as string[];
+        this.suppressedIds = new Set(arr);
+      }
+    } catch { /* private mode */ }
+  }
+
+  private persistSuppressions() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(
+        'oblivra:suppressedAlertIds',
+        JSON.stringify(Array.from(this.suppressedIds)),
+      );
+    } catch { /* quota / private mode */ }
+  }
+
+  /** Suppress an alert by id. Idempotent. */
+  suppressAlert(id: string) {
+    if (this.suppressedIds.has(id)) return;
+    const next = new Set(this.suppressedIds);
+    next.add(id);
+    this.suppressedIds = next;
+    this.persistSuppressions();
+  }
+
+  /** Restore an alert (used by the toast Undo button). */
+  unsuppressAlert(id: string) {
+    if (!this.suppressedIds.has(id)) return;
+    const next = new Set(this.suppressedIds);
+    next.delete(id);
+    this.suppressedIds = next;
+    this.persistSuppressions();
+  }
+
+  /** True if the alert was suppressed via the operator's `x` action. */
+  isSuppressed(id: string): boolean {
+    return this.suppressedIds.has(id);
   }
 
   async init() {

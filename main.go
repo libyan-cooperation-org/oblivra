@@ -39,7 +39,69 @@ func main() {
 		return
 	}
 
+	if len(os.Args) >= 2 && os.Args[1] == "bootcheck" {
+		bootcheckCmd(os.Args[2:])
+		return
+	}
+
 	runGUI()
+}
+
+// bootcheckCmd runs the same container Init + service Start sequence as
+// the GUI binary, then exits 0 if no panic / no Start() error fired.
+// Designed to be the canonical CI smoke-test command — catches the class
+// of regression where a service's Start() panics on nil dependencies
+// (e.g. db.DB() == nil at boot time, observed 2026-04-28).
+//
+// Usage: oblivrashell bootcheck [--timeout=15s]
+func bootcheckCmd(args []string) {
+	fs := flag.NewFlagSet("bootcheck", flag.ExitOnError)
+	timeout := fs.Duration("timeout", 15*time.Second, "Max time to wait for services to start")
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "[bootcheck] flag parse: %v\n", err)
+		os.Exit(2)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+
+	// Same construction path as runGUI — but no Wails window, no UI loop.
+	// We just exercise app.New() (which calls container.Init()) and then
+	// run Startup() to fire every Service.Start(). Any nil-deref or
+	// returned error from a service's Start surfaces here.
+	done := make(chan struct{})
+	var bootErr error
+	go func() {
+		defer close(done)
+		defer func() {
+			if rec := recover(); rec != nil {
+				bootErr = fmt.Errorf("panic during boot: %v", rec)
+			}
+		}()
+		oblivraApp := app.New()
+		oblivraApp.Startup(ctx)
+		// Brief settle window for late-init goroutines (NATS, BadgerDB
+		// compaction, agent registry hydration, etc.). If they panic
+		// inside this window, the deferred recover catches it.
+		select {
+		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+		}
+		oblivraApp.Shutdown(context.Background())
+	}()
+
+	select {
+	case <-done:
+		if bootErr != nil {
+			fmt.Fprintf(os.Stderr, "[bootcheck] FAILED: %v\n", bootErr)
+			os.Exit(1)
+		}
+		fmt.Println("[bootcheck] OK — container Init + service Start completed without panic")
+		os.Exit(0)
+	case <-ctx.Done():
+		fmt.Fprintf(os.Stderr, "[bootcheck] FAILED: timeout after %v — services hung during start\n", *timeout)
+		os.Exit(1)
+	}
 }
 
 

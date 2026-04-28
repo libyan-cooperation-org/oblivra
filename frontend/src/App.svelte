@@ -13,6 +13,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import InvestigationPanel from '@components/layout/InvestigationPanel.svelte';
   import { navigationStore } from '@lib/stores/navigation.svelte';
   import TopBar from '@components/layout/TitleBar.svelte';
+  import PivotCrumb from '@components/layout/PivotCrumb.svelte';
+  import CrisisDecisionPanel from '@components/layout/CrisisDecisionPanel.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
   import NotificationDrawer from '@components/layout/NotificationDrawer.svelte';
@@ -99,6 +101,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import MultiTenantAdmin from '@pages/MultiTenantAdmin.svelte';
   import KeyboardMap from '@pages/KeyboardMap.svelte';
   import DashboardStudio from '@pages/DashboardStudio.svelte';
+  import DSRConsole from '@pages/DSRConsole.svelte';
+  import IdentityConnectors from '@pages/IdentityConnectors.svelte';
+  import ProfileWizard from '@components/onboarding/ProfileWizard.svelte';
 
   // ── Types
   interface RouteDefinition {
@@ -231,6 +236,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/trust',          component: RuntimeTrust },
     { path: '/runtime-trust',  component: RuntimeTrust },
     { path: '/identity-admin', component: IdentityAdmin },
+    { path: '/identity-connectors', component: IdentityConnectors },
+    { path: '/dsr', component: DSRConsole },
     { path: '/admin',          component: MultiTenantAdmin },
     { path: '/shortcuts',      component: KeyboardMap },
     { path: '/secrets',        component: SecretManager },
@@ -305,6 +312,14 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     try {
       await initBridge();
       window.addEventListener('oblivra:auth-failure', onAuthFailure);
+
+      // UIUX_IMPROVEMENTS.md P0 #3 — only the desktop (Wails) build
+      // traps document scroll inside an inner pane. The web build needs
+      // natural document scroll for browser pull-to-refresh, middle-
+      // click drag, and Cmd+Home/End. The class scopes that behaviour.
+      if (typeof document !== 'undefined' && APP_CONTEXT !== 'browser') {
+        document.body.classList.add('app-shell');
+      }
 
       const rt = (window as any).runtime;
       if (rt && APP_CONTEXT !== 'browser') {
@@ -398,10 +413,30 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       navigationStore.init();
       siemStore.refreshStats();
 
+      // Hot-load IOC tables for inline terminal underlining (Phase 32).
+      // Refreshes every 60 s; safe in browser mode (uses REST) and
+      // desktop (still hits the embedded REST server on localhost).
+      const { threatIntelStore } = await import('@lib/stores/threatIntel.svelte');
+      threatIntelStore.start();
+
       // In pop-out mode the spawned window starts at "/?popout=1&route=X"
       // — navigate to the requested route now that the router store is up.
       if (popoutMode && popoutRoute) {
         appStore.navigate(popoutRoute);
+      } else if (appStore.profileChosen) {
+        // Operator-Profile-driven home routing (Phase 32). When the
+        // operator lands on the bare "/", redirect to whatever route
+        // their profile considers home (alerts for SOC, search for
+        // hunters, war-mode for incident commanders, admin for MSP).
+        // Skip if the URL hash already has a target — the operator
+        // intentionally deep-linked.
+        const hash = window.location.hash.replace('#', '');
+        if (!hash || hash === '/' || hash === '/dashboard') {
+          const home = appStore.profileRules.homeRoute;
+          if (home && home !== '/' && home !== '/dashboard') {
+            appStore.navigate(home);
+          }
+        }
       }
 
       ready = true;
@@ -446,8 +481,20 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       appStore.showCommandPalette = false;
     }
 
-    // ── Global Navigation (G + key)
-    if (e.key.toLowerCase() === 'g') {
+    // ── Global Navigation (G + key) — only when the profile enables
+    // vim leader keys. SOC Analyst profile keeps this off so a stray
+    // 'g' in a search box doesn't get hijacked. Threat Hunter / MSP
+    // profiles ship it on by default.
+    // We also bail when focus is in an editable element so typing 'g'
+    // into Input / textarea / xterm doesn't trigger navigation.
+    if (e.key.toLowerCase() === 'g' && appStore.profileRules.vimLeader) {
+        const target = e.target as HTMLElement | null;
+        const editable =
+          target?.tagName === 'INPUT' ||
+          target?.tagName === 'TEXTAREA' ||
+          target?.isContentEditable === true ||
+          target?.closest('.xterm') !== null;
+        if (editable) return;
         const nextKeyHandler = (ne: KeyboardEvent) => {
             const key = ne.key.toLowerCase();
             if (key === 'd') appStore.navigate('/dashboard');
@@ -455,6 +502,9 @@ import Sidebar from '@components/layout/CommandRail.svelte';
             if (key === 's') appStore.navigate('/siem');
             if (key === 'f') appStore.navigate('/fleet');
             if (key === 'v') appStore.navigate('/evidence');
+            if (key === 'h') appStore.navigate('/siem-search');  // 'h' for hunt
+            if (key === 'o') appStore.navigate('/operator');
+            if (key === 't') appStore.navigate('/timeline');
             window.removeEventListener('keydown', nextKeyHandler);
         };
         window.addEventListener('keydown', nextKeyHandler, { once: true });
@@ -510,10 +560,17 @@ import Sidebar from '@components/layout/CommandRail.svelte';
       <div class="relative flex flex-1 flex-col overflow-hidden">
         <TopBar />
 
-        <!-- Crisis Mode Banner -->
+        <!-- Pivot trail — auto-hides when the trail is empty. -->
+        <PivotCrumb />
+
+        <!-- Crisis Mode Banner — height fixed to --banner-h (28px) so
+             switching between routes that use this banner vs SystemBanner
+             vs neither doesn't shift the content area. See
+             UIUX_IMPROVEMENTS.md P0 #4. -->
         {#if crisisStore.active}
           <div
-            class="crisis-banner flex items-center justify-between px-4 py-1.5 bg-error/10 border-b border-error/40 text-[10px] font-mono shrink-0"
+            class="crisis-banner flex items-center justify-between px-4 bg-error/10 border-b border-error/40 font-mono shrink-0"
+            style="height: var(--banner-h, 28px); font-size: var(--fs-micro, 10px);"
             role="alert"
             aria-live="assertive"
           >
@@ -558,6 +615,16 @@ import Sidebar from '@components/layout/CommandRail.svelte';
            EntityLink (host/user/IP/process/...) is clicked anywhere
            in the app. Phase 31 SOC redesign. -->
       <InvestigationPanel />
+
+      <!-- First-run Operator Profile picker. Self-gates on
+           appStore.profileChosen so it disappears after one decision. -->
+      <ProfileWizard />
+
+      <!-- Crisis Mode Decision Support — slides in when crisisStore.active
+           and the active profile picks the 'banner' affordance. The
+           'fullscreen-takeover' affordance still has /war-mode for the
+           commander persona. -->
+      <CrisisDecisionPanel />
     </div>
   {:else if error}
     <ErrorScreen message={error} />
@@ -567,13 +634,28 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 </main>
 
 <style>
+  /* Crisis Mode — red-tinted surfaces. The previous version targeted
+     `--surface-1` (without the `--color-` prefix) which doesn't match
+     what app.css `@theme` defines, so the colour shift never landed.
+     UIUX_IMPROVEMENTS.md P1 #10. */
   :global(main.crisis-mode-active) {
-    --surface-1: #1f0e0e;
-    --surface-2: #2a1111;
-    --surface-3: #3a1818;
-    --bg-primary: #1a0a0a;
+    --color-bg-primary: #1a0a0a;
+    --color-surface-0: #1a0a0a;
+    --color-surface-1: #1f0e0e;
+    --color-surface-2: #2a1111;
+    --color-surface-3: #3a1818;
+    --bg: #1a0a0a;
+    --s1: #1f0e0e;
+    --s2: #2a1111;
+    --s3: #3a1818;
+    border-top: 1px solid rgba(224, 64, 64, 0.4);
   }
   :global(main.crisis-mode-active .cr-rail) {
     border-right-color: rgba(224, 64, 64, 0.25) !important;
+  }
+  /* Focus ring contrast — the global blue ring is invisible on red
+     surfaces. Switch to a soft red for crisis mode. P2 #12. */
+  :global(main.crisis-mode-active *:focus-visible) {
+    outline-color: #ffb0b0 !important;
   }
 </style>

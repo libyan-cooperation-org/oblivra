@@ -60,6 +60,7 @@
   import Pane from './Pane.svelte';
   import HostList from './HostList.svelte';
   import ShellDock from './ShellDock.svelte';
+  import ShellAlertRail from './ShellAlertRail.svelte';
   import ViewPlaceholder from './ViewPlaceholder.svelte';
   // Real Blacknode-style panels — all wired now.
   import ExecPanel from './ExecPanel.svelte';
@@ -336,24 +337,32 @@
         </div>
       </div>
 
-      <!-- Active pane tree -->
-      <div class="min-h-0 flex-1">
-        {#if activeTab}
-          {#key activeTab.id}
-            <Pane
-              node={activeTab.root}
-              activeLeafID={activeTab.activeLeafID}
-              onactivate={(leafID) => onActivateLeaf(activeTab!.id, leafID)}
-              onsplit={(leafID, dir) => onSplit(activeTab!.id, leafID, dir)}
-              onclose={(leafID) => onClose(activeTab!.id, leafID)}
-              onresize={(splitID, ratio) => onResize(activeTab!.id, splitID, ratio)}
-            />
-          {/key}
-        {:else}
-          <div class="flex h-full items-center justify-center text-sm text-[var(--tx3)]">
-            No tabs open. Click + to spawn a shell.
-          </div>
-        {/if}
+      <!-- Active pane tree + alert rail.
+           Alert rail (Phase 32) auto-scopes to the host the active
+           terminal session is connected to, and lets the operator
+           Ctrl+Click an alert to inject a comment-block + suggested
+           command into the active xterm. The bidirectional fusion is
+           the moat — see ShellAlertRail.svelte. -->
+      <div class="flex min-h-0 flex-1 overflow-hidden">
+        <div class="flex-1 min-w-0">
+          {#if activeTab}
+            {#key activeTab.id}
+              <Pane
+                node={activeTab.root}
+                activeLeafID={activeTab.activeLeafID}
+                onactivate={(leafID) => onActivateLeaf(activeTab!.id, leafID)}
+                onsplit={(leafID, dir) => onSplit(activeTab!.id, leafID, dir)}
+                onclose={(leafID) => onClose(activeTab!.id, leafID)}
+                onresize={(splitID, ratio) => onResize(activeTab!.id, splitID, ratio)}
+              />
+            {/key}
+          {:else}
+            <div class="flex h-full items-center justify-center text-sm text-[var(--tx3)]">
+              No tabs open. Click + to spawn a shell.
+            </div>
+          {/if}
+        </div>
+        <ShellAlertRail />
       </div>
 
       <ShellDock />

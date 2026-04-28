@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/kingknull/oblivrashell/internal/auth"
@@ -30,6 +31,11 @@ type ForensicsService struct {
 	bus       *eventbus.Bus
 	log       *logger.Logger
 	analyzer  *forensics.ForensicAnalyzer
+
+	// RFC 3161 TSA anchoring — daemon scheduled in Start, stopped in Stop.
+	tsaClient   *forensics.TSAClient
+	tsaStop     func()
+	dbHandle    database.DatabaseStore // for the TSA scheduler's SQL access
 }
 
 // Name returns the service name.
@@ -43,7 +49,11 @@ func (s *ForensicsService) Dependencies() []string {
 // NewForensicsService creates a new forensics service.
 // It initialises the evidence locker using a TPM-rooted signer (falls back to
 // vault-derived HMAC key when hardware TPM is unavailable).
-func NewForensicsService(store database.EvidenceStore, v vault.Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
+// dbHandle is optional — when non-nil it enables RFC 3161 TSA anchoring
+// of the evidence chain on a 24h schedule (see internal/forensics/rfc3161.go).
+// Pass nil to skip TSA scheduling (e.g. in tests, or when external
+// timestamping isn't required for compliance posture).
+func NewForensicsService(store database.EvidenceStore, dbHandle database.DatabaseStore, v vault.Provider, rbac *auth.RBACEngine, bus *eventbus.Bus, log *logger.Logger) *ForensicsService {
 	// Derive fallback HMAC key from vault; use sentinel if vault is locked
 	var fallbackKey []byte
 	if v != nil && v.IsUnlocked() {
@@ -72,6 +82,8 @@ func NewForensicsService(store database.EvidenceStore, v vault.Provider, rbac *a
 		bus:       bus,
 		log:       log.WithPrefix("forensics"),
 		analyzer:  forensics.NewForensicAnalyzer(log),
+		dbHandle:  dbHandle,
+		tsaClient: forensics.NewTSAClient(log.WithPrefix("forensics-tsa")),
 	}
 
 	// Set persistence hook
@@ -119,6 +131,27 @@ func (s *ForensicsService) Start(ctx context.Context) error {
 	s.ctx = ctx
 	s.log.Info("ForensicsService starting (waiting for vault unlock)...")
 
+	// RFC 3161 TSA anchoring of the evidence chain. The interval is
+	// 24h by default; override via OBLIVRA_TSA_INTERVAL (e.g. "6h" for
+	// hourly anchors during a high-stakes audit window). Skipped when
+	// dbHandle is nil (test mode, no relational DB available).
+	if s.dbHandle != nil && s.tsaClient != nil {
+		sqlDB := s.dbHandle.DB()
+		if sqlDB != nil {
+			interval := 24 * time.Hour
+			if v := os.Getenv("OBLIVRA_TSA_INTERVAL"); v != "" {
+				if d, err := time.ParseDuration(v); err == nil && d > 0 {
+					interval = d
+				}
+			}
+			s.tsaStop = s.tsaClient.StartScheduler(sqlDB, interval)
+			s.log.Info("[forensics] TSA anchoring scheduler started (interval=%s, target=%s)",
+				interval, s.tsaClient.URL)
+		} else {
+			s.log.Info("[forensics] TSA scheduler skipped — relational DB not yet open")
+		}
+	}
+
 	// Subscribe to vault unlock to load existing evidence
 	s.bus.Subscribe(eventbus.EventVaultUnlocked, func(e eventbus.Event) {
 		s.log.Info("Vault unlocked detected, loading evidence items...")
@@ -149,6 +182,10 @@ func (s *ForensicsService) Start(ctx context.Context) error {
 }
 
 func (s *ForensicsService) Stop(ctx context.Context) error {
+	if s.tsaStop != nil {
+		s.tsaStop()
+		s.tsaStop = nil
+	}
 	return nil
 }
 

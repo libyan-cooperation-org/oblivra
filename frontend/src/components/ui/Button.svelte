@@ -56,7 +56,7 @@
 </script>
 
 <button
-  class="inline-flex items-center justify-center font-[var(--font-mono)] border cursor-pointer
+  class="inline-flex items-center justify-center font-mono border cursor-pointer
          transition-all duration-[100ms] whitespace-nowrap select-none
          disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none
          focus-visible:ring-0

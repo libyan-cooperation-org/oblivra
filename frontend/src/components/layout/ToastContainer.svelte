@@ -24,7 +24,7 @@
 <div class="fixed top-3 right-3 z-[10000] flex flex-col gap-2 pointer-events-none">
   {#each toastStore.items as toast (toast.id)}
     <div
-      class="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-md border shadow-lg backdrop-blur-sm min-w-[300px] max-w-[420px] font-[var(--font-ui)] text-xs {typeStyles[toast.type]}"
+      class="pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-md border shadow-lg backdrop-blur-sm min-w-[300px] max-w-[420px] font-sans text-xs {typeStyles[toast.type]}"
       transition:slide={{ duration: 200 }}
     >
       <span class="text-sm shrink-0 mt-px">{typeIcons[toast.type]}</span>

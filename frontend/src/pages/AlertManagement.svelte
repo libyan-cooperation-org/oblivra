@@ -5,9 +5,11 @@
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs, EmptyState, LoadingSkeleton, EntityLink } from '@components/ui';
   import { Zap, ShieldAlert, MoreHorizontal, Search as SearchIcon, FileText } from 'lucide-svelte';
+  import QueueDigest from '@components/alerts/QueueDigest.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
   import { agentStore } from '@lib/stores/agent.svelte';
+  import { sessionContext } from '@lib/stores/sessionContext.svelte';
   import { push } from '@lib/router.svelte';
 
   /**
@@ -20,7 +22,24 @@
   function investigate(alert: any) {
     if (!alert) return;
     alertStore.investigate(alert.id);
+    // Drop a pivot crumb so the operator can jump back to this alert
+    // (with its filter context) after walking the host → process → user
+    // chain. See sessionContext.svelte.ts.
+    sessionContext.push({
+      id: `alert:${alert.id}`,
+      kind: 'alert',
+      label: (alert.title ?? alert.id).slice(0, 24),
+      route: '/alert-management',
+      params: { alert: alert.id },
+    });
     if (alert.host && alert.host !== 'unknown' && alert.host !== 'remote') {
+      sessionContext.push({
+        id: `host:${alert.host}`,
+        kind: 'host',
+        label: alert.host.slice(0, 24),
+        route: `/host/${encodeURIComponent(alert.host)}`,
+        params: { alert: alert.id },
+      });
       push(`/host/${encodeURIComponent(alert.host)}?alert=${encodeURIComponent(alert.id)}`);
     } else {
       // No host context — fall back to filtered SIEM search.
@@ -100,6 +119,45 @@
     return { pct, label, title: `${Math.round(elapsed / 60_000)}m elapsed of ${Math.round(sla / 60_000)}m SLA` };
   }
 
+  /**
+   * One-keystroke FP suppression (Phase 32, UIUX P1).
+   *
+   * Hides the alert immediately. A toast offers a 5-second Undo before
+   * the suppression is permanent (still survives page reloads via
+   * localStorage; cross-device persistence lands when SuppressionService
+   * is wired through to REST in Phase 33).
+   *
+   * If the operator suppresses a row that's currently selected, advance
+   * the selection to the next visible alert so the cursor doesn't sit
+   * on a now-hidden row.
+   */
+  function suppressAndNotify(alert: any) {
+    if (!alert) return;
+    const idx = filteredAlerts.findIndex((a) => a.id === alert.id);
+    alertStore.suppressAlert(alert.id);
+    appStore.notify(
+      `Suppressed: ${(alert.title ?? '').slice(0, 48)}`,
+      'info',
+      'Click toast to undo (5s).',
+      5_000,
+    );
+    // Cursor advance — pick the next still-visible alert.
+    const next = filteredAlerts[idx] ?? filteredAlerts[idx - 1];
+    if (next) selectedAlert = next; else selectedAlert = null;
+  }
+
+  // Global `x` key — suppress the currently-selected alert. Doesn't
+  // fire when typing into Inputs / search fields. Threat-Hunter and
+  // SOC profiles both honour this; it's a queue-management primitive.
+  function onPageKeyDown(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable) return;
+    if (e.key === 'x' && !e.metaKey && !e.ctrlKey && !e.altKey && selectedAlert) {
+      e.preventDefault();
+      suppressAndNotify(selectedAlert);
+    }
+  }
+
   // ── Real action handlers (replacing notify-only stubs).
   // isolateHost is already defined above (Phase 30.2 wiring). Only the
   // playbook + bulk handlers are net-new.
@@ -165,13 +223,20 @@
     // misleading "0%" or "100%".
     const triaged = closed + suppressed;
     const fpRate = triaged === 0 ? '—' : `${Math.round((suppressed / triaged) * 100)}%`;
+    // Replaces the old "Avg MTTR — metric pending" tile. We don't ship
+    // detection-latency / resolution-time telemetry yet (Wails RPC not
+    // exposed), so a fake number is worse than no number. Surface a
+    // real signal instead: alert volume in the last hour.
+    const lastHourMs = 60 * 60 * 1000;
+    const lastHour = all.filter((a) => {
+      const t = Date.parse(a.timestamp ?? '');
+      return Number.isFinite(t) && Date.now() - t < lastHourMs;
+    }).length;
     return {
       total,
       critical: all.filter((a) => a.severity === 'critical').length,
       unassigned: all.filter((a) => !a.action).length,
-      // MTTR needs incident-resolution timestamps the backend doesn't expose
-      // yet; surface "—" rather than fake "14.2m".
-      mttr: '—',
+      lastHour,
       fpRate,
       open: all.filter((a) => a.status === 'open').length,
       ack: all.filter((a) => a.status === 'acknowledged').length,
@@ -189,10 +254,34 @@
     { id: 'SUPPRESSED', label: 'SUPPRESSED', badge: stats.suppressed }
   ]);
 
+  // Severity ranking — used by the profile-driven noise-floor filter so
+  // we can compare ordinals instead of hard-coding string sets per floor.
+  const SEV_RANK: Record<string, number> = {
+    info: 0, low: 1, medium: 2, med: 2, high: 3, critical: 4,
+  };
+  function passesNoiseFloor(severity: string): boolean {
+    const floor = appStore.profileRules.alertNoiseFloor;
+    const r = SEV_RANK[severity?.toLowerCase()] ?? 0;
+    if (floor === 'all')           return true;
+    if (floor === 'medium+')       return r >= 2;
+    if (floor === 'high+')         return r >= 3;
+    if (floor === 'critical-only') return r >= 4;
+    return true;
+  }
+
   const filteredAlerts = $derived(alertStore.alerts.filter(a => {
+    // Operator-side suppression (`x` keystroke) hides instantly with
+    // a 5-second undo window. Distinct from server-side SuppressionRules.
+    if (alertStore.isSuppressed(a.id)) return false;
+
+    // Profile-driven noise floor — silently hides everything below the
+    // operator's configured threshold. The operator can still inspect
+    // suppressed/below-floor items by bumping the floor in Settings.
+    if (!passesNoiseFloor(a.severity)) return false;
+
     const matchesSearch = a.title.toLowerCase().includes(searchQuery.toLowerCase()) || a.host.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSeverity = selectedSeverities.includes(a.severity.toUpperCase());
-    
+
     let matchesTab = false;
     if (activeTab === 'OPEN') matchesTab = a.status === 'open';
     else if (activeTab === 'ACK') matchesTab = a.status === 'acknowledged';
@@ -221,6 +310,8 @@
   import { PopOutButton } from '@components/ui';
 </script>
 
+<svelte:window onkeydown={onPageKeyDown} />
+
 <PageLayout title="Alert Management" subtitle="Detection pipeline orchestration and logic control">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
@@ -231,6 +322,12 @@
   {/snippet}
 
   <div class="flex flex-col h-full gap-0 -m-6">
+    <!-- Carry-over digest — shows yesterday's still-open high+
+         alerts on the operator's first visit each day. Self-dismisses. -->
+    <div class="px-6 pt-4 shrink-0">
+      <QueueDigest />
+    </div>
+
     <!-- METRIC STRIP -->
     <div class="grid grid-cols-5 gap-px bg-border-primary border-b border-border-primary shrink-0">
         <div class="bg-surface-2 p-3">
@@ -249,9 +346,9 @@
             <div class="text-[9px] text-text-muted mt-1">Needs triage</div>
         </div>
         <div class="bg-surface-2 p-3">
-            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Avg MTTR</div>
-            <div class="text-xl font-mono font-bold text-text-heading">{stats.mttr}</div>
-            <div class="text-[9px] text-text-muted mt-1">metric pending</div>
+            <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">Last Hour</div>
+            <div class="text-xl font-mono font-bold {stats.lastHour > 0 ? 'text-accent' : 'text-text-heading'}">{stats.lastHour}</div>
+            <div class="text-[9px] text-text-muted mt-1">{stats.lastHour > 0 ? 'arriving now' : 'quiet window'}</div>
         </div>
         <div class="bg-surface-2 p-3">
             <div class="text-[8px] font-mono text-text-muted uppercase tracking-widest mb-1">False Positive</div>
@@ -438,8 +535,8 @@
                     <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8" onclick={() => captureEvidence(selectedAlert)}>
                         <FileText size={14} class="mr-2" /> CAPTURE EVIDENCE ⌃⇧E
                     </Button>
-                    <Button variant="cta" size="sm" class="justify-start text-[9px] h-8">
-                        <Zap size={14} class="mr-2" /> RUN PLAYBOOK PB-CRED-01
+                    <Button variant="cta" size="sm" class="justify-start text-[9px] h-8" onclick={() => runPlaybook(selectedAlert)}>
+                        <Zap size={14} class="mr-2" /> RUN PLAYBOOK
                     </Button>
                     <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8" onclick={() => pivotInSIEM(selectedAlert)}>
                         <MoreHorizontal size={14} class="mr-2" /> PIVOT IN SIEM

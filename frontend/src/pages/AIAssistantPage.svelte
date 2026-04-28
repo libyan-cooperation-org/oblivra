@@ -7,6 +7,8 @@
   import { PageLayout, Badge, Button, Modal } from '@components/ui';
   import { Bot, Terminal, Send, Sparkles, Activity, ShieldCheck, Database, Zap, Search, AlertTriangle, ShieldAlert } from 'lucide-svelte';
   import { appStore } from '@lib/stores/app.svelte';
+  import { agentStore } from '@lib/stores/agent.svelte';
+  import { alertStore } from '@lib/stores/alerts.svelte';
   import { IS_BROWSER } from '@lib/context';
 
   let query = $state('');
@@ -16,13 +18,62 @@
   let showIsolateModal = $state(false);
   let isIsolating = $state(false);
 
-  // Simulated context data for agent intelligence
-  const contextData = {
-    riskScore: 32,
-    activeHost: 'DC-01-SECURE',
-    lastEvent: 'SSH_SUCCESS_ADMIN',
-    sovereigntyLevel: 'High'
-  };
+  // Real-time context derived from the agent + alert stores. Replaces
+  // the hardcoded `DC-01-SECURE` placeholder so the Cortex panel
+  // actually reflects what's happening in the fleet (carry-over fix).
+  // Strategy:
+  //   • Active host = the most recently-active agent (by last_seen).
+  //   • Risk score  = open critical+high count, normalised against a
+  //     50-alert ceiling so a clean fleet shows ~0 and a saturated one
+  //     shows 100. Quick & defensible — full risk maths lives in the
+  //     scoring service.
+  //   • Last event  = the most recent alert title.
+  const activeHostInfo = $derived.by(() => {
+    const agents = agentStore.agents ?? [];
+    if (agents.length === 0) return { hostname: 'NO-AGENTS', status: 'offline', lastSeen: '' };
+    const sorted = [...agents].sort((a, b) =>
+      String(b.last_seen ?? '').localeCompare(String(a.last_seen ?? '')),
+    );
+    const top = sorted[0];
+    return {
+      hostname: (top.hostname || top.id || 'UNKNOWN').toUpperCase(),
+      status: top.status ?? 'unknown',
+      lastSeen: top.last_seen ?? '',
+    };
+  });
+
+  const riskScore = $derived.by(() => {
+    const open = (alertStore.alerts ?? []).filter(
+      (a) => a.status !== 'closed' && a.status !== 'resolved',
+    );
+    const weighted = open.reduce((sum, a) => {
+      const sev = String(a.severity || '').toLowerCase();
+      if (sev === 'critical') return sum + 4;
+      if (sev === 'high') return sum + 2;
+      if (sev === 'medium') return sum + 1;
+      return sum + 0;
+    }, 0);
+    // Normalise: 50 weighted points = 100% risk.
+    return Math.min(100, Math.round((weighted / 50) * 100));
+  });
+
+  const latestAlert = $derived.by(() => {
+    const sorted = [...(alertStore.alerts ?? [])].sort((a, b) =>
+      String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')),
+    );
+    if (sorted.length === 0) return null;
+    return sorted[0];
+  });
+
+  // Re-named context object — used everywhere downstream.
+  const contextData = $derived({
+    riskScore,
+    activeHost: activeHostInfo.hostname,
+    activeHostStatus: activeHostInfo.status,
+    lastEvent: latestAlert?.title ?? 'NO_RECENT_EVENTS',
+    lastEventDetectedAt: latestAlert?.timestamp ?? '',
+    sovereigntyLevel: appStore.currentTenantId ? 'Scoped' : 'High',
+  });
 
   async function loadHistory() {
     if (IS_BROWSER) {
@@ -163,27 +214,27 @@ Correlation Result: No immediate IOC chains detected. Applying secondary heurist
             <div class="space-y-2">
                <div class="flex justify-between items-end mb-1">
                   <span class="text-[10px] text-text-muted uppercase font-bold">Global Risk Score</span>
-                  <span class="text-[14px] font-mono text-accent">32%</span>
+                  <span class="text-[14px] font-mono {contextData.riskScore >= 60 ? 'text-error' : contextData.riskScore >= 30 ? 'text-warning' : 'text-accent'}">{contextData.riskScore}%</span>
                </div>
                <div class="h-1 bg-surface-3 rounded-full overflow-hidden">
-                  <div class="h-full bg-accent w-[32%] shadow-glow"></div>
+                  <div class="h-full shadow-glow transition-all duration-300 {contextData.riskScore >= 60 ? 'bg-error' : contextData.riskScore >= 30 ? 'bg-warning' : 'bg-accent'}" style="width: {contextData.riskScore}%"></div>
                </div>
             </div>
 
             <div class="grid grid-cols-1 gap-3">
                <div class="p-3 bg-surface-2/50 border border-border-subtle rounded text-[11px]">
                   <div class="text-text-muted text-[9px] uppercase font-bold mb-1 flex items-center gap-1.5">
-                     <ShieldCheck size={10} class="text-success" /> Active Asset
+                     <ShieldCheck size={10} class={contextData.activeHostStatus === 'online' ? 'text-success' : 'text-warning'} /> Active Asset
                   </div>
                   <div class="text-text-primary font-mono">{contextData.activeHost}</div>
-                  <div class="text-[9px] text-text-muted mt-1">Status: CALIBRATED (Phase 4)</div>
+                  <div class="text-[9px] text-text-muted mt-1">Status: {String(contextData.activeHostStatus).toUpperCase()}</div>
                </div>
                <div class="p-3 bg-surface-2/50 border border-border-subtle rounded text-[11px]">
                   <div class="text-text-muted text-[9px] uppercase font-bold mb-1 flex items-center gap-1.5">
-                     <AlertTriangle size={10} class="text-warning" /> Critical Alert
+                     <AlertTriangle size={10} class="text-warning" /> Latest Alert
                   </div>
-                  <div class="text-text-primary font-mono truncate">UNUSUAL_ADMIN_LOGIN</div>
-                  <div class="text-[9px] text-text-muted mt-1">Detected: 14m ago</div>
+                  <div class="text-text-primary font-mono truncate">{contextData.lastEvent}</div>
+                  <div class="text-[9px] text-text-muted mt-1">{contextData.lastEventDetectedAt ? `Detected: ${contextData.lastEventDetectedAt.slice(0, 19)}` : 'No alerts'}</div>
                </div>
             </div>
 

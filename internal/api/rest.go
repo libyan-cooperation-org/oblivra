@@ -323,6 +323,9 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// SIEM endpoints
 	mux.HandleFunc("/api/v1/siem/search", s.handleSIEMSearch)
 	mux.HandleFunc("/api/v1/alerts", s.handleAlertsList)
+	// Next-Best-Action recommender (Phase 32) — returns the
+	// pre-highlighted action the triage drawer should show.
+	mux.HandleFunc("/api/v1/alerts/recommend", s.handleAlertRecommend)
 
 	// Authentication endpoints
 	mux.HandleFunc("/api/v1/auth/login", s.handleLogin)
@@ -334,6 +337,12 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/auth/saml/login", s.handleSAMLLogin)
 	mux.HandleFunc("/api/v1/auth/saml/callback", s.handleSAMLCallback)
 	mux.HandleFunc("/api/v1/auth/saml/metadata", s.handleSAMLMetadata)
+
+	// Identity connector CRUD (admin-only) — browser-mode mirror of
+	// the Wails-bound IdentityService methods. Desktop frontend calls
+	// IdentityService directly; web frontend uses these REST endpoints.
+	mux.HandleFunc("/api/v1/identity/connectors", s.handleConnectorsCollection)
+	mux.HandleFunc("/api/v1/identity/connectors/", s.handleConnectorByID)
 
 	// Identity endpoints
 	mux.HandleFunc("/api/v1/identities", s.handleIdentitiesList)
@@ -442,6 +451,11 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// Graph endpoints (Phase 9)
 	mux.HandleFunc("/api/v1/graph/subgraph", s.handleGraphSubgraph)
 	mux.HandleFunc("/api/v1/graph/metrics", s.handleGraphMetrics)
+	mux.HandleFunc("/api/v1/graph/full", s.handleGraphFull)
+
+	// Sovereignty score (Phase 32) — single-number deployment posture
+	// for the chrome badge + executive dash tile.
+	mux.HandleFunc("/api/v1/sovereignty/score", s.handleSovereigntyScore)
 
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.stubHandler(s.handleUsers))
@@ -461,10 +475,10 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/scim/v2/Users/", s.stubHandler(s.handleSCIMUserByID))
 	mux.HandleFunc("/api/scim/v2/Groups", s.stubHandler(s.handleSCIMGroups))
 	
-	// Identity Connectors — Phase 20.7
-	mux.HandleFunc("/api/v1/identity/connectors", s.handleIdentityConnectors)
-	mux.HandleFunc("/api/v1/identity/connectors/", s.handleIdentityConnectorByID)
-	
+	// (Identity Connectors are registered earlier — see line ~341. The
+	// Phase 20.7 stubs were superseded by the admin-gated, audit-logged
+	// handlers in rest_connectors.go and removed to avoid pattern conflict.)
+
 	// Report Factory — Phase 20.10
 	mux.HandleFunc("/api/v1/reports/templates", s.handleReportTemplates)
 	mux.HandleFunc("/api/v1/reports/generated", s.handleGeneratedReports)
@@ -525,6 +539,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 			strings.HasPrefix(path, "/api/v1/auth/refresh") ||
 			strings.HasPrefix(path, "/api/v1/agent/register") ||
 			strings.HasPrefix(path, "/api/v1/agent/ingest") ||
+			path == "/api/v1/sovereignty/score" ||
 			path == "/healthz" || path == "/readyz" {
 			mux.ServeHTTP(w, r)
 			return
@@ -2721,6 +2736,25 @@ func (s *RESTServer) handleGraphMetrics(w http.ResponseWriter, r *http.Request) 
 		"node_count":       stats.NodeCount,
 		"edge_count":       stats.EdgeCount,
 		"rich_edge_count":  stats.RichEdgeCount,
+	})
+}
+
+// handleGraphFull returns the entire security-graph snapshot. The
+// payload powers the Topology page; for very large graphs the operator
+// is expected to paginate / use the subgraph endpoint instead.
+func (s *RESTServer) handleGraphFull(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.graphEngine == nil {
+		http.Error(w, "Graph engine not initialized", http.StatusNotImplemented)
+		return
+	}
+	nodes, edges := s.graphEngine.GetAll()
+	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"nodes": nodes,
+		"edges": edges,
 	})
 }
 

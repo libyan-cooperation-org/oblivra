@@ -19,6 +19,101 @@ import type {
     SystemHealth,
 } from '../types';
 
+// ── Operator Profile types (Phase 32) ─────────────────────────────
+//
+// A profile is a bundled rule-set. Picking a profile flips ~9 settings
+// at once instead of forcing the operator to tune each individually.
+// See docs/ux/operator-profiles.md for the design rationale.
+
+export type OperatorProfileId =
+    | 'soc-analyst'
+    | 'threat-hunter'
+    | 'incident-commander'
+    | 'msp-admin'
+    | 'custom';
+
+export interface OperatorProfileRules {
+    /** Where pressing Home / clicking the OBLIVRA wordmark takes you. */
+    homeRoute: string;
+    /** UI density. */
+    defaultDensity: 'comfortable' | 'compact';
+    /** Which metric the dashboards prioritise visually. */
+    primaryMetric: 'mttr' | 'fp-rate' | 'evidence-latency' | 'hunt-yield';
+    /** Single-screen vs war-room (multi-monitor) bias. */
+    layoutMode: 'single' | 'war-room';
+    /** When true, ⌘K palette is pre-focused on app idle so typing
+     *  immediately starts a search. */
+    paletteFront: boolean;
+    /** Vim-style g+letter navigation leader keys. */
+    vimLeader: boolean;
+    /** How prominent the active-tenant indicator is. */
+    tenantChrome: 'breadcrumb' | 'badge' | 'switcher-bar';
+    /** Crisis Mode behaviour. */
+    crisisAffordance: 'banner' | 'fullscreen-takeover';
+    /** Default alert-list filter floor. Profile cannot prevent the user
+     *  from temporarily showing more — it's a default, not a wall. */
+    alertNoiseFloor: 'critical-only' | 'high+' | 'medium+' | 'all';
+}
+
+/**
+ * Shipped presets. Treat as immutable — selecting one COPIES it into
+ * `profileRules`, then the operator can fork via 'custom'.
+ */
+export const PROFILE_PRESETS: Record<Exclude<OperatorProfileId, 'custom'>, OperatorProfileRules> = {
+    'soc-analyst': {
+        homeRoute: '/alert-management',
+        defaultDensity: 'comfortable',
+        primaryMetric: 'mttr',
+        layoutMode: 'single',
+        paletteFront: false,
+        vimLeader: false,
+        tenantChrome: 'breadcrumb',
+        crisisAffordance: 'banner',
+        alertNoiseFloor: 'medium+',
+    },
+    'threat-hunter': {
+        homeRoute: '/siem-search',
+        defaultDensity: 'compact',
+        primaryMetric: 'hunt-yield',
+        layoutMode: 'single',
+        paletteFront: true,
+        vimLeader: true,
+        tenantChrome: 'breadcrumb',
+        crisisAffordance: 'banner',
+        alertNoiseFloor: 'all',
+    },
+    'incident-commander': {
+        homeRoute: '/war-mode',
+        defaultDensity: 'comfortable',
+        primaryMetric: 'mttr',
+        layoutMode: 'war-room',
+        paletteFront: false,
+        vimLeader: false,
+        tenantChrome: 'badge',
+        crisisAffordance: 'fullscreen-takeover',
+        alertNoiseFloor: 'critical-only',
+    },
+    'msp-admin': {
+        homeRoute: '/admin',
+        defaultDensity: 'compact',
+        primaryMetric: 'fp-rate',
+        layoutMode: 'single',
+        paletteFront: true,
+        vimLeader: true,
+        tenantChrome: 'switcher-bar',
+        crisisAffordance: 'banner',
+        alertNoiseFloor: 'high+',
+    },
+};
+
+export const PROFILE_LABELS: Record<OperatorProfileId, { name: string; subtitle: string }> = {
+    'soc-analyst':        { name: 'SOC Analyst',        subtitle: 'Alert queue · triage · MTTR · single screen' },
+    'threat-hunter':      { name: 'Threat Hunter',      subtitle: 'Search-first · palette · vim leader · all alerts' },
+    'incident-commander': { name: 'Incident Commander', subtitle: 'War-room · multi-monitor · crisis-led · critical-only' },
+    'msp-admin':          { name: 'MSP / Platform Admin', subtitle: 'Multi-tenant · fast switcher · FP-rate · compact' },
+    'custom':             { name: 'Custom',             subtitle: 'Per-rule overrides' },
+};
+
 class AppStore {
     // ── State ────────────────────────────────────────────────────────
     hosts = $state<Host[]>([]);
@@ -60,6 +155,31 @@ class AppStore {
     // initializer (those run pre-window-ready in some bundler configs).
     useGroupedNav = $state<boolean>(true);
 
+    // ── Density toggle (Phase 31, UIUX_IMPROVEMENTS.md P0 #2) ────
+    // 'comfortable' is the new default — 12px body, 10px micro labels.
+    // 'compact' is the legacy SOC-dense layout — 11px body, 9px micro.
+    // Drives `body[data-density=…]` which scopes the `--fs-*` ramp in
+    // app.css. Persisted to localStorage so the choice sticks.
+    density = $state<'comfortable' | 'compact'>('comfortable');
+
+    // ── Operator Profile (Phase 32) ──────────────────────────────
+    // Bundled rule-set that drives home route, default chrome, alert
+    // noise floor, palette front-door behaviour, vim leader, tenant
+    // chrome, and crisis affordance. The whole UI re-aligns when the
+    // profile changes. See docs/ux/operator-profiles.md.
+    //
+    // Profiles:
+    //   • soc-analyst        — Maya: alert queue, MTTR, 2-click parity
+    //   • threat-hunter      — Daniel: search-first, palette-front, vim
+    //   • incident-commander — Rita: war-room, full-screen crisis
+    //   • msp-admin          — multi-tenant operator, fast switcher
+    //   • custom             — user-edited overrides
+    profile = $state<OperatorProfileId>('soc-analyst');
+    profileRules = $state<OperatorProfileRules>(PROFILE_PRESETS['soc-analyst']);
+    /** Set true once the user has explicitly chosen a profile (or
+     *  dismissed the wizard). Drives the first-run modal. */
+    profileChosen = $state<boolean>(false);
+
     private _initialized = false;
 
     async init() {
@@ -68,6 +188,16 @@ class AppStore {
 
         // Hydrate the layout-chrome preference now that `window` is ready.
         this.useGroupedNav = this._loadGroupedNavPref();
+
+        // Hydrate density preference + push to <body> immediately so the
+        // first paint uses the correct ramp.
+        this.density = this._loadDensityPref();
+        this._applyDensityToDom();
+
+        // Hydrate Operator Profile. If unset, profileChosen stays false
+        // and the first-run wizard fires from App.svelte.
+        this._loadProfile();
+        this._applyProfileToDom();
 
         // Hydrate tenant scope. Falls back to null ("all tenants") if
         // no preference is stored.
@@ -239,6 +369,120 @@ class AppStore {
         } catch {
             return true;
         }
+    }
+
+    /** Switch density between comfortable (12/10) and compact (11/9). */
+    setDensity(d: 'comfortable' | 'compact') {
+        this.density = d;
+        try {
+            localStorage.setItem('oblivra:density', d);
+        } catch { /* private mode */ }
+        this._applyDensityToDom();
+    }
+
+    toggleDensity() {
+        this.setDensity(this.density === 'comfortable' ? 'compact' : 'comfortable');
+    }
+
+    private _loadDensityPref(): 'comfortable' | 'compact' {
+        if (typeof localStorage === 'undefined') return 'comfortable';
+        try {
+            const v = localStorage.getItem('oblivra:density');
+            return v === 'compact' ? 'compact' : 'comfortable';
+        } catch {
+            return 'comfortable';
+        }
+    }
+
+    private _applyDensityToDom() {
+        if (typeof document === 'undefined') return;
+        document.body.setAttribute('data-density', this.density);
+    }
+
+    /**
+     * Apply a shipped preset profile. Copies the rule-set into local
+     * state, persists to localStorage, and updates body data-* hooks.
+     * Also adjusts density to match the profile's preferred default.
+     */
+    setProfile(id: OperatorProfileId) {
+        this.profile = id;
+        if (id !== 'custom') {
+            this.profileRules = { ...PROFILE_PRESETS[id] };
+            // Snap density to the profile's default — operator can still
+            // override afterwards via Settings.
+            this.setDensity(this.profileRules.defaultDensity);
+        }
+        this.profileChosen = true;
+        this._persistProfile();
+        this._applyProfileToDom();
+    }
+
+    /**
+     * Override a single rule (auto-promotes the profile to 'custom' so
+     * the user's tweak isn't overwritten by the next preset reload).
+     */
+    setProfileRule<K extends keyof OperatorProfileRules>(key: K, value: OperatorProfileRules[K]) {
+        this.profileRules = { ...this.profileRules, [key]: value };
+        if (this.profile !== 'custom') {
+            this.profile = 'custom';
+        }
+        if (key === 'defaultDensity') {
+            this.setDensity(value as 'comfortable' | 'compact');
+        }
+        this.profileChosen = true;
+        this._persistProfile();
+        this._applyProfileToDom();
+    }
+
+    /** Hide the first-run wizard without picking a profile. */
+    dismissProfileWizard() {
+        this.profileChosen = true;
+        this._persistProfile();
+    }
+
+    private _loadProfile() {
+        if (typeof localStorage === 'undefined') return;
+        try {
+            const id = localStorage.getItem('oblivra:profile') as OperatorProfileId | null;
+            const rulesRaw = localStorage.getItem('oblivra:profileRules');
+            const chosen = localStorage.getItem('oblivra:profileChosen') === '1';
+            if (id && (id in PROFILE_PRESETS || id === 'custom')) {
+                this.profile = id;
+            }
+            if (rulesRaw) {
+                try {
+                    const parsed = JSON.parse(rulesRaw) as Partial<OperatorProfileRules>;
+                    // Merge over the current preset so a missing key gets
+                    // a sensible default after a schema bump.
+                    this.profileRules = { ...this.profileRules, ...parsed };
+                } catch { /* corrupt — fall through to preset */ }
+            } else if (id && id !== 'custom') {
+                this.profileRules = { ...PROFILE_PRESETS[id] };
+            }
+            this.profileChosen = chosen;
+        } catch { /* private mode */ }
+    }
+
+    private _persistProfile() {
+        if (typeof localStorage === 'undefined') return;
+        try {
+            localStorage.setItem('oblivra:profile', this.profile);
+            localStorage.setItem('oblivra:profileRules', JSON.stringify(this.profileRules));
+            localStorage.setItem('oblivra:profileChosen', this.profileChosen ? '1' : '0');
+        } catch { /* private mode */ }
+    }
+
+    /**
+     * Push profile rules to the DOM as data attributes so CSS / global
+     * keybinding handlers can react without importing the store.
+     */
+    private _applyProfileToDom() {
+        if (typeof document === 'undefined') return;
+        document.body.setAttribute('data-profile', this.profile);
+        document.body.setAttribute('data-layout-mode', this.profileRules.layoutMode);
+        document.body.setAttribute('data-tenant-chrome', this.profileRules.tenantChrome);
+        document.body.setAttribute('data-crisis-affordance', this.profileRules.crisisAffordance);
+        document.body.setAttribute('data-noise-floor', this.profileRules.alertNoiseFloor);
     }
 
     /**

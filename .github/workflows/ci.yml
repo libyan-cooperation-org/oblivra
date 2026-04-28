@@ -201,6 +201,33 @@ jobs:
       - name: Run smoke test
         run: bash frontend/scripts/smoke-test.sh
 
+  # ── Boot regression: full container Init + Service Start dry-run ─────
+  # Catches the class of bug where a Service.Start() panics on nil
+  # dependencies (observed 2026-04-28 with db.DB() returning nil at the
+  # api-service start time). The desktop binary's `bootcheck` subcommand
+  # exercises the same path as the GUI but exits 0 on clean init.
+  bootcheck:
+    name: Desktop boot regression test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend (required for embed)
+        run: cd frontend && npm ci --no-audit --no-fund && npm run build
+      - name: Build desktop binary (with bootcheck subcommand)
+        run: go build -o /tmp/oblivrashell .
+      - name: Run bootcheck
+        # 30s timeout; CI Linux runners are slower than dev boxes.
+        run: /tmp/oblivrashell bootcheck --timeout=30s
+
   # ── Runtime smoke: start server, hit /healthz and /readyz ─────────────
   # The frontend bundle smoke catches build regressions; this catches
   # *runtime* regressions (e.g. a service Start() that panics on first

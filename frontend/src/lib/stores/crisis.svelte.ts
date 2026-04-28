@@ -9,8 +9,14 @@
  *
  * When active, the App shell applies `.crisis-mode` to <main>.
  * UI components can read crisisStore.active to simplify their layout.
+ *
+ * Phase 32: arming also auto-lifts the alert noise floor to
+ * 'critical-only' so the commander isn't drowning in medium-severity
+ * chatter while the building's on fire. The pre-arm floor is saved
+ * and restored on stand-down.
  */
 import { subscribe } from '../bridge';
+import { appStore } from './app.svelte';
 
 // Thresholds
 const SPIKE_WINDOW_MS   = 60_000;  // 1-minute rolling window
@@ -25,6 +31,10 @@ class CrisisStore {
   // Rolling window: timestamps of recent critical alerts
   private _spikeBucket: number[] = [];
   private _initialized = false;
+
+  // Saved pre-arm noise floor — restored on stand-down so the
+  // operator's profile preference isn't permanently overwritten.
+  private _preArmNoiseFloor: 'critical-only' | 'high+' | 'medium+' | 'all' | null = null;
 
   init() {
     if (this._initialized) return;
@@ -68,6 +78,18 @@ class CrisisStore {
     this.reason  = reason;
     this.armedAt = new Date().toISOString();
     console.warn('[OBLIVRA] Crisis Mode ARMED:', reason);
+
+    // Auto-lift the noise floor so the commander only sees critical
+    // signals while running the incident. Saved here so stand-down
+    // can put it back exactly where the operator had it.
+    try {
+      this._preArmNoiseFloor = appStore.profileRules.alertNoiseFloor;
+      if (this._preArmNoiseFloor !== 'critical-only') {
+        appStore.setProfileRule('alertNoiseFloor', 'critical-only');
+      }
+    } catch (e) {
+      console.warn('[crisis] noise-floor lift failed:', e);
+    }
   }
 
   standDown() {
@@ -75,6 +97,15 @@ class CrisisStore {
     this.reason  = null;
     this.armedAt = null;
     this._spikeBucket = [];
+
+    // Restore the operator's pre-arm noise floor so their profile
+    // preference isn't permanently overwritten by an incident.
+    if (this._preArmNoiseFloor) {
+      try {
+        appStore.setProfileRule('alertNoiseFloor', this._preArmNoiseFloor);
+      } catch { /* store may be torn down */ }
+      this._preArmNoiseFloor = null;
+    }
   }
 }
 

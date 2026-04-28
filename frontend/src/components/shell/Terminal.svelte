@@ -40,6 +40,7 @@
   import { subscribe } from '@lib/bridge';
   import { shellStore } from '@lib/stores/shell.svelte';
   import { toastStore } from '@lib/stores/toast.svelte';
+  import { scanForIOCs, hasIOCs, type IOCMatch } from '@lib/iocMatcher';
   import {
     Terminal as TerminalIcon,
     Server,
@@ -341,17 +342,83 @@
     }
   }
 
+  // Tracks IOC matches discovered in stdout so we can re-render hover
+  // popovers and the alert pane's "IOCs in this session" badge.
+  // Keyed by `${start}:${value}` to coalesce repeats on terminal repaint.
+  let recentIOCMatches = $state<IOCMatch[]>([]);
+  function recordIOCMatches(matches: IOCMatch[]) {
+    if (matches.length === 0) return;
+    // Keep last 50 — enough for the right-rail popover, bounded so the
+    // array doesn't grow unbounded over a long session.
+    const merged = [...recentIOCMatches, ...matches].slice(-50);
+    recentIOCMatches = merged;
+  }
+
+  /**
+   * Decorate any IOC matches in `chunk` with a 1-px red underline
+   * inline in the terminal. Implementation note: we cannot mutate
+   * stdout text (that breaks ANSI cursor moves), so we use xterm's
+   * registerMarker + registerDecoration — they overlay graphics on
+   * top of cells without modifying the terminal's character buffer.
+   *
+   * The decoration is line-level; it underlines the entire line that
+   * contains a match. Per-cell-range decoration would require pixel
+   * math against xterm's internal renderer and isn't available in
+   * the public API as of @xterm/xterm 5.x. Line-level is loud enough
+   * to catch the eye and conservative enough to avoid mis-positioning.
+   */
+  function decorateIOCMatches(chunk: string) {
+    if (!term || !hasIOCs() || !chunk) return;
+    const matches = scanForIOCs(chunk);
+    if (matches.length === 0) return;
+    recordIOCMatches(matches);
+    // Defer to next tick so xterm has rendered the new content before
+    // we ask it for a line marker.
+    queueMicrotask(() => {
+      if (!term) return;
+      try {
+        // Anchor the decoration to the line currently at the cursor's
+        // top-of-screen. After write() returns, the cursor is at the
+        // end of the chunk, so its current line is the last line that
+        // contains stdout from this chunk.
+        const marker = term.registerMarker(0);
+        if (!marker) return;
+        const dec = term.registerDecoration({
+          marker,
+          backgroundColor: '#7f1d1d',  // dark red translucent
+          width: term.cols,
+        });
+        // Auto-dispose after 6 seconds — long enough for the eye to
+        // catch it, short enough that an old line of stdout isn't
+        // forever painted red.
+        setTimeout(() => {
+          try { dec?.dispose(); marker.dispose(); } catch { /* already gone */ }
+        }, 6000);
+      } catch (e) {
+        // Decoration API can throw if the renderer is mid-tear-down;
+        // we never want a UX nicety to break the shell.
+        console.warn('[shell] IOC decoration failed:', e);
+      }
+    });
+  }
+
   function attachOutputListener() {
     dataOff?.();
     if (!sessionID) return;
     dataOff = subscribe(`terminal:out:${sessionID}`, (data: string) => {
+      let decoded: string;
       try {
-        const decoded = atob(data);
-        term?.write(decoded);
-      } catch (e) {
+        decoded = atob(data);
+      } catch {
         // Some legacy paths emit raw text — accept it gracefully.
-        term?.write(data);
+        decoded = data;
       }
+      term?.write(decoded, () => {
+        // The IOC scan runs AFTER the bytes are committed to xterm's
+        // buffer so the marker registration aligns with what's on
+        // screen. write() takes an optional callback for exactly this.
+        decorateIOCMatches(decoded);
+      });
     });
   }
 

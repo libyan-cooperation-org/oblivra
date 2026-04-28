@@ -29,10 +29,16 @@
     delta:    Math.max(0, alertStore.alerts.length - baselineCount),
   }));
 
-  // Mean Time To Detect — proper computation needs sigma-rule trigger
-  // timestamps from the backend, which we don't have a Wails RPC for yet.
-  // Instead of fabricating "4.2s" we surface "—" honestly.
-  const mttd = '—';
+  // Last-24h alert volume — replaces the old "Mean Time To Detect" tile
+  // (which we shipped as "—" because we have no detection-latency
+  // telemetry). Surfacing a real, useful number instead of a permanent
+  // placeholder.
+  const last24h = $derived(
+    alertStore.alerts.filter((a) => {
+      const t = Date.parse(a.timestamp ?? '');
+      return Number.isFinite(t) && Date.now() - t < 24 * 60 * 60 * 1000;
+    }).length,
+  );
 
   // Try to resolve an alert via IncidentService.UpdateIncidentStatus.
   // Falls back to a notify if the alert isn't tied to an incident.
@@ -99,7 +105,7 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
       <KPI label="Total Detected" value={stats.total} trend={stats.delta > 0 ? 'up' : 'stable'} trendValue={stats.delta > 0 ? `+${stats.delta} since open` : 'no change'} />
       <KPI label="Critical Payload" value={stats.critical} variant={stats.critical > 0 ? 'critical' : 'muted'} trend={stats.critical > 0 ? 'up' : 'stable'} trendValue={stats.critical > 0 ? 'Active' : 'Quiet'} />
-      <KPI label="Mean Time to Det." value={mttd} trend="stable" trendValue="metric pending" variant="muted" />
+      <KPI label="Last 24h" value={last24h} variant={last24h > 0 ? 'accent' : 'muted'} trendPolarity="up-bad" />
       <KPI label="Pending Analysis" value={stats.open} variant={stats.open > 0 ? 'accent' : 'muted'} trend="stable" trendValue={stats.open > 0 ? 'Awaiting triage' : 'Clear'} />
     </div>
 
@@ -126,7 +132,11 @@
           {:else if col.key === 'action'}
             <div class="flex items-center gap-1 justify-end">
               <Button variant="ghost" size="sm" onclick={() => investigate(row.id, row.host)}>Investigate</Button>
-              <Button variant="ghost" size="sm" onclick={() => resolveAlert(row.id)}>Resolve</Button>
+              <Button variant="ghost" size="sm"
+                onclick={() => resolveAlert(row.id)}
+                disabled={IS_BROWSER}
+                title={IS_BROWSER ? 'Resolve requires the desktop binary (Wails-only RPC)' : 'Mark this alert resolved'}
+              >Resolve</Button>
             </div>
           {:else}
             <span class="text-[11px] text-text-secondary">{value}</span>

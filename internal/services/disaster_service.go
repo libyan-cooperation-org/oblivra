@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -110,12 +111,42 @@ func (s *DisasterService) monitorResources() {
 	}
 }
 
+// checkDiskSpace queries the data-dir's free space and triggers
+// kill-switch read-only mode when the available bytes fall below the
+// configured threshold. Real implementation uses platform-specific
+// syscalls (statfs on Unix, GetDiskFreeSpaceExW on Windows) — see
+// disaster_diskcheck_*.go.
+//
+// Threshold: default 100 MiB, override via OBLIVRA_DISK_FLOOR_MB env var
+// (set higher for SIEM deployments where ingestion catches up after a
+// brief lull, lower for embedded / single-node demos).
 func (s *DisasterService) checkDiskSpace() {
-	// Minimal stub for disk pressure monitoring
-	// In a real sovereign deployment, we'd use syscall.GetDiskFreeSpaceExW on Windows
-	// For this audit, we simulate a check.
-	s.log.Debug("Checking disk pressure...")
-	// If free space < 100MB, trigger KillSwitch to ModeReadOnly
+	floor := int64(100 * 1024 * 1024) // 100 MiB default
+	if v := os.Getenv("OBLIVRA_DISK_FLOOR_MB"); v != "" {
+		if mb, err := strconv.ParseInt(v, 10, 64); err == nil && mb > 0 {
+			floor = mb * 1024 * 1024
+		}
+	}
+
+	free, err := diskFreeBytes(s.dataDir)
+	if err != nil {
+		s.log.Debug("disk-pressure check skipped: %v", err)
+		return
+	}
+	if free <= 0 {
+		return // unreadable / uninitialized
+	}
+
+	// Already in read-only? Don't keep firing the audit-trail event.
+	if DisasterMode(s.mode.Load()) == ModeReadOnly {
+		return
+	}
+
+	if free < floor {
+		s.log.Warn("[disaster] disk pressure: %d bytes free (floor=%d) — entering read-only mode",
+			free, floor)
+		_ = s.ActivateKillSwitch(fmt.Sprintf("disk floor breached: %d bytes free", free))
+	}
 }
 
 // GetMode returns the current operational mode.

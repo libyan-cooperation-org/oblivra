@@ -28,7 +28,7 @@
 
 <div class="flex flex-col gap-1 {className}">
   {#if label}
-    <label for={id} class="text-[10px] font-bold uppercase tracking-wider text-text-muted font-[var(--font-ui)]">
+    <label for={id} class="text-[10px] font-bold uppercase tracking-wider text-text-muted font-sans">
       {label}
     </label>
   {/if}
@@ -43,7 +43,7 @@
     <input
       {id}
       bind:value
-      class="w-full bg-surface-0 border rounded-sm text-text-primary font-[var(--font-ui)] text-xs outline-none transition-all duration-fast
+      class="w-full bg-surface-0 border rounded-sm text-text-primary font-sans text-xs outline-none transition-all duration-fast
         placeholder:text-text-muted
         focus:border-accent focus:shadow-glow
         disabled:opacity-40 disabled:cursor-not-allowed
@@ -55,6 +55,6 @@
   </div>
 
   {#if error}
-    <span class="text-[10px] text-error font-[var(--font-ui)]">{error}</span>
+    <span class="text-[10px] text-error font-sans">{error}</span>
   {/if}
 </div>

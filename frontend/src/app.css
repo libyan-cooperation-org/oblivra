@@ -27,6 +27,28 @@
   --color-accent: #1878c8;
   --color-accent-hover: #5aaef0;
 
+  /* ── Phase 31 token cleanup — see UIUX_IMPROVEMENTS.md P0 #1.
+     Aliases that components were already using as if they existed. We
+     define them here so the silent fallbacks (inherited / black) get
+     replaced with the intended colour. The legacy short aliases below
+     in :root remain for ergonomic compactness; new code should prefer
+     these `--color-*` names. */
+  --color-text-1: #bfd0e0;        /* alias of --color-text-primary */
+  --color-text-2: #6a8aa8;        /* alias of --color-text-secondary */
+  --color-text-3: #3a5570;        /* alias of --color-text-muted */
+  --color-line: #1a2535;          /* alias of --color-border-primary */
+  --color-line-soft: #22304a;     /* alias of --color-border-secondary */
+  --color-primary: #1878c8;       /* alias of --color-accent */
+  --color-danger: #c02828;        /* alias of --color-error */
+  --color-critical: #ff3838;      /* alias of --color-sev-critical */
+  --color-status-online: #1aaa60;
+  --color-status-offline: #6a8aa8;
+
+  /* Decision-card / CTA palette — used by DecisionCard.svelte */
+  --color-accent-cta: #1878c8;
+  --color-accent-warning: #b86000;
+  --color-accent-danger: #c02828;
+
   /* ── Unified severity palette (Phase 30.4)
      Five-level scale that maps every source's native severity onto a
      single visual language. Used by HostDetail timeline, ActivityFeed,
@@ -58,9 +80,18 @@
   --color-border-active: #1878c8;
   --color-border-hover: #2a3d55;
 
-  /* ── Typography ── */
+  /* ── Typography ──
+     `--font-mono` / `--font-ui` keep their legacy short names for
+     existing inline `style="font-family: var(--font-mono)"` calls,
+     but we ALSO publish them as Tailwind v4's `--font-family-*` slot
+     so the `font-mono` / `font-sans` utility classes resolve to the
+     same value. Previously components used the invalid syntax
+     `font-[var(--font-mono)]` which silently fell back to inherited
+     (Plex Sans) — see UIUX_IMPROVEMENTS.md P1 #6. */
   --font-ui: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
+  --font-family-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-family-mono: "IBM Plex Mono", monospace;
 
   /* ── Shadows ── */
   --shadow-premium: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -91,22 +122,79 @@
   }
 }
 
-/* ── Global Patch v1.1 ── */
+/* ── Global Patch v1.1 — ergonomic short aliases ──
+   These are the legacy short forms used in inline styles across older
+   components (Button, Badge, KPI, AppSidebar, StatusBar). They are
+   documented as **ergonomic aliases — do not introduce new ones**. New
+   work should use the `--color-*` names defined in the @theme block
+   above. The set below is frozen — the only additions are the brighter
+   "2" variants which were already in active use throughout the app but
+   never defined (silent fallback bug surfaced in UIUX_IMPROVEMENTS.md). */
 :root {
+  /* Surfaces */
   --bg: #080a0c;
+  --s0: #080a0c;
   --s1: #0c0f12;
   --s2: #101418;
   --s3: #161c24;
+  /* Borders */
   --b1: #1a2535;
   --b2: #22304a;
   --b3: #2a3d55;
+  /* Text */
   --tx: #bfd0e0;
   --tx2: #6a8aa8;
   --tx3: #3a5570;
+  /* Accent */
   --ac: #1878c8;
-  --cr: #c02828;
+  --ac2: #5aaef0;
+  /* Severity (base) */
+  --cr: #c02828;          /* critical / error */
+  --hi: #b86000;          /* high / warn */
+  --md: #d4a040;          /* medium */
+  --ok: #1aaa60;          /* ok / success */
+  --pu: #8a60d0;          /* purple — informational secondary */
+  /* Severity (bright "2" variants — used for borders, focus rings,
+     hover glows. Were referenced ~57 times across the app but never
+     defined; previous behaviour silently fell back to inherited). */
+  --cr2: #ff3838;
+  --hi2: #e08820;
+  --md2: #f0c060;
+  --ok2: #2ed080;
+  --pu2: #a880e8;
+  /* Aliases for non-prefixed variants used by DecisionCard etc. */
+  --status-online: #1aaa60;
+  --text-muted: #3a5570;
+  --border-primary: #1a2535;
+  --accent-cta: #1878c8;
+  --accent-warning: #b86000;
+  --accent-danger: #c02828;
+  /* Fonts */
   --mn: 'IBM Plex Mono', monospace;
   --sn: 'IBM Plex Sans', sans-serif;
+
+  /* ─ Phase 31 typography ramp (UIUX_IMPROVEMENTS.md P0 #2) ─
+     Replaces the scattered `text-[8px]` / `text-[9px]` / `text-[10px]`
+     hardcodes. Comfortable mode is the new default; toggle to compact
+     by setting `body[data-density="compact"]`. */
+  --fs-micro: 10px;       /* severity chips, table cell timestamps */
+  --fs-label: 11px;       /* KPI labels, column headers */
+  --fs-body: 12px;        /* default body text */
+  --fs-heading: 14px;     /* page titles, section headers */
+
+  /* Standardised chrome heights (UIUX_IMPROVEMENTS.md P0 #4). */
+  --banner-h: 28px;
+  --titlebar-h: 32px;
+}
+
+/* Compact density: pulls the ramp back to the legacy 11/8 sizing for
+   power users who prefer maximum information density. Persisted via
+   appStore.density. */
+body[data-density="compact"] {
+  --fs-micro: 9px;
+  --fs-label: 10px;
+  --fs-body: 11px;
+  --fs-heading: 13px;
 }
 
 @layer base {
@@ -114,8 +202,16 @@
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     font-family: var(--font-ui);
-    font-size: 11px;
+    font-size: var(--fs-body);  /* 12px — see UIUX_IMPROVEMENTS.md P0 #2 */
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Desktop (Wails) shell traps scroll so the chrome sits still and
+     each pane scrolls inside its own container. The web build needs
+     natural document scroll for browser pull-to-refresh, middle-click
+     drag, Cmd+Home/End. App.svelte sets this class on body in onMount
+     only when APP_CONTEXT !== 'browser'. See UIUX_IMPROVEMENTS.md P0 #3. */
+  body.app-shell {
     overflow: hidden;
   }
 

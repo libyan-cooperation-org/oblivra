@@ -594,7 +594,15 @@ func (s *RESTServer) hydrateAgentRegistry() {
 	if s.db == nil {
 		return
 	}
-	rows, err := s.db.DB().Query(
+	// db.DB() may still be nil at REST-server start time (the relational
+	// SQLite DB opens later in container init). Skip silently if so —
+	// the live heartbeat path will repopulate as agents check in.
+	sqlDB := s.db.DB()
+	if sqlDB == nil {
+		s.log.Info("[agent] registry hydration deferred — relational DB not yet open")
+		return
+	}
+	rows, err := sqlDB.Query(
 		`SELECT id, tenant_id, hostname, remote_address, os, arch, version, status, last_seen, quarantined
 		   FROM agent_registry`)
 	if err != nil {

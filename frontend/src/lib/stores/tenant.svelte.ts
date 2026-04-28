@@ -47,6 +47,30 @@ export class MultiTenantStore {
                     activeTenants: metrics.activeTenants
                 };
             }
+        } else {
+            // Desktop mode — derive platform-level metrics from the live
+            // stores rather than calling a dedicated RPC. The agent +
+            // alert + diagnostic stores already poll the backend; we just
+            // aggregate. Closes the audit gap where desktop operators saw
+            // a perpetually-empty MultiTenantAdmin page.
+            try {
+                const [{ agentStore }, { alertStore }, { diagnosticsStore }] = await Promise.all([
+                    import('./agent.svelte'),
+                    import('./alerts.svelte'),
+                    import('./diagnostics.svelte'),
+                ]);
+                const agents = (agentStore as any).agents ?? [];
+                const alerts = (alertStore as any).alerts ?? [];
+                const eps = (diagnosticsStore as any).eps ?? 0;
+                this.platformMetrics = {
+                    totalAgents: agents.length,
+                    totalIncidents: alerts.filter((a: any) => a.status === 'open').length,
+                    platformEps: String(eps),
+                    activeTenants: 1, // Desktop deployments are single-tenant by design.
+                };
+            } catch (err) {
+                console.warn('[TenantStore] Desktop metric aggregation failed:', err);
+            }
         }
     } catch (e) {
         console.error('[TenantStore] Refresh failed:', e);

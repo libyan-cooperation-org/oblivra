@@ -24,6 +24,7 @@
   import { notificationStore } from '@lib/stores/notifications.svelte';
   import TenantSwitcher from '@components/ui/TenantSwitcher.svelte';
   import TimeRangePicker from '@components/ui/TimeRangePicker.svelte';
+  import SovereigntyBadge from '@components/layout/SovereigntyBadge.svelte';
   import { timeRangeStore } from '@lib/stores/timeRange.svelte';
 
   // Platform detection — userAgent is constant per process, so we resolve it
@@ -204,6 +205,12 @@
        a window drag through the title bar. -->
   <div class="shrink-0" style="--wails-draggable: no-drag;">
     <TenantSwitcher />
+  </div>
+
+  <!-- Sovereignty badge (Phase 32) — single-glance posture indicator.
+       Click to expand the four-pillar breakdown (on-prem · TPM · air-gap · KMS). -->
+  <div class="shrink-0" style="--wails-draggable: no-drag;">
+    <SovereigntyBadge />
   </div>
 
   <!-- Global time-range scope (Phase 31). Lives in the title bar so

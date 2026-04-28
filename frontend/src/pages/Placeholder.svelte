@@ -33,10 +33,10 @@
     <div class="w-12 h-12 rounded-lg bg-warning/10 border border-warning/30 flex items-center justify-center text-[22px]">
       ⊘
     </div>
-    <div class="font-[var(--font-ui)] text-[15px] font-bold text-text-heading">
+    <div class="font-sans text-[15px] font-bold text-text-heading">
       Not available in {contextLabel[APP_CONTEXT]} mode
     </div>
-    <div class="font-[var(--font-ui)] text-[13px] text-text-muted max-w-[480px] leading-relaxed">
+    <div class="font-sans text-[13px] text-text-muted max-w-[480px] leading-relaxed">
       {unavailableReason}
     </div>
     {#if IS_DESKTOP}
@@ -63,10 +63,10 @@
     <div class="w-12 h-12 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center text-[22px]">
       🔄
     </div>
-    <div class="font-[var(--font-ui)] text-[15px] font-bold text-text-heading">
+    <div class="font-sans text-[15px] font-bold text-text-heading">
       {pageName}
     </div>
-    <div class="font-[var(--font-ui)] text-[13px] text-text-muted max-w-[400px] leading-relaxed">
+    <div class="font-sans text-[13px] text-text-muted max-w-[400px] leading-relaxed">
       This page is being migrated to Svelte 5. The SolidJS version
       is still available on the <code class="text-accent text-[11px] font-mono">main</code> branch.
     </div>
