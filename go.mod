@@ -29,7 +29,7 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/rs/zerolog v1.34.0
 	github.com/tetratelabs/wazero v1.11.0
-	github.com/wailsapp/wails/v3 v3.0.0-alpha.74
+	github.com/wailsapp/wails/v3 v3.0.0-alpha.8.3
 	github.com/yuin/gopher-lua v1.1.1
 	go.opentelemetry.io/otel v1.24.0
 	go.opentelemetry.io/otel/trace v1.24.0
@@ -79,7 +79,6 @@ require (
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
-	github.com/coder/websocket v1.8.14 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -147,6 +146,7 @@ require (
 	github.com/skeema/knownhosts v1.3.2 // indirect
 	github.com/twpayne/go-geom v1.6.1 // indirect
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
+	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
 	go.opencensus.io v0.22.5 // indirect
