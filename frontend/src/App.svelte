@@ -16,6 +16,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import PivotCrumb from '@components/layout/PivotCrumb.svelte';
   import CrisisDecisionPanel from '@components/layout/CrisisDecisionPanel.svelte';
   import CommandPalette from '@components/ui/CommandPalette.svelte';
+  import TenantFastSwitcher from '@components/ui/TenantFastSwitcher.svelte';
   import ToastContainer from '@components/layout/ToastContainer.svelte';
   import NotificationDrawer from '@components/layout/NotificationDrawer.svelte';
   import BottomNav from '@components/layout/BottomNav.svelte';
