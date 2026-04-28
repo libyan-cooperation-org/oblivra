@@ -409,6 +409,31 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/audit/packages", s.handleAuditPackages)
 	mux.HandleFunc("/api/v1/audit/packages/generate", s.handleAuditPackageGenerate)
 
+	// GDPR / CCPA Data Subject Request workflow.
+	mux.HandleFunc("/api/v1/dsr/requests", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.handleDSRList(w, r)
+		case http.MethodPost:
+			s.handleDSRCreate(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	// `/fulfill` and `/reject` use suffix dispatch on the path; no
+	// separate endpoint constants because Go's net/http mux requires
+	// one PathFunc per literal prefix.
+	mux.HandleFunc("/api/v1/dsr/requests/", func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/fulfill"):
+			s.handleDSRFulfill(w, r)
+		case strings.HasSuffix(r.URL.Path, "/reject"):
+			s.handleDSRReject(w, r)
+		default:
+			http.Error(w, "Use /fulfill or /reject", http.StatusBadRequest)
+		}
+	})
+
 	// MCP Endpoints (Phase 22.1)
 	mux.HandleFunc("/api/v1/mcp/tools", s.handleMCPDiscovery)
 	mux.HandleFunc("/api/v1/mcp/execute", s.handleMCPExecute)
@@ -528,6 +553,21 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 // Start spawns the HTTP listener in the background
 func (s *RESTServer) Start() {
 	s.log.Info("[REST] Starting headless API server on port %d", s.port)
+
+	// SEC-AUDIT — production-mode CORS sanity check. Loud warning if
+	// OBLIVRA_DEBUG=true is set on a host that looks like production
+	// (TLS enabled, non-127.0.0.1 listener), because that flag widens
+	// the CORS allowlist to include http://localhost:3000 + :5173 which
+	// makes the deployment vulnerable to DNS-rebinding attacks. Operator
+	// has to explicitly opt out via OBLIVRA_ALLOW_DEBUG_IN_PROD=true to
+	// silence this warning (e.g. for a debug session in staging).
+	if os.Getenv("OBLIVRA_DEBUG") == "true" &&
+		os.Getenv("OBLIVRA_ALLOW_DEBUG_IN_PROD") != "true" &&
+		s.certManager != nil {
+		s.log.Warn("⚠ SECURITY: OBLIVRA_DEBUG=true is set on a TLS-serving host. " +
+			"This widens CORS to include localhost:3000/5173 — vulnerable to DNS rebinding. " +
+			"Unset OBLIVRA_DEBUG, or set OBLIVRA_ALLOW_DEBUG_IN_PROD=true to silence this warning.")
+	}
 
 	// Rehydrate the agent map from agent_registry so the fleet view is
 	// populated immediately on restart (rather than waiting up to a
@@ -1018,6 +1058,9 @@ func (s *RESTServer) handleIngestReplay(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// 16 KB cap on replay request body — payload is just `{"wal_path":...}`.
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+
 	var req struct {
 		WALPath string `json:"wal_path"`
 	}
@@ -1356,6 +1399,9 @@ func (s *RESTServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 4 KB is plenty for login credentials; defends against
+	// unbounded-body OOM probes against the auth endpoint.
+	r.Body = http.MaxBytesReader(w, r.Body, 4*1024)
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -1944,6 +1990,7 @@ func (s *RESTServer) handleEscalationPolicies(w http.ResponseWriter, r *http.Req
 			http.Error(w, "Admin only", http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 		var p notifications.EscalationPolicy
 		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 			http.Error(w, "Invalid body", http.StatusBadRequest)
@@ -2016,6 +2063,7 @@ func (s *RESTServer) handleEscalationAck(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 	var req notifications.AckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid body", http.StatusBadRequest)
@@ -2493,6 +2541,7 @@ func (s *RESTServer) handleAuditPackageGenerate(w http.ResponseWriter, r *http.R
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 	var req struct {
 		Framework string `json:"framework"`
 		From      string `json:"from"`
@@ -2610,6 +2659,7 @@ func (s *RESTServer) handleMCPApprove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
 	var req struct {
 		ApprovalID string `json:"approval_id"`
 		ActorID    string `json:"actor_id"`

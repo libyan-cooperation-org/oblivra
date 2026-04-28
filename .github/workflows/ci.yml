@@ -200,3 +200,85 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Run smoke test
         run: bash frontend/scripts/smoke-test.sh
+
+  # ── Runtime smoke: start server, hit /healthz and /readyz ─────────────
+  # The frontend bundle smoke catches build regressions; this catches
+  # *runtime* regressions (e.g. a service Start() that panics on first
+  # boot, a migration that silently fails, a port-binding collision).
+  # A 30-second smoke is fast and catches a class of bug build-only
+  # checks miss every time.
+  runtime-smoke:
+    name: Runtime smoke (server boot + /healthz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build server
+        run: go build -o /tmp/oblivra-server ./cmd/server
+      - name: Start server in background
+        run: |
+          /tmp/oblivra-server --port 18443 --data-dir /tmp/oblivra-data &
+          echo $! > /tmp/oblivra-server.pid
+          # Give services up to 20s to reach Ready (DB migration, vault
+          # init, cert-manager, alerting subscriber, etc.).
+          for i in $(seq 1 20); do
+            sleep 1
+            if curl -sSf http://127.0.0.1:18443/healthz >/dev/null 2>&1; then
+              echo "[runtime-smoke] healthz green after ${i}s"
+              exit 0
+            fi
+          done
+          echo "[runtime-smoke] /healthz never returned 200"
+          kill $(cat /tmp/oblivra-server.pid) 2>/dev/null || true
+          exit 1
+      - name: Probe /readyz
+        run: |
+          curl -sSf http://127.0.0.1:18443/readyz | head -c 200
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/oblivra-server.pid ]; then
+            kill $(cat /tmp/oblivra-server.pid) 2>/dev/null || true
+          fi
+
+  # ── No-fake-metrics regression ────────────────────────────────────────
+  # Catches the operator-deception class of bug we keep seeing: hardcoded
+  # demo numbers like "4.2s MTTD", "99.9999% SLA", "EVD-044", "08:12" SLA
+  # countdowns, or "97/72" risk scores. If any of these tokens reappear
+  # in the wired pages directory, fail the build — they should ONLY ever
+  # come from real backend data.
+  no-fake-metrics:
+    name: No-fake-metrics regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Search for known demo-data fingerprints
+        run: |
+          # Each pattern is a fingerprint of a previous regression. New
+          # additions are welcome — they prevent the same lie from
+          # shipping twice.
+          BAD_PATTERNS=(
+            "EVD-044"
+            "HOST-FIN-044"
+            "99.9999% SLA"
+            "4.2s'"
+            "08:12"
+            "'97' : '72'"
+            "'8.4'"
+            "'2.1'"
+          )
+          FAIL=0
+          for pat in "${BAD_PATTERNS[@]}"; do
+            if grep -RIn --include="*.svelte" --include="*.ts" "$pat" frontend/src/pages/ frontend/src/components/ 2>/dev/null; then
+              echo "::error::Fake-metric fingerprint found: $pat"
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" = "1" ]; then
+            echo "::error::no-fake-metrics regression — see hits above"
+            exit 1
+          fi
+          echo "[no-fake-metrics] clean"

@@ -735,6 +735,56 @@ var migrations = []migration{
 			CREATE INDEX IF NOT EXISTS idx_login_lockouts_until ON login_lockouts(locked_until);
 		`,
 	},
+	{
+		// GDPR Art. 15 / 17 + CCPA §1798.105 / §1798.110 data-subject
+		// request workflow. Operator-facing access + deletion requests
+		// land here; the wipe primitive (DisasterService) executes the
+		// state change. This table is the audit trail.
+		version: 31,
+		name:    "create_dsr_requests",
+		sql: `
+			CREATE TABLE IF NOT EXISTS dsr_requests (
+				id TEXT PRIMARY KEY,
+				tenant_id TEXT NOT NULL,
+				subject_id TEXT NOT NULL,
+				request_type TEXT NOT NULL CHECK (request_type IN ('access', 'deletion')),
+				reason TEXT,
+				requester TEXT,
+				verification TEXT,
+				status TEXT NOT NULL DEFAULT 'pending'
+				  CHECK (status IN ('pending', 'fulfilled', 'rejected')),
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				resolved_at DATETIME,
+				resolved_by TEXT,
+				resolution_notes TEXT
+			);
+			CREATE INDEX IF NOT EXISTS idx_dsr_tenant_status ON dsr_requests(tenant_id, status);
+			CREATE INDEX IF NOT EXISTS idx_dsr_subject ON dsr_requests(subject_id);
+		`,
+	},
+	{
+		// RFC 3161 — external timestamping for the evidence chain. Each
+		// row records one timestamp anchor returned by a Time Stamp
+		// Authority. The chain hash at that anchor is sealed against
+		// the TSA's signing certificate, giving the audit trail
+		// non-repudiable proof that "the evidence chain held this
+		// state at this UTC time" — closes the WORM-storage audit gap
+		// for non-privileged-attacker threat models.
+		version: 32,
+		name:    "create_evidence_timestamps",
+		sql: `
+			CREATE TABLE IF NOT EXISTS evidence_timestamps (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				chain_hash TEXT NOT NULL,
+				chain_height INTEGER NOT NULL,
+				tsa_url TEXT NOT NULL,
+				tsa_token BLOB NOT NULL,
+				obtained_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				verified_at DATETIME
+			);
+			CREATE INDEX IF NOT EXISTS idx_evidence_ts_height ON evidence_timestamps(chain_height);
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

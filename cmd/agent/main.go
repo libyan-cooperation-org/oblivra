@@ -77,6 +77,16 @@ func main() {
 	l.Info("  FIM:           %v  Syslog: %v  Metrics: %v  EventLog: %v",
 		*enableFIM, *enableSyslog, *enableMetrics, *enableEventLog)
 
+	// SEC-AUDIT — loud warning when --insecure is set. Operators copying
+	// from a quickstart guide can leave this on in production by accident,
+	// which disables certificate verification on every agent → server
+	// request and exposes the fleet to MITM attacks.
+	if *insecure {
+		l.Warn("⚠ SECURITY: --insecure is set — TLS certificate verification DISABLED. " +
+			"DEV ONLY. DO NOT USE IN PRODUCTION. " +
+			"Provide --tls-ca pointing at the server's root CA instead.")
+	}
+
 	// ── Config ────────────────────────────────────────────────────────────────
 	cfg := agent.Config{
 		TenantID:       *tenantID,

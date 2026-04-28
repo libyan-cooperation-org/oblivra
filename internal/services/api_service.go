@@ -84,10 +84,11 @@ func (b *agentProviderBridge) GetFleet() []api.AgentInfo {
 // APIService manages the standalone REST API server lifecycle.
 type APIService struct {
 	BaseService
-	server *api.RESTServer
-	bus    *eventbus.Bus
-	log    *logger.Logger
-	ctx    context.Context
+	server    *api.RESTServer
+	bus       *eventbus.Bus
+	auditRepo *database.AuditRepository
+	log       *logger.Logger
+	ctx       context.Context
 }
 
 func (s *APIService) Name() string { return "api-service" }
@@ -159,9 +160,10 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, compliance, agentBridge, fleetSecret, vault, lm, attest, am, identity, platformSvc, forensics, fusion, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
-		server: server,
-		bus:    bus,
-		log:    log,
+		server:    server,
+		bus:       bus,
+		auditRepo: audit,
+		log:       log,
 	}
 }
 
@@ -185,6 +187,35 @@ func (s *APIService) Start(ctx context.Context) error {
 		defer cancel()
 		s.server.Stop(ctx)
 	})
+
+	// SEC-AUDIT — every destructive bus event lands in audit_log.
+	// Destructive events have prefixes "disaster:" / "ransomware:" /
+	// "tenant:deleted" / "agent:quarantined" — they all end up sealed in
+	// the audit trail with `event_type = "destructive_action"` so a
+	// single SQL query (`SELECT … WHERE event_type = 'destructive_action'`)
+	// returns the operator timeline of high-risk actions.
+	for _, et := range []string{
+		"disaster:killswitch",
+		"disaster:nuclear",
+		"disaster:airgap",
+		"tenant:deleted",
+		"agent:quarantined",
+		"agent:released",
+		"ransomware:host_isolated",
+		"licensing:bypass_attempt",
+	} {
+		evType := et
+		s.bus.Subscribe(eventbus.EventType(evType), func(event eventbus.Event) {
+			details, _ := event.Data.(map[string]interface{})
+			if details == nil {
+				details = map[string]interface{}{}
+			}
+			details["bus_event_type"] = evType
+			if err := s.auditRepo.Log(s.ctx, "destructive_action", "", "", details); err != nil {
+				s.log.Warn("[audit] failed to record %s: %v", evType, err)
+			}
+		})
+	}
 	return nil
 }
 
