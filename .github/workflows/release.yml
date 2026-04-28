@@ -51,7 +51,7 @@ jobs:
             binary: oblivrashell-darwin-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0   # required for version stamping via git describe
 
@@ -104,7 +104,7 @@ jobs:
     needs: build
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v5
         with:
@@ -138,7 +138,7 @@ jobs:
     needs: [build, sbom]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all binaries
         uses: actions/download-artifact@v4
@@ -195,7 +195,7 @@ jobs:
     needs: sign
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
