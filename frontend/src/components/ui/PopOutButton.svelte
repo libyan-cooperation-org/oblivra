@@ -11,9 +11,11 @@
   import { IS_BROWSER } from '@lib/context';
   import { toastStore } from '@lib/stores/toast.svelte';
   import { t } from '@lib/i18n';
+  import { getCurrentPath } from '@lib/router.svelte';
 
   interface Props {
-    /** Route to pop out, e.g. "/siem-search". Defaults to current pathname. */
+    /** Route to pop out, e.g. "/siem-search". Defaults to the current
+     *  view (the route the operator is looking at when they click). */
     route?: string;
     /** Window title; defaults to "OBLIVRA <route>". */
     title?: string;
@@ -23,11 +25,25 @@
 
   let { route, title, class: cls = '' }: Props = $props();
 
+  // Resolve the route to pop out.
+  //
+  // Bug fix: previously fell back to `window.location.pathname`, but the
+  // app uses HASH routing (`#/siem-search`) — pathname is always `/`, so
+  // every pop-out spawned the dashboard regardless of which view the
+  // operator was looking at. We now read the hash via `getCurrentPath()`
+  // (the same helper the router uses) so the pop-out shows the CURRENT
+  // view, which is what the toolbar button promises.
+  function resolveRoute(): string {
+    if (route) return route;
+    const path = getCurrentPath(); // strips leading '#'
+    return path && path !== '' ? path : '/';
+  }
+
   async function popOut() {
     if (IS_BROWSER) {
       // Web mode: open a same-origin tab with ?popout=1 so the spawned tab
       // hides the sidebar. Browsers handle window placement via the OS.
-      const target = `${window.location.origin}/?popout=1&route=${encodeURIComponent(route ?? window.location.pathname)}`;
+      const target = `${window.location.origin}/?popout=1&route=${encodeURIComponent(resolveRoute())}`;
       window.open(target, '_blank', 'noopener,noreferrer');
       return;
     }
@@ -61,7 +77,7 @@
     }
 
     try {
-      const r = route ?? window.location.pathname;
+      const r = resolveRoute();
       const winTitle = title ?? '';
       await mod.PopOut(r, winTitle);
     } catch (err) {

@@ -165,8 +165,29 @@
     }
   });
 
+  // Pop-out detection — same signal App.svelte uses to hide the sidebar.
+  // The query string is stamped on the URL when WindowService.PopOut spawns
+  // the window, so it's stable for the life of the pop-out. We resolve once
+  // at script-load and treat it as immutable.
+  const isPopout =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('popout') === '1'
+      : false;
+
   async function windowClose() {
-    const { Application } = await import('@wailsio/runtime');
+    // Bug fix: previously called Application.Quit() unconditionally, which
+    // terminates the entire Go process. From a pop-out window that meant
+    // hitting the X on a monitor-2 SIEM panel killed the SOC's main
+    // window, every other pop-out, and tore down all of ingest with it.
+    //
+    // Now we close JUST the active window when we're inside a pop-out.
+    // The main window keeps `Application.Quit()` because closing the
+    // root window is the user's "I'm done with OBLIVRA" gesture.
+    const { Application, Window } = await import('@wailsio/runtime');
+    if (isPopout) {
+      Window.Close();
+      return;
+    }
     Application.Quit();
   }
   async function windowMinimize() {
