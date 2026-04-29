@@ -581,7 +581,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/ransomware/events", s.stubHandler(s.handleRansomwareEvents))
 	mux.HandleFunc("/api/v1/ransomware/hosts", s.stubHandler(s.handleRansomwareHosts))
 	mux.HandleFunc("/api/v1/ransomware/stats", s.stubHandler(s.handleRansomwareStats))
-	mux.HandleFunc("/api/v1/ransomware/isolate", s.stubHandler(s.handleRansomwareIsolate))
+	// Phase 36: /api/v1/ransomware/isolate removed (response action).
+	// Detection-side ransomware events/hosts/stats endpoints stay.
 
 	// Playbook endpoints (Phase 8)
 	mux.HandleFunc("/api/v1/playbooks", s.stubHandler(s.handlePlaybooks))

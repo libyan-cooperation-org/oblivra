@@ -35,17 +35,17 @@ type App struct {
 	SnippetService         *services.SnippetService
 	BroadcastService       *services.BroadcastService
 	MultiExecService       *services.MultiExecService
-	PluginService          *services.PluginService
+	// PluginService removed in Phase 36.
 	SecurityService        *services.SecurityService
 	ComplianceService      *services.ComplianceService
 	TeamService            *services.TeamService
 	SIEMService            *services.SIEMService
 	LocalService           *services.LocalService
-	AIService              *services.AIService
+	// AIService removed in Phase 36 (broad scope cut).
 	TelemetryService       *services.TelemetryService
 	IdentityService        *services.IdentityService
 	TransferManager        *services.TransferManager
-	NetworkIsolatorService *services.NetworkIsolatorService
+	// NetworkIsolatorService removed in Phase 36.
 	RotationService        *services.RotationService
 	SuppressionService     *services.SuppressionService
 
@@ -67,8 +67,7 @@ type App struct {
 	GovernanceService     *services.GovernanceService
 	ForensicsService      *services.ForensicsService
 	PolicyService         *services.PolicyService
-	IncidentService       *services.IncidentService
-	PlaybookService       *services.PlaybookService
+	// Phase 36: IncidentService + PlaybookService removed.
 	SimulationService     *simulation.SimulationService
 	ObservabilityService  *services.ObservabilityService
 	UEBAService           *services.UEBAService
@@ -85,7 +84,7 @@ type App struct {
 	CounterfactualService *services.CounterfactualService
 	LedgerService         *services.LedgerService
 	MemorySecurity        *services.MemorySecurityService
-	DeterministicResponse *services.DeterministicResponseService
+	// DeterministicResponse removed in Phase 36.
 	SyntheticService      *services.SyntheticService
 	TailingService        *services.TailingService
 	AnalyticsService      *services.AnalyticsService
@@ -226,11 +225,9 @@ func (a *App) wireServices() {
 
 	// Cluster: Response
 	r := a.container.Response
-	a.IncidentService = r.IncidentService
-	a.PlaybookService = r.PlaybookService
-	a.NetworkIsolatorService = r.NetworkIsolatorService
+	// Phase 36: IncidentService, PlaybookService, NetworkIsolatorService,
+	// DeterministicResponse all removed.
 	a.SimulationService = r.SimulationService
-	a.DeterministicResponse = r.DeterministicResponse
 	a.LedgerService = r.LedgerService
 
 	// Cluster: Platform
@@ -241,8 +238,7 @@ func (a *App) wireServices() {
 	a.TunnelService = plt.TunnelService
 	a.HealthService = plt.HealthService
 	a.MetricsService = plt.MetricsService
-	a.PluginService = plt.PluginService
-	a.AIService = plt.AIService
+	// Phase 36: PluginService + AIService removed.
 	a.LocalService = plt.LocalService
 	a.SyntheticService = plt.SyntheticService
 	a.BroadcastService = plt.BroadcastService

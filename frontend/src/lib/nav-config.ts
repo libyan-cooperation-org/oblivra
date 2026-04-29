@@ -147,9 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Cases',
         subtitle: 'Incident workspace',
         items: [
-          { id: 'cases',              route: '/cases',              label: 'Incidents / Cases',   icon: 'FolderOpen',      description: 'Multi-alert case management' },
           { id: 'investigation',      route: '/investigation',      label: 'Investigation',       icon: 'SearchCheck',     description: 'Drill-down workspace' },
-          { id: 'timeline',           route: '/timeline',           label: 'Timeline',            icon: 'Clock4',          description: 'Cross-source incident timeline' },
           { id: 'entity',             route: '/entity',             label: 'Entity View',         icon: 'Network',         description: 'Per-entity drill-down' },
         ],
       },
@@ -187,9 +185,6 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Automate',
         subtitle: 'Run playbooks, contain, simulate',
         items: [
-          { id: 'response',           route: '/response',           label: 'SOAR / Response',     icon: 'Zap',             description: 'Run playbooks' },
-          { id: 'playbook-builder',   route: '/playbook-builder',   label: 'Playbook Builder',    icon: 'Workflow',        description: 'Author SOAR playbooks' },
-          { id: 'ransomware',         route: '/ransomware',         label: 'Ransomware Defense',  icon: 'ShieldAlert',     description: 'Live ransomware shield' },
           { id: 'simulation',         route: '/simulation',         label: 'Simulation',          icon: 'FlaskConical',    description: 'Attack-path replay' },
           { id: 'data-destruction',   route: '/data-destruction',   label: 'Data Destruction',    icon: 'Trash2',          description: 'DoD-compliant wipe', context: 'desktop' },
         ],
@@ -198,7 +193,6 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Forensics',
         subtitle: 'Evidence acquisition',
         items: [
-          { id: 'forensics',          route: '/forensics',          label: 'Forensics',           icon: 'Microscope',      description: 'Evidence acquisition', context: 'desktop' },
           { id: 'terminal-forensics', route: '/terminal-forensics', label: 'Terminal Forensics',  icon: 'TerminalSquare',  description: 'Per-session forensic tooling', context: 'desktop' },
         ],
       },
@@ -317,7 +311,6 @@ export const NAV_GROUPS: NavGroup[] = [
         subtitle: 'Configuration and lifecycle',
         items: [
           { id: 'settings',           route: '/settings',           label: 'Settings',            icon: 'Settings',        description: 'App preferences + Operator Profile' },
-          { id: 'plugins',            route: '/plugins',            label: 'Integrations',        icon: 'Puzzle',          description: 'Plugin marketplace' },
           { id: 'connectors',         route: '/connectors',         label: 'Connectors (I/O)',    icon: 'Cable',           description: 'Inputs / outputs YAML + hot-reload' },
           { id: 'setup-wizard',       route: '/setup-wizard',       label: 'Setup Wizard',        icon: 'Wand2',           description: 'First-run + reconfigure' },
           { id: 'license',            route: '/license',            label: 'License',             icon: 'Award',           description: 'License key' },
@@ -343,7 +336,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Help & Productivity',
         subtitle: 'Assistance, reference, personal',
         items: [
-          { id: 'ai-assistant',       route: '/ai-assistant',       label: 'AI Assistant',        icon: 'Bot',             description: 'Ask the assistant' },
+          // AI Assistant removed in Phase 36 (broad scope cut — log-driven SIEM).
           { id: 'shortcuts',          route: '/shortcuts',          label: 'Keyboard Shortcuts',  icon: 'Keyboard',        description: 'Hotkey reference' },
           // Snippets + notes still ship — moved here from FLEET → Shell
           // since they're personal productivity, not shell-bound.

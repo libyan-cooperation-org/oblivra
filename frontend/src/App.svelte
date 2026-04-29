@@ -36,7 +36,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import AlertDashboard from '@pages/AlertDashboard.svelte';
   import AlertManagement from '@pages/AlertManagement.svelte';
   import OfflineUpdate from '@pages/OfflineUpdate.svelte';
-  import PlaybookBuilder from '@pages/PlaybookBuilder.svelte';
   import TasksPage from '@pages/TasksPage.svelte';
   import FeaturesPage from '@pages/FeaturesPage.svelte';
   import LicensePage from '@pages/LicensePage.svelte';
@@ -72,30 +71,22 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import NDROverview from '@pages/NDROverview.svelte';
   import EnrichmentViewer from '@pages/EnrichmentViewer.svelte';
   import AgentConsole from '@pages/AgentConsole.svelte';
-  import IncidentResponse from '@pages/IncidentResponse.svelte';
   import RuntimeTrust from '@pages/RuntimeTrust.svelte';
-  import ForensicsPage from '@pages/ForensicsPage.svelte';
-  import RansomwareUI from '@pages/RansomwareUI.svelte';
   import DataDestruction from '@pages/DataDestruction.svelte';
   import LineageExplorer from '@pages/LineageExplorer.svelte';
   import DecisionInspector from '@pages/DecisionInspector.svelte';
   import OQLDashboard from '@pages/OQLDashboard.svelte';
-  import SOARPanel from '@pages/SOARPanel.svelte';
   import EvidenceLedger from '@pages/EvidenceLedger.svelte';
   import ChainOfCustody from '@pages/ChainOfCustody.svelte';
   import FusionDashboard from '@pages/FusionDashboard.svelte';
   import Settings from '@pages/Settings.svelte';
-  import PluginManager from '@pages/PluginManager.svelte';
   import TeamDashboard from '@pages/TeamDashboard.svelte';
   import SyncPage from '@pages/SyncPage.svelte';
   import ConfigRisk from '@pages/ConfigRisk.svelte';
   import EntityView from '@pages/EntityView.svelte';
-  import AIAssistantPage from '@pages/AIAssistantPage.svelte';
   import WarMode from '@pages/WarMode.svelte';
-  import CaseManagement from '@pages/CaseManagement.svelte';
   import FleetMap from '@pages/FleetMap.svelte';
   import InvestigationDashboard from '@pages/InvestigationDashboard.svelte';
-  import IncidentTimeline from '@pages/IncidentTimeline.svelte';
   import SecretManager from '@pages/SecretManager.svelte';
   import SuppressionManager from '@pages/SuppressionManager.svelte';
   import DevelopmentPage from '@pages/DevelopmentPage.svelte';
@@ -217,22 +208,13 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/fusion',           component: FusionDashboard },
 
     // Security & Incident Response
-    { path: '/response',         component: IncidentResponse },
-    { path: '/timeline',         component: IncidentTimeline },
-    { path: '/timeline/:principalID/:principalType/:targetTime', component: IncidentTimeline },
-    { path: '/cases',            component: CaseManagement },  // was missing
     { path: '/escalation',       component: EscalationCenter },
-    { path: '/playbook-builder', component: PlaybookBuilder },
     { path: '/purple-team',      component: PurpleTeam },
     { path: '/war-mode',         component: WarMode },
     { path: '/data-destruction', component: DataDestruction },
-    { path: '/ransomware',       component: RansomwareUI },
-    { path: '/ransomware-ui',    component: RansomwareUI },
     { path: '/simulation',       component: SimulationPanel },
 
     // Forensics & Audit
-    { path: '/forensics',          component: ForensicsPage },
-    { path: '/remote-forensics',   component: ForensicsPage },
     { path: '/terminal-forensics', component: TerminalForensics },
     { path: '/lineage',            component: LineageExplorer },
     { path: '/decisions',          component: DecisionInspector },
@@ -241,7 +223,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/evidence',           component: EvidenceLedger },
     { path: '/ledger',             component: EvidenceLedger },
     { path: '/chain-of-custody',   component: ChainOfCustody },
-    { path: '/soar',               component: SOARPanel },
     { path: '/temporal-integrity', component: TemporalIntegrity },
     { path: '/response-replay',    component: ResponseReplay },
 
@@ -272,7 +253,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // Management
     { path: '/settings',       component: Settings },
-    { path: '/plugins',        component: PluginManager },
     { path: '/team',           component: TeamDashboard },
     { path: '/sync',           component: SyncPage },
     { path: '/offline-update', component: OfflineUpdate },
@@ -280,7 +260,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/features',       component: FeaturesPage },
     { path: '/risk',           component: ConfigRisk },
     { path: '/entity',         component: EntityView },
-    { path: '/ai-assistant',   component: AIAssistantPage },
     { path: '/development',    component: DevelopmentPage },
     { path: '/connectors',     component: Connectors },
     { path: '/integrity',      component: Integrity },

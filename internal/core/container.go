@@ -20,7 +20,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/graph"
 	"github.com/kingknull/oblivrashell/internal/ingest"
-	"github.com/kingknull/oblivrashell/internal/incident"
+	// Phase 36: incident package removed.
 	"github.com/kingknull/oblivrashell/internal/integrity"
 	oblio "github.com/kingknull/oblivrashell/internal/io"
 	"github.com/kingknull/oblivrashell/internal/lineage"
@@ -306,9 +306,7 @@ func (c *Container) initSecurity(_ context.Context) error {
 	c.Security.GovernanceService = services.NewGovernanceService(c.Infra.Bus, c.Log)
 	c.Security.CredentialIntel = services.NewCredentialIntelService(c.Infra.Bus, c.Log)
 
-	c.Security.CanaryService = security.NewCanaryService(c.Log, nil) // SSH wired later in initProduct
-	c.Security.CanaryService.SetBus(c.Infra.Bus)
-	c.Security.CanaryDeployment = services.NewCanaryDeploymentService(c.Security.CanaryService, nil, c.Infra.Bus, c.Log)
+	// Phase 36: CanaryService + CanaryDeployment removed (response actions).
 	c.Security.Sentinel = services.NewSentinel(c.Infra.Vault, c.Log)
 	
 	suppressionRepo := database.NewSuppressionRepository(c.Infra.DB)
@@ -430,15 +428,11 @@ func (c *Container) initIntel(_ context.Context) error {
 }
 
 func (c *Container) initResponse() error {
-	hostRepo := database.NewHostRepository(c.Infra.DB, c.Infra.Vault)
-	userRepo := database.NewUserRepository(c.Infra.DB)
-	c.Response.TriageService = incident.NewTriageService(hostRepo, userRepo, c.Log)
-
-	c.Response.IncidentService = services.NewIncidentService(c.Infra.DB, nil, nil, c.Response.TriageService, c.Infra.Bus, c.Log)
-	c.Response.PlaybookService = services.NewPlaybookService(nil)
-	c.Response.NetworkIsolatorService = services.NewNetworkIsolatorService(nil, nil, c.Infra.Bus, c.Log)
-	c.Response.RansomwareService = services.NewRansomwareService(nil, c.Infra.Bus, c.Log)
-	c.Response.DeterministicResponse = services.NewDeterministicResponseService(decision.NewDeterministicExecutor(c.Infra.Bus, c.Log), c.Log)
+	// Phase 36 broad scope cut — removed:
+	//   - IncidentService + PlaybookService + TriageService (SOAR + case mgmt)
+	//   - NetworkIsolatorService + RansomwareService (response actions)
+	//   - DeterministicResponseService (response automation)
+	// Detection-side ransomware engine + simulation + ledger stay.
 	c.Response.SimulationService = simulation.NewSimulationService(c.Infra.Bus, c.Log)
 	c.Response.LedgerService = services.NewLedgerService()
 
@@ -496,12 +490,12 @@ func (c *Container) initProduct() error {
 func (c *Container) initPlatform(ctx context.Context) error {
 	c.Platform.HealthService = services.NewHealthService(c.Log, c.Infra.Bus, c.Infra.HealthChecker, c.Registry)
 	c.Platform.MetricsService = services.NewMetricsService(c.Log, c.Infra.MetricsCollector)
-	c.Platform.AIService = services.NewAIService(c.Infra.Vault, c.Infra.Bus, c.Log)
+	// Phase 36 (broad scope cut): AIService removed.
 	c.Platform.DiscoveryService = services.NewDiscoveryService(c.Log, discovery.NewDiscoveryManager())
 	c.Platform.UpdaterService = services.NewUpdaterService(c.Log, updater.NewUpdater("", "", c.Log))
 	c.Platform.SyncService = services.NewSyncService(nil, c.Infra.Bus, c.Log)
 	c.Platform.TunnelService = services.NewTunnelService(c.Infra.Bus, c.Log)
-	c.Platform.PluginService = services.NewPluginService(c.Infra.Bus, c.Log)
+	// Phase 36: PluginService removed.
 	c.Platform.LocalService = services.NewLocalService(c.Infra.Bus, c.Log, c.Product.SessionService, nil)
 	c.Platform.LocalService.SetCommandHistory(c.Product.CommandHistory)
 	c.Platform.SyntheticService = services.NewSyntheticService(monitoring.NewSyntheticManager(c.Log), c.Log)
@@ -528,7 +522,7 @@ func (c *Container) initPlatform(ctx context.Context) error {
 		)
 	}
 
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Platform.LicensingService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.Response.NetworkIsolatorService, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Platform.LicensingService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// Phase 32: wire SuppressionService into the REST server via setter
 	// (avoids a circular import — api ← services ← api). The endpoint
@@ -662,7 +656,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Security.ReportService)
 	c.mustRegister(c.Security.PolicyService)
 	c.mustRegister(c.Security.TrustService)
-	c.mustRegister(c.Security.CanaryDeployment)
+	// Phase 36: CanaryDeployment removed.
 	c.mustRegister(c.Security.MemorySecurity)
 	c.mustRegister(c.Security.GovernanceService)
 	c.mustRegister(c.Security.CredentialIntel)
@@ -705,12 +699,12 @@ func (c *Container) registerServices() {
 	// Platform
 	c.mustRegister(c.Platform.HealthService)
 	c.mustRegister(c.Platform.MetricsService)
-	c.mustRegister(c.Platform.AIService)
+	// Phase 36: AIService removed.
 	c.mustRegister(c.Platform.DiscoveryService)
 	c.mustRegister(c.Platform.UpdaterService)
 	c.mustRegister(c.Platform.SyncService)
 	c.mustRegister(c.Platform.TunnelService)
-	c.mustRegister(c.Platform.PluginService)
+	// Phase 36: PluginService removed.
 	c.mustRegister(c.Platform.LocalService)
 	c.mustRegister(c.Platform.SyntheticService)
 	c.mustRegister(c.Platform.BroadcastService)
@@ -740,13 +734,8 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Intel.DashboardService)
 	c.mustRegister(c.Intel.AssetIntelService)
 
-	// Response
-	c.mustRegister(c.Response.IncidentService)
-	c.mustRegister(c.Response.PlaybookService)
-	c.mustRegister(c.Response.NetworkIsolatorService)
-	c.mustRegister(c.Response.DeterministicResponse)
+	// Response (Phase 36: SOAR / response-action services removed)
 	c.mustRegister(c.Response.LedgerService)
-	c.mustRegister(c.Response.RansomwareService)
 }
 
 func (c *Container) Close() {

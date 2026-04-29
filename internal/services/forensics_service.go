@@ -1,10 +1,8 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -22,15 +20,14 @@ import (
 // never be exposed to the Web layer.
 type ForensicsService struct {
 	BaseService
-	ctx       context.Context
-	locker    *forensics.EvidenceLocker
-	collector *forensics.LocalCollector
-	signer    *forensics.TPMSigner
-	store     database.EvidenceStore
-	rbac      *auth.RBACEngine
-	bus       *eventbus.Bus
-	log       *logger.Logger
-	analyzer  *forensics.ForensicAnalyzer
+	ctx    context.Context
+	locker *forensics.EvidenceLocker
+	signer *forensics.TPMSigner
+	store  database.EvidenceStore
+	rbac   *auth.RBACEngine
+	bus    *eventbus.Bus
+	log    *logger.Logger
+	// Phase 36: collector + analyzer removed (disk/memory imaging gone).
 
 	// RFC 3161 TSA anchoring — daemon scheduled in Start, stopped in Stop.
 	tsaClient   *forensics.TSAClient
@@ -116,12 +113,10 @@ func NewForensicsService(store database.EvidenceStore, dbHandle database.Databas
 	svc := &ForensicsService{
 		store:     store,
 		locker:    forensics.NewEvidenceLocker(signer, log),
-		collector: forensics.NewLocalCollector(log),
 		signer:    signer,
 		rbac:      rbac,
 		bus:       bus,
 		log:       log.WithPrefix("forensics"),
-		analyzer:  forensics.NewForensicAnalyzer(log),
 		dbHandle:  dbHandle,
 		tsaClient: forensics.NewTSAClient(log.WithPrefix("forensics-tsa")),
 	}
@@ -340,23 +335,10 @@ func (s *ForensicsService) VerifyEvidence(ctx context.Context, itemID string) (m
 	}, nil
 }
 
-// AnalyzeFile conducts a deep forensic entropy analysis.
-func (s *ForensicsService) AnalyzeFile(ctx context.Context, itemID string) (*forensics.ForensicReport, error) {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceRead); err != nil {
-		return nil, err
-	}
-	item, err := s.locker.Get(itemID)
-	if err != nil {
-		return nil, err
-	}
-
-	data := item.Data
-	if len(data) == 0 {
-		return nil, fmt.Errorf("no raw data available for analysis in item %s", itemID)
-	}
-
-	return s.analyzer.AnalyzeFile(item.Name, data)
-}
+// AnalyzeFile — Phase 36: removed (entropy/disk/memory analysis is part
+// of the disk-imaging response layer that was deleted with the broad
+// scope cut). The evidence locker still preserves chain-of-custody for
+// log-as-evidence; deep-binary analysis is no longer in scope.
 
 // GetEvidence returns a single evidence item with full chain of custody.
 func (s *ForensicsService) GetEvidence(ctx context.Context, itemID string) (*forensics.EvidenceItem, error) {
@@ -385,108 +367,14 @@ func (s *ForensicsService) IsHardwareRooted() bool {
 	return s.signer.IsHardwareRooted()
 }
 
-// AcquireDiskImage performs a raw disk acquisition and stores it in the evidence locker.
-func (s *ForensicsService) AcquireDiskImage(ctx context.Context, devicePath string, incidentID string) (map[string]interface{}, error) {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
-		return nil, err
-	}
-	s.log.Warn("[FORENSICS] 🔴 Starting disk acquisition: device=%s incident=%s", devicePath, incidentID)
-
-	// Use a longer timeout for disk IO, but preserve tenant context
-	tenantID := database.MustTenantFromContext(ctx)
-	acquireCtx, cancel := context.WithTimeout(ctx, 4*time.Hour)
-	defer cancel()
-
-	var buf bytes.Buffer
-	if err := s.collector.AcquireDisk(acquireCtx, devicePath, &buf); err != nil {
-		return nil, fmt.Errorf("disk acquisition failed: %w", err)
-	}
-
-	data := buf.Bytes()
-	hash := sha256.Sum256(data)
-	sha256Hex := hex.EncodeToString(hash[:])
-
-	item, err := s.locker.Collect(
-		incidentID,
-		forensics.EvidenceArtifact,
-		fmt.Sprintf("disk-image-%s", devicePath),
-		data,
-		"desktop-operator",
-		fmt.Sprintf("Raw disk image of %s", devicePath),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("evidence collection failed: %w", err)
-	}
-
-	if item.Metadata == nil {
-		item.Metadata = make(map[string]string)
-	}
-	item.Metadata["tenant_id"] = tenantID
-
-	s.log.Info("[FORENSICS] ✅ Disk image acquired: id=%s sha256=%s size=%d", item.ID, sha256Hex, len(data))
-	s.bus.Publish("forensics:disk_acquired", map[string]interface{}{
-		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex, "tenant_id": tenantID,
-	})
-
-	return map[string]interface{}{
-		"evidence_id":  item.ID,
-		"sha256":       sha256Hex,
-		"size_bytes":   len(data),
-		"hw_rooted":    s.IsHardwareRooted(),
-		"collected_at": item.CollectedAt,
-	}, nil
-}
-
-// AcquireMemoryDump captures the physical memory of the local machine.
-func (s *ForensicsService) AcquireMemoryDump(ctx context.Context, incidentID string) (map[string]interface{}, error) {
-	if err := s.rbac.Enforce(auth.UserFromContext(ctx), auth.PermEvidenceWrite); err != nil {
-		return nil, err
-	}
-	s.log.Warn("[FORENSICS] 🔴 Starting memory dump for incident=%s", incidentID)
-
-	tenantID := database.MustTenantFromContext(ctx)
-	acquireCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-	defer cancel()
-
-	var buf bytes.Buffer
-	if err := s.collector.AcquireMemory(acquireCtx, &buf); err != nil {
-		return nil, fmt.Errorf("memory dump failed: %w", err)
-	}
-
-	data := buf.Bytes()
-	hash := sha256.Sum256(data)
-	sha256Hex := hex.EncodeToString(hash[:])
-
-	item, err := s.locker.Collect(
-		incidentID,
-		forensics.EvidenceMemory,
-		"memory-dump",
-		data,
-		"desktop-operator",
-		"Physical memory dump",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("evidence collection failed: %w", err)
-	}
-
-	if item.Metadata == nil {
-		item.Metadata = make(map[string]string)
-	}
-	item.Metadata["tenant_id"] = tenantID
-
-	s.log.Info("[FORENSICS] ✅ Memory dump acquired: id=%s sha256=%s size=%d", item.ID, sha256Hex, len(data))
-	s.bus.Publish("forensics:memory_acquired", map[string]interface{}{
-		"id": item.ID, "incident_id": incidentID, "sha256": sha256Hex, "tenant_id": tenantID,
-	})
-
-	return map[string]interface{}{
-		"evidence_id":  item.ID,
-		"sha256":       sha256Hex,
-		"size_bytes":   len(data),
-		"hw_rooted":    s.IsHardwareRooted(),
-		"collected_at": item.CollectedAt,
-	}, nil
-}
+// Phase 36: AcquireDiskImage + AcquireMemoryDump removed. Raw disk
+// imaging and physical memory acquisition are deep-IR features that
+// went away with the broad scope cut. The evidence locker stays — it
+// preserves chain-of-custody for log-derived evidence (RFC-3161
+// timestamping, Merkle integrity, vault-keyed HMAC). Operators who
+// need disk/memory IR should use a dedicated DFIR tool (Velociraptor,
+// FTK, Volatility) and import the resulting evidence files via the
+// generic Collect API.
 
 // GetChainOfCustody returns just the chain for a specific evidence item.
 func (s *ForensicsService) GetChainOfCustody(itemID string) ([]forensics.ChainEntry, error) {

@@ -27,14 +27,14 @@ func runGUI() {
 			application.NewService(oblivraApp.SnippetService),
 			application.NewService(oblivraApp.BroadcastService),
 			application.NewService(oblivraApp.MultiExecService),
-			application.NewService(oblivraApp.PluginService),
+			// PluginService removed in Phase 36.
 			application.NewService(oblivraApp.SecurityService),
 			application.NewService(oblivraApp.ComplianceService),
 			application.NewService(oblivraApp.TeamService),
 			application.NewService(oblivraApp.SIEMService),
 			application.NewService(oblivraApp.LocalService),
 			application.NewService(oblivraApp.TelemetryService),
-			application.NewService(oblivraApp.AIService),
+			// AIService removed in Phase 36.
 			application.NewService(oblivraApp.AlertingService),
 			application.NewService(oblivraApp.HealthService),
 			application.NewService(oblivraApp.MetricsService),
@@ -52,8 +52,7 @@ func runGUI() {
 			application.NewService(oblivraApp.GovernanceService),
 			application.NewService(oblivraApp.ForensicsService),
 			application.NewService(oblivraApp.PolicyService),
-			application.NewService(oblivraApp.IncidentService),
-			application.NewService(oblivraApp.PlaybookService),
+			// Phase 36: IncidentService, PlaybookService removed.
 			application.NewService(oblivraApp.SimulationService),
 			application.NewService(oblivraApp.UEBAService),
 			application.NewService(oblivraApp.GraphService),
@@ -73,7 +72,7 @@ func runGUI() {
 			application.NewService(oblivraApp.ObservabilityService),
 			application.NewService(oblivraApp.DataLifecycleService),
 			application.NewService(oblivraApp.TransferManager),
-			application.NewService(oblivraApp.NetworkIsolatorService),
+			// Phase 36: NetworkIsolatorService removed.
 			application.NewService(oblivraApp.LedgerService),
 			application.NewService(oblivraApp.DiagnosticsService),
 			application.NewService(oblivraApp.FusionService),

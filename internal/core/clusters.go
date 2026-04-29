@@ -3,7 +3,7 @@ package core
 import (
 	"github.com/kingknull/oblivrashell/internal/services"
 	"github.com/kingknull/oblivrashell/internal/auth"
-	"github.com/kingknull/oblivrashell/internal/incident"
+	// Phase 36: incident package removed.
 	"github.com/kingknull/oblivrashell/internal/cloud"
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/attestation"
@@ -71,14 +71,14 @@ type SecurityCluster struct {
 	SecurityService    *services.SecurityService
 	IdentityService    *services.IdentityService
 	TrustService       *services.RuntimeTrustService
-	CanaryService      *security.CanaryService
+	// CanaryService removed in Phase 36 (response-action — pure detection stays in detection/ransomware_engine.go).
 	PolicyService      *services.PolicyService
 	CredentialIntel    *services.CredentialIntelService
 	GovernanceService  *services.GovernanceService
 	MemorySecurity     *services.MemorySecurityService
 	FIDO2Manager       *security.FIDO2Manager
 	AttestationService *attestation.AttestationService
-	CanaryDeployment   *services.CanaryDeploymentService
+	// CanaryDeployment removed in Phase 36.
 	Sentinel           *services.Sentinel
 	IdentitySyncService *services.IdentitySyncService
 	ReportService      *services.ReportService
@@ -125,16 +125,13 @@ type IntelCluster struct {
 	CampaignBuilder       *detection.CampaignBuilder // graph → fusion bridge
 }
 
-// ResponseCluster holds incident management and automated response logic.
+// ResponseCluster — Phase 36 broad scope cut: pruned to detection-side
+// services only. Removed: IncidentService, PlaybookService, TriageService
+// (SOAR + case mgmt), NetworkIsolatorService + RansomwareService
+// (response actions), DeterministicResponseService.
 type ResponseCluster struct {
-	IncidentService        *services.IncidentService
-	PlaybookService        *services.PlaybookService
-	NetworkIsolatorService *services.NetworkIsolatorService
-	SimulationService      *simulation.SimulationService
-	DeterministicResponse  *services.DeterministicResponseService
-	LedgerService          *services.LedgerService
-	RansomwareService      *services.RansomwareService
-	TriageService          *incident.TriageService
+	SimulationService *simulation.SimulationService
+	LedgerService     *services.LedgerService
 }
 
 // ProductCluster holds end-user logic services (SSH, Host, snippets, etc).
@@ -174,8 +171,8 @@ type PlatformCluster struct {
 	TunnelService        *services.TunnelService
 	HealthService        *services.HealthService
 	MetricsService       *services.MetricsService
-	PluginService        *services.PluginService
-	AIService            *services.AIService
+	// PluginService removed in Phase 36 (broad scope cut).
+	// AIService removed in Phase 36 (broad scope cut — log-driven SIEM only).
 	LocalService         *services.LocalService
 	BroadcastService     *services.BroadcastService
 	ObservabilityService *services.ObservabilityService

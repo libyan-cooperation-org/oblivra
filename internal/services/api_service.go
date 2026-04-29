@@ -40,18 +40,17 @@ func (w *threatIntelWrapper) MatchAny(value string) (any, bool) {
 	return w.engine.MatchAny(value)
 }
 
-// unifiedForensicEngine bridges APIService's specific providers to mcp.ForensicEngine
+// unifiedForensicEngine bridges APIService's specific providers to mcp.ForensicEngine.
+// Phase 36: NetworkIsolatorService removed — IsolateHost now calls the
+// agent's ToggleQuarantine RPC only; the SSH-based isolator fallback
+// went away with the response-action layer.
 type unifiedForensicEngine struct {
-	isolator *NetworkIsolatorService
-	agents   *AgentService
+	agents *AgentService
 }
 
 func (e *unifiedForensicEngine) IsolateHost(hostID string, reason string) error {
-	// Try Agent first, then SSH fallback
-	if err := e.agents.ToggleQuarantine(hostID, true); err == nil {
-		return nil
-	}
-	return e.isolator.IsolateHost(hostID, reason)
+	_ = reason
+	return e.agents.ToggleQuarantine(hostID, true)
 }
 
 func (e *unifiedForensicEngine) KillProcess(hostID string, pid int) error {
@@ -100,7 +99,11 @@ func (s *APIService) Dependencies() []string {
 	return []string{"settings-service"}
 }
 
-func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, compliance *ComplianceService, licensingSvc *LicensingService, vault *VaultService, settings *SettingsService, identity *IdentityService, platformSvc *PlatformService, forensics *ForensicsService, fusion *FusionService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, isolator *NetworkIsolatorService, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
+// NewAPIService — Phase 36: dropped `isolator *NetworkIsolatorService`
+// param. The previous response-action surface (host isolation) was
+// removed with the broad scope cut. Callers that used to pass
+// `c.Response.NetworkIsolatorService` now don't pass anything.
+func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, compliance *ComplianceService, licensingSvc *LicensingService, vault *VaultService, settings *SettingsService, identity *IdentityService, platformSvc *PlatformService, forensics *ForensicsService, fusion *FusionService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -140,7 +143,7 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	
 	// MCP Initialization (Phase 22.1)
 	mcpRegistry := mcp.NewToolRegistry()
-	forensicEngine := &unifiedForensicEngine{isolator: isolator, agents: agentService}
+	forensicEngine := &unifiedForensicEngine{agents: agentService}
 	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 

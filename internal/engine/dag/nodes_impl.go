@@ -9,7 +9,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/analytics"
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/detection"
-	"github.com/kingknull/oblivrashell/internal/engine/wasm"
+	// Phase 36: WASM plugin runtime removed (broad scope cut).
 	"github.com/kingknull/oblivrashell/internal/eventbus"
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
@@ -92,39 +92,10 @@ func (n *AnalyticsNode) Process(ctx context.Context, evt *Event) ([]*Event, erro
 	return nil, nil // Leaf node
 }
 
-// WASMFilterNode executes sandboxed plugins.
-type WASMFilterNode struct {
-	BaseNode
-	wasm *wasm.PluginManager
-	log  *logger.Logger
-}
-
-func NewWASMFilterNode(wm *wasm.PluginManager, log *logger.Logger) *WASMFilterNode {
-	return &WASMFilterNode{
-		BaseNode: BaseNode{nodeName: "WASM_Filter"},
-		wasm:     wm,
-		log:      log,
-	}
-}
-
-func (n *WASMFilterNode) Process(ctx context.Context, evt *Event) ([]*Event, error) {
-	if n.wasm == nil {
-		return []*Event{evt}, nil
-	}
-
-	dropped := false
-	wasmCtx := wasm.WithEvent(ctx, evt.RawLine, &dropped)
-
-	if err := n.wasm.ExecuteAll(wasmCtx); err != nil {
-		n.log.Error("[DAG] WASM plugin execution error: %v", err)
-	}
-
-	if dropped {
-		return nil, nil // Event filtered out
-	}
-
-	return []*Event{evt}, nil
-}
+// Phase 36: WASMFilterNode removed (broad scope cut — operator-supplied
+// plugin filters were a niche extensibility point that doubled the
+// attack surface; standard pre-detection enrichment + Sigma rules are
+// the canonical filter path now).
 
 // DetectionNode handles real-time security rule evaluation.
 type DetectionNode struct {

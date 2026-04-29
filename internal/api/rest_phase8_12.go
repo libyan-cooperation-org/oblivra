@@ -497,51 +497,9 @@ func (s *RESTServer) handleRansomwareStats(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// POST /api/v1/ransomware/isolate
-func (s *RESTServer) handleRansomwareIsolate(w http.ResponseWriter, r *http.Request) {
-	if !s.checkFeature(w, licensing.FeatureRansomware) {
-		return
-	}
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	var req struct {
-		HostID string `json:"host_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
-		return
-	}
-	if req.HostID == "" {
-		http.Error(w, "host_id required", http.StatusBadRequest)
-		return
-	}
-
-	s.agentsMu.Lock()
-	if a, ok := s.agents[req.HostID]; ok {
-		a.Status = "isolated"
-	}
-	s.agentsMu.Unlock()
-
-	if s.bus != nil {
-		s.bus.Publish("ransomware:host_isolated", map[string]interface{}{
-			"host_id":     req.HostID,
-			"isolated_at": time.Now().Format(time.RFC3339),
-		})
-	}
-
-	// Audit-log every isolation. Destructive actions must be sealed
-	// in audit_logs even if the source was Crisis Decision Panel
-	// (Phase 32 — close the audit gap on crisis-mode actions).
-	s.appendAuditEntry(connectorActor(r), "ransomware.isolate", req.HostID,
-		"Host network-isolated via REST", r)
-
-	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"status":      "isolated",
-		"host_id":     req.HostID,
-		"isolated_at": time.Now().Format(time.RFC3339),
-	})
+// Phase 36: handleRansomwareIsolate removed (response-action endpoint).
+func (s *RESTServer) handleRansomwareIsolate_REMOVED_PHASE_36(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "ransomware/isolate removed in Phase 36 (broad scope cut). Use detection-side ransomware events instead.", http.StatusGone)
 }
 
 // ── User/Role handlers (Phase 12) ────────────────────────────────────────────

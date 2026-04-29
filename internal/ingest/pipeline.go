@@ -24,7 +24,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/monitoring"
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/engine/dag"
-	"github.com/kingknull/oblivrashell/internal/engine/wasm"
+	// Phase 36: WASM plugin runtime removed (broad scope cut).
 	"github.com/kingknull/oblivrashell/internal/integrity"
 	"github.com/kingknull/oblivrashell/internal/messaging"
 	"go.opentelemetry.io/otel"
@@ -101,7 +101,6 @@ type Pipeline struct {
 	wg          sync.WaitGroup
 	metrics     Metrics
 	once        sync.Once
-	wasm        *wasm.PluginManager
 	dag         *dag.Engine
 	nats        *messaging.NATSService
 	diagnostics DiagnosticsUpdater // optional; set after container init
@@ -174,12 +173,7 @@ evaluator:        evaluator,
 p.lastProcessed.Store(time.Now().Unix())
 p.metrics.BufferCapacity = bufferSize
 
-wasmPM, err := wasm.NewPluginManager(ctx)
-if err != nil {
-log.Error("[INGEST] Failed to initialize WASM engine: %v", err)
-} else {
-p.wasm = wasmPM
-}
+// Phase 36: WASM plugin runtime removed (broad scope cut).
 p.dag = p.buildProductionDAG()
 return p
 }
@@ -216,59 +210,73 @@ func (p *Pipeline) SetNATSService(s *messaging.NATSService) {
 }
 
 func (p *Pipeline) buildProductionDAG() *dag.Engine {
-wasmNode := &dag.Node{Processor: dag.NewWASMFilterNode(p.wasm, p.log)}
-
-// Identity Enrichment — Early enrichment for downstream branches
-var lastNode = wasmNode
+// Phase 36: WASMFilterNode removed. Identity enrichment now becomes
+// the DAG root; previously WASM ran first as a filter pass, but pure
+// log-driven detection has no need for an operator-supplied filter
+// stage upstream of enrichment. Keeping a no-op placeholder root
+// would just add a hop with zero behaviour, so we promote identity
+// enrichment to root when present, otherwise the fanout node is root.
+var rootNode *dag.Node
+var lastNode *dag.Node
 if p.identityResolver != nil {
 idNode := &dag.Node{Processor: dag.NewIdentityEnrichmentNode(p.identityResolver, p.log)}
-wasmNode.Children = append(wasmNode.Children, idNode)
+rootNode = idNode
 lastNode = idNode
 }
 
-// DLP scrubber — Phase 27.2.3. Inserts after identity enrichment so
-// resolved-user fields are still useful for correlation upstream of
-// this point, but BEFORE the SIEM/analytics fanout so every storage
-// sink sees the redacted form. Nil-safe: when no redactor is
-// registered the node is omitted entirely.
+// DLP scrubber — Phase 27.2.3. Nil-safe: when no redactor is
+// registered the node is omitted entirely. Phase 36 also makes this
+// safe when identity enrichment is absent (no longer can rely on
+// lastNode being non-nil).
 if p.dlpRedactor != nil {
 	dlpNode := &dag.Node{Processor: dag.NewDLPNode(p.dlpRedactor, p.log)}
-	lastNode.Children = append(lastNode.Children, dlpNode)
+	if lastNode != nil {
+		lastNode.Children = append(lastNode.Children, dlpNode)
+	} else {
+		rootNode = dlpNode
+	}
 	lastNode = dlpNode
 }
 
-var graphNode *dag.Node
 if p.graphEngine != nil {
-graphNode = &dag.Node{Processor: dag.NewGraphNode(p.graphEngine, p.log)}
-lastNode.Children = append(lastNode.Children, graphNode)
-lastNode = graphNode
+	graphNode := &dag.Node{Processor: dag.NewGraphNode(p.graphEngine, p.log)}
+	if lastNode != nil {
+		lastNode.Children = append(lastNode.Children, graphNode)
+	} else {
+		rootNode = graphNode
+	}
+	lastNode = graphNode
 }
 
 fanoutNode := &dag.Node{Processor: dag.NewMultiDestinationNode("Ingest_Fanout")}
-lastNode.Children = append(lastNode.Children, fanoutNode)
+if lastNode != nil {
+	lastNode.Children = append(lastNode.Children, fanoutNode)
+} else {
+	rootNode = fanoutNode
+}
 
 // Shard-Local Detection Branch
 if p.evaluator != nil {
-detNode := &dag.Node{Processor: dag.NewDetectionNode(p.evaluator, p.bus, p.log)}
-fanoutNode.Children = append(fanoutNode.Children, detNode)
+	detNode := &dag.Node{Processor: dag.NewDetectionNode(p.evaluator, p.bus, p.log)}
+	fanoutNode.Children = append(fanoutNode.Children, detNode)
 }
 
-	siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
-	if p.siem != nil {
-		siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}
-		siemCond.Children = append(siemCond.Children, siemDest)
-	}
+siemCond := &dag.Node{Processor: dag.NewConditionNode("Is_Security_Anomaly", isSecurityAnomaly)}
+if p.siem != nil {
+	siemDest := &dag.Node{Processor: dag.NewSIEMNode(p.siem, p.bus, p.log)}
+	siemCond.Children = append(siemCond.Children, siemDest)
+}
 
-	analyticsCond := &dag.Node{Processor: dag.NewConditionNode("Is_Not_Security_Anomaly", func(evt *dag.Event) bool {
-		return !isSecurityAnomaly(evt)
-	})}
-	if p.analytics != nil {
-		analyticsDest := &dag.Node{Processor: dag.NewAnalyticsNode(p.analytics)}
-		analyticsCond.Children = append(analyticsCond.Children, analyticsDest)
-	}
-	fanoutNode.Children = append(fanoutNode.Children, siemCond, analyticsCond)
+analyticsCond := &dag.Node{Processor: dag.NewConditionNode("Is_Not_Security_Anomaly", func(evt *dag.Event) bool {
+	return !isSecurityAnomaly(evt)
+})}
+if p.analytics != nil {
+	analyticsDest := &dag.Node{Processor: dag.NewAnalyticsNode(p.analytics)}
+	analyticsCond.Children = append(analyticsCond.Children, analyticsDest)
+}
+fanoutNode.Children = append(fanoutNode.Children, siemCond, analyticsCond)
 
-	return dag.NewEngine(wasmNode)
+return dag.NewEngine(rootNode)
 }
 
 func (p *Pipeline) Start() {
@@ -338,11 +346,7 @@ func (p *Pipeline) Shutdown() {
 				p.log.Error("[INGEST] Failed to close WAL: %v", err)
 			}
 		}
-		if p.wasm != nil {
-			if err := p.wasm.Close(context.Background()); err != nil {
-				p.log.Error("[INGEST] Failed to close WASM engine: %v", err)
-			}
-		}
+		// Phase 36: WASM plugin runtime removed.
 		p.log.Info("[INGEST] Pipeline shutdown complete")
 	})
 }
