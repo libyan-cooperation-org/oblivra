@@ -1,21 +1,29 @@
-# OBLIVRA — Master Task Tracker
+# OBLIVRA — Phase Tracker (Build Roadmap)
 
+> **What this file is**: the chronological **build narrative** — every phase
+> with its description and the stages within it. One source of truth for
+> "what shipped, when, and why."
+>
+> **What lives elsewhere**:
+> - **[`HARDENING.md`](HARDENING.md)** — every audit pass, security finding,
+>   fix, postmortem, hardening gate, and validation reclassification. Anything
+>   with the flavour of "we found X is broken/insecure → fixed it" goes there.
+>   Cross-references back into specific phase entries below.
+> - [`ROADMAP.md`](ROADMAP.md) — long-term roadmap (CSPM, K8s, vuln mgmt, etc.)
+> - [`RESEARCH.md`](RESEARCH.md) — DARPA/NSA-grade research items (Phase 13)
+> - [`BUSINESS.md`](BUSINESS.md) — certifications, legal, GTM (Phase 14)
+> - [`FUTURE.md`](FUTURE.md) — Cross-cutting (chaos engineering, deception, i18n)
+> - [`STRATEGY.md`](STRATEGY.md) — Phase 22 strategic rationale
+>
 > **Status Tiers**:
 > - `[s]` = **Scaffolded** (Code exists, compiles, architectural proof)
 > - `[v]` = **Validated** (Tested under load, unit tests pass, functionally correct)
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-04-29** — Phase 36 broad scope cut: log-driven SIEM only. SOAR + IR + ransomware response + disk/memory imaging + AI assistant + plugin framework all removed.
-> **Verification pass 2026-04-25** — every `[x]` item in Phases 22, 23, 25, 26 was re-checked against actual code paths; corrections applied in place. See `## Phase 28: 2026-04-25 Verification Audit` for the full delta.
-> **Phase 32 + 33 entries (2026-04-29)** document the hardening sweep + shell deletion. **Phase 36 (2026-04-29)** documents the broad scope cut. Phase 35 closed storage tiering — last engineering GA blocker.
->
-> **Companion files** (not this file's concern):
-> - [`ROADMAP.md`](ROADMAP.md) — Phases 16–26 (CSPM, K8s, vuln mgmt, etc.)
-> - [`RESEARCH.md`](RESEARCH.md) — Phase 13 (DARPA/NSA-grade research)
-> - [`BUSINESS.md`](BUSINESS.md) — Phase 14 (certifications, legal, GTM)
-> - [`FUTURE.md`](FUTURE.md) — Cross-cutting (chaos engineering, deception, i18n)
-> - [`STRATEGY.md`](STRATEGY.md) — Phase 22 strategic rationale
+> **Last audited: 2026-04-29** — Phase 36 broad scope cut: log-driven SIEM only.
+> SOAR + IR + ransomware response + disk/memory imaging + AI assistant + plugin
+> framework all removed. Phase 35 closed storage tiering — last engineering GA blocker.
 
 ---
 
@@ -160,6 +168,11 @@
 
 ## Phase 0: Stabilization ✅
 
+> Get the in-tree codebase into a state where every service compiles, the
+> dependency graph in `container.go` is correct, and the lifecycle
+> (`ServiceRegistry.Start/Stop`) round-trips without panic. Pre-feature work.
+
+### Stages
 - [x] Final audit of all service constructor signatures in `container.go`
 - [x] Resolve remaining compile errors across all services
 - [x] Verify all 16+ services start/stop cleanly via `ServiceRegistry`
@@ -169,6 +182,13 @@
 
 ## Phase 0.1: Day Zero Hardening ✅
 
+> First-run polish. Make the very first launch on a fresh machine reach the
+> "operator can do something useful" state without manual setup steps —
+> directories created, default rules loaded, onboarding wizard surfaced when
+> hosts count is zero, and a Time-to-First-Alert metric so we can measure
+> whether the experience actually works.
+
+### Stages
 - [x] Recursive Directory Creation — `platform.EnsureDirectories()` to `app.New()` 🏗️
 - [x] Onboarding / Inception UI — Redirect to Setup Wizard if hosts count is 0 🏗️
 - [x] Core Rule Library — `sigma/core/` seeded with 25+ essential rules 🏗️
@@ -179,6 +199,12 @@
 
 ## Phase 0.2: Test Suite Stabilization ✅
 
+> Make `go test ./...` reliably pass on a clean checkout. Fix the early-life
+> regressions (event-type rename fallout, diagnostics interface drift,
+> duplicate test names, architecture violations from detection touching
+> stores directly) so CI signal becomes meaningful.
+
+### Stages
 - [x] Fix Ingest Package Regressions — `ingest.SovereignEvent` → `events.SovereignEvent`
 - [x] Restore Diagnostics Interface — `DiagnosticsService.GetSnapshot()` in `smoke_test.go`
 - [x] Resolve Test Name Collisions — no `TestHighThroughputIngestion` duplicate
@@ -369,28 +395,6 @@
 ### 4.1/4.2 — Commercial Readiness
 - [ ] POC Generator & Support Bundle: one-command diagnostic bundle generation 🏗️
 - [ ] Compliance Artifacts: pre-built legal templates (DPA, BAA, SCCs) and compatibility matrices 🌐
-
-### 4.5 — Hardening Sprint ✅
-- [x] `SIEMPanel.svelte` decoupled sub-components
-- [x] Bounded Queue buffering on `eventbus.Bus`
-- [x] SIEM Database Query Timeouts (10s contexts)
-- [x] Incident Aggregation in Alert Dashboard
-- [x] Regex Timeouts / Safe Parsing (ReDoS prevention)
-- [x] Role-Based Access controls on destructive alert endpoints
-- [x] API key auth + RBAC + TLS
-- [x] Built-in attack simulator (MITRE ATT&CK technique replay)
-- [x] Detection coverage score + technique gap report
-- [x] Continuous detection validation (scheduled self-test)
-- [x] `PurpleTeam.svelte`
-
-#### 🛠️ Component & Page Hardening
-- [x] `CommandPalette` (hostname fix, ARIA roles, tabindex)
-- [x] `SIEMSearch` (OQL Parser integration, layout stabilization)
-- [x] `Settings` (Form binding resolution, a11y warnings)
-- [x] `DataTable` (ARIA roles, keyboard sorting, aria-sort)
-- [x] `Badge` & `KPI` (Standardized a11y roles)
-- [x] `SearchBar` (Keyboard navigation, a11y roles)
-- [x] `VaultLocked` & `Login` (Barrier UI, MFA bridge, browser auth)
 
 ---
 
@@ -1206,18 +1210,27 @@ After Phase 31 + 32 + 33 close-out, only 3 items remain on the GA path:
 
 ---
 
-## Phase 32: Backend Audit-Fix Sweep + Shell Subsystem Removal
+## Phase 32: Shell Subsystem Removal ✅
 
 > **Date**: 2026-04-29
-> **Scope**: Eight critical+debt audit findings on the backend; full removal of the
-> interactive shell subsystem from the operator UI; housekeeping (tsc warnings,
-> scratch/ build failure).
+> **Scope**: Full removal of the interactive shell subsystem from the
+> operator UI. Backend Go libraries retained because non-terminal
+> features still depend on them (canary SCP, scheduled SSH key
+> rotation), but the operator-facing terminal/SSH/tunnel/recording
+> surface is gone. Pairs with the same-day backend audit-fix sweep
+> documented in **HARDENING.md → Phase 32**.
 
-### 32.1 — Shell subsystem removed from operator UI ✅
+### Stages
 - [x] Frontend `frontend/src/components/terminal/` directory deleted (TerminalPage, XTerm, OperatorBanner, SessionRestoreBanner, panes, useShellSession, layout helpers).
 - [x] Routes `/shell`, `/ssh`, `/tunnels`, `/recordings`, `/session-playback` hidden from `nav-config.ts` (entries kept registered in `App.svelte` so deep links 404 cleanly rather than crash). 🖥️
 - [x] Backend Go libraries retained — `internal/ssh/`, `internal/services/{ssh,local,tunnel,recording,share,multiexec,broadcast,file,transfer,pty}_*.go` still compile and back canary deployment / SCP / SSH key rotation.
-- [x] Phase 22.4 / Phase 23.1–23.6 / Phase 28 verification rows updated in this file to reflect the deletion.
+- [x] Phase 22.4 / Phase 23.1–23.6 verification rows updated to reflect the deletion.
+
+### Companion hardening work (in HARDENING.md)
+- Phase 32 backend audit-fix sweep (8 findings: replay cache, real users/roles, evidence-seal strict JSON, ReportService init, rate-limit GC, vault key downgrade, audit-key hashing, AI honesty)
+- Phase 32 housekeeping (tsc warnings, scratch/ build tags)
+- Phase 33 frontend ↔ backend wiring audit (10 findings)
+- Phase 34 pop-out UX fix + test suite stabilization (6 pre-existing failures cleared)
 
 ## Phase 35: Storage Tiering Wiring (last engineering GA blocker)
 
