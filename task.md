@@ -456,26 +456,30 @@
 
 ---
 
-## Phase 6: Forensics & Compliance ✅
+## Phase 6: Log Evidence & Audit ✅
 
 > Make logs admissible. Merkle-chained audit log, signed evidence locker
-> with chain-of-custody, RFC 3161 timestamping, NIST SP 800-86-formalised
-> evidence collection. Compliance packs (PCI-DSS / NIST / ISO 27001 /
-> GDPR / HIPAA / SOC2 Type II) with PDF/HTML reports and a regulator-
-> ready audit-export portal. *(Phase 36: disk/memory imaging removed;
-> log-event chain-of-custody retained.)*
+> with chain-of-custody, RFC 3161 timestamping for third-party time
+> anchoring, NIST SP 800-86-formalised evidence collection. The locker
+> preserves log-event chain-of-custody so security-relevant events
+> survive forensic-grade scrutiny.
+>
+> **Compliance packs removed Phase 36.x** — PCI-DSS / NIST 800-53 / ISO
+> 27001 / GDPR / HIPAA / SOC2 Type II YAML packs + the evaluator + the
+> PDF/HTML report generator deleted with the broad scope cut. Operators
+> who need formal compliance reporting pair OBLIVRA with a dedicated
+> compliance tool (Drata, Vanta, Tugboat Logic) and feed it the
+> `/api/v1/audit` JSON-Lines export. **Phase 36 also removed disk/memory
+> imaging**; log-event chain-of-custody retained.
 
 ### Stages
 - [s] Merkle tree immutable logging (`internal/integrity/merkle.go`)
 - [s] Evidence locker with chain of custody (`internal/forensics/evidence.go`)
 - [x] Enhanced FIM with baseline diffing
-- [s] PCI-DSS, NIST, ISO 27001, GDPR, HIPAA, SOC2 Type II compliance packs
-- [x] PDF/HTML reporting engine (`internal/compliance/report.go`)
 - [x] Forensics service Wails integration (`internal/app/forensics_service.go`)
-- [x] Compliance evaluator engine (`internal/compliance/evaluator.go`)
 - [x] `EvidenceVault.svelte` — chain-of-custody browser, verify, seal, export 🏗️
-- [x] `RegulatorPortal.svelte` — read-only audit log + compliance package generation 🌐
-- [s] Validate: external audit pass (self-audited only)
+- [x] `RegulatorPortal.svelte` — read-only audit-log viewer (works without compliance packs) 🌐
+- [s] Validate: external audit pass *(self-audited only — see HARDENING.md → 25.3)*
 
 ### 6.5 — Legal-Grade Digital Evidence 🏗️
 - [x] RFC 3161 Timestamping + batch submission
@@ -484,10 +488,10 @@
 - [x] Expert Witness Package: provenance reports + tool validation
 - [ ] **End-to-End Event Integrity Proof** — agent-side `event_hash`, continuous pipeline hash chaining, query-time verification mode
 
-### 6.6 — Regulator-Ready Audit Export 🌐
+### 6.6 — Audit Export 🌐
 - [x] JSON Lines with cryptographic chaining (RFC 3161/Merkle)
 - [x] Regulator Portal: scoped, read-only audit viewer
-- [x] One-click compliance package generation (SOC2, ISO27001, PCI-DSS, HIPAA, GDPR)
+- ~~One-click compliance package generation~~ — **REMOVED Phase 36.x.** Use the JSON-Lines audit export with an external compliance tool.
 
 ---
 

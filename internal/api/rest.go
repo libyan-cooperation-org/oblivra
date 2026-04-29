@@ -24,7 +24,7 @@ import (
 
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/auth"
-	"github.com/kingknull/oblivrashell/internal/compliance"
+	// Phase 36.x: compliance package removed.
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/detection"
 	"github.com/kingknull/oblivrashell/internal/eventbus"
@@ -80,10 +80,7 @@ type ForensicsProvider interface {
 	ListEvidence(ctx context.Context, incidentID string) []*forensics.EvidenceItem
 }
 
-type ComplianceProvider interface {
-	EvaluatePack(ctx context.Context, packID string) (*compliance.PackResult, error)
-	ListCompliancePacks() ([]compliance.PackDefinition, error)
-}
+// ComplianceProvider — removed in Phase 36.x with the compliance packs.
 
 type FusionProvider interface {
 	GetActiveCampaigns() []detection.Campaign
@@ -184,7 +181,7 @@ type RESTServer struct {
 	platformProvider PlatformProvider
 	forensicsProvider ForensicsProvider
 	fusion       FusionProvider
-	compliance   ComplianceProvider
+	// compliance ComplianceProvider — removed Phase 36.x
 	bus          *eventbus.Bus
 	log      *logger.Logger
 	attest   *attestation.AttestationService
@@ -286,7 +283,9 @@ type SearchRequest struct {
 }
 
 // NewRESTServer configures the HTTP router and middleware
-func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, compliance ComplianceProvider, agentProvider AgentProvider, fleetSecret []byte, keyProvider SystemKeyProvider, license licensing.Provider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, platformProvider PlatformProvider, forensicsProvider ForensicsProvider, fusion FusionProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
+// NewRESTServer — Phase 36.x: dropped `compliance ComplianceProvider`
+// argument with the compliance pack deletion.
+func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba UEBAProvider, agentProvider AgentProvider, fleetSecret []byte, keyProvider SystemKeyProvider, license licensing.Provider, attest *attestation.AttestationService, authMw *auth.APIKeyMiddleware, identity IdentityProvider, platformProvider PlatformProvider, forensicsProvider ForensicsProvider, fusion FusionProvider, reports ReportingProvider, dashboards DashboardProvider, bus *eventbus.Bus, certManager *security.CertificateManager, log *logger.Logger, mcpRegistry *mcp.ToolRegistry, mcpHandler *mcp.Handler) *RESTServer {
 	var tenantRepo *database.TenantRepository
 	if db != nil {
 		tenantRepo = database.NewTenantRepository(db)
@@ -304,7 +303,7 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 		platformProvider: platformProvider,
 		forensicsProvider: forensicsProvider,
 		fusion:   fusion,
-		compliance: compliance,
+		// Phase 36.x: compliance removed.
 		bus:      bus,
 		log:      log,
 		attest:   attest,
@@ -2914,68 +2913,14 @@ func (s *RESTServer) handleGraphSubgraph(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// GET /api/v1/compliance/status
+// GET /api/v1/compliance/status — Phase 36.x: returns 410 Gone.
+// Compliance packs (PCI-DSS / NIST / ISO / GDPR / HIPAA / SOC2) were
+// removed with the broad scope cut. The endpoint stays registered so
+// stale frontend callers receive a clean structured response instead
+// of a 404, and so external compliance dashboards can detect the
+// platform no longer ships the feature.
 func (s *RESTServer) handleComplianceStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if s.compliance == nil {
-		s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-			"controls": []interface{}{},
-			"stats": map[string]interface{}{
-				"global_score": 0,
-				"active_breaches": 0,
-				"controls_monitored": 0,
-				"audit_readiness": "LEVEL 0",
-			},
-		})
-		return
-	}
-
-	packs, _ := s.compliance.ListCompliancePacks()
-	var controls []map[string]interface{}
-	totalScore := 0.0
-	breaches := 0
-	
-	for _, p := range packs {
-		res, err := s.compliance.EvaluatePack(r.Context(), p.ID)
-		if err == nil && res != nil {
-			status := "compliant"
-			if res.Score < 50 {
-				status = "critical"
-				breaches++
-			} else if res.Score < 90 {
-				status = "warning"
-			}
-			
-			controls = append(controls, map[string]interface{}{
-				"id":         p.ID,
-				"framework":  p.Category,
-				"control":    p.Name,
-				"status":     status,
-				"coverage":   res.Score,
-				"last_audit": "now",
-			})
-			totalScore += res.Score
-		}
-	}
-
-	avgScore := 0.0
-	if len(packs) > 0 {
-		avgScore = totalScore / float64(len(packs))
-	}
-
-	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"controls": controls,
-		"stats": map[string]interface{}{
-			"global_score":      int(avgScore),
-			"active_breaches":    breaches,
-			"controls_monitored": len(controls),
-			"audit_readiness":    "LEVEL 5",
-		},
-	})
+	http.Error(w, "Compliance pack evaluation removed in Phase 36.x. Pair OBLIVRA with a dedicated compliance tool (Drata, Vanta, Tugboat Logic) and use /api/v1/audit for the underlying log evidence.", http.StatusGone)
 }
 
 // SetupRequest is the payload SetupWizard.svelte POSTs on completion.

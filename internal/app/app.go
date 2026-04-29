@@ -37,7 +37,7 @@ type App struct {
 	MultiExecService       *services.MultiExecService
 	// PluginService removed in Phase 36.
 	SecurityService        *services.SecurityService
-	ComplianceService      *services.ComplianceService
+	// ComplianceService removed Phase 36.x.
 	TeamService            *services.TeamService
 	SIEMService            *services.SIEMService
 	LocalService           *services.LocalService
@@ -183,7 +183,7 @@ func (a *App) wireServices() {
 	// It only needs the logger and Wails' application.Get() at call time.
 	a.WindowService = services.NewWindowService(a.container.Log)
 	a.TransferManager = p.TransferManager
-	a.ComplianceService = p.ComplianceService
+	// ComplianceService removed Phase 36.x.
 	a.TailingService = p.TailingService
 	a.TeamService = p.TeamService
 

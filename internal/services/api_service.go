@@ -103,7 +103,9 @@ func (s *APIService) Dependencies() []string {
 // param. The previous response-action surface (host isolation) was
 // removed with the broad scope cut. Callers that used to pass
 // `c.Response.NetworkIsolatorService` now don't pass anything.
-func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, compliance *ComplianceService, licensingSvc *LicensingService, vault *VaultService, settings *SettingsService, identity *IdentityService, platformSvc *PlatformService, forensics *ForensicsService, fusion *FusionService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
+// Phase 36.x: dropped `compliance *ComplianceService` arg with the
+// compliance pack deletion.
+func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore, audit *database.AuditRepository, pipeline ingest.IngestionPipeline, graphEngine *graph.GraphEngine, ueba *UEBAService, licensingSvc *LicensingService, vault *VaultService, settings *SettingsService, identity *IdentityService, platformSvc *PlatformService, forensics *ForensicsService, fusion *FusionService, reports *ReportService, dashboards *DashboardService, attest *attestation.AttestationService, bus *eventbus.Bus, log *logger.Logger, agentService *AgentService, matchEngine *threatintel.MatchEngine, temporalEngine *temporal.IntegrityService) *APIService {
 	// Load valid API keys from settings (DB may not be open yet at boot time)
 	var validKeys []string
 	if settings != nil {
@@ -161,7 +163,7 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	if licensingSvc != nil {
 		lm = licensingSvc.Manager()
 	}
-	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, compliance, agentBridge, fleetSecret, vault, lm, attest, am, identity, platformSvc, forensics, fusion, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
+	server := api.NewRESTServer(port, db, siem, audit, pipeline, graphEngine, ueba, agentBridge, fleetSecret, vault, lm, attest, am, identity, platformSvc, forensics, fusion, reports, dashboards, bus, cm, log, mcpRegistry, mcpHandler)
 
 	return &APIService{
 		server:    server,

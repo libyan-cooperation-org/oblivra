@@ -521,7 +521,7 @@ func (c *Container) initPlatform(ctx context.Context) error {
 		)
 	}
 
-	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Product.ComplianceService, c.Platform.LicensingService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
+	c.Platform.APIService = services.NewAPIService(8080, c.Infra.DB, c.SIEM.SIEMService.Store(), auditRepo, c.SIEM.IngestService.Pipeline(), c.Intel.GraphEngine, c.SIEM.UEBAService, c.Platform.LicensingService, c.Product.VaultService, c.Product.SettingsService, c.Security.IdentityService, c.Platform.PlatformService, c.SIEM.ForensicsService, c.SIEM.FusionService, c.Security.ReportService, c.Intel.DashboardService, c.Security.AttestationService, c.Infra.Bus, c.Log, c.SIEM.AgentService, c.Infra.MatchEngine, c.SIEM.TemporalEngine)
 
 	// Phase 32: wire SuppressionService into the REST server via setter
 	// (avoids a circular import — api ← services ← api). The endpoint

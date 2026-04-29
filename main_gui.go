@@ -29,7 +29,7 @@ func runGUI() {
 			application.NewService(oblivraApp.MultiExecService),
 			// PluginService removed in Phase 36.
 			application.NewService(oblivraApp.SecurityService),
-			application.NewService(oblivraApp.ComplianceService),
+			// ComplianceService removed Phase 36.x.
 			application.NewService(oblivraApp.TeamService),
 			application.NewService(oblivraApp.SIEMService),
 			application.NewService(oblivraApp.LocalService),

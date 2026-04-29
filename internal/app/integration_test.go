@@ -231,18 +231,8 @@ func TestFullFlow(t *testing.T) {
 		}
 	})
 
-	// 6. Test Governance (Compliance Reporting)
-	t.Run("Compliance_Report", func(t *testing.T) {
-		start := time.Now().Add(-1 * time.Hour).Unix()
-		end := time.Now().Add(1 * time.Hour).Unix()
-		report, err := container.Product.ComplianceService.GenerateReport(context.Background(), "security_audit", start, end)
-		if err != nil {
-			t.Errorf("Report generation failed: %v", err)
-		}
-		if report == nil {
-			t.Error("Generated report is nil")
-		}
-	})
+	// 6. Compliance reporting subtest removed Phase 36.x — compliance
+	// packs deleted with the broad scope cut.
 
 	// 7. Cleanup Grace Period
 	time.Sleep(2 * time.Second)

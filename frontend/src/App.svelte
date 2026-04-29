@@ -47,7 +47,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import TunnelsPage from '@pages/TunnelsPage.svelte';
   import SSHBookmarks from '@pages/SSHBookmarks.svelte';
   import SIEMSearch from '@pages/SIEMSearch.svelte';
-  import CompliancePage from '@pages/CompliancePage.svelte';
   import IdentityAdmin from '@pages/IdentityAdmin.svelte';
   import EscalationCenter from '@pages/EscalationCenter.svelte';
   import PurpleTeam from '@pages/PurpleTeam.svelte';
@@ -233,8 +232,6 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/mitre-heatmap',   component: MitreHeatmap },
 
     // Governance, Trust & Identity
-    { path: '/compliance',     component: CompliancePage },
-    { path: '/governance',     component: CompliancePage },
     { path: '/vault',          component: EvidenceVault },
     { path: '/evidence-vault', component: EvidenceVault },
     { path: '/setup',          component: SetupWizard },

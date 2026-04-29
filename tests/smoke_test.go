@@ -154,24 +154,8 @@ func TestIntegrationSmoke(t *testing.T) {
 		}
 	})
 
-	t.Run("Compliance_Evaluation", func(t *testing.T) {
-		packs, err := application.ComplianceService.ListCompliancePacks()
-		if err != nil {
-			t.Fatalf("ListCompliancePacks: %v", err)
-		}
-		if len(packs) == 0 {
-			t.Error("expected at least one compliance pack")
-		}
-		if len(packs) > 0 {
-			result, err := application.ComplianceService.EvaluatePack(adminCtx, packs[0].ID)
-			if err != nil {
-				t.Fatalf("EvaluatePack %s: %v", packs[0].ID, err)
-			}
-			if result == nil {
-				t.Fatal("EvaluatePack returned nil result")
-			}
-		}
-	})
+	// Compliance_Evaluation subtest removed Phase 36.x — compliance
+	// packs deleted with the broad scope cut.
 
 	t.Run("Alerting_Service_Loads_Rules", func(t *testing.T) {
 		rules := application.AlertingService.GetDetectionRules()

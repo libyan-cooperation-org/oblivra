@@ -278,7 +278,6 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Compliance',
         subtitle: 'Frameworks, privacy, audit',
         items: [
-          { id: 'compliance',         route: '/compliance',         label: 'Compliance',          icon: 'ClipboardCheck',  description: 'SOC2, HIPAA, ISO' },
           { id: 'dsr',                route: '/dsr',                label: 'DSR (GDPR / CCPA)',   icon: 'Scale',           description: 'Data subject requests' },
           { id: 'audit',              route: '/audit',              label: 'Audit Log',           icon: 'ScrollText',      description: 'Sealed operator timeline' },
           { id: 'integrity',          route: '/integrity',          label: 'Agent Integrity',     icon: 'ShieldCheck',     description: 'Tamper-evidence · heartbeat · log truncation' },
