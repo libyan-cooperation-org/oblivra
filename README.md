@@ -4,9 +4,9 @@
 
 # OBLIVRA
 
-**Sovereign Security Platform**
+**Sovereign Log-Driven Security Platform**
 
-*A self-hosted, air-gap-ready SIEM + SSH operations terminal with embedded threat detection, forensics, and compliance — running entirely on your hardware.*
+*A self-hosted, air-gap-ready SIEM with embedded threat detection, UEBA, NDR, and compliance — running entirely on your hardware. **Bring your own SOAR. Bring your own DFIR. We're the place your logs go.***
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev)
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte)](https://svelte.dev)
@@ -25,9 +25,11 @@
 
 ## Overview
 
-OBLIVRA is a **full-stack sovereign security platform** built for security engineers and SOC analysts who need professional-grade tooling without cloud dependencies, vendor lock-in, or per-seat licensing. It ships as a native desktop application (Wails v3 shell) and a headless REST server, both backed by the same Go engine.
+OBLIVRA is a **sovereign log-driven security platform** built for security engineers and SOC analysts who need professional-grade tooling without cloud dependencies, vendor lock-in, or per-seat licensing. It ships as a native desktop application (Wails v3 shell) and a headless REST server, both backed by the same Go engine.
 
-**What it does in one sentence:** ingest logs at 18k+ EPS, run Sigma & custom detection rules, correlate threats against MITRE ATT&CK, manage SSH sessions across your fleet, store forensic evidence in a signed chain-of-custody ledger, and enforce RBAC + multi-tenancy — all from a single binary on your own hardware.
+**What it does in one sentence:** ingest logs at 18k+ EPS, run Sigma & custom detection rules, correlate threats against MITRE ATT&CK, profile entity behaviour (UEBA), inspect network flows (NDR), store log-derived evidence in a signed chain-of-custody ledger, and enforce RBAC + multi-tenancy — all from a single binary on your own hardware.
+
+**What it does NOT do** *(by design — Phase 36 broad scope cut)*: SOAR playbook execution, host network isolation, raw disk/memory forensic acquisition, AI chat, plugin-based extensibility. These are out-of-scope; pair OBLIVRA with a dedicated SOAR (Tines, Torq, XSOAR) and DFIR tool (Velociraptor, FTK, Volatility). Log-derived evidence still rides through OBLIVRA's RFC-3161 timestamped, Merkle-chained, vault-keyed evidence locker.
 
 ### Why OBLIVRA?
 

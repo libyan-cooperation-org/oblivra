@@ -6,9 +6,9 @@
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-04-29** — Phase 32 + 33 hardening sweep (8 backend + 10 frontend audit fixes; shell subsystem removed)
+> **Last audited: 2026-04-29** — Phase 36 broad scope cut: log-driven SIEM only. SOAR + IR + ransomware response + disk/memory imaging + AI assistant + plugin framework all removed.
 > **Verification pass 2026-04-25** — every `[x]` item in Phases 22, 23, 25, 26 was re-checked against actual code paths; corrections applied in place. See `## Phase 28: 2026-04-25 Verification Audit` for the full delta.
-> **Phase 32 + 33 entries (2026-04-29)** at the bottom document the most recent hardening sweep + the shell deletion.
+> **Phase 32 + 33 entries (2026-04-29)** document the hardening sweep + shell deletion. **Phase 36 (2026-04-29)** documents the broad scope cut. Phase 35 closed storage tiering — last engineering GA blocker.
 >
 > **Companion files** (not this file's concern):
 > - [`ROADMAP.md`](ROADMAP.md) — Phases 16–26 (CSPM, K8s, vuln mgmt, etc.)
@@ -1895,6 +1895,132 @@ After Phase 35:
 | **BYOK / SCIM** | Multi-week investments. | future phase |
 
 **Beta-1 ship-readiness: confirmed.** With 22.3 foundation closed, the only remaining engineering follow-ups (35.5-35.8) are non-blocking polish that can land iteratively post-Beta. GA gated on external auditors only.
+
+---
+
+## Phase 36: Broad Scope Cut — Log-Driven Security Platform
+
+> **Date**: 2026-04-29 (continuation)
+> **Decision**: OBLIVRA repositions from "all-in-one SOC platform" to
+> **log-driven security platform**. Detection / threat intel / UEBA /
+> NDR / fusion / compliance / multi-tenancy / storage tiering / agent
+> framework all stay — these all DERIVE value from logs. The operator
+> action layer (SOAR + IR + ransomware response + disk/memory imaging
+> + AI assistant + plugin framework) is removed.
+>
+> **Rationale**: Beats Splunk on TCO (storage tiering, sovereign deploy,
+> OQL), compatible with running alongside an existing SOAR (Tines, Torq,
+> XSOAR) instead of competing. Smaller binary, smaller doc surface,
+> easier to position. Operators who need response automation use a
+> dedicated SOAR; operators who need disk/memory IR use a dedicated
+> DFIR tool (Velociraptor, FTK, Volatility) and import the resulting
+> evidence files via the generic Collect API.
+
+### 36.1 — Removed (operator-action layer) ✅
+
+**Backend services** (all deleted):
+- `internal/services/ai_service.go` — AI assistant
+- `internal/services/incident_service.go` + `playbook_service.go` — SOAR + case management
+- `internal/services/canary_deployment_service.go` — canary file deployment (response action)
+- `internal/services/network_isolator_service.go` — host network isolation (response action)
+- `internal/services/ransomware_service.go` — ransomware response RPCs (DETECTION engine in `internal/detection/ransomware_engine.go` retained)
+- `internal/services/deterministic_response_service.go` — automated response decisions
+- `internal/services/plugin_service.go` — plugin manager Wails surface
+
+**Backend packages** (all deleted):
+- `internal/incident/` — actions, integrations (Jira/SNOW), playbook engine, triage scoring (~7 files)
+- `internal/plugin/` — Lua sandbox, registry, signing, cluster sync, manifest (~6 files)
+- `internal/engine/wasm/` — wazero WASM plugin runtime (~5 files)
+- `internal/forensics/analyzer.go` — entropy/file analyzer (used by deep IR; deleted)
+- `internal/forensics/collector.go` — local disk/memory collector (used by AcquireDisk/AcquireMemory; deleted)
+- `internal/security/canary.go` — canary deployment helpers
+
+**Service methods** (deleted):
+- `ForensicsService.AcquireDiskImage` — raw block-device acquisition
+- `ForensicsService.AcquireMemoryDump` — physical RAM dump
+- `ForensicsService.AnalyzeFile` — entropy + risk scoring
+
+**REST endpoints** (deleted):
+- `POST /api/v1/ransomware/isolate` — host isolation (response action)
+  - Detection-side `events` / `hosts` / `stats` / `protection` endpoints retained.
+
+**Frontend pages** (all deleted):
+- `AIAssistantPage.svelte` (`/ai-assistant`)
+- `PluginManager.svelte` (`/plugins`)
+- `PlaybookBuilder.svelte` (`/playbook-builder`)
+- `CaseManagement.svelte` (`/cases`)
+- `IncidentResponse.svelte` (`/response`) — was rebuilt in Phase 33; sad to lose but right call given the scope cut
+- `IncidentTimeline.svelte` (`/timeline`, `/timeline/:principalID/:principalType/:targetTime`)
+- `SOARPanel.svelte` (`/soar`)
+- `RansomwareUI.svelte` (`/ransomware`, `/ransomware-ui`)
+- `ForensicsPage.svelte` (`/forensics`, `/remote-forensics`)
+
+**Container wiring removed** (`internal/core/container.go`, `clusters.go`, `app/app.go`, `main_gui.go`):
+- `Platform.AIService`, `Platform.PluginService`
+- `Response.IncidentService`, `Response.PlaybookService`, `Response.NetworkIsolatorService`, `Response.RansomwareService`, `Response.DeterministicResponse`, `Response.TriageService`
+- `Security.CanaryService`, `Security.CanaryDeployment`
+- All `mustRegister(...)` lines for the above
+
+**Nav-config entries removed** (`frontend/src/lib/nav-config.ts`):
+- `cases`, `timeline`, `response`, `playbook-builder`, `ransomware`, `forensics`, `plugins`, `ai-assistant`
+
+**API service signature change**:
+- `services.NewAPIService(...)` dropped the `isolator *NetworkIsolatorService` param. `unifiedForensicEngine` now uses `agentService.ToggleQuarantine` only (the SSH-based isolator fallback went away with the response-action layer).
+
+### 36.2 — Retained (log-driven core) ✅
+
+**Detection / Analytics** (all stay):
+- `internal/detection/` — Sigma transpiler, rule engine, MITRE mapping, correlation, ransomware-detection engine, fusion, campaign builder
+- `internal/threatintel/` — STIX/TAXII, IOC matcher
+- `internal/enrich/` — GeoIP, DNS, asset enrichment, lookup tables
+- `internal/services/ueba_service.go` — User & Entity Behavior Analytics
+- `internal/services/ndr_service.go` — Network Detection & Response (network-flow analysis)
+- `internal/services/fusion_service.go` — multi-stage attack fusion
+- `internal/services/risk_service.go` — risk-based alerting
+- `internal/services/alerting_service.go` + escalation
+- `internal/services/threat_hunter` — hunting interface
+- `internal/services/compliance_service.go` — PCI/ISO/SOC2/HIPAA/GDPR packs
+
+**Forensics evidence locker** (retained, restricted to log-derived evidence):
+- `internal/forensics/evidence.go` — chain-of-custody for log-events-as-evidence
+- `internal/forensics/rfc3161.go` — RFC 3161 timestamp authority
+- `internal/forensics/tpm_signer.go` — TPM-rooted log signing
+
+**Storage / Ingest** (all stay):
+- `internal/ingest/` — pipeline, WAL, parsers, Phase 35 storage tiering integration
+- `internal/storage/` — BadgerDB hot, Parquet warm, JSONL cold
+- `internal/search/` — Bleve full-text index
+- `internal/oql/` — query language
+
+**Auth / Multi-tenancy / Compliance** (all stay):
+- `internal/auth/` — OIDC/SAML/MFA/RBAC/WebAuthn
+- `internal/database/tenant_db.go` — multi-tenancy + audit log + retention
+- `internal/integrity/` — Merkle audit chain
+- `internal/agent/` — log collection from endpoints
+
+### 36.3 — Verification ✅
+| Check | Result |
+|---|---|
+| `go build ./internal/... ./cmd/...` | exit 0 |
+| `go test ./internal/...` | **36/36 packages still pass** |
+| `npm run typecheck` | clean |
+| `npm run build` | clean — index bundle dropped from 720 KB → 658 KB (**-9%**) |
+| `oblivrashell.exe bootcheck` | OK — services start, no panic. Binary size 85 MB → 80 MB (**-6%**) |
+
+### 36.4 — Outstanding cleanup
+- [ ] **36.4a Cluster FSM dead path** — `internal/cluster/fsm.go` keeps a `pluginRegistryApplier` interface and `pluginRegistryPrefix` Raft-log dispatch path. The interface has no implementor now; the dead code is harmless but should be removed in a follow-up. No external import cycle since the types are local.
+- [ ] **36.4b Ghost handler** — `handleRansomwareIsolate_REMOVED_PHASE_36` placeholder is unrouted (the route registration is gone). Could just delete the function body and remove its test (if any). Trivial.
+- [ ] **36.4c Wails generated bindings** — `frontend/bindings/.../{aiservice,pluginservice,incidentservice,playbookservice,canarydeploymentservice,networkisolatorservice,ransomwareservice}` directories may still exist. Run `wails3 generate bindings` next desktop build to regenerate; until then they're orphan TypeScript stubs that can't be imported because the Go services don't exist.
+- [ ] **36.4d Doc refresh** — `docs/operator/*.md` references SOAR / playbooks / ransomware response / AI assistant. One pass to remove.
+- [ ] **36.4e Compliance-pack doc on response actions** — PCI-DSS / NIST 800-53 packs may reference response-action controls (host isolation, evidence acquisition). Audit the pack YAML and either remove those controls or mark them as "external-tool dependency" in the report.
+- [ ] **36.4f License feature flags** — `internal/licensing/license.go` still has `FeatureSOAR`, `FeatureAIAssistant`, `FeaturePlugins`, `FeatureRansomware` (response-side). Keep them defined but unused for now (forward compat for the deferred premium reintroduction); flag-gate the still-existing endpoints as `FeatureRansomware` for the detection-side ransomware events.
+
+### 36.5 — Strategic implications
+- **Positioning**: "Logs platform with detection + UEBA + NDR + compliance" — competes with Wazuh, Security Onion, Elastic Security on quality / TCO; complementary to (not competing with) CrowdStrike, SentinelOne, Tines, Torq, XSOAR.
+- **Customer message**: "Bring your own SOAR. Bring your own DFIR. We're the place your logs go." Smaller scope, sharper value prop.
+- **Code surface**: ~12% of codebase removed. Compile time, security audit surface, documentation burden all proportionally smaller.
+- **Lost capabilities**: SOAR playbook builder, host network isolation from UI, raw disk/memory acquisition, AI chat over events, Lua/WASM plugin extensibility. All have well-established external alternatives.
+- **GA blockers update**: Storage tiering (Phase 35) is closed; SOC2/ISO27001/FIPS attestations remain external-auditor work. **Engineering side of GA is essentially done.**
 
 ---
 
