@@ -801,7 +801,7 @@
 | **S10 🔵** | Sovereign / Nation-State | **22.7** (all 6) + Sovereign Meta-Layer remaining | 3 wks |
 | **Defer ⚫** | v2+ Features | Cloud connectors, ClickHouse, ITDR, AI/LLM Sec, Endpoint Prevention | — |
 
-> **Current sprint**: ~~S0~~ ✅ → ~~S1~~ ✅ (22.2 verified, structural per-tenant isolation in place) → **S2** (Reliability Gate — chaos harness + soak regression already shipped; agent reconnect, BadgerDB recovery, graceful degradation, time sync remain)
+> **Current sprint**: ~~S0~~ ✅ → ~~S1~~ ✅ (22.2 verified, structural per-tenant isolation in place) → ~~S2 Reliability Gate~~ ✅ (agent reconnect, BadgerDB recovery, graceful degradation, time sync, soak CI, chaos harness — all shipped under 22.1) → **Phase 32 + 33 hardening sweep** ✅ (8 backend security fixes, 10 frontend wiring fixes, shell subsystem removed, window-controls regression fixed). Next: **22.3 Storage Tiering** (last engineering GA blocker).
 
 ---
 
@@ -1686,13 +1686,15 @@ The five "❌ Missing" items from the agent feature audit + the agent-control RP
 
 ### 31.6 — Outstanding GA blockers
 
-After Phase 31 close-out, only 3 items remain on the GA path:
+After Phase 31 + 32 + 33 close-out, only 3 items remain on the GA path:
 
 | Item | Status | Owner |
 |---|---|---|
 | **22.3 Hot/Warm/Cold tiering** | Last pure-engineering blocker. Foundation work scheduled next. | engineering |
 | **SOC2 / ISO27001 / FIPS attestations** | Self-validated only. | external auditors |
 | **BYOK / SCIM** | Multi-week investments. | future phase |
+
+> **Update (Phase 32 + 33, 2026-04-29)**: Backend security audit (8 findings), frontend wiring audit (10 findings), and a window-chrome regression all closed. Shell subsystem removed from operator UI (Phase 32). The three blockers above remain unchanged.
 
 **Beta-1 ship-readiness: confirmed.** GA gated on storage tiering (engineering, ~1 week) and external auditors (months, runs in parallel).
 
