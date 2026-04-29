@@ -110,6 +110,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import AuditLog from '@pages/AuditLog.svelte';
   import Connectors from '@pages/Connectors.svelte';
   import Integrity from '@pages/Integrity.svelte';
+  import StorageTiering from '@pages/StorageTiering.svelte';
   import ProfileWizard from '@components/onboarding/ProfileWizard.svelte';
 
   // ── Types
@@ -283,6 +284,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/development',    component: DevelopmentPage },
     { path: '/connectors',     component: Connectors },
     { path: '/integrity',      component: Integrity },
+    { path: '/storage-tiering', component: StorageTiering },
 
     // Fallback
     { path: '*', component: DevelopmentPage },

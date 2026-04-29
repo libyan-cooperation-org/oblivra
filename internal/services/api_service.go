@@ -187,6 +187,17 @@ func (s *APIService) SetSettings(set *SettingsService) {
 	s.server.SetSettings(set)
 }
 
+// SetTieringProvider plumbs the storage-tier observability surface into
+// the REST server. Phase 22.3 — storage tier stats / manual promote.
+// Both arguments may be nil if the caller wants to disable tiering
+// endpoints (e.g. air-gap deployments without a cold tier configured).
+func (s *APIService) SetTieringProvider(tiers []api.TierStatProvider, mig api.TierMigrationProvider) {
+	if s == nil || s.server == nil {
+		return
+	}
+	s.server.SetTieringProvider(tiers, mig)
+}
+
 // SetTLSState wires the security.TLSGuardrails into the REST server
 // so /api/v1/tls/state can serve the chrome banner. The interface
 // shape (`IsTLSOff() bool`) matches api.TLSStateProvider; we accept

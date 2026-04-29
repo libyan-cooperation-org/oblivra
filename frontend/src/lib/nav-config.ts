@@ -288,6 +288,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { id: 'dsr',                route: '/dsr',                label: 'DSR (GDPR / CCPA)',   icon: 'Scale',           description: 'Data subject requests' },
           { id: 'audit',              route: '/audit',              label: 'Audit Log',           icon: 'ScrollText',      description: 'Sealed operator timeline' },
           { id: 'integrity',          route: '/integrity',          label: 'Agent Integrity',     icon: 'ShieldCheck',     description: 'Tamper-evidence · heartbeat · log truncation' },
+          { id: 'storage-tiering',    route: '/storage-tiering',    label: 'Storage Tiering',     icon: 'Database',        description: 'Hot · Warm · Cold lifecycle + migration cycles' },
         ],
       },
       {

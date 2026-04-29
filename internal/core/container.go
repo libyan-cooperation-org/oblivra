@@ -562,6 +562,14 @@ func (c *Container) initPlatform(ctx context.Context) error {
 		}
 	}
 
+	// Phase 22.3 — wire Hot/Warm/Cold storage tier observability into
+	// the REST server. Without this the /api/v1/storage/tiering/*
+	// endpoints return 503 (which is the correct behaviour when the
+	// migrator wasn't initialised, e.g. HotStore failed to open).
+	if c.Platform.APIService != nil {
+		WireTieringIntoAPI(c.Platform.APIService, c.Infra)
+	}
+
 	// Phase 33 — Slice 5: io.Pipeline + IOConfigProvider for the
 	// /connectors UI. The pipeline is server-side here (the agent's
 	// own pipeline lives in cmd/agent/main.go); operators can stand
