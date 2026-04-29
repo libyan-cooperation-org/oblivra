@@ -626,8 +626,17 @@ func (p *Pipeline) Replay(ctx context.Context) error {
 		p.indexEvent(ctx, evt)
 		return nil
 	})
+	// Phase 32 stabilization: ErrWALCorruption means at least one record
+	// was dropped (torn write or bit-rot), but everything recoverable
+	// has already been replayed. The daemon prioritises availability —
+	// log + continue. Forensic tooling does NOT use this code path; it
+	// calls Replay directly and treats ErrWALCorruption as a hard fail.
 	if err != nil {
-		return err
+		if errors.Is(err, storage.ErrWALCorruption) {
+			p.log.Warn("[INGEST] WAL replay completed with corruption: %v — continuing startup with surviving records", err)
+		} else {
+			return err
+		}
 	}
 	return p.wal.Checkpoint()
 }

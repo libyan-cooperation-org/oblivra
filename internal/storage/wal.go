@@ -15,6 +15,19 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
+// ErrWALCorruption is returned by Replay when one or more records were
+// dropped due to checksum / length-guard violations. The replay still
+// processes every recoverable record before returning — daemon startup
+// can ignore this error and proceed with whatever survived. Forensic
+// tooling (integrity checks, manifest verifiers) should treat it as a
+// hard fail because it means the WAL on disk has lost data.
+//
+// A successful replay returns nil. A replay that encountered torn writes
+// or bit-rot returns ErrWALCorruption (or wraps it). I/O / framing
+// errors that prevent replay from continuing return their own error
+// chain unrelated to this sentinel.
+var ErrWALCorruption = fmt.Errorf("wal: integrity check failed (one or more records corrupted)")
+
 // WAL (Write-Ahead Log) provides crash-safe durability for incoming log streams
 // before they are fully indexed into Bleve/SQLite/BadgerDB.
 type WAL struct {
@@ -179,6 +192,7 @@ func (w *WAL) Replay(fn func(payload []byte) error) error {
 
 	reader := bufio.NewReader(rf)
 	count := 0
+	corrupted := 0 // tracks records dropped due to length/CRC guard fires
 
 	for {
 		// 1. Read Length Header
@@ -198,6 +212,7 @@ func (w *WAL) Replay(fn func(payload []byte) error) error {
 			if w.log != nil {
 				w.log.Warn("[STORAGE] WAL corruption detected: payload length %d exceeds 10MB limit. Skipping.", length)
 			}
+			corrupted++
 			continue // Skip corrupted entry rather than crashing
 		}
 
@@ -215,12 +230,12 @@ func (w *WAL) Replay(fn func(payload []byte) error) error {
 		}
 
 		// 4. Verify Checksum
-		// 4. Verify Checksum
 		actualChecksum := crc32.ChecksumIEEE(payload)
 		if actualChecksum != expectedChecksum {
 			if w.log != nil {
 				w.log.Error("[STORAGE] Checksum mismatch on record %d: expected %x, got %x (skipping corrupt entry)", count, expectedChecksum, actualChecksum)
 			}
+			corrupted++
 			continue
 		}
 
@@ -234,6 +249,23 @@ func (w *WAL) Replay(fn func(payload []byte) error) error {
 
 	if count > 0 && w.log != nil {
 		w.log.Info("[STORAGE] Replayed %d records from WAL upon startup", count)
+	}
+
+	// Test stabilization (Phase 32): a checksum / length guard fire used
+	// to be silently absorbed — the daemon survived a torn write, but
+	// forensic tooling that asks Replay() to verify integrity got back
+	// `nil` and concluded "all clear." That defeats the entire point of
+	// CRC-stamping every record. We now return ErrWALCorruption when
+	// any record was dropped, while still processing every recoverable
+	// record first. Daemon callers that prioritise availability over
+	// integrity (e.g. ingest pipeline startup) can `errors.Is(err,
+	// storage.ErrWALCorruption)` and continue; integrity tooling fails
+	// loud as it should.
+	if corrupted > 0 {
+		if w.log != nil {
+			w.log.Warn("[STORAGE] WAL replay completed with %d corrupted record(s); see prior error logs", corrupted)
+		}
+		return ErrWALCorruption
 	}
 
 	return nil

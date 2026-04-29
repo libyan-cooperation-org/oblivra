@@ -170,7 +170,13 @@ func TestVaultService_DeleteCredential(t *testing.T) {
 // ── password health audit ─────────────────────────────────────────────────────
 
 func TestVaultService_PasswordHealthAudit(t *testing.T) {
-	svc, _, cleanup := setup(t)
+	// Bug fix: bind the test to the authenticated context returned by
+	// `setup(t)` instead of `context.TODO()`. AddCredential is RBAC-gated
+	// (`vault:write`); without the seeded user the calls log
+	// `RBAC DENY: no user in context, denied=vault:write` and silently
+	// drop the credential, so PasswordHealthAudit later sees an empty
+	// store and the test fails with "expected ≥2 health results, got 0".
+	svc, ctx, cleanup := setup(t)
 	defer cleanup()
 
 	const pw = "audit-test"
@@ -178,11 +184,11 @@ func TestVaultService_PasswordHealthAudit(t *testing.T) {
 	svc.UnlockWithPassword(pw, false)
 
 	// Weak password — short
-	svc.AddCredential(context.TODO(), "weak", "password", "abc") //nolint:errcheck
+	svc.AddCredential(ctx, "weak", "password", "abc") //nolint:errcheck
 	// Strong password
-	svc.AddCredential(context.TODO(), "strong", "password", "Tr0ub4dor&3xtr@L0ng!P@ss#2026") //nolint:errcheck
+	svc.AddCredential(ctx, "strong", "password", "Tr0ub4dor&3xtr@L0ng!P@ss#2026") //nolint:errcheck
 
-	results, err := svc.PasswordHealthAudit(context.TODO())
+	results, err := svc.PasswordHealthAudit(ctx)
 	if err != nil {
 		t.Fatalf("PasswordHealthAudit: %v", err)
 	}

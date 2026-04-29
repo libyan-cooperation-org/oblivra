@@ -304,8 +304,18 @@ func (s *VaultService) postUnlock() (retErr error) {
 		s.log.Error("Failed to migrate database after unlock: %v", err)
 	}
 	if s.audit != nil {
-		// Audit integrity uses the global search or system context since it's infrastructure.
-		if err := s.audit.InitIntegrity(database.WithGlobalSearch(s.ctx)); err != nil {
+		// Audit integrity uses the global search or system context since
+		// it's infrastructure. `s.ctx` is set by Start() / SetContext();
+		// fall back to Background when neither has fired (unit tests, or
+		// a postUnlock racing the Wails DomReady hook). Without this
+		// fallback `context.WithValue(nil, ...)` inside WithGlobalSearch
+		// panics with "cannot create context from nil parent" — the
+		// recover above catches it but the audit tree never initialises.
+		auditCtx := s.ctx
+		if auditCtx == nil {
+			auditCtx = context.Background()
+		}
+		if err := s.audit.InitIntegrity(database.WithGlobalSearch(auditCtx)); err != nil {
 			s.log.Error("Failed to initialize audit integrity tree after unlock: %v", err)
 		}
 	}

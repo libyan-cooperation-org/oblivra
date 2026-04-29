@@ -1,3 +1,17 @@
+//go:build cgo
+
+// Raft safety tests require CGO because the in-process FSM is backed by
+// `github.com/mattn/go-sqlite3`, which is a CGO binding around libsqlite3.
+// On a CGO_ENABLED=0 build the package compiles fine — the FSM uses a
+// stub driver — but `sql.Exec("CREATE TABLE …")` returns
+//
+//   Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo to work. This is a stub
+//
+// at test time, so every assertion fails at the t.Fatalf in
+// setupMockNode(). The tests can't meaningfully run without CGO; tag
+// them with the cgo build constraint so the suite passes on any CGO-off
+// build (Windows CI without MSVC, Alpine cross-builds) and runs as
+// designed wherever CGO is available.
 package cluster
 
 import (

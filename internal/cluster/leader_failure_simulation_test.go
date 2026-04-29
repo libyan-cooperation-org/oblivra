@@ -1,3 +1,7 @@
+//go:build cgo
+
+// CGO-only — same constraint as raft_safety_test.go (uses setupMockNode
+// which depends on the SQLite CGO driver).
 package cluster
 
 import (
