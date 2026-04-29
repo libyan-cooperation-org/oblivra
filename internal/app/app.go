@@ -277,6 +277,15 @@ func (a *App) Startup(ctx context.Context) {
 		a.VaultService.SetContext(ctx)
 	}
 
+	// Phase 22.3 — start the Hot/Warm/Cold storage migrator. Spawned as
+	// a background goroutine so it doesn't block startup; first cycle
+	// runs immediately on Migrator.Start (via RunOnce inside loop) so a
+	// long-stopped agent makes progress without waiting a full Interval.
+	if a.container.Infra != nil && a.container.Infra.TierMigrator != nil {
+		a.container.Infra.TierMigrator.Start(ctx)
+		a.container.Log.Info("[STORAGE] Hot/Warm/Cold tier migrator started (interval=1h, hot=30d, warm=150d)")
+	}
+
 	a.ready = true
 	a.container.Log.Info("Application startup complete")
 
@@ -407,6 +416,13 @@ func (a *App) DomReady(ctx context.Context) {
 // Shutdown is called at the end of the application lifecycle
 func (a *App) Shutdown(ctx context.Context) {
 	if a.container != nil {
+		// Stop the tier migrator BEFORE closing the kernel — the
+		// migrator may be mid-batch reading from hot/warm/cold and we
+		// want it to drain cleanly rather than getting torn down with
+		// the storage handles.
+		if a.container.Infra != nil && a.container.Infra.TierMigrator != nil {
+			a.container.Infra.TierMigrator.Stop()
+		}
 		if a.container.Kernel != nil {
 			a.container.Kernel.Stop()
 		}

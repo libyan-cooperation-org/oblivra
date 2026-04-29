@@ -230,6 +230,12 @@ type RESTServer struct {
 	// Slice 5 — I/O config provider (read/write the YAML config + stats).
 	ioConfig IOConfigProvider
 
+	// Phase 22.3 — Hot/Warm/Cold storage tier providers. Set via
+	// SetTieringProvider after construction (interface-vs-cycle pattern).
+	// nil means tiering is not configured — the relevant routes return 503.
+	tierStats []TierStatProvider
+	tierMig   TierMigrationProvider
+
 	// Audit fix #1 — replay-attack cache for agent endpoints. HMAC +
 	// 30s timestamp window doesn't prevent replay within the window;
 	// this cache rejects (agent_id, ts, body) fingerprints we've seen.
@@ -525,6 +531,11 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/io/config", s.handleIOConfig)
 	mux.HandleFunc("/api/v1/io/stats",  s.handleIOStats)
 	mux.HandleFunc("/api/v1/io/test",   s.handleIOTest)
+
+	// Phase 22.3 — Hot/Warm/Cold storage tiering observability.
+	// Stats is read-only (analyst+), promote is admin-only (manual cycle).
+	mux.HandleFunc("/api/v1/storage/tiering/stats",   s.handleTieringStats)
+	mux.HandleFunc("/api/v1/storage/tiering/promote", s.handleTieringPromote)
 
 	// User/Role management endpoints (Phase 12)
 	mux.HandleFunc("/api/v1/users", s.stubHandler(s.handleUsers))

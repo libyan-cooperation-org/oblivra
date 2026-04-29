@@ -38,6 +38,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/services"
 	"github.com/kingknull/oblivrashell/internal/simulation"
 	"github.com/kingknull/oblivrashell/internal/storage"
+	"github.com/kingknull/oblivrashell/internal/storage/tiering"
 	"github.com/kingknull/oblivrashell/internal/team"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
@@ -205,6 +206,41 @@ func (c *Container) initInfra(ctx context.Context) error {
 		c.Log.Error("Failed to initialize BadgerDB HotStore: %v", err)
 	}
 	c.Infra.HotStore = hotStore
+
+	// Phase 22.3 — Hot/Warm/Cold storage tiering.
+	//
+	// Wires the three-tier promotion pipeline:
+	//   Hot   (BadgerDB, 0–30 d)   ← active query path, fast SSD
+	//   Warm  (Parquet, 30–180 d)  ← compressed columnar, cheap SSD/HDD
+	//   Cold  (JSONL, 180+ d)      ← cheapest; air-gap-safe local impl
+	//
+	// The Migrator runs on a 1-hour cycle (configurable). It walks the
+	// hot keyspace for events older than HotDuration, copies them to
+	// warm, then deletes from hot. Same dance promotes warm → cold.
+	// Power-loss safe: source delete only happens after destination
+	// write confirms.
+	//
+	// Cold tier defaults to a local directory under the platform's
+	// data directory. The S3-compatible RemoteColdTier (cold_s3.go)
+	// lands behind a build tag once operator credentials are plumbed
+	// through Settings — air-gap deployments use the local impl.
+	//
+	// HotStore is required; without it tiering is a no-op (the
+	// migrator's nil-tier guards mean Start() with nil hot is harmless).
+	if c.Infra.HotStore != nil {
+		c.Infra.HotTier = tiering.NewHotTier(c.Infra.HotStore)
+		c.Infra.WarmTier = tiering.NewWarmTier(platform.DataDir(), c.Log)
+		c.Infra.ColdTier = tiering.NewLocalDirCold(platform.DataDir(), c.Log)
+		c.Infra.TierMigrator = tiering.NewMigrator(
+			c.Infra.HotTier, c.Infra.WarmTier, c.Infra.ColdTier,
+			tiering.DefaultRetention(), c.Log,
+		)
+		// Migrator is started later, after Startup, so the hot keyspace
+		// has had a chance to receive events from the live ingest path.
+		// See c.startTierMigrator(ctx) in Container.Startup.
+	} else {
+		c.Log.Warn("[STORAGE] Hot/Warm/Cold tiering disabled: HotStore unavailable")
+	}
 
 	// 26.1: Distributed Log Fabric (NATS)
 	natsCfg := &messaging.NATSConfig{

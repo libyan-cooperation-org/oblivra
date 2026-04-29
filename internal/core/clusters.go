@@ -25,6 +25,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/sharing"
 	"github.com/kingknull/oblivrashell/internal/simulation"
 	"github.com/kingknull/oblivrashell/internal/storage"
+	"github.com/kingknull/oblivrashell/internal/storage/tiering"
 	"github.com/kingknull/oblivrashell/internal/threatintel"
 	"github.com/kingknull/oblivrashell/internal/temporal"
 	"github.com/kingknull/oblivrashell/internal/vault"
@@ -53,6 +54,16 @@ type InfrastructureCluster struct {
 	RBAC             *auth.RBACEngine
 	Messaging        *messaging.NATSService
 	Federator        *search.Federator
+
+	// Phase 22.3 — Hot/Warm/Cold storage tiering. The Migrator owns
+	// the background hot→warm→cold promotion loop; the three tier
+	// instances are stored alongside so the REST stats endpoint
+	// (/api/v1/storage/tiering/stats) can size each tier independently
+	// and the dashboard can render the cost-tier breakdown.
+	HotTier      tiering.Tier
+	WarmTier     tiering.Tier
+	ColdTier     tiering.Tier
+	TierMigrator *tiering.Migrator
 }
 
 // SecurityCluster holds identity, hardening, and trust services.
