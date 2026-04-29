@@ -6,8 +6,9 @@
 > - `[x]` = **Production-Ready** (Survives 72h soak, hardened, documented, unchallengeable)
 > - `[ ]` = Not started
 >
-> **Last audited: 2026-04-25** — Phase 22 Productization Sprint + Platform Split Model
-> **Verification pass 2026-04-25** — every `[x]` item in Phases 22, 23, 25, 26 was re-checked against actual code paths; corrections applied in place. See `## Phase 28: 2026-04-25 Verification Audit` at the bottom of this file for the full delta.
+> **Last audited: 2026-04-29** — Phase 32 + 33 hardening sweep (8 backend + 10 frontend audit fixes; shell subsystem removed)
+> **Verification pass 2026-04-25** — every `[x]` item in Phases 22, 23, 25, 26 was re-checked against actual code paths; corrections applied in place. See `## Phase 28: 2026-04-25 Verification Audit` for the full delta.
+> **Phase 32 + 33 entries (2026-04-29)** at the bottom document the most recent hardening sweep + the shell deletion.
 >
 > **Companion files** (not this file's concern):
 > - [`ROADMAP.md`](ROADMAP.md) — Phases 16–26 (CSPM, K8s, vuln mgmt, etc.)
@@ -1421,8 +1422,8 @@
 | **22.4 Host isolation from terminal** | 🟡 partial — keybind survives (Ctrl+Shift+I → `oblivra:isolate-host` event → OperatorMode), but the "from terminal context" entry point is gone with Phase 32. Reachable from Host Detail and Operator Mode pages instead. |
 | **23.2 Session restore banner** | ⚫ **REMOVED in Phase 32** with the shell subsystem. `session_persistence.go` and `SessionRestoreBanner.svelte` deleted. |
 | **23.4 OperatorBanner.svelte** | ⚫ **REMOVED in Phase 32** with the shell subsystem. File deleted; backend `operator_service.go` retained because it can serve a future host-detail banner. |
-| **23.5 Clipboard OSC 52** | XTerm imported. No OSC 52 handler, no auto-copy-on-selection, no right-click paste. Reset to `[ ]`. | 🟢 CLOSED v1.2.0 — `term.parser.registerOscHandler(52, ...)` for vim/tmux push, `term.onSelectionChange` auto-copy, `contextmenu` paste-via-SendInput. |
-| **23.6 AI Autocomplete UI** | `CommandHistoryService.GetSuggestions` exists. No floating suggestion box, no cursor anchoring. Reset to `[ ]`. | 🔴 open (only ↑-arrow + Tab from 23.3) |
+| **23.5 Clipboard OSC 52** | ⚫ **REMOVED in Phase 32** with the shell subsystem. `XTerm.svelte` deleted. |
+| **23.6 AI Autocomplete UI** | ⚫ **REMOVED in Phase 32** with the shell subsystem. `CommandHistoryService` backend retained but no UI consumer. |
 | **25.10 No multi-party enforcement** | HMAC-token replacement closes the *forgery* hole; FIDO2 hardware-signature verification of each approval is still missing (`quorum.go:111` skips it). | 🟢 CLOSED 2026-04-25 — `QuorumManager.Approve` now drives `FIDO2Manager.CompleteAuthentication` (ECDSA verify against registered hardware key) before counting the vote; failed verification rejects with WARN. |
 | **26.4 System-Wide Backpressure** | Worker pool + bus rate limit + NATS priorities exist; explicit circuit breaker / bulkhead pattern absent. | 🟡 partial — circuit-breaker (sony/gobreaker) + bulkhead still open. |
 | **26.5 Cryptographic M-of-N Approval** | Voting structure exists; per-approval FIDO2 signature verification missing. | 🟢 CLOSED 2026-04-25 — same fix as 25.10; per-approval FIDO2 ECDSA verification now in `quorum.go`. |
