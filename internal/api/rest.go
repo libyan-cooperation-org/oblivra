@@ -583,11 +583,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	// Phase 36: /api/v1/ransomware/isolate removed (response action).
 	// Detection-side ransomware events/hosts/stats endpoints stay.
 
-	// Playbook endpoints (Phase 8)
-	mux.HandleFunc("/api/v1/playbooks", s.stubHandler(s.handlePlaybooks))
-	mux.HandleFunc("/api/v1/playbooks/actions", s.stubHandler(s.handlePlaybookActions))
-	mux.HandleFunc("/api/v1/playbooks/run", s.stubHandler(s.handlePlaybookRun))
-	mux.HandleFunc("/api/v1/playbooks/metrics", s.stubHandler(s.handlePlaybookMetrics))
+	// Phase 36: /api/v1/playbooks/* removed (SOAR scope cut).
+	// Pair OBLIVRA detection events with external SOAR (Tines/XSOAR/Shuffle) instead.
 
 	// Agent endpoints (fleet management)
 	mux.HandleFunc("/api/v1/agents", s.stubHandler(s.handleAgentsList))

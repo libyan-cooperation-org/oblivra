@@ -31,7 +31,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   // ShellPage import removed — shell subsystem deleted in Phase 33,
   // pending replacement. The /shell route now falls through to the
   // wildcard DevelopmentPage placeholder.
-  import RecordingsPage from '@pages/RecordingsPage.svelte';
+  // RecordingsPage import removed Phase 32 — shell subsystem deleted.
   import SIEMPanel from '@pages/SIEMPanel.svelte';
   import AlertDashboard from '@pages/AlertDashboard.svelte';
   import AlertManagement from '@pages/AlertManagement.svelte';
@@ -44,8 +44,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import ThreatIntelPanel from '@pages/ThreatIntelPanel.svelte';
   import CredentialIntel from '@pages/CredentialIntel.svelte';
   import OpsCenter from '@pages/OpsCenter.svelte';
-  import TunnelsPage from '@pages/TunnelsPage.svelte';
-  import SSHBookmarks from '@pages/SSHBookmarks.svelte';
+  // TunnelsPage / SSHBookmarks imports removed Phase 32 — shell subsystem deleted.
   import SIEMSearch from '@pages/SIEMSearch.svelte';
   import IdentityAdmin from '@pages/IdentityAdmin.svelte';
   import EscalationCenter from '@pages/EscalationCenter.svelte';
@@ -59,7 +58,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import ThreatMap from '@pages/ThreatMap.svelte';
   import GlobalTopology from '@pages/GlobalTopology.svelte';
   import MitreHeatmap from '@pages/MitreHeatmap.svelte';
-  import SessionPlayback from '@pages/SessionPlayback.svelte';
+  // SessionPlayback import removed Phase 32 — shell subsystem deleted.
   import TerminalForensics from '@pages/TerminalForensics.svelte';
   import SnippetsPage from '@pages/SnippetsPage.svelte';
   import NotesPage from '@pages/NotesPage.svelte';
@@ -180,13 +179,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/enrichment',             component: EnrichmentViewer },
     { path: '/credentials',            component: CredentialIntel },
 
-    // Operations & Terminal
+    // Operations
     { path: '/ops',              component: OpsCenter },
-    // /shell removed — shell subsystem deleted Phase 33; pending replacement.
-    { path: '/ssh',              component: SSHBookmarks },
-    { path: '/tunnels',          component: TunnelsPage },
-    { path: '/recordings',       component: RecordingsPage },
-    { path: '/session-playback', component: SessionPlayback },
+    // Phase 32 (and Phase 33 follow-up): /shell, /ssh, /tunnels, /recordings,
+    // /session-playback routes deleted from the router. Shell subsystem
+    // removed; deep-linked URLs now fall through to DevelopmentPage.
     { path: '/tasks',            component: TasksPage },
     { path: '/snippets',         component: SnippetsPage },
     { path: '/notes',            component: NotesPage },
