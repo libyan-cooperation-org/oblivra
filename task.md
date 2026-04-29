@@ -58,9 +58,10 @@
 - [x] Security key management UI
 
 ### Storage, Ingestion & Search
-- [x] BadgerDB (hot) + Bleve (search) + Parquet (warm) + JSONL (cold)
+- [x] BadgerDB (hot) + Bleve (search) + Parquet (warm)
+- [s] S3-compatible cold tier (stub interface — full implementation in Phase 22.3)
 - [x] Crash-safe Write-Ahead Log (WAL)
-- [x] Syslog, JSON, CEF, Windows EVTX, Linux journald parsers
+- [x] Syslog, JSON, CEF, Windows EVTX parsers (native ingest); Linux journald via agent backfill
 - [s] High-throughput ingestion pipeline (benchmarked; sustained-load soak test pending)
 - [x] OQL (Oblivra Query Language) with pipe syntax
 - [x] Storage tiering migrator (Hot → Warm → Cold)
@@ -78,11 +79,11 @@
 - [x] Merkle-tree chained audit logging
 - [x] RFC 3161 timestamping
 - [x] Evidence locker with chain-of-custody
-- [x] Temporal entity resolution (DHCP lease tracking)
+- [v] Temporal integrity (clock-drift validation, timestamp guards) — DHCP-aware entity resolution pending
 - [x] Centralized DLP redactor
 
 ### Agent Framework
-- [x] Lightweight Go agent with gRPC + mTLS + zstd
+- [x] Lightweight Go agent with HTTP + mTLS + zlib transport
 - [x] File tailing, Windows Event Log, journald, metrics, FIM
 - [x] Offline buffering (local WAL) + edge filtering
 - [x] Agentless collectors (WMI, SNMP, REST polling)
@@ -91,7 +92,7 @@
 ### Enterprise
 - [x] Multi-tenancy with strong data isolation
 - [x] OIDC/SAML + MFA + granular RBAC
-- [x] Audit log evidence pack (pair with external compliance tooling — Drata/Vanta/Tugboat — for attestation)
+- [s] Audit log evidence pack (EvidenceLocker + Merkle audit exist; formal export endpoint pending Phase 38). Pair with external compliance tooling (Drata/Vanta/Tugboat) for attestation.
 
 ### UX & Productivity
 - [x] Hybrid desktop/web architecture with context guards
@@ -149,7 +150,7 @@ Frameless window chrome, multi-monitor pop-outs, workspace save/restore, notific
 OQL `parse` commands, temporal entity resolution, centralized DLP, Raft control plane improvements.
 
 ### Phase 30–31: Investigation-First UI ✅
-HostDetail page, global InvestigationPanel, EntityLink, 7-domain navigation, ActivityFeed, forensic backfill.
+HostDetail page, global InvestigationPanel, EntityLink, 6-domain navigation (SIEM / INVEST / RESPOND / FLEET / GOVERN / ADMIN), ActivityFeed, forensic backfill.
 
 ### Phase 32: Shell Subsystem Removal ✅
 Interactive terminal/SSH/SFTP subsystem removed from UI (backend libraries retained for non-terminal use).
