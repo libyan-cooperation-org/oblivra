@@ -40,22 +40,11 @@ func (w *threatIntelWrapper) MatchAny(value string) (any, bool) {
 	return w.engine.MatchAny(value)
 }
 
-// unifiedForensicEngine bridges APIService's specific providers to mcp.ForensicEngine.
-// Phase 36: NetworkIsolatorService removed — IsolateHost now calls the
-// agent's ToggleQuarantine RPC only; the SSH-based isolator fallback
-// went away with the response-action layer.
-type unifiedForensicEngine struct {
-	agents *AgentService
-}
-
-func (e *unifiedForensicEngine) IsolateHost(hostID string, reason string) error {
-	_ = reason
-	return e.agents.ToggleQuarantine(hostID, true)
-}
-
-func (e *unifiedForensicEngine) KillProcess(hostID string, pid int) error {
-	return e.agents.KillProcess(hostID, pid)
-}
+// Phase 36.7: unifiedForensicEngine struct + IsolateHost / KillProcess methods
+// removed. The MCP ForensicEngine interface (mcp.ForensicEngine) was deleted
+// with the broad scope cut — MCP is now a read-only execution surface
+// (siem_search / get_alerts / enrich_indicator) and active response is
+// delegated to external SOAR.
 
 // agentProviderBridge satisfies api.AgentProvider using AgentService
 type agentProviderBridge struct {
@@ -144,9 +133,9 @@ func NewAPIService(port int, db database.DatabaseStore, siem database.SIEMStore,
 	cm := security.NewCertificateManager(certPath, keyPath, log)
 	
 	// MCP Initialization (Phase 22.1)
+	// Phase 36.7: ForensicEngine bridge dropped — MCP is read-only.
 	mcpRegistry := mcp.NewToolRegistry()
-	forensicEngine := &unifiedForensicEngine{agents: agentService}
-	mcpEngine := mcp.NewDefaultEngine(siem, forensicEngine, &threatIntelWrapper{engine: matchEngine}, bus, log)
+	mcpEngine := mcp.NewDefaultEngine(siem, &threatIntelWrapper{engine: matchEngine}, bus, log)
 	mcpHandler := mcp.NewHandler(mcpRegistry, mcpEngine, temporalEngine, log)
 
 	// Fleet secret resolution order:

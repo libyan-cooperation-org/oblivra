@@ -199,6 +199,10 @@ Focus narrowed to high-integrity log collection, detection, UEBA, NDR, and foren
 - [ ] Final Phase 36 cleanup (dead FSM paths, Wails bindings regeneration, docs refresh)
 - [ ] Update `README.md` and `FEATURES.md` with new log forensics positioning
 - [ ] Create `docs/operator/log-forensics.md`
+- [ ] **Phase 36.7** — backend response-action chain cleanup (~150 LOC, MCP / agent / ingest / Wails bindings). See `HARDENING.md`.
+- [ ] **Phase 36.8** — schema cleanup: drop 4 dead tables (`tunnels`, `sso_providers`, `graph_nodes`, `graph_edges`) + `audit_logs.user_agent` column. (5 other tables flagged by audit are actually live — see `HARDENING.md` for the verified list.)
+- [ ] **Phase 36.9** — frontend orphan sweep: delete 2 dead stores (compliance + playbook); apply per-page Option 1/2/3 to 7 pages with broken Wails RPC actions. See `HARDENING.md` decision table.
+- [ ] **Phase 36.10** — UI registry consolidation: delete 9 stale entries across CommandRail / CommandPalette / context.ts; make `nav-config.ts` the single source of truth; add CI lint to prevent drift.
 
 ---
 

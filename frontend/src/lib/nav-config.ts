@@ -110,7 +110,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { id: 'alerts',             route: '/alerts',             label: 'Alerts Feed',         icon: 'Bell',            description: 'Active triggers', badgeKey: 'alerts' },
           { id: 'alert-management',   route: '/alert-management',   label: 'Alert Management',    icon: 'BellRing',        description: 'Triage queue + drawer', context: 'browser' },
           { id: 'suppression',        route: '/suppression',        label: 'Suppression Rules',   icon: 'EyeOff',          description: 'False-positive rules' },
-          { id: 'escalation',         route: '/escalation',         label: 'Escalation / On-call',icon: 'Flame',           description: 'On-call routing', context: 'browser' },
+          // Phase 36.9: 'escalation' removed (EscalationCenter depended on incidentservice).
         ],
       },
       {
@@ -128,7 +128,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { id: 'threat-intel-dashboard', route: '/threat-intel-dashboard', label: 'TI Dashboard', icon: 'Globe',          description: 'TI feed posture', context: 'browser' },
           { id: 'credentials',        route: '/credentials',        label: 'Credential Intel',    icon: 'KeyRound',        description: 'Leaked-credential monitoring' },
           { id: 'enrichment',         route: '/enrichment',         label: 'Enrichment Tools',    icon: 'Sparkles',        description: 'GeoIP, ASN, TI', context: 'browser' },
-          { id: 'purple-team',        route: '/purple-team',        label: 'Purple Team',         icon: 'Swords',          description: 'Sim & validate' },
+          // Phase 36.9: 'purple-team' removed (PurpleTeam depended on playbookservice).
         ],
       },
     ],
@@ -164,7 +164,8 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Replay & Audit',
         subtitle: 'Reconstruct, verify, query',
         items: [
-          { id: 'replay',             route: '/response-replay',    label: 'Response Replay',     icon: 'Rewind',          description: 'Re-run incident' },
+          // Phase 36.9: 'replay' removed (ResponseReplay depended on incidentservice;
+          // slot reserved for Phase 38 evidence-package replay viewer).
           { id: 'temporal',           route: '/temporal-integrity', label: 'Temporal Integrity',  icon: 'Clock',           description: 'Late-event audit' },
           { id: 'oql',                route: '/oql',                label: 'OQL Dashboard',       icon: 'Code',            description: 'Saved OQL queries' },
         ],
@@ -315,8 +316,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { id: 'license',            route: '/license',            label: 'License',             icon: 'Award',           description: 'License key' },
           { id: 'features',           route: '/features',           label: 'Feature Flags',       icon: 'Flag',            description: 'Per-deployment flags' },
           { id: 'health',             route: '/monitoring',         label: 'Pipeline Health',     icon: 'HeartPulse',      description: 'Ingest metrics' },
-          { id: 'risk',               route: '/risk',               label: 'Config Risk',         icon: 'AlertTriangle',   description: 'Misconfiguration risk' },
-          { id: 'sync',               route: '/sync',               label: 'Sync',                icon: 'RefreshCw',       description: 'Cross-instance sync', context: 'desktop' },
+          // Phase 36.9: 'risk' removed (ConfigRisk depended on complianceservice).
+          { id: 'sync',               route: '/sync',                label: 'Sync',                icon: 'RefreshCw',       description: 'Cross-instance sync', context: 'desktop' },
           { id: 'offline-update',     route: '/offline-update',     label: 'Offline Update',      icon: 'Download',        description: 'Air-gap update bundle', context: 'desktop' },
           { id: 'development',        route: '/development',        label: 'Development Tools',   icon: 'Code',            description: 'Internal dev tools' },
         ],

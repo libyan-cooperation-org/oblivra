@@ -20,6 +20,10 @@
   let inputRef = $state<HTMLInputElement>();
 
   // ── Full route index (mirrors CommandRail routeMap) ────────────────
+  // Phase 32 removals: terminal, ssh, tunnels, recordings, session-playback,
+  // terminal-forensics (shell subsystem deleted).
+  // Phase 36 removals: playbook-builder, ai-assistant, response/SOAR, soar-panel,
+  // plugins, compliance (broad scope cut).
   const ALL_ROUTES: { id: string; label: string; sublabel: string; path: string; section: string }[] = [
     // Observe
     { id: 'dashboard',            label: 'Dashboard',             sublabel: 'Command hub & platform status',          path: '/dashboard',            section: 'OBS' },
@@ -31,25 +35,17 @@
     { id: 'mitre-heatmap',        label: 'MITRE Heatmap',         sublabel: 'ATT&CK technique coverage',              path: '/mitre-heatmap',        section: 'OBS' },
     { id: 'threat-map',           label: 'Threat Map',            sublabel: 'Global threat geo-visualization',        path: '/threat-map',           section: 'OBS' },
     { id: 'health',               label: 'Health Monitor',        sublabel: 'Platform health & metrics',              path: '/monitoring',           section: 'OBS' },
-    { id: 'recordings',           label: 'Recordings',            sublabel: 'Session recording library',              path: '/recordings',           section: 'OBS' },
     // Operate
-    { id: 'terminal',             label: 'Terminal',              sublabel: 'Active shell sessions',                  path: '/shell',             section: 'OPS' },
-    { id: 'ssh',                  label: 'SSH Bookmarks',         sublabel: 'Saved SSH connections',                  path: '/ssh',                  section: 'OPS' },
-    { id: 'tunnels',              label: 'Tunnels',               sublabel: 'Port-forward & reverse tunnels',         path: '/tunnels',              section: 'OPS' },
     { id: 'hosts',                label: 'Hosts',                 sublabel: 'Infrastructure management',              path: '/hosts',                section: 'OPS' },
     { id: 'fleet-management',     label: 'Fleet',                 sublabel: 'Fleet dashboard & agent status',         path: '/fleet-management',     section: 'OPS' },
     { id: 'agents',               label: 'Agents',                sublabel: 'Agent console',                          path: '/agents',               section: 'OPS' },
     { id: 'ops',                  label: 'Ops Center',            sublabel: 'Operational command board',              path: '/ops',                  section: 'OPS' },
     { id: 'soc',                  label: 'SOC',                   sublabel: 'Security operations center',             path: '/soc',                  section: 'OPS' },
     { id: 'escalation',           label: 'Escalation Center',     sublabel: 'Manage incident escalations',            path: '/escalation',           section: 'OPS' },
-    { id: 'playbook-builder',     label: 'Playbook Builder',      sublabel: 'Automate response playbooks',            path: '/playbook-builder',     section: 'OPS' },
     { id: 'snippets',             label: 'Snippets',              sublabel: 'Command snippet library',                path: '/snippets',             section: 'OPS' },
     { id: 'notes',                label: 'Notes',                 sublabel: 'Analyst notes & scratch pad',            path: '/notes',                section: 'OPS' },
-    { id: 'ai-assistant',         label: 'AI Assistant',          sublabel: 'AI-powered shell & query assist',        path: '/ai-assistant',         section: 'OPS' },
     { id: 'cases',                label: 'Case Management',       sublabel: 'Investigation case tracking',            path: '/cases',                section: 'OPS' },
     { id: 'ledger',               label: 'Evidence Ledger',       sublabel: 'Immutable evidence log',                 path: '/ledger',               section: 'OPS' },
-    { id: 'response',             label: 'SOAR / Response',       sublabel: 'Security orchestration & automation',    path: '/response',             section: 'OPS' },
-    { id: 'session-playback',     label: 'Session Playback',      sublabel: 'Replay recorded terminal sessions',      path: '/session-playback',     section: 'OPS' },
     // Intel
     { id: 'ueba',                 label: 'UEBA',                  sublabel: 'User & entity behaviour analytics',      path: '/ueba',                 section: 'INTEL' },
     { id: 'threat-hunter',        label: 'Threat Hunter',         sublabel: 'Proactive threat hunting',               path: '/threat-hunter',        section: 'INTEL' },
@@ -61,14 +57,12 @@
     { id: 'credentials',          label: 'Credential Intel',      sublabel: 'Exposed credential monitoring',          path: '/credentials',          section: 'INTEL' },
     { id: 'global-topology',      label: 'Global Topology',       sublabel: 'Cross-site network map',                 path: '/global-topology',      section: 'INTEL' },
     { id: 'network-map',          label: 'Network Map',           sublabel: 'Internal network layout',                path: '/network-map',          section: 'INTEL' },
-    // Govern
-    { id: 'compliance',           label: 'Compliance',            sublabel: 'Policy & regulatory posture',            path: '/compliance',           section: 'GOV' },
+    // Govern (Phase 36.x: compliance removed; Phase 32: terminal-forensics removed)
     { id: 'vault',                label: 'Vault',                 sublabel: 'Credential & secret management',         path: '/vault',                section: 'GOV' },
     { id: 'identity',             label: 'Identity Admin',        sublabel: 'User identity & access control',         path: '/identity',             section: 'GOV' },
     { id: 'security',             label: 'Runtime Trust',         sublabel: 'Runtime integrity & trust state',        path: '/trust',                section: 'GOV' },
     { id: 'forensics',            label: 'Forensics',             sublabel: 'Host forensic analysis',                 path: '/forensics',            section: 'GOV' },
-    { id: 'terminal-forensics',   label: 'Terminal Forensics',    sublabel: 'Terminal session forensics',             path: '/terminal-forensics',   section: 'GOV' },
-    { id: 'ransomware',           label: 'Ransomware Response',   sublabel: 'Ransomware detection & recovery',        path: '/ransomware',           section: 'GOV' },
+    { id: 'ransomware',           label: 'Ransomware',            sublabel: 'Ransomware detection (entropy-based)',   path: '/ransomware',           section: 'GOV' },
     { id: 'war-mode',             label: 'War Mode',              sublabel: 'Emergency platform lockdown',            path: '/war-mode',             section: 'GOV' },
     { id: 'data-destruction',     label: 'Data Destruction',      sublabel: 'Secure wipe orchestration',              path: '/data-destruction',     section: 'GOV' },
     // Audit
@@ -78,12 +72,12 @@
     { id: 'replay',               label: 'Response Replay',       sublabel: 'Replay incident response',               path: '/response-replay',      section: 'AUDIT' },
     { id: 'chain-of-custody',     label: 'Chain of Custody',      sublabel: 'Evidence chain of custody',              path: '/chain-of-custody',     section: 'AUDIT' },
     { id: 'oql',                  label: 'OQL Dashboard',         sublabel: 'OBLIVRA query language',                 path: '/oql',                  section: 'AUDIT' },
-    { id: 'soar-panel',           label: 'SOAR Panel',            sublabel: 'Automated response panel',               path: '/soar',                 section: 'AUDIT' },
+    // Phase 36: SOAR Panel removed (broad scope cut).
     { id: 'simulation',           label: 'Simulation',            sublabel: 'Attack simulation & testing',            path: '/simulation',           section: 'AUDIT' },
     // System
     { id: 'executive',            label: 'Executive Dashboard',   sublabel: 'C-suite risk & metrics view',            path: '/executive',            section: 'SYS' },
     { id: 'team',                 label: 'Team Dashboard',        sublabel: 'Team collaboration & ops',               path: '/team',                 section: 'SYS' },
-    { id: 'plugins',              label: 'Plugin Manager',        sublabel: 'Manage OBLIVRA extensions',              path: '/plugins',              section: 'SYS' },
+    // Phase 36: Plugin Manager removed (plugin framework deleted).
     { id: 'sync',                 label: 'Sync',                  sublabel: 'Config & state synchronisation',         path: '/sync',                 section: 'SYS' },
     { id: 'offline-update',       label: 'Offline Update',        sublabel: 'Air-gap software update',                path: '/offline-update',       section: 'SYS' },
     { id: 'settings',             label: 'Settings',              sublabel: 'Platform configuration',                 path: '/settings',             section: 'SYS' },

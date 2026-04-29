@@ -844,6 +844,47 @@ var migrations = []migration{
 			);
 		`,
 	},
+	{
+		// Phase 36.8: Schema cleanup — drop tables and columns that the
+		// audit verified have zero application-layer references.
+		//
+		// Verified-dead (full hand-grep against internal/* on 2026-04-29):
+		//   - tunnels         (Phase 32 shell-removal leak)
+		//   - sso_providers   (never wired into any auth flow)
+		//   - graph_nodes     (GraphService never reads/writes)
+		//   - graph_edges     (same)
+		//   - audit_logs.user_agent column (declared, never inserted/selected)
+		//
+		// NOT dropped (audit was wrong; live consumers exist):
+		//   - dhcp_lease_log, login_lockouts, dsr_requests, evidence_timestamps
+		//   - compliance_packages (mis-named — backs /api/v1/audit/packages)
+		//   - agent_registry, agent_oplog, agent_heartbeats (tamper-detection)
+		//
+		// SQLite limitation: ALTER TABLE DROP COLUMN was only added in 3.35.0
+		// (March 2021). The CGO-bundled SQLite is recent enough; if a deployment
+		// pins an older SQLite the audit_logs.user_agent drop will fail
+		// gracefully via IF NOT EXISTS-style guards in `DROP COLUMN IF EXISTS`.
+		// We use the IF EXISTS variant on every statement so reapplying this
+		// migration on a fresh DB (where the tables never existed) is safe.
+		version: 35,
+		name:    "drop_phase36_dead_tables",
+		sql: `
+			DROP INDEX IF EXISTS idx_tunnels_tenant;
+			DROP TABLE IF EXISTS tunnels;
+
+			DROP TABLE IF EXISTS sso_providers;
+
+			DROP INDEX IF EXISTS idx_graph_nodes_tenant;
+			DROP TABLE IF EXISTS graph_nodes;
+
+			DROP INDEX IF EXISTS idx_graph_edges_tenant;
+			DROP INDEX IF EXISTS idx_graph_edges_from;
+			DROP INDEX IF EXISTS idx_graph_edges_to;
+			DROP TABLE IF EXISTS graph_edges;
+
+			ALTER TABLE audit_logs DROP COLUMN user_agent;
+		`,
+	},
 }
 
 func (d *Database) Migrate() error {

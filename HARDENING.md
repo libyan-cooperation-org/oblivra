@@ -625,6 +625,118 @@ After Phases 28 + 32 + 33 + 34 + 36, the remaining open items on this ledger:
 - [ ] **29.7** Playwright smoke test must run against the COMPILED exe.
 - [x] **29.8** CI hard-block on runes in plain `.ts` files. Closed via `frontend/scripts/lint-guards.sh`.
 
+### Phase 36.7 — Residual SOAR / response-action chain (post-cross-reference audit, 2026-04-29)
+
+A code-vs-task.md cross-reference pass found Phase 36 left a substantial response-action chain in-tree. The frontend `Quarantine` toggle still calls a deep stack that ultimately no-ops. **Build is green** but the dead surface area is real and creates technical debt.
+
+Pass 1 cleaned (already landed):
+- [x] `internal/isolation/network_isolator.go` — orphaned ransomware containment file. Deleted.
+- [x] `internal/api/rest_phase8_12.go` — playbook handlers + `savedPlaybook` / `playbookExecution` types + `defaultActions` enum (`isolate_host`, `kill_process`, `snapshot_memory`, etc.) + `handleRansomwareIsolate_REMOVED_PHASE_36` stub. Deleted.
+- [x] `internal/api/rest.go:587-590` — `/api/v1/playbooks/*` mux routes. Deleted.
+- [x] `frontend/src/App.svelte` — `/ssh`, `/tunnels`, `/recordings`, `/session-playback` Phase 32 leakage routes. Deleted along with their imports.
+
+Pass 2 still open (deeper chain, defer to its own session):
+- [ ] **36.7.1** `internal/mcp/engine.go:13-16` — `ForensicEngine` interface still declares `IsolateHost(hostID, reason) error` and `KillProcess(hostID, pid) error`. `Execute()` switch routes `isolate_host` / `quarantine_host` / `kill_process` / `run_playbook` tools. Either remove from MCP entirely or scope MCP to read-only tools.
+- [ ] **36.7.2** `internal/services/api_service.go:43-58` — `unifiedForensicEngine` implements the MCP interface by calling `agents.ToggleQuarantine` + `agents.KillProcess`. Delete with 36.7.1.
+- [ ] **36.7.3** `internal/services/agent_service.go:128-141` — `ToggleQuarantine` method posts `ActionIsolateNetwork` / `ActionRestoreNetwork` to the agent action queue. Delete; only consumer is the deleted MCP path.
+- [ ] **36.7.4** `internal/agent/agent.go:96-97` (action const), `:450-455` (handler cases), `:658-667` (`applyNetworkIsolation` no-op stub) — all SOAR containment leftovers. Delete.
+- [ ] **36.7.5** `internal/ingest/agent_server.go:69-70` — server-side mirror of `ActionIsolateNetwork` / `ActionRestoreNetwork` constants. Delete with 36.7.4.
+- [ ] **36.7.6** `frontend/src/lib/stores/agent.svelte.ts:137-148` — `toggleQuarantine()` Wails-binding call. Delete; no caller after Phase 36 UI cuts.
+- [ ] **36.7.7** Regenerate Wails bindings to drop `ToggleQuarantine` from `frontend/bindings/.../agentservice.js`.
+- [ ] **36.7.8** `internal/api/rest_fusion_peer.go:55` — `licensing.FeatureSOAR` gate on the fusion-peer endpoint. Fusion is real; replace gate with `FeatureFusion` once that feature flag exists, or drop the check.
+
+### Phase 36.7 — Doc-vs-code mismatches found in same audit
+
+These were claims in `task.md` that the codebase didn't back up. All fixed in the same pass (now matches reality):
+- [x] **JSONL cold tier** claimed `[x]`. Cold tier is S3-stub only — no JSONL writer. Downgraded to `[s]` "S3-compatible cold tier (Phase 22.3)".
+- [x] **Linux journald parser** claimed in ingest parsers. Native parser absent; journald arrives via agent backfill (`internal/agent/backfill_linux.go`). Clarified.
+- [x] **Agent transport "gRPC + zstd"**. Actually HTTP + zlib (`internal/agent/transport.go`). Corrected.
+- [x] **DHCP lease tracking** claimed under temporal entity resolution. `internal/temporal/integrity.go` does clock-drift only. Downgraded to `[v]` and noted DHCP integration is pending.
+- [x] **Audit log evidence pack** claimed `[x]`. EvidenceLocker + Merkle audit are real but no formal export endpoint exists. Downgraded to `[s]` pending Phase 38.
+- [x] **"7-domain navigation"** in Phase 30-31 history. nav-config.ts has 6 groups (SIEM / INVEST / RESPOND / FLEET / GOVERN / ADMIN). Corrected.
+
+### Phase 36.7 — Cosmetic stale comments (low-priority)
+
+Five frontend pages still reference services deleted in Phase 36 inside source comments (not executable code, no runtime impact):
+- [ ] **36.7.9** `frontend/src/pages/AlertDashboard.svelte` — comment mentions `IncidentService.UpdateIncidentStatus`
+- [ ] **36.7.10** `frontend/src/pages/ConfigRisk.svelte` — comment "bound to ComplianceService"
+- [ ] **36.7.11** `frontend/src/pages/EscalationCenter.svelte` — comment "bound to IncidentService"
+- [ ] **36.7.12** `frontend/src/pages/PurpleTeam.svelte` — comment "bound to PlaybookService"
+- [ ] **36.7.13** `frontend/src/pages/SimulationPanel.svelte` — comment "Bound to PlaybookService.RunPlaybook"
+
+Search-and-replace pass when convenient.
+
+### Phase 36.8 — Schema cleanup (post-audit, 2026-04-29)
+
+The full-stack audit flagged 9 tables and 1 column as dead. Hand-verification found **only 4 tables + 1 column are genuinely unreferenced**; the remaining 5 are live but the DB audit missed their consumers. Use this verified list, not the raw audit output.
+
+**Verified-dead — safe to drop in next migration:**
+- [ ] **36.8.1** `tunnels` (`internal/database/migrations.go:94-104`) — Phase 32 shell-removal leak. Zero CRUD references in `internal/`. Index `idx_tunnels_tenant` orphaned.
+- [ ] **36.8.2** `sso_providers` (`migrations.go:337-354`) — never wired into any auth flow. FK to `roles(id)` is dangling. No INSERT/SELECT in code.
+- [ ] **36.8.3** `graph_nodes` (`migrations.go:549`) — `GraphService` exists in `app.go` but never reads/writes this table. Indexes `idx_graph_nodes_tenant` orphaned.
+- [ ] **36.8.4** `graph_edges` (`migrations.go:560`) — same status as graph_nodes. Indexes `idx_graph_edges_tenant`, `idx_graph_edges_from`, `idx_graph_edges_to` orphaned.
+- [ ] **36.8.5** `audit_logs.user_agent` column (`migrations.go:73`) — declared with `DEFAULT ''`, INSERT statement at `internal/database/audit.go` omits it, no SELECT reads it. ~20 bytes/row × 100k+ rows wasted.
+
+**Verified-LIVE — DO NOT drop (audit was wrong):**
+| Table | Consumer | Status |
+|---|---|---|
+| `agent_registry` | `internal/api/agent_handlers.go:410` (INSERT), `:617` (SELECT) | **LIVE** — fleet rehydration |
+| `agent_oplog` | `internal/api/rest_tamper.go:96` (INSERT), `:147,151` (SELECT) | **LIVE** — tamper detection |
+| `agent_heartbeats` | `internal/api/rest_tamper.go:224,246,298,406` | **LIVE** — heartbeat tracking |
+| `dhcp_lease_log` | `internal/identity/lease.go:135,158,199,243` | **LIVE** — temporal entity resolution |
+| `compliance_packages` | `internal/api/rest.go:2639,2708` | **LIVE** — but mis-named. Backs `/api/v1/audit/packages`, *not* the deleted compliance evaluator. |
+| `login_lockouts` | `internal/api/rest.go:1617,1641` | **LIVE** — auth lockout |
+| `dsr_requests` | `internal/api/rest_dsr.go:103,135,270` | **LIVE** — GDPR/CCPA workflow |
+| `evidence_timestamps` | `internal/forensics/rfc3161.go:354` | **LIVE** — RFC 3161 token store |
+
+**Naming debt (separate from drops):**
+- [ ] **36.8.6** Rename `compliance_packages` → `audit_evidence_packages`. The table backs Phase 38's audit-evidence-pack export, not the Phase 36.x-removed compliance evaluator. The legacy name confuses every audit pass that reads schema before code. Migration is a `CREATE+COPY+DROP` cycle (SQLite cannot rename in place safely with CGO build); mark non-blocking, do when the next durable-state migration runs.
+
+### Phase 36.9 — Frontend orphan sweep (post-audit, 2026-04-29)
+
+The audit found 2 fully-orphaned stores + 8 pages whose primary actions call deleted Wails RPC services. Each page needs an Option 1/2/3 decision before touching.
+
+**Stores — safe to delete (zero imports across `frontend/src/`):**
+- [ ] **36.9.1** `frontend/src/lib/stores/compliance.svelte.ts` — calls `/api/v1/compliance/status` (returns 410 Gone). Method `validateAll()` (line 62) never reachable.
+- [ ] **36.9.2** `frontend/src/lib/stores/playbook.svelte.ts` — calls `/api/v1/playbooks/*` (deleted Phase 36).
+- [ ] **36.9.3** Once 36.9.1 lands, remove the matching `/api/v1/compliance/status` 410 stub at `internal/api/rest.go:2919-2921`. Holding a 410 alive after the only caller dies is dead defensive code.
+
+**Pages — operator-visible UX decision required per page:**
+
+| Page | Broken call | Live data still works? | Recommended option |
+|---|---|---|---|
+| `AlertManagement.svelte:185,199,211,223` | `incidentservice.*`, `playbookservice.*` | ✅ alert list | **Option 2** — strip incident/playbook actions, keep alert table |
+| `EscalationCenter.svelte:16,24,36` | `incidentservice.*` | partial | **Option 1** — delete page, remove from nav |
+| `ResponseReplay.svelte:16` | `incidentservice.ListIncidents` | ❌ | **Option 3** — Phase 38 candidate: rebuild as evidence-package replay viewer |
+| `PurpleTeam.svelte:18,27` | `playbookservice.*` | ❌ | **Option 1** — delete |
+| `TasksPage.svelte:21,28` | `playbookservice.*` | ❌ | **Option 1** — delete |
+| `ConfigRisk.svelte:19` | `complianceservice.ListCompliancePacks` | ❌ | **Option 1** — delete |
+| `ThreatGraph.svelte:9` | `networkisolatorservice.IsolateHost` (static import) | ✅ graph view | **Option 2** — strip isolate button, keep graph |
+
+- [ ] **36.9.4** Apply Option-table decisions above. Each page = 1 commit (atomic + reviewable).
+- [ ] **36.9.5** After 36.9.4, remove orphan Wails bindings: `frontend/bindings/.../services/aiservice.js`, `pluginservice.js`, plus `bindings/.../compliance/`, `bindings/.../plugin/` directories. Run `wails generate bindings` after backend Phase 36.7 chain cleanup.
+
+**Cosmetic stale comments** (already in 36.7.9-36.7.13, repeat here for cross-reference):
+- [ ] AlertDashboard / ConfigRisk / EscalationCenter / PurpleTeam / SimulationPanel — search-and-replace pass to remove `IncidentService` / `ComplianceService` / `PlaybookService` mentions.
+
+### Phase 36.10 — UI registry consolidation (post-audit, 2026-04-29)
+
+Routes and command-palette entries currently live in **three** unsynchronized files. Phase 36 deleted routes from `App.svelte` and `nav-config.ts` but left entries in the other two. Result: dead clicks land on `DevelopmentPage` placeholder.
+
+**Drift sources:**
+1. `frontend/src/components/layout/CommandRail.svelte:19,25,30-31,76,77` — `playbook-builder`, `compliance`, `plugins`, `ai-assistant` entries (4 items) → no matching pages
+2. `frontend/src/components/ui/CommandPalette.svelte:45,65,81` — `playbook-builder`, `compliance`, `soar-panel` (3 items) → no matching pages
+3. `frontend/src/lib/context.ts` — route-availability list contains `/compliance` and `/playbook-builder` (2 items) → no matching pages
+
+**Immediate fixes (delete the 9 stale entries):**
+- [ ] **36.10.1** `CommandRail.svelte` — remove the 4 deleted-route entries
+- [ ] **36.10.2** `CommandPalette.svelte` — remove the 3 deleted-route entries
+- [ ] **36.10.3** `context.ts` — remove the 2 deleted-route entries
+
+**Architectural fix (eliminate the drift class):**
+- [ ] **36.10.4** Make `frontend/src/lib/nav-config.ts` the **single source of truth** for routes. Have CommandRail, CommandPalette, and context.ts derive their entries from it (filter by `surface`, `section`, or a new `commandPalette: true` flag). Goal: deleting a route from nav-config.ts should make it unreachable from every UI surface in one change.
+- [ ] **36.10.5** Add a CI check: lint that fails if a route appears in CommandRail/CommandPalette/context.ts but not in nav-config.ts. Prevents reintroducing the drift class.
+
 ### Architecture / scale follow-ups
 
 - [ ] **MCP query injection** — `internal/mcp/engine.go:71,74` user-supplied `status` injected into query string.

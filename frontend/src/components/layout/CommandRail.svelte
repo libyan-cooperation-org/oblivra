@@ -10,31 +10,35 @@
   import { IS_DESKTOP, IS_BROWSER, IS_HYBRID, isRouteAvailable } from '@lib/context';
   import type { NavTab } from '@lib/types';
 
+  // Phase 36.10: Routes for deleted features (playbook-builder, compliance,
+  // plugins, ai-assistant) removed. Phase 32 shell-subsystem routes (terminal,
+  // ssh, tunnels, recordings) also dropped from this map; nav-config.ts is the
+  // canonical registry — keep this map in sync only where CommandRail surfaces
+  // a sibling or unique entry.
   const routeMap: Record<string, string> = {
     dashboard: '/dashboard', siem: '/siem', alerts: '/alerts',
     cases: '/cases', evidence: '/evidence', 'chain-of-custody': '/chain-of-custody',
     'alert-management': '/alert-management', 'siem-search': '/siem-search',
     topology: '/topology', health: '/monitoring', ops: '/ops',
     response: '/response', escalation: '/escalation',
-    'playbook-builder': '/playbook-builder', ueba: '/ueba',
+    ueba: '/ueba',
     'ueba-overview': '/ueba-overview', 'threat-hunter': '/threat-hunter',
     'threat-intel-dashboard': '/threat-intel-dashboard', enrichment: '/enrichment',
     'threat-map': '/threat-map',
     ndr: '/ndr', 'ndr-overview': '/ndr-overview', 'purple-team': '/purple-team',
     graph: '/graph', ransomware: '/ransomware', 'ransomware-ui': '/ransomware-ui',
-    simulation: '/simulation', compliance: '/compliance', vault: '/vault',
+    simulation: '/simulation', vault: '/vault',
     'war-mode': '/war-mode', forensics: '/forensics',
     'remote-forensics': '/remote-forensics', security: '/trust',
     temporal: '/temporal-integrity', lineage: '/lineage',
     decisions: '/decisions', ledger: '/ledger', replay: '/response-replay',
-    plugins: '/plugins', executive: '/executive', settings: '/workspace',
-    'ai-assistant': '/ai-assistant', 'mitre-heatmap': '/mitre-heatmap',
+    executive: '/executive', settings: '/workspace',
+    'mitre-heatmap': '/mitre-heatmap',
     license: '/license', team: '/team', hosts: '/hosts',
-    terminal: '/shell', tunnels: '/tunnels', recordings: '/recordings',
     snippets: '/snippets', notes: '/notes', sync: '/sync',
     agents: '/agents', 'fleet-management': '/fleet-management',
     identity: '/identity', 'identity-admin': '/identity-admin', soc: '/soc',
-    ssh: '/ssh', investigation: '/investigation', timeline: '/timeline',
+    investigation: '/investigation', timeline: '/timeline',
     secrets: '/secrets', suppression: '/suppression', admin: '/admin',
     operator: '/operator', shortcuts: '/shortcuts',
   };
@@ -112,7 +116,7 @@
     { id: 'siem-search',        icon: 'hunter',     label: 'SIEM Search',     context: 'browser' },
     { id: 'alerts',             icon: 'alerts',     label: 'Alerts' },
     { id: 'alert-management',   icon: 'alerts',     label: 'Alert Management',context: 'browser' },
-    { id: 'recordings',         icon: 'recordings', label: 'Recordings',      context: 'desktop' },
+    // Phase 32: recordings entry removed (shell subsystem deleted).
     { id: 'topology',           icon: 'topology',   label: 'Topology' },
     { id: 'mitre-heatmap',      icon: 'mitre',      label: 'MITRE Heatmap' },
     { id: 'threat-map',         icon: 'topology',   label: 'Threat Map' },
@@ -120,23 +124,19 @@
   ];
 
   const operate: NavItem[] = [
-    { id: 'terminal',           icon: 'terminal',   label: 'Terminal' },
-    { id: 'ssh',                icon: 'ssh',        label: 'SSH Bookmarks',   context: 'desktop' },
-    { id: 'tunnels',            icon: 'tunnels',    label: 'Tunnels',         context: 'desktop' },
+    // Phase 32: terminal/ssh/tunnels removed (shell subsystem).
+    // Phase 36: playbook-builder, ai-assistant, response/SOAR removed (broad scope cut).
     { id: 'hosts',              icon: 'hosts',      label: 'Hosts' },
     { id: 'agents',             icon: 'agents',     label: 'Agent Console',   context: 'browser' },
     { id: 'fleet-management',   icon: 'agents',     label: 'Fleet',           context: 'browser' },
     { id: 'ops',                icon: 'ops',        label: 'Ops Center' },
     { id: 'soc',                icon: 'soc',        label: 'SOC',             context: 'browser' },
     { id: 'escalation',         icon: 'response',   label: 'Escalation',      context: 'browser' },
-    { id: 'playbook-builder',   icon: 'purple',     label: 'Playbook Builder',context: 'browser' },
     { id: 'snippets',           icon: 'snippets',   label: 'Snippets',        context: 'desktop' },
     { id: 'notes',              icon: 'notes',      label: 'Notes',           context: 'desktop' },
-    { id: 'ai-assistant',       icon: 'ai',         label: 'AI Shell' },
     { id: 'cases',              icon: 'cases',      label: 'Cases' },
     { id: 'ledger',             icon: 'ledger',     label: 'Evidence Ledger' },
     { id: 'timeline',           icon: 'timeline',   label: 'Timeline' },
-    { id: 'response',           icon: 'response',   label: 'SOAR / Response' },
     { id: 'operator',           icon: 'operator',   label: 'Operator Mode',   context: 'desktop' },
     { id: 'investigation',      icon: 'investigation', label: 'Investigation' },
   ];
@@ -152,7 +152,7 @@
   ];
 
   const govern: NavItem[] = [
-    { id: 'compliance',         icon: 'compliance', label: 'Compliance' },
+    // Phase 36.x: compliance entry removed (compliance YAML packs deleted).
     { id: 'vault',              icon: 'vault',      label: 'Vault' },
     { id: 'identity',           icon: 'identity',   label: 'Identity Admin',  context: 'browser' },
     { id: 'security',           icon: 'security',   label: 'Runtime Trust' },
@@ -166,7 +166,7 @@
 
   const systemItems: NavItem[] = [
     { id: 'executive',          icon: 'executive',  label: 'Executive Dashboard' },
-    { id: 'plugins',            icon: 'plugins',    label: 'Plugins' },
+    // Phase 36: plugins entry removed (plugin framework deleted).
     { id: 'sync',               icon: 'sync',       label: 'Sync',            context: 'desktop' },
     { id: 'license',            icon: 'vault',      label: 'License' },
     { id: 'settings',           icon: 'settings',   label: 'Settings' },

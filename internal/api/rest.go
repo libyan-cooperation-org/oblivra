@@ -564,8 +564,8 @@ func NewRESTServer(port int, db database.DatabaseStore, siem database.SIEMStore,
 	mux.HandleFunc("/api/v1/reports/generate", s.handleReportGenerate)
 	mux.HandleFunc("/api/v1/reports/view/", s.handleReportView)
 
-	// Compliance Hub — Phase 20.12
-	mux.HandleFunc("/api/v1/compliance/status", s.handleComplianceStatus)
+	// Phase 36.x: /api/v1/compliance/status route + handler removed.
+	// Frontend caller (compliance.svelte.ts store) was deleted in Phase 36.9.
 
 	// Dashboard Studio — Phase 20.11
 	mux.HandleFunc("/api/v1/dashboards", s.handleDashboards)
@@ -2910,15 +2910,9 @@ func (s *RESTServer) handleGraphSubgraph(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// GET /api/v1/compliance/status — Phase 36.x: returns 410 Gone.
-// Compliance packs (PCI-DSS / NIST / ISO / GDPR / HIPAA / SOC2) were
-// removed with the broad scope cut. The endpoint stays registered so
-// stale frontend callers receive a clean structured response instead
-// of a 404, and so external compliance dashboards can detect the
-// platform no longer ships the feature.
-func (s *RESTServer) handleComplianceStatus(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Compliance pack evaluation removed in Phase 36.x. Pair OBLIVRA with a dedicated compliance tool (Drata, Vanta, Tugboat Logic) and use /api/v1/audit for the underlying log evidence.", http.StatusGone)
-}
+// Phase 36.9: handleComplianceStatus removed. The 410-Gone shim was kept
+// during Phase 36.x while the frontend store still pinged the endpoint;
+// store deleted in Phase 36.9, so the shim is also gone now.
 
 // SetupRequest is the payload SetupWizard.svelte POSTs on completion.
 type SetupRequest struct {

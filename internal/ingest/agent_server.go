@@ -59,15 +59,14 @@ type FleetConfig struct {
 	Quarantine     bool          `json:"quarantine"` // Isolate agent from all non-C2 network traffic
 }
 
-// ActionType defines forensic or response operations the agent can perform.
+// ActionType defines read-only forensic operations the agent can perform.
+// Phase 36.7: ActionKillProcess / ActionIsolateNetwork / ActionRestoreNetwork
+// removed (response-action chain deleted with broad scope cut).
 type ActionType string
 
 const (
-	ActionKillProcess      ActionType = "kill_process"
 	ActionProcessSnapshot  ActionType = "process_snapshot"
 	ActionProcessInventory ActionType = "process_inventory"
-	ActionIsolateNetwork   ActionType = "isolate_network"
-	ActionRestoreNetwork   ActionType = "restore_network"
 )
 
 // PendingAction represents a command waiting for an agent to pull.

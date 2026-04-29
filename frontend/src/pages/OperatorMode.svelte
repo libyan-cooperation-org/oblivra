@@ -36,17 +36,8 @@
         agentID = id;
     }
 
-    // Listen for global keybinds dispatched by App.svelte's Ctrl+Shift+I/E
-    // handlers. The keybind triggers the same flow as clicking the toolbar
-    // buttons, but no host context is required at the global level — we
-    // resolve the active host here.
-    const onIsolate = () => {
-      if (!agentID) {
-        appStore.notify('No host selected — pick a host to isolate', 'warning');
-        return;
-      }
-      void isolateHost();
-    };
+    // Phase 36.7: oblivra:isolate-host listener removed (response chain deleted).
+    // Capture-evidence keybind retained.
     const onCaptureEvent = () => {
       if (!agentID) {
         appStore.notify('No host selected — pick a host to capture evidence', 'warning');
@@ -54,23 +45,13 @@
       }
       void captureEvidence();
     };
-    window.addEventListener('oblivra:isolate-host', onIsolate);
     window.addEventListener('oblivra:capture-evidence', onCaptureEvent);
     return () => {
-      window.removeEventListener('oblivra:isolate-host', onIsolate);
       window.removeEventListener('oblivra:capture-evidence', onCaptureEvent);
     };
   });
 
-  async function isolateHost() {
-    if (!agentID) return;
-    try {
-        await agentStore.toggleQuarantine(agentID, true);
-        appStore.notify(`Host ${agentID} isolated from network`, 'warning');
-    } catch (err: any) {
-        appStore.notify(`Isolation failed: ${err}`, 'error');
-    }
-  }
+  // Phase 36.7: isolateHost handler removed (response-action chain deleted).
 
   async function captureEvidence() {
     if (!agentID) return;
@@ -154,7 +135,7 @@
         </div>
         <div class="flex gap-2">
             <Button variant="danger" size="xs" class="font-mono text-[9px]" onclick={pivotToSIEM}>SIEM FILTER ⌃⇧F</Button>
-            <Button variant="danger" size="xs" class="font-mono text-[9px]" onclick={isolateHost}>ISOLATE NOW ⌃⇧I</Button>
+            <!-- Phase 36.7: ISOLATE NOW button removed (response chain deleted). -->
         </div>
     </div>
 
@@ -218,26 +199,18 @@
                 <div class="px-3 py-2 bg-surface-2 border-b border-border-primary">
                     <span class="text-[9px] font-mono font-bold text-text-muted tracking-widest uppercase">Operator Actions</span>
                 </div>
+                <!-- Phase 36.7: Isolate Host + Kill Process actions removed
+                     (response-action chain deleted). Capture Evidence + SIEM
+                     Filter remain. -->
                 <div class="p-3 grid grid-cols-2 gap-2">
-                    <button 
-                        class="flex flex-col gap-1 p-2 bg-error/10 border border-error/30 rounded-sm text-left hover:bg-error/20 transition-colors"
-                        onclick={isolateHost}
-                    >
-                        <span class="text-[10px] font-bold text-error tracking-tight uppercase">Isolate Host</span>
-                        <span class="text-[8px] font-mono text-error/70">⌃⇧I · Cut Network</span>
-                    </button>
-                    <button 
+                    <button
                         class="flex flex-col gap-1 p-2 bg-warning/10 border border-warning/30 rounded-sm text-left hover:bg-warning/20 transition-colors"
                         onclick={captureEvidence}
                     >
                         <span class="text-[10px] font-bold text-warning tracking-tight uppercase">Evidence</span>
-                        <span class="text-[8px] font-mono text-warning/70">⌃⇧E · Mem + Disk</span>
+                        <span class="text-[8px] font-mono text-warning/70">⌃⇧E · Capture</span>
                     </button>
-                    <button class="flex flex-col gap-1 p-2 bg-accent/10 border border-accent/30 rounded-sm text-left hover:bg-accent/20 transition-colors">
-                        <span class="text-[10px] font-bold text-accent tracking-tight uppercase">Kill Process</span>
-                        <span class="text-[8px] font-mono text-accent/70">PID 4412 · C2</span>
-                    </button>
-                    <button 
+                    <button
                         class="flex flex-col gap-1 p-2 bg-accent/10 border border-accent/30 rounded-sm text-left hover:bg-accent/20 transition-colors"
                         onclick={pivotToSIEM}
                     >

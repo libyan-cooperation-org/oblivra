@@ -9,11 +9,11 @@ import (
 	"github.com/kingknull/oblivrashell/internal/logger"
 )
 
-// ForensicEngine defines the interface for active response operations
-type ForensicEngine interface {
-	IsolateHost(hostID string, reason string) error
-	KillProcess(hostID string, pid int) error
-}
+// Phase 36.7: ForensicEngine interface (IsolateHost / KillProcess) removed.
+// The MCP execution surface is now read-only — siem_search / get_alerts /
+// enrich_indicator. Active response (host isolation, process termination,
+// playbook execution) was deleted with the broad scope cut. Pair MCP-driven
+// detection with an external SOAR for response automation.
 
 // ThreatIntel defines the interface for indicator enrichment
 type ThreatIntel interface {
@@ -23,21 +23,19 @@ type ThreatIntel interface {
 
 // DefaultEngine implements the ExecutionEngine interface by routing to OBLIVRA services
 type DefaultEngine struct {
-	siem      database.SIEMStore
-	forensics ForensicEngine
-	intel     ThreatIntel
-	bus       *eventbus.Bus
-	log       *logger.Logger
+	siem  database.SIEMStore
+	intel ThreatIntel
+	bus   *eventbus.Bus
+	log   *logger.Logger
 }
 
 // NewDefaultEngine creates a new DefaultEngine
-func NewDefaultEngine(siem database.SIEMStore, forensics ForensicEngine, intel ThreatIntel, bus *eventbus.Bus, log *logger.Logger) *DefaultEngine {
+func NewDefaultEngine(siem database.SIEMStore, intel ThreatIntel, bus *eventbus.Bus, log *logger.Logger) *DefaultEngine {
 	return &DefaultEngine{
-		siem:      siem,
-		forensics: forensics,
-		intel:     intel,
-		bus:       bus,
-		log:       log.WithPrefix("mcp-engine"),
+		siem:  siem,
+		intel: intel,
+		bus:   bus,
+		log:   log.WithPrefix("mcp-engine"),
 	}
 }
 
@@ -103,32 +101,9 @@ func (e *DefaultEngine) Execute(ctx context.Context, tool string, params map[str
 			"indicator": ind,
 		}, nil
 
-	case "isolate_host", "quarantine_host":
-		hostID, _ := params["host_id"].(string)
-		reason, _ := params["reason"].(string)
-		
-		err := e.forensics.IsolateHost(hostID, reason)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{
-			"status": "isolated",
-			"host_id": hostID,
-		}, nil
-
-	case "kill_process":
-		hostID, _ := params["host_id"].(string)
-		pid, _ := params["pid"].(float64)
-		
-		err := e.forensics.KillProcess(hostID, int(pid))
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{
-			"status": "killed",
-			"host_id": hostID,
-			"pid": pid,
-		}, nil
+	// Phase 36.7: isolate_host / quarantine_host / kill_process tools removed.
+	// MCP is now a read-only execution surface — pair with external SOAR for
+	// active response.
 
 	default:
 		return nil, fmt.Errorf("execution logic not implemented for tool: %s", tool)
@@ -150,18 +125,8 @@ func (e *DefaultEngine) Simulate(ctx context.Context, tool string, params map[st
 		impact["cost_estimate"] = 5
 	case "enrich_indicator":
 		impact["cost_estimate"] = 2
-	case "isolate_host", "quarantine_host":
-		impact["affected_hosts"] = 1
-		impact["alerts_generated"] = 2
-		impact["cost_estimate"] = 500
-	case "kill_process":
-		impact["affected_hosts"] = 1
-		impact["alerts_generated"] = 1
-		impact["cost_estimate"] = 100
-	case "run_playbook":
-		impact["affected_hosts"] = 5
-		impact["alerts_generated"] = 10
-		impact["cost_estimate"] = 200
+	// Phase 36.7: isolate_host / quarantine_host / kill_process / run_playbook
+	// simulation cases removed — response tools deleted.
 	}
 
 	return map[string]any{

@@ -93,12 +93,15 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 > longer in scope. Use a dedicated DFIR tool (Velociraptor, FTK, Volatility)
 > and import the resulting evidence files via the generic Collect API.
 
-### 📋 Compliance
+### 📋 Audit Evidence (compliance-adjacent)
 
-- **Built-in packs** — PCI-DSS, NIST 800-53, SOC2 Type II, ISO 27001, HIPAA, GDPR
-- **Regulator portal** — export timestamped, integrity-proven compliance packages
-- **Policy evaluator** — continuous scoring of infrastructure against control objectives
-- **GDPR crypto-wipe** — DoD-compliant selective data destruction
+- **Audit log evidence pack** — export timestamped, integrity-proven log evidence bundles
+  via `/api/v1/audit/packages` (Merkle hash + RFC-3161 timestamp + chain-of-custody manifest).
+- **GDPR crypto-wipe** — DoD-compliant selective data destruction (DSR workflow at `/api/v1/dsr`).
+- **Policy/control evaluation is delegated.** Phase 36.x removed the in-tree compliance YAML
+  packs (PCI-DSS / NIST 800-53 / ISO 27001 / GDPR / HIPAA / SOC2 Type II) along with the
+  PDF/HTML report generator. Pair OBLIVRA with a dedicated compliance tool (Drata, Vanta,
+  Tugboat Logic) and feed it the audit-evidence packs for attestation.
 
 ### 🚨 Advanced Detection Modules
 
@@ -107,7 +110,7 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 - **NDR** — NetFlow/IPFIX collector, DNS tunnel detection, lateral movement analysis
 - **eBPF agent** — Linux kernel instrumentation for processes, network, file events
 - **Fusion engine** — multi-stage attack chaining + campaign clustering across hosts
-- **Purple team** — built-in adversary emulation for continuous detection coverage testing
+- **Adversary simulation** — built-in emulation for detection coverage testing
 
 ### 🏢 Enterprise Features
 
@@ -143,8 +146,8 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 │                        ▼                                     │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │                  Service Layer (Go)                   │   │
-│  │  SSH · Vault · SIEM · Detection · Forensics · UEBA   │   │
-│  │  SOAR · Compliance · NDR · ThreatIntel · Cluster     │   │
+│  │  Vault · SIEM · Detection · UEBA · NDR · Forensics    │   │
+│  │  ThreatIntel · Audit-Evidence · Identity · Cluster    │   │
 │  └──────┬──────────────────────────────────────┬───────┘   │
 │         │                                        │           │
 │  ┌──────▼──────┐                    ┌───────────▼────────┐ │

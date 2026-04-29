@@ -112,33 +112,10 @@ func (s *AgentService) PushFleetConfig(intervalMs int, enableFIM, enableSyslog, 
 	return nil
 }
 
-// KillProcess sends a termination signal for a specific process on a remote agent
-func (s *AgentService) KillProcess(agentID string, pid int) error {
-	s.log.Warn("Issuing KILL directive for agent=%s PID=%d", agentID, pid)
-	s.server.AddAction(agentID, ingest.PendingAction{
-		ID:   fmt.Sprintf("kill-%d", time.Now().Unix()),
-		Type: ingest.ActionKillProcess,
-		Payload: map[string]string{
-			"pid": fmt.Sprintf("%d", pid),
-		},
-	})
-	return nil
-}
-
-// ToggleQuarantine isolates or restores an agent's network access
-func (s *AgentService) ToggleQuarantine(agentID string, enabled bool) error {
-	actionType := ingest.ActionRestoreNetwork
-	if enabled {
-		actionType = ingest.ActionIsolateNetwork
-	}
-
-	s.log.Warn("Issuing QUARANTINE directive (enabled=%v) for agent=%s", enabled, agentID)
-	s.server.AddAction(agentID, ingest.PendingAction{
-		ID:   fmt.Sprintf("quar-%d", time.Now().Unix()),
-		Type: actionType,
-	})
-	return nil
-}
+// Phase 36.7: KillProcess + ToggleQuarantine RPCs removed — response-action
+// chain (kill_process, isolate_network, restore_network agent actions +
+// applyNetworkIsolation stub) deleted with the broad scope cut. RequestProcess-
+// Inventory remains as a read-only forensic primitive.
 
 // RequestProcessInventory queues a request for a full process list from an agent
 func (s *AgentService) RequestProcessInventory(agentID string) error {

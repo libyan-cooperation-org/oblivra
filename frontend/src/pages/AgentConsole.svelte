@@ -36,31 +36,11 @@
     } finally { loadingProcs = false; }
   }
 
-  async function killProcess(pid: number) {
-    if (!selectedID) return;
-    if (!confirm(`Kill PID ${pid} on ${selected?.hostname ?? selectedID}?`)) return;
-    try {
-      const { KillProcess } = await import(
-        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice'
-      );
-      await KillProcess(selectedID, pid);
-      appStore.notify(`PID ${pid} terminated`, 'success');
-      await loadProcesses(selectedID);
-    } catch (e: any) {
-      appStore.notify(`Kill failed: ${e?.message ?? e}`, 'error');
-    }
-  }
-
-  async function quarantine(enabled: boolean) {
-    if (!selectedID) return;
-    if (enabled && !confirm('Quarantine this host (block outbound traffic)?')) return;
-    try {
-      await agentStore.toggleQuarantine(selectedID, enabled);
-      appStore.notify(enabled ? 'Host quarantined' : 'Host released', 'warning');
-    } catch (e: any) {
-      appStore.notify(`Quarantine toggle failed: ${e?.message ?? e}`, 'error');
-    }
-  }
+  // Phase 36.7: killProcess + quarantine handlers removed. The MCP
+  // ForensicEngine response chain (KillProcess RPC, ToggleQuarantine RPC,
+  // ActionIsolateNetwork agent action) was deleted with the broad scope cut.
+  // Process inventory + agent status remain read-only signals; pair detection
+  // events with an external SOAR for active response.
 
   $effect(() => {
     if (selectedID) void loadProcesses(selectedID);
@@ -119,11 +99,8 @@
           <KPI label="Processes" value={processes.length.toString()} variant={loadingProcs ? 'muted' : 'accent'} />
         </div>
 
-        <!-- Action toolbar -->
+        <!-- Phase 36.7: Open Shell + Isolate + Release buttons removed. -->
         <div class="flex items-center gap-2 shrink-0">
-          <Button variant="secondary" size="sm" icon={TerminalIcon} onclick={() => push('/shell')}>Open Shell</Button>
-          <Button variant="warning"   size="sm" icon={ShieldAlert} onclick={() => quarantine(true)}>Isolate</Button>
-          <Button variant="ghost"     size="sm" onclick={() => quarantine(false)}>Release</Button>
           <Button variant="ghost"     size="sm" icon={RefreshCw} onclick={() => loadProcesses(selectedID!)}>{loadingProcs ? 'Loading…' : 'Refresh procs'}</Button>
         </div>
 
@@ -156,9 +133,8 @@
                 {:else if col.key === 'cpu' || col.key === 'mem'}
                   <span class="font-mono text-[10px] text-text-muted">{(row[col.key] ?? 0).toFixed?.(1) ?? row[col.key] ?? '—'}</span>
                 {:else if col.key === 'kill'}
-                  <button class="rounded p-1 text-error hover:bg-error/10" title="Kill" onclick={() => killProcess(row.pid)}>
-                    <Skull size={11} />
-                  </button>
+                  <!-- Phase 36.7: kill action removed (response chain deleted). -->
+                  <span></span>
                 {:else}
                   <span class="text-[11px]">{row[col.key] ?? '—'}</span>
                 {/if}

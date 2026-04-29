@@ -8,8 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/kingknull/oblivrashell/internal/licensing"
+	// Phase 36.7: licensing import removed (FeatureSOAR gate dropped from Fusion).
 )
 
 // ── In-memory fusion campaign store ──────────────────────────────────────────
@@ -52,9 +51,9 @@ func seedFusionCampaigns() {
 
 // GET /api/v1/fusion/campaigns
 func (s *RESTServer) handleFusionCampaigns(w http.ResponseWriter, r *http.Request) {
-	if !s.checkFeature(w, licensing.FeatureSOAR) { // Fusion is part of SOAR/Enterprise
-		return
-	}
+	// Phase 36.7: FeatureSOAR gate dropped — Fusion is detection-side
+	// correlation (events linked into campaigns), not response automation,
+	// so it doesn't belong behind the SOAR feature flag.
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

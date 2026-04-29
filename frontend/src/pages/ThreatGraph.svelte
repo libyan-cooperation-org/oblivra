@@ -2,11 +2,12 @@
     import { onMount, onDestroy } from 'svelte';
     import * as echarts from 'echarts';
     import { nodesList, edgesList, type GraphNode, type GraphEdge } from '@lib/stores/graph.svelte';
-    import { Shield, Activity, User, Monitor, Network, Info, Trash2, Crosshair } from 'lucide-svelte';
+    import { Activity, User, Monitor, Network, Info, Trash2 } from 'lucide-svelte';
     import { initGraphSync, refreshFullGraph } from '@lib/graph-sync';
     import { campaignStore } from '@lib/stores/campaigns.svelte';
-    import { KillProcess } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/agentservice';
-    import { IsolateHost } from '@wailsjs/github.com/kingknull/oblivrashell/internal/services/networkisolatorservice';
+    // Phase 36.9: KillProcess + IsolateHost imports removed (response-action chain
+    // deleted in Phase 36; networkisolatorservice no longer exists). The graph
+    // visualization remains; forensic-action buttons removed below.
 
     let chartDom: HTMLElement;
     let myChart: echarts.ECharts;
@@ -135,30 +136,9 @@
         }
     });
 
-    async function handleIsolate() {
-        if (!selectedNode || selectedNode.category !== 'host') return;
-        const hostID = selectedNode.id;
-        try {
-            await IsolateHost(hostID, "Manual Analyst Override from Threat Graph");
-            console.info(`[graph] Issued isolation for ${hostID}`);
-        } catch (err) {
-            console.error(`[graph] Isolation failed:`, err);
-        }
-    }
-
-    async function handleKillProcess() {
-        if (!selectedNode || selectedNode.category !== 'process') return;
-        const hostID = selectedNode.meta?.host;
-        const pid = parseInt(selectedNode.meta?.pid || "0");
-        if (!hostID || !pid) return;
-
-        try {
-            await KillProcess(hostID, pid);
-            console.info(`[graph] Issued kill for ${hostID}:${pid}`);
-        } catch (err) {
-            console.error(`[graph] process termination failed:`, err);
-        }
-    }
+    // Phase 36.9: handleIsolate / handleKillProcess removed — response actions
+    // deleted in Phase 36 broad scope cut. The graph remains a visualization
+    // surface; pivot to forensic profile / SIEM search for downstream work.
 </script>
 
 <div class="flex flex-col h-full w-full bg-slate-950/50 backdrop-blur-xl border border-white/5 overflow-hidden">
@@ -222,30 +202,10 @@
                         {/each}
                     </div>
 
-                    <div class="p-3 bg-red-500/5 rounded-lg border border-red-500/20">
-                        <div class="text-[10px] font-bold text-red-400/80 uppercase mb-2">Forensic Actions</div>
-                        <div class="flex flex-col gap-2">
-                            {#if selectedNode.category === 'host'}
-                                <button 
-                                    onclick={handleIsolate}
-                                    class="flex items-center justify-between w-full p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded text-[10px] text-red-100 transition-all group"
-                                >
-                                    <span>QUARANTINE HOST</span>
-                                    <Shield class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                                </button>
-                            {/if}
+                    <!-- Phase 36.9: Forensic-action panel (QUARANTINE / TERMINATE)
+                         removed with response-action chain. Pair detection signals
+                         with external SOAR for active response. -->
 
-                            {#if selectedNode.category === 'process'}
-                                <button 
-                                    onclick={handleKillProcess}
-                                    class="flex items-center justify-between w-full p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-100 transition-all group"
-                                >
-                                    <span>TERMINATE PROCESS</span>
-                                    <Crosshair class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                                </button>
-                            {/if}
-                        </div>
-                    </div>
                 </div>
             </div>
         {:else}

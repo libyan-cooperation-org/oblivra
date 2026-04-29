@@ -36,7 +36,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import AlertDashboard from '@pages/AlertDashboard.svelte';
   import AlertManagement from '@pages/AlertManagement.svelte';
   import OfflineUpdate from '@pages/OfflineUpdate.svelte';
-  import TasksPage from '@pages/TasksPage.svelte';
+  // TasksPage import removed Phase 36.9 — depended on deleted playbookservice.
   import FeaturesPage from '@pages/FeaturesPage.svelte';
   import LicensePage from '@pages/LicensePage.svelte';
   import SimulationPanel from '@pages/SimulationPanel.svelte';
@@ -47,10 +47,11 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   // TunnelsPage / SSHBookmarks imports removed Phase 32 — shell subsystem deleted.
   import SIEMSearch from '@pages/SIEMSearch.svelte';
   import IdentityAdmin from '@pages/IdentityAdmin.svelte';
-  import EscalationCenter from '@pages/EscalationCenter.svelte';
-  import PurpleTeam from '@pages/PurpleTeam.svelte';
+  // EscalationCenter / PurpleTeam imports removed Phase 36.9 — depended on
+  // deleted incidentservice / playbookservice respectively.
   import ExecutiveDash from '@pages/ExecutiveDash.svelte';
-  import ResponseReplay from '@pages/ResponseReplay.svelte';
+  // ResponseReplay import removed Phase 36.9 — depended on deleted
+  // incidentservice. Slot reserved for Phase 38 evidence-package replay viewer.
   import TemporalIntegrity from '@pages/TemporalIntegrity.svelte';
   import TopologyPage from '@pages/TopologyPage.svelte';
   import NetworkMap from '@pages/NetworkMap.svelte';
@@ -80,7 +81,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   import Settings from '@pages/Settings.svelte';
   import TeamDashboard from '@pages/TeamDashboard.svelte';
   import SyncPage from '@pages/SyncPage.svelte';
-  import ConfigRisk from '@pages/ConfigRisk.svelte';
+  // ConfigRisk import removed Phase 36.9 — depended on deleted complianceservice.
   import EntityView from '@pages/EntityView.svelte';
   import WarMode from '@pages/WarMode.svelte';
   import FleetMap from '@pages/FleetMap.svelte';
@@ -184,7 +185,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     // Phase 32 (and Phase 33 follow-up): /shell, /ssh, /tunnels, /recordings,
     // /session-playback routes deleted from the router. Shell subsystem
     // removed; deep-linked URLs now fall through to DevelopmentPage.
-    { path: '/tasks',            component: TasksPage },
+    // Phase 36.9: /tasks route removed (TasksPage depended on playbookservice).
     { path: '/snippets',         component: SnippetsPage },
     { path: '/notes',            component: NotesPage },
     { path: '/agent-console',    component: AgentConsole },
@@ -204,8 +205,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/fusion',           component: FusionDashboard },
 
     // Security & Incident Response
-    { path: '/escalation',       component: EscalationCenter },
-    { path: '/purple-team',      component: PurpleTeam },
+    // Phase 36.9: /escalation + /purple-team removed (depended on
+    // incidentservice / playbookservice — deleted with SOAR scope cut).
     { path: '/war-mode',         component: WarMode },
     { path: '/data-destruction', component: DataDestruction },
     { path: '/simulation',       component: SimulationPanel },
@@ -220,7 +221,8 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/ledger',             component: EvidenceLedger },
     { path: '/chain-of-custody',   component: ChainOfCustody },
     { path: '/temporal-integrity', component: TemporalIntegrity },
-    { path: '/response-replay',    component: ResponseReplay },
+    // Phase 36.9: /response-replay removed (ResponseReplay depended on
+    // incidentservice). Slot reserved for Phase 38 evidence-package replay viewer.
 
     // Topology
     { path: '/topology',        component: TopologyPage },
@@ -252,7 +254,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     { path: '/offline-update', component: OfflineUpdate },
     { path: '/license',        component: LicensePage },
     { path: '/features',       component: FeaturesPage },
-    { path: '/risk',           component: ConfigRisk },
+    // Phase 36.9: /risk route removed (ConfigRisk depended on complianceservice).
     { path: '/entity',         component: EntityView },
     { path: '/development',    component: DevelopmentPage },
     { path: '/connectors',     component: Connectors },
@@ -535,21 +537,10 @@ import Sidebar from '@components/layout/CommandRail.svelte';
 
     // ── Operator Shortcuts (⌃⇧ + key)
     if (e.ctrlKey && e.shiftKey) {
-        // Ctrl+Shift+I — Host isolation. Dispatches a window event so the
-        // OperatorMode page can pick it up and call agentStore.toggleQuarantine
-        // for the currently-active host. If the operator isn't on /operator
-        // yet, navigate there so they have a host context to isolate.
-        if (e.key === 'I' || e.key === 'i') {
-            e.preventDefault();
-            const onOperator = window.location.pathname.startsWith('/operator');
-            if (!onOperator) {
-                appStore.notify('Open Operator Mode and select a host before isolating', 'warning');
-                appStore.navigate('/operator');
-                return;
-            }
-            window.dispatchEvent(new CustomEvent('oblivra:isolate-host'));
-        }
-        // Ctrl+Shift+E — Evidence capture (same pattern).
+        // Phase 36.7: Ctrl+Shift+I (Host isolation) shortcut removed —
+        // response-action chain (toggleQuarantine, ForensicEngine,
+        // applyNetworkIsolation) deleted with the broad scope cut.
+        // Ctrl+Shift+E — Evidence capture (live).
         if (e.key === 'E' || e.key === 'e') {
             e.preventDefault();
             const onOperator = window.location.pathname.startsWith('/operator');

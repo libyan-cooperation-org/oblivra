@@ -4,11 +4,12 @@
 -->
 <script lang="ts">
   import { PageLayout, Badge, Button, DataTable, Spinner, Input, Tabs, EmptyState, LoadingSkeleton, EntityLink } from '@components/ui';
-  import { Zap, ShieldAlert, MoreHorizontal, Search as SearchIcon, FileText } from 'lucide-svelte';
+  // Phase 36.9: Zap / ShieldAlert / agentStore imports removed — response-action
+  // (isolate, run playbook) handlers deleted with the SOAR scope cut.
+  import { MoreHorizontal, Search as SearchIcon, FileText } from 'lucide-svelte';
   import QueueDigest from '@components/alerts/QueueDigest.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
   import { appStore } from '@lib/stores/app.svelte';
-  import { agentStore } from '@lib/stores/agent.svelte';
   import { sessionContext } from '@lib/stores/sessionContext.svelte';
   import { push } from '@lib/router.svelte';
 
@@ -55,31 +56,10 @@
     push(`/siem-search?${params.toString()}`);
   }
 
-  async function isolateHost(alert: any) {
-    if (!alert?.host) {
-      appStore.notify('No host on alert', 'warning');
-      return;
-    }
-    // Find the agent matching this host. agentStore.toggleQuarantine
-    // takes an agent id — match on hostname OR id so legacy alerts
-    // (which sometimes carry only one) work either way.
-    const agent = agentStore.agents.find(
-      (a) => a.id === alert.host || a.hostname === alert.host,
-    );
-    if (!agent) {
-      appStore.notify(`No registered agent for host ${alert.host}`, 'error');
-      return;
-    }
-    try {
-      await agentStore.toggleQuarantine(agent.id, true);
-      appStore.notify(`Host ${alert.host} isolated`, 'warning');
-    } catch (err) {
-      appStore.notify(
-        `Isolation failed: ${err instanceof Error ? err.message : String(err)}`,
-        'error',
-      );
-    }
-  }
+  // Phase 36.9: isolateHost stub removed — response-action chain (network
+  // isolation, ToggleQuarantine, ForensicEngine.IsolateHost) was deleted in
+  // Phase 36.7. Pair OBLIVRA detection signals with an external SOAR
+  // (Tines/XSOAR/Shuffle) for response automation.
 
   function captureEvidence(alert: any) {
     if (!alert) return;
@@ -177,55 +157,11 @@
     }
   }
 
-  // ── Real action handlers (replacing notify-only stubs).
-  // isolateHost is already defined above (Phase 30.2 wiring). Only the
-  // playbook + bulk handlers are net-new.
-  async function runPlaybook(alert: any) {
-    try {
-      const { ListAvailableActions, ExecuteAction } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/playbookservice');
-      const actions = ((await ListAvailableActions()) ?? []) as any[];
-      if (actions.length === 0) { appStore.notify('No response actions available', 'warning'); return; }
-      const action = actions.find((a) => /isolate|contain|response/i.test(a.name ?? a.id ?? '')) ?? actions[0];
-      await ExecuteAction(action.id ?? action.name, { alert_id: alert.id, host: alert.host });
-      appStore.notify(`Playbook "${action.name ?? action.id}" dispatched`, 'success');
-    } catch (e: any) { appStore.notify(`Playbook failed: ${e?.message ?? e}`, 'error'); }
-  }
-
-  async function bulkAck() {
-    const list = filteredAlerts.filter((a) => a.status === 'open');
-    if (list.length === 0) { appStore.notify('No open alerts to ACK', 'info'); return; }
-    if (!confirm(`Acknowledge ${list.length} alerts?`)) return;
-    try {
-      const { UpdateIncidentStatus } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
-      await Promise.all(list.map((a) => UpdateIncidentStatus(a.id, 'acknowledged', 'Bulk ACK from alert console').catch(() => null)));
-      appStore.notify(`Acknowledged ${list.length} alerts`, 'success');
-      void alertStore.refresh?.();
-    } catch (e: any) { appStore.notify(`Bulk ACK failed: ${e?.message ?? e}`, 'error'); }
-  }
-  async function bulkAssign() {
-    const owner = prompt('Assign selected alerts to (operator email):');
-    if (!owner) return;
-    const list = filteredAlerts.filter((a) => !a.action || (a.action as any)?.owner !== owner);
-    if (list.length === 0) { appStore.notify('Nothing to reassign', 'info'); return; }
-    try {
-      const { AssignIncident } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
-      await Promise.all(list.map((a) => AssignIncident(a.id, owner).catch(() => null)));
-      appStore.notify(`Assigned ${list.length} alerts to ${owner}`, 'success');
-      void alertStore.refresh?.();
-    } catch (e: any) { appStore.notify(`Bulk assign failed: ${e?.message ?? e}`, 'error'); }
-  }
-  async function bulkFalsePositive() {
-    const list = filteredAlerts;
-    if (list.length === 0) return;
-    const reason = prompt(`Mark ${list.length} alerts as false positive. Reason?`);
-    if (!reason) return;
-    try {
-      const { UpdateIncidentStatus } = await import('@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice');
-      await Promise.all(list.map((a) => UpdateIncidentStatus(a.id, 'suppressed', `False positive: ${reason}`).catch(() => null)));
-      appStore.notify(`${list.length} marked as false positive`, 'warning');
-      void alertStore.refresh?.();
-    } catch (e: any) { appStore.notify(`Bulk FP failed: ${e?.message ?? e}`, 'error'); }
-  }
+  // Phase 36.9: runPlaybook / bulkAck / bulkAssign / bulkFalsePositive removed.
+  // They depended on deleted Wails RPCs (playbookservice / incidentservice).
+  // The single-alert suppress path (suppressAndNotify above) and per-row
+  // suppress button still work — they hit the live /api/v1/alerts/{id}/suppress
+  // endpoint backed by SuppressionService.
 
   let searchQuery = $state('');
   let activeTab = $state('OPEN');
@@ -391,11 +327,9 @@
             {/each}
         </div>
 
-        <div class="ml-auto flex gap-2">
-            <Button variant="secondary" size="xs" class="text-[9px] font-mono" onclick={bulkAck}>ACK SELECTED</Button>
-            <Button variant="secondary" size="xs" class="text-[9px] font-mono" onclick={bulkAssign}>ASSIGN</Button>
-            <Button variant="danger" size="xs" class="text-[9px] font-mono" onclick={bulkFalsePositive}>FALSE POS.</Button>
-        </div>
+        <!-- Phase 36.9: bulk ACK / ASSIGN / FALSE POS. buttons removed (depended on
+             deleted incidentservice). Per-row suppress (x keystroke) still works. -->
+        <div class="ml-auto flex gap-2"></div>
     </div>
 
     <!-- ALERT TABLE -->
@@ -490,9 +424,10 @@
                             {row.status.toUpperCase()}
                         </Badge>
                     {:else if col.label === ''}
+                        <!-- Phase 36.9: isolate / playbook row buttons removed
+                             (response-action chain deleted). Investigate is the
+                             primary pivot now. -->
                         <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="p-1 hover:bg-surface-3 rounded-sm text-error border border-error/20" title="Isolate host" onclick={(e) => { e.stopPropagation(); void isolateHost(row); }}><ShieldAlert size={12} /></button>
-                            <button class="p-1 hover:bg-surface-3 rounded-sm text-accent border border-accent/20" title="Run playbook" onclick={(e) => { e.stopPropagation(); void runPlaybook(row); }}><Zap size={12} /></button>
                             <button class="p-1 hover:bg-surface-3 rounded-sm text-text-muted border border-border-primary" title="Open in detail" onclick={(e) => { e.stopPropagation(); investigate(row); }}><MoreHorizontal size={12} /></button>
                         </div>
                     {/if}
@@ -545,17 +480,14 @@
                          This is the Phase 30.2 "auto-context expansion" entry
                          point: one click takes the operator from raw alert to
                          full surrounding context. -->
+                    <!-- Phase 36.9: ISOLATE HOST + RUN PLAYBOOK removed
+                         (response-action chain deleted). Investigate / capture
+                         evidence / pivot remain as live actions. -->
                     <Button variant="primary" size="sm" class="justify-start text-[9px] h-8" onclick={() => investigate(selectedAlert)}>
                         <SearchIcon size={14} class="mr-2" /> INVESTIGATE
                     </Button>
-                    <Button variant="danger" size="sm" class="justify-start text-[9px] h-8" onclick={() => isolateHost(selectedAlert)}>
-                        <ShieldAlert size={14} class="mr-2" /> ISOLATE HOST ⌃⇧I
-                    </Button>
                     <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8" onclick={() => captureEvidence(selectedAlert)}>
                         <FileText size={14} class="mr-2" /> CAPTURE EVIDENCE ⌃⇧E
-                    </Button>
-                    <Button variant="cta" size="sm" class="justify-start text-[9px] h-8" onclick={() => runPlaybook(selectedAlert)}>
-                        <Zap size={14} class="mr-2" /> RUN PLAYBOOK
                     </Button>
                     <Button variant="secondary" size="sm" class="justify-start text-[9px] h-8" onclick={() => pivotInSIEM(selectedAlert)}>
                         <MoreHorizontal size={14} class="mr-2" /> PIVOT IN SIEM

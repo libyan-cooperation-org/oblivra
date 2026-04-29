@@ -86,21 +86,21 @@ type FleetConfig struct {
 	Quarantine     bool          `json:"quarantine"`
 }
 
-// ActionType defines forensic or response operations the agent can perform.
+// ActionType defines forensic or read-only operations the agent can perform.
+// Phase 36.7: ActionKillProcess / ActionIsolateNetwork / ActionRestoreNetwork
+// removed (response actions). ProcessSnapshot / ProcessInventory remain as
+// read-only forensic primitives.
 type ActionType string
 
 const (
-	ActionKillProcess     ActionType = "kill_process"
-	ActionProcessSnapshot ActionType = "process_snapshot"
+	ActionProcessSnapshot  ActionType = "process_snapshot"
 	ActionProcessInventory ActionType = "process_inventory"
-	ActionIsolateNetwork  ActionType = "isolate_network"
-	ActionRestoreNetwork  ActionType = "restore_network"
 
 	// ── Phase 30.5 / Phase 31 — operator remote-control actions ──
 	// These are the three actions the HostDetail "Agent Control"
 	// panel surfaces in the UI. They're routed through the same
-	// PendingAction queue + handleAction switch as response-action
-	// commands so there's one consistent server→agent control plane.
+	// PendingAction queue + handleAction switch as the (now removed)
+	// response-action commands.
 	ActionTriggerScan  ActionType = "trigger_scan"
 	ActionToggleDebug  ActionType = "toggle_debug"
 	ActionRestartAgent ActionType = "restart_agent"
@@ -428,10 +428,8 @@ func (a *Agent) handleAction(action PendingAction) {
 	a.log.Info("[c2] Executing action %s type=%s", action.ID, action.Type)
 	var err error
 	switch action.Type {
-	case ActionKillProcess:
-		var pid int
-		fmt.Sscanf(action.Payload["pid"], "%d", &pid)
-		err = a.response.KillProcess(pid)
+	// Phase 36.7: ActionKillProcess / ActionIsolateNetwork / ActionRestoreNetwork
+	// cases removed (response-action chain deleted with broad scope cut).
 	case ActionProcessSnapshot:
 		var pid int
 		fmt.Sscanf(action.Payload["pid"], "%d", &pid)
@@ -447,12 +445,6 @@ func (a *Agent) handleAction(action PendingAction) {
 			Data:      map[string]interface{}{"processes": snaps},
 		}
 		a.eventCh <- evt
-	case ActionIsolateNetwork:
-		a.log.Warn("[containment] Network isolation requested by SOAR")
-		err = applyNetworkIsolation(true, a.log)
-	case ActionRestoreNetwork:
-		a.log.Info("[recovery] Network restore requested by SOAR")
-		err = applyNetworkIsolation(false, a.log)
 
 	// ── Phase 30.5 — operator remote control ────────────────────────
 	case ActionTriggerScan:
@@ -655,13 +647,5 @@ func defaultFIMPaths() []string {
 	}
 }
 
-// applyNetworkIsolation is a platform-specific stub for host isolation.
-// A real implementation would use iptables / Windows Firewall APIs.
-func applyNetworkIsolation(isolate bool, log *logger.Logger) error {
-	action := "restoring"
-	if isolate {
-		action = "isolating"
-	}
-	log.Warn("[isolation] Network %s — full implementation requires platform-specific firewall API", action)
-	return nil
-}
+// Phase 36.7: applyNetworkIsolation stub removed — response-action chain
+// (ActionIsolateNetwork / ActionRestoreNetwork) deleted with broad scope cut.

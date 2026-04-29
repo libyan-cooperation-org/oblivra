@@ -78,21 +78,10 @@
     push('/agents');
   }
 
-  function openTerminalForAgent(agentId: string, hostname: string) {
-    // Pivot to /shell so the operator can spawn a session for this host.
-    appStore.notify(`Opening shell for ${hostname || agentId}`, 'info');
-    push('/shell');
-  }
-
-  async function isolate(agentId: string) {
-    if (!confirm(`Quarantine agent ${agentId}? This blocks its outbound traffic.`)) return;
-    try {
-      await agentStore.toggleQuarantine(agentId, true);
-      appStore.notify(`Agent ${agentId} isolated`, 'warning');
-    } catch (e: any) {
-      appStore.notify(`Isolation failed: ${e?.message ?? e}`, 'error');
-    }
-  }
+  // Phase 32: openTerminalForAgent removed (shell subsystem deleted).
+  // Phase 36.7: isolate handler removed (response-action chain deleted).
+  // Pivot to host detail for read-only investigation; pair with external SOAR
+  // for active containment.
 
   onMount(() => {
     if (typeof agentStore.init === 'function') {
@@ -202,21 +191,9 @@
                     {:else if col.key === 'version'}
                         <span class="text-[8px] font-mono text-text-muted">v{row.version || '1.0'}</span>
                     {:else if col.key === 'id'}
+                        <!-- Phase 32: terminal button removed.
+                             Phase 36.7: isolate button removed (response chain). -->
                         <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                                class="p-1 hover:bg-surface-3 rounded-sm text-accent border border-accent/20 transition-colors"
-                                title="Open terminal for this host"
-                                onclick={() => openTerminalForAgent(row.id, row.hostname)}
-                            >
-                                <Terminal size={12} />
-                            </button>
-                            <button
-                                class="p-1 hover:bg-surface-3 rounded-sm text-error border border-error/20 transition-colors"
-                                title="Isolate (quarantine)"
-                                onclick={() => isolate(row.id)}
-                            >
-                                <ShieldAlert size={12} />
-                            </button>
                             <button
                                 class="p-1 hover:bg-surface-3 rounded-sm text-text-muted border border-border-primary transition-colors"
                                 title="Open host detail"

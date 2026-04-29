@@ -2,7 +2,6 @@ package agent
 
 import (
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/kingknull/oblivrashell/internal/logger"
@@ -17,34 +16,8 @@ func newTestExecutor(t *testing.T) *ResponseActionExecutor {
 	return NewResponseActionExecutor(log)
 }
 
-func TestKillProcessRejectsInvalidPID(t *testing.T) {
-	ex := newTestExecutor(t)
-	for _, pid := range []int{0, -1, -99} {
-		if err := ex.KillProcess(pid); err == nil {
-			t.Errorf("expected error for PID %d, got nil", pid)
-		}
-	}
-}
-
-func TestKillProcessRefusesSelf(t *testing.T) {
-	ex := newTestExecutor(t)
-	if err := ex.KillProcess(os.Getpid()); err == nil {
-		t.Error("expected error when killing own PID")
-	}
-}
-
-func TestKillProcessRefusesProtectedPIDs(t *testing.T) {
-	ex := newTestExecutor(t)
-	protected := []int{1, 4}
-	if runtime.GOOS == "linux" {
-		protected = append(protected, 2)
-	}
-	for _, pid := range protected {
-		if err := ex.KillProcess(pid); err == nil {
-			t.Errorf("expected error for protected PID %d, got nil", pid)
-		}
-	}
-}
+// Phase 36.7: TestKillProcess* tests removed (KillProcess primitive deleted
+// with response-action chain). Snapshot tests retained.
 
 func TestCollectProcessSnapshotSelf(t *testing.T) {
 	ex := newTestExecutor(t)

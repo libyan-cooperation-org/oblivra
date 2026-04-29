@@ -19,7 +19,7 @@
 <script lang="ts">
   import { crisisStore } from '@lib/stores/crisis.svelte';
   import { alertStore } from '@lib/stores/alerts.svelte';
-  import { agentStore } from '@lib/stores/agent.svelte';
+  // Phase 36.7: agentStore import removed (only used by deleted isolateHost handler).
   import { appStore } from '@lib/stores/app.svelte';
   import { Badge, Button } from '@components/ui';
   import { Siren, ShieldAlert, Lock, Eye, X } from 'lucide-svelte';
@@ -49,44 +49,11 @@
       .map(([host, count]) => ({ host, count }));
   });
 
-  async function isolateHost(host: string) {
-    const agent = agentStore.agents.find((a) => a.id === host || a.hostname === host);
-    if (!agent) {
-      appStore.notify(`No agent for ${host}`, 'warning');
-      return;
-    }
-    try {
-      const { apiFetch } = await import('@lib/apiClient');
-      // Existing endpoint — see rest_phase8_12.go handleRansomwareIsolate.
-      const res = await apiFetch('/api/v1/ransomware/isolate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host_id: agent.id }),
-      });
-      if (!res.ok) {
-        // Distinguish licensing tier blocks from real failures so the
-        // commander knows whether to call ops vs. call procurement.
-        // The backend's respondError returns { code: "feature_gate" }
-        // for tier-blocked endpoints (see rest.go checkFeature).
-        if (res.status === 403) {
-          let envelope: any = null;
-          try { envelope = await res.clone().json(); } catch { /* not JSON */ }
-          if (envelope?.code === 'feature_gate') {
-            appStore.notify(
-              `Host isolation requires Sovereign tier`,
-              'warning',
-              'Ransomware-Defense feature is gated by license tier. Open License page for upgrade options.',
-            );
-            return;
-          }
-        }
-        throw new Error(`HTTP ${res.status}`);
-      }
-      appStore.notify(`Quarantined ${host}`, 'success');
-    } catch (e: any) {
-      appStore.notify(`Isolate ${host} failed`, 'error', e?.message ?? String(e));
-    }
-  }
+  // Phase 36.7: isolateHost removed — /api/v1/ransomware/isolate endpoint and
+  // the underlying network-isolation chain (ToggleQuarantine, ForensicEngine,
+  // applyNetworkIsolation) deleted with the broad scope cut. Crisis panel now
+  // surfaces top affected hosts as read-only signal; pair with an external
+  // SOAR (Tines/XSOAR/Shuffle) for active containment.
 
   async function sealEvidence() {
     try {
@@ -166,11 +133,7 @@
               <li class="flex items-center gap-2">
                 <Badge variant="critical" size="xs">×{h.count}</Badge>
                 <span class="font-mono text-[var(--fs-label)] text-text-primary truncate">{h.host}</span>
-                <button
-                  class="ml-auto px-1.5 py-0.5 rounded text-[var(--fs-micro)] font-mono text-error border border-error/40 hover:bg-error/10"
-                  onclick={() => isolateHost(h.host)}
-                  title="Quarantine host"
-                >Isolate</button>
+                <!-- Phase 36.7: per-host Isolate button removed (response chain deleted). -->
               </li>
             {/each}
           </ul>

@@ -84,8 +84,7 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     { path: '/alert-management',       availability: 'both' },
     { path: '/siem-search',            availability: 'both' },
     { path: '/mitre-heatmap',          availability: 'both' },
-    { path: '/compliance',             availability: 'both' },
-    { path: '/governance',             availability: 'both' },
+    // Phase 36.x: /compliance and /governance entries removed (compliance packs deleted).
     { path: '/features',               availability: 'both' },
     { path: '/risk',                   availability: 'both' },
     { path: '/vault',                  availability: 'both' },
@@ -107,13 +106,13 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     { path: '/purple-team',            availability: 'both' },
     { path: '/response',               availability: 'both' },
     { path: '/escalation',             availability: 'both' },
-    { path: '/playbook-builder',       availability: 'both' },
+    // Phase 36: /playbook-builder removed (SOAR scope cut).
     { path: '/ransomware',             availability: 'both' },
     { path: '/ransomware-ui',          availability: 'both' },
     { path: '/trust',                  availability: 'both' },
     { path: '/ops',                    availability: 'both' },
     { path: '/topology',               availability: 'both' },
-    { path: '/ai-assistant',           availability: 'both' },
+    // Phase 36: /ai-assistant removed (AI Assistant scope cut).
     { path: '/workspace',              availability: 'both' },
     { path: '/settings',               availability: 'both' },
     { path: '/analytics',              availability: 'both' },
@@ -129,7 +128,7 @@ export const ROUTE_AVAILABILITY: RouteConfig[] = [
     { path: '/license',                availability: 'both' },
     { path: '/team',                   availability: 'both' },
     { path: '/hosts',                  availability: 'both' },
-    { path: '/plugins',                availability: 'both' },
+    // Phase 36: /plugins removed (plugin framework deleted).
     { path: '/shortcuts',              availability: 'both' },
     { path: '/admin',                  availability: 'both' },
 

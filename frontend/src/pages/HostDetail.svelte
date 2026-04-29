@@ -179,19 +179,7 @@
     alertStore.refresh();
   }
 
-  function quarantine() {
-    if (!agent) return;
-    runAction('Isolate Host', async () => {
-      await agentStore.toggleQuarantine(agent.id, true);
-    });
-  }
-
-  function unquarantine() {
-    if (!agent) return;
-    runAction('Restore Host', async () => {
-      await agentStore.toggleQuarantine(agent.id, false);
-    });
-  }
+  // Phase 36.7: quarantine / unquarantine handlers removed (response chain deleted).
 
   function pivotToSIEM() {
     push(`/siem-search?host=${encodeURIComponent(id)}`);
@@ -339,23 +327,7 @@
               <Power class="w-3 h-3 mr-1" /> Restart Agent
             </Button>
 
-            {#if agent.watchdog_active}
-              <Button
-                variant="danger"
-                onclick={unquarantine}
-                title="Restore network connectivity for this host"
-              >
-                <ShieldOff class="w-3 h-3 mr-1" /> Restore Host
-              </Button>
-            {:else}
-              <Button
-                variant="danger"
-                onclick={quarantine}
-                title="Cut network connectivity (network-isolation playbook)"
-              >
-                <Shield class="w-3 h-3 mr-1" /> Isolate Host
-              </Button>
-            {/if}
+            <!-- Phase 36.7: Isolate / Restore Host buttons removed (response chain deleted). -->
           </div>
 
           {#if actionInFlight}
