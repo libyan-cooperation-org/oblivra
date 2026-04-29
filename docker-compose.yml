@@ -2,18 +2,18 @@ version: '3.8'
 
 # OblivraShell Sovereign Stack
 #
-# Includes:
-#   - sovereign-server  : Main Oblivra headless API (port 8080)
-#   - prometheus        : Metrics scraping (port 9090)
-#   - grafana           : Dashboards — http://localhost:3000  (admin/oblivra)
-#   - tempo             : Distributed trace backend (OTLP gRPC 4317, HTTP 4318)
+# Single-service deployment: the OBLIVRA headless server.
+#
+# Phase 36 broad scope cut: the external observability stack
+# (Prometheus + Grafana + Grafana Tempo) was removed. Platform metrics
+# and traces are now ingested directly by the OBLIVRA agent into the
+# SIEM pipeline — no need for a separate scrape-and-graph layer. The
+# `/metrics` endpoint on the REST API still exists (Prometheus-format)
+# for operators who want to point an existing observability stack at
+# OBLIVRA, but no companion containers ship by default.
 #
 # Usage:
 #   docker-compose up -d
-#
-# To point the Oblivra binary at this stack (when running outside Docker):
-#   export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-#   export OBLIVRA_ENV=development   # enables 100% trace sampling
 
 services:
 
@@ -35,7 +35,6 @@ services:
     volumes:
       - sovereign_data:/var/lib/oblivrashell/db
       - sovereign_logs:/var/lib/oblivrashell/logs
-      - ./plugins:/var/lib/oblivrashell/plugins:ro
       - ./sigma:/var/lib/oblivrashell/sigma:ro   # community Sigma rules
       - type: tmpfs
         target: /tmp
@@ -43,67 +42,7 @@ services:
           size: 64m
     environment:
       - GIN_MODE=release
-      # OTel: send traces to Tempo running in this compose network
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
-      - OTEL_SERVICE_NAME=oblivrashell
       - OBLIVRA_ENV=production
-    depends_on:
-      - tempo
-    networks:
-      - oblivra
-
-  # ── Prometheus ──────────────────────────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:v2.52.0
-    container_name: oblivra-prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.enable-lifecycle'
-    networks:
-      - oblivra
-
-  # ── Grafana Tempo (distributed tracing backend) ─────────────────────────────
-  tempo:
-    image: grafana/tempo:2.4.1
-    container_name: oblivra-tempo
-    restart: unless-stopped
-    ports:
-      - "4317:4317"   # OTLP gRPC ingest
-      - "4318:4318"   # OTLP HTTP ingest
-      - "3200:3200"   # Tempo query API (used by Grafana datasource)
-    volumes:
-      - ./ops/tempo.yml:/etc/tempo/tempo.yml:ro
-      - tempo_data:/var/tempo
-    command: ["-config.file=/etc/tempo/tempo.yml"]
-    networks:
-      - oblivra
-
-  # ── Grafana (dashboards) ─────────────────────────────────────────────────────
-  grafana:
-    image: grafana/grafana:10.4.2
-    container_name: oblivra-grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=oblivra
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - prometheus
-      - tempo
     networks:
       - oblivra
 
@@ -114,6 +53,3 @@ networks:
 volumes:
   sovereign_data:
   sovereign_logs:
-  prometheus_data:
-  tempo_data:
-  grafana_data:

@@ -45,15 +45,7 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 
 ## Features
 
-### 🖥️ Terminal & SSH Operations
-
-- **Multi-session terminal grid** — simultaneous local (PTY) + SSH tabs with instant switching
-- **Multi-exec broadcast** — run a single command across your entire fleet at once
-- **SSH tunneling** — integrated port forwarding and SOCKS5 proxy
-- **SFTP file browser** — drag-and-drop file management, directory diff, background transfers
-- **Session recording** — TTY capture with full playback for audit and training
-- **Jump host chains** — multi-hop SSH with credential injection from vault at each hop
-- **Key deployment** — generate and deploy ED25519 keys to remote hosts in one click
+> **Note (Phase 32 + Phase 36)**: The interactive shell/SSH/PTY/tunnels/SFTP subsystem and the SOAR/IR/AI/Plugin layer have been **removed**. The backend SSH library survives because non-terminal features depend on it (canary deployment via SCP, scheduled SSH key rotation), but the operator-facing terminal and remote-control surfaces are gone. OBLIVRA is now strictly a log-driven security platform.
 
 ### 🛡️ Encrypted Vault
 
@@ -89,13 +81,17 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 - **Enrichment pipeline** — GeoIP, DNS PTR/ASN, asset mapping on every event
 - **SSRF-safe feed fetching** — private IP blocklist enforced at dial time
 
-### 🔬 Forensics & Evidence
+### 🔬 Log-Derived Evidence
 
-- **Evidence locker** — HMAC-signed artifacts with chain-of-custody tracking
+- **Evidence locker** — HMAC-signed log-event captures with chain-of-custody tracking
 - **Merkle tree audit log** — tamper-evident, cryptographically immutable
-- **Chain of custody** — forensic sealing, baseline diffing, export package
-- **TPM signing** — evidence entries optionally signed by hardware TPM
+- **RFC 3161 timestamping** — third-party time-anchoring of evidence entries
+- **TPM signing** — evidence optionally signed by hardware TPM
 - **Temporal integrity** — detects clock drift and late-arriving event manipulation
+
+> Phase 36 scope cut — raw disk imaging and physical memory acquisition are no
+> longer in scope. Use a dedicated DFIR tool (Velociraptor, FTK, Volatility)
+> and import the resulting evidence files via the generic Collect API.
 
 ### 📋 Compliance
 
@@ -107,9 +103,10 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 ### 🚨 Advanced Detection Modules
 
 - **UEBA engine** — Isolation Forest anomaly scoring + peer-group baselining
-- **Ransomware defense** — entropy analysis, canary file monitoring, automated network isolation
+- **Ransomware DETECTION** — entropy-based behavioural analysis (response-action layer removed in Phase 36; pair with an external SOAR for isolation/response)
 - **NDR** — NetFlow/IPFIX collector, DNS tunnel detection, lateral movement analysis
 - **eBPF agent** — Linux kernel instrumentation for processes, network, file events
+- **Fusion engine** — multi-stage attack chaining + campaign clustering across hosts
 - **Purple team** — built-in adversary emulation for continuous detection coverage testing
 
 ### 🏢 Enterprise Features
@@ -119,22 +116,14 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 - **OIDC / SAML 2.0** — federated identity with SCIM 2.0 provisioning
 - **TOTP MFA** — software MFA for local accounts
 - **HA clustering** — Hashicorp Raft consensus for multi-node state synchronization
-- **SOAR playbooks** — automated response actions with M-of-N approval workflow
-- **MCP protocol** — model context protocol for AI-assisted investigation
+- **Storage tiering** — Hot (BadgerDB 0–30d) / Warm (Parquet 30–180d) / Cold (180d+ JSONL or S3) with automatic migration
 
-### 🔌 Plugin System
+### 📊 Self-Observability
 
-- **Lua sandbox** — isolated execution with permission manifest and CPU/time limits
-- **WebAssembly plugins** — Wazero-based WASM sandbox for high-performance extensions
-- **Signed manifests** — cryptographic verification before plugin load
-
-### 📊 Observability
-
-- **Prometheus metrics** — goroutines, heap, ingest EPS, detection rate, SSH latency
-- **OpenTelemetry tracing** — OTLP-compatible distributed traces
-- **Pre-built Grafana dashboard** — provisioned automatically via `docker-compose`
+- **Self-ingest** — OBLIVRA's agent collects platform health metrics (goroutines, heap, ingest EPS, detection rate) and feeds them directly into the SIEM pipeline. No external observability stack required.
+- **`/metrics` endpoint** — Prometheus-format scrape target if you want to point an existing observability stack (Prometheus, Datadog, New Relic) at OBLIVRA.
 - **Runtime attestation** — binary hash verification at `/debug/attestation`
-- **Self-diagnostics** — live health panel with service status and goroutine counts
+- **Diagnostics page** — `/monitoring` shows live service status, goroutine counts, GC pauses, and EPS
 
 ---
 
@@ -199,9 +188,8 @@ OBLIVRA is a **sovereign log-driven security platform** built for security engin
 | Columnar archive | Parquet (parquet-go) |
 | Consensus | Hashicorp Raft v1.7 |
 | Messaging | NATS (embedded) |
-| Plugin runtime | Gopher-Lua + Wazero (WASM) |
 | Crypto | AES-256-GCM, Argon2id, Ed25519, HMAC-SHA256 |
-| Observability | OpenTelemetry + Prometheus |
+| Observability | Self-ingest via OBLIVRA agent (`/metrics` Prometheus-format scrape target if needed) |
 
 ---
 
@@ -331,12 +319,9 @@ This starts the headless server plus the full observability stack:
 
 | Service | Port | Description |
 |---|---|---|
-| OBLIVRA API | 8080 | REST + WebSocket |
+| OBLIVRA API | 8080 | REST + WebSocket (also exposes `/metrics` Prometheus scrape target) |
 | Raft cluster | 8443 | HA consensus + agent ingest |
 | Syslog | 1514 | UDP/TCP log ingestion |
-| Prometheus | 9090 | Metrics scrape |
-| Grafana | 3000 | Dashboards (admin / oblivra) |
-| Grafana Tempo | 3200 | Distributed traces |
 
 ### Build Flags
 
@@ -629,17 +614,18 @@ server {
 }
 ```
 
-### Observability Stack
+### Self-Observability
 
-```bash
-docker-compose up -d
-```
+OBLIVRA's agent ingests its own platform metrics (goroutines, heap,
+GC pauses, EPS, detection rate) directly into the SIEM pipeline.
+No external observability stack ships by default.
 
-| Dashboard | URL | Default Credentials |
-|---|---|---|
-| Grafana | http://localhost:3000 | admin / oblivra |
-| Prometheus | http://localhost:9090 | — |
-| Grafana Tempo | http://localhost:3200 | — |
+If you already operate Prometheus / Datadog / New Relic, point your
+existing stack at `http://localhost:8080/metrics` — OBLIVRA exposes a
+Prometheus-format scrape target on the main API port.
+
+The in-app `/monitoring` page shows live diagnostics for operators
+who don't want to leave the OBLIVRA UI.
 
 ---
 
