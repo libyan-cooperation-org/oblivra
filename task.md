@@ -215,6 +215,12 @@
 
 ## Phase 0.3: Web Dashboard / Enterprise Platform (MVP) ✅ 🌐
 
+> Stand up the web frontend (`frontend-web/`) as a Svelte 5 + Vite SPA that
+> shares the same backend as the Wails desktop shell. Establish the
+> `APP_CONTEXT` detection so a single codebase serves both. Ship the
+> minimum-viable web experience: login, fleet onboarding, search, alerts.
+
+### Stages
 - [x] Initialize `frontend-web/` (Bun + Vite + Svelte 5)
 - [x] Tailwind CSS and design tokens
 - [x] `APP_CONTEXT` detection (Wails vs. Browser)
@@ -227,6 +233,12 @@
 
 ## Phase 0.4: Accessibility & Enterprise Scaling ✅
 
+> Bring the UI surface to WCAG 2.1 AA: pattern-fills (colorblind safety),
+> ARIA labels, full keyboard nav. In parallel, prove the back-end scales
+> to enterprise volumes — 1,000-node BadgerDB, multi-tenant registration,
+> SSO connectors (OIDC/SAML).
+
+### Stages
 - [x] WCAG 2.1 AA Compliance Audit (pattern-fills, ARIA labels, keyboard nav)
 - [x] Real-time SIEM heatmaps with pattern-fills
 - [x] High-density "War Room" grid view
