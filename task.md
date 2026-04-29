@@ -29,11 +29,11 @@
 | Category | Features |
 |---|---|
 | 🔐 **Security & Secrets** | Vault (AES-256), OS keychain, FIDO2/YubiKey, Password manager |
-| 💻 **Terminal & SSH** | SSH client (keys/agent), Local PTY, Multi-session grid, Port forwarding/tunneling, Session recording, Multi-exec |
-| 📁 **File & System Access** | SFTP file browser, Local file operations, Upload/download, `~/.ssh/config` import |
 | 🧪 **Local / Offline** | Local SIEM (optional), Local detection engine (offline testing), Local log ingestion, Air-gap mode |
-| 🧰 **Operator Tools** | Command palette (local hosts), Workspace layouts, Plugin dev/testing, CLI mode |
+| 🧰 **Operator Tools** | Command palette, Workspace layouts, Plugin dev/testing, CLI mode |
 | 🔧 **System-Level Actions** | Build/sign agents, Generate certificates, Forensics acquisition (disk/memory), Local response actions (kill process, isolate host) |
+
+> **REMOVED (Phase 32)**: The interactive shell subsystem — SSH client, local PTY, terminal grid, SFTP file browser, port-forwarding tunnels, session recording playback, multi-exec — has been **deprecated and removed from the operator UI**. The Go libraries under `internal/ssh/` and `internal/services/{ssh,local,tunnel,recording,share,multiexec,broadcast,file,transfer,pty}_*.go` remain in-tree because they still back non-terminal features (canary deployment via SCP, scheduled SSH key rotation, evidence file uploads). The shell subsystem will be rebuilt as a separate workstream; until then `/shell`, `/ssh`, `/tunnels`, `/recordings`, `/session-playback` are offline. See `frontend/src/lib/nav-config.ts:249-253`.
 
 ### 🌐 WEB (Browser UI) — MUST be here
 > Anything involving teams, scale, or central control.
@@ -63,12 +63,12 @@
 | 🧬 Forensics | Collect evidence | View/analyze evidence |
 
 ### ❌ NEVER on Web (Desktop ONLY — always)
-- SSH private keys
 - Vault master key
-- Raw terminal access (PTY)
 - Local filesystem access
 - Agent signing keys
 - Plugin execution engine
+
+> SSH private keys / raw PTY / SFTP / forwards used to live here; removed entirely with the shell subsystem (Phase 32). When the shell is rebuilt, these constraints reapply.
 
 ---
 
@@ -92,17 +92,23 @@
 
 > All exist in code, compile, and are wired into `container.go`.
 
-### Terminal & SSH
-- [x] SSH client with key/password/agent auth (`internal/ssh/client.go`, `auth.go`) 🖥️
-- [x] Local PTY terminal (`local_service.go`) 🖥️
-- [x] SSH connection pooling (`internal/ssh/pool.go`) 🖥️
-- [x] SSH config parser + bulk import (`internal/ssh/config_parser.go`) 🖥️
-- [x] SSH tunneling / port forwarding (`internal/ssh/tunnel.go`, `tunnel_service.go`) 🖥️
-- [x] Session recording & playback (`recording_service.go`, `internal/sharing/`) 🖥️
-- [x] Session sharing & broadcast (`broadcast_service.go`, `share_service.go`) 🏗️
-- [x] Multi-exec concurrent commands (`multiexec_service.go`) 🖥️
-- [x] Terminal grid with split panes (`frontend/src/components/terminal/`) 🖥️
-- [x] File browser & SFTP transfers (`file_service.go`, `transfer_manager.go`) 🖥️
+### Shell Subsystem — REMOVED (Phase 32)
+
+> The interactive shell + SSH + SFTP + tunnel + recording-playback feature set is no longer
+> part of the operator UI. Backend Go libraries are retained because non-terminal features
+> still depend on them; the operator-visible surface is gone. To be rebuilt as a separate
+> workstream — see Phase 32 below.
+>
+> Retained backend (still compiled, still in `container.go`): `internal/ssh/`, `local_service.go`,
+> `tunnel_service.go`, `recording_service.go`, `share_service.go`, `broadcast_service.go`,
+> `multiexec_service.go`, `file_service.go`, `transfer_manager.go`, `pty_session.go`,
+> `pty_unix.go`, `pty_windows.go`, `ssh_service.go`. They back canary deployment,
+> SSH key rotation, evidence file uploads. They do NOT serve a terminal page anywhere.
+>
+> Removed UI: `frontend/src/components/terminal/` (whole directory), `TerminalPage.svelte`,
+> `XTerm.svelte`, `OperatorBanner.svelte`, `SessionRestoreBanner.svelte`. Routes
+> `/shell`, `/ssh`, `/tunnels`, `/recordings`, `/session-playback` registered in
+> `App.svelte` but hidden from the navigation (see `nav-config.ts:249-253`).
 
 ### Security & Vault
 - [x] AES-256 encrypted Vault (`internal/vault/vault.go`, `crypto.go`) 🖥️
@@ -858,12 +864,20 @@
 - [x] **MITRE coverage gap report** — `GenerateMITREGapReport()` per-technique scoring (covered/partial/none); MITRE Navigator JSON layer export with colour coding (`internal/detection/rules.go`)
 - [x] **Rule test framework** — `RuleTestFixture`, `RuleTestResult`, `RuleTestSuiteResult`; `TestRule()` runs fixtures against conditions; `matchRuleConditions()` with `regex:` prefix support (`internal/detection/rules.go`)
 
-#### Operator Mode — The Killer Workflow ✅
-- [x] **SSH → anomaly banner** — `OperatorBanner.svelte` (`frontend/src/components/terminal/`) wired into TerminalPage; renders SIEM alerts filtered to the active SSH host with crit/high severity chips, "View events" pivot to SIEM search, and "Isolate" button. 🖥️
+#### Operator Mode — The Killer Workflow
+
+> [!NOTE]
+> Items below that depended on the now-removed shell subsystem (SSH→anomaly
+> banner, host-isolation keybind from terminal context, "operator timeline"
+> joining terminal commands with SIEM events) were removed in Phase 32.
+> The non-terminal pieces (host-page anomaly banners, one-click forensic
+> capture, autonomous hunt) survive and are tracked here.
+
+- [ ] **Anomaly banner on Host Detail page** — when an alert fires for the active host, surface a sticky banner with crit/high severity chip, "View events" pivot to SIEM search, "Isolate" button. ⚠️ Re-implementation of removed terminal banner against the host-detail surface. 🌐
 - [ ] **Event row → enrichment pivot** — click IP/host in SIEM results → inline enrichment card (GeoIP, ASN, TI match, open ports) 🏗️
-- [x] **Host isolation from terminal context** — `Ctrl+Shift+I` keybind in App.svelte dispatches `oblivra:isolate-host` window event; OperatorMode.svelte listens and calls `agentStore.toggleQuarantine` for the active host. Off-page invocation navigates to /operator with a hint toast. Pop-out windows bind the same keybind so isolation works from a monitor-2 SIEM panel. 🖥️
+- [x] **Host isolation from any context** — `Ctrl+Shift+I` keybind dispatches `oblivra:isolate-host` window event; `OperatorMode.svelte` listens and calls `agentStore.toggleQuarantine`. Off-page invocation navigates to `/operator` with a hint toast. Pop-out windows bind the same keybind. 🖥️
 - [ ] **One-click memory/process capture** — trigger forensic snapshot, auto-seal SHA-256, auto-add to active incident evidence 🖥️
-- [ ] **Operator timeline** — unified chronological view: terminal commands + SIEM events + enrichment + playbook executions + evidence 🏗️
+- [ ] **Operator timeline** — unified chronological view: SIEM events + enrichment + playbook executions + evidence (terminal commands removed from scope with the shell deletion) 🏗️
 - [ ] **Autonomous Hunt** — scheduled and automated threat hunting queries based on Threat Intel 🌐
 - [ ] **Operator Cognitive Load Design** — transition from dashboards to decision engine: alert ranking, "next best action" prompts, investigation graphs 🏗️
 
@@ -931,43 +945,24 @@
 
 ---
 
-## Phase 23: Terminal UX (Termius-Grade) ✅
+## Phase 23: Desktop Shell UX (windowing, chrome, notifications)
 
-> **Context**: The terminal is the operator's primary interaction surface. These upgrades close the gap
-> with Termius-class UX while leveraging OBLIVRA's unique SIEM + forensics + vault integration.
-
-### 23.1 — SSH Bookmark CRUD → Vault UI ✅
-- [x] `BookmarkService` — Wails-bound CRUD for host bookmarks (wraps `HostStore` + Vault-encrypted credentials) 🖥️
-- [x] `SSHBookmarks.svelte` — sidebar panel: list, search, favorites, group-by-tag, add/edit/delete, one-click connect 🖥️
-
-### 23.2 — Session Restore on Restart ✅
-- [x] `session_persistence.go` — save active session host IDs + tab order on graceful shutdown 🖥️
-- [x] `SSHService` restore hook — reconnect saved sessions on app start 🖥️
-- [x] `SessionRestoreBanner.svelte` (`frontend/src/components/terminal/`) wired into TerminalPage. On mount it queries the SessionPersistence binding (LoadState / GetSavedSessions / List — graceful fallback across naming variants) and offers one-click restore for the operator's previous tabs. Silently no-ops in browser mode. 🖥️
-
-### 23.3 — Per-Host Command History ✅
-- [x] `CommandHistoryService` — store/retrieve commands per host (SQLite, last 500 per host) 🖥️
-- [x] Autocomplete overlay in terminal — ↑ arrow history + Tab suggestions 🖥️
-
-### 23.4 — Operator Mode (Core) ✅
-> See also Phase 22.4 Operator Mode items for full scope.
-- [x] `OperatorService` — anomaly banner data: recent SIEM alerts for active SSH host (`internal/services/operator_service.go:11-150`) 🖥️
-- [x] `OperatorBanner.svelte` (`frontend/src/components/terminal/OperatorBanner.svelte`) — alert count + crit/high severity chips overlay on the terminal page; click-throughs for "View events" (drills to filtered SIEM search) and "Isolate" (fires the same global event Ctrl+Shift+I dispatches). Re-shows itself on severity escalation even if previously dismissed. 🖥️
-- [x] `Ctrl+Shift+I` host isolation shortcut — wired in App.svelte's onKeyDown to dispatch `oblivra:isolate-host` window event; OperatorMode.svelte listens and calls `agentStore.toggleQuarantine`. Off-page invocation navigates to /operator with a hint toast. Same pattern for Ctrl+Shift+E (evidence capture). 🖥️
-
-### 23.5 — Clipboard OSC 52 ✅
-- [x] xterm.js clipboard integration in `XTerm.svelte`: registered an OSC 52 handler via `term.parser.registerOscHandler(52, ...)` so remote programs (vim, tmux) can push selections into the OS clipboard via `navigator.clipboard.writeText`. Plus auto-copy-on-selection (xterm `onSelectionChange` → clipboard) and right-click paste (`contextmenu` event reads clipboard, sends through SSH/local SendInput as keystroke stream). 🖥️
-
-### 23.6 — AI Autocomplete Polish (Not Started)
-- [ ] Floating suggestion box wired to `CommandHistoryService` + per-host command history *(`CommandHistoryService` backend exists with `GetSuggestions()`; no floating UI overlay shipped)* 🖥️
-- [ ] Smart context: current input buffering + cursor coordinate anchoring 🖥️
+> **Original scope (Termius-grade terminal UX)**: subsections 23.1–23.6 covered SSH
+> bookmarks, session restore, per-host command history, terminal Operator banners,
+> xterm.js OSC 52 clipboard, and AI autocomplete. **All of those landed in v1.2.0
+> and were subsequently removed in Phase 32 with the rest of the shell subsystem.**
+> They are not re-listed here — the historical record lives in git
+> (`commits 8cf3e1b` and ancestors).
+>
+> What remains in Phase 23 is the platform-level windowing / chrome / notifications
+> work that's independent of any terminal. These items are still load-bearing.
 
 ### 23.7 — SOC Multi-Monitor Pop-Out ✅ (new)
-> **Context**: SOC operators run 3-4 monitors. The flagship workflow is "drag the SIEM search to monitor 2, the alerts board to monitor 3, keep the terminal on monitor 1." Native windowing makes this real instead of forcing the operator to alt-tab inside one window.
+> **Context**: SOC operators run 3-4 monitors. The flagship workflow is "drag the SIEM search to monitor 2, the alerts board to monitor 3, keep an investigation panel on monitor 1." Native windowing makes this real instead of forcing the operator to alt-tab inside one window.
 
 - [x] **`WindowService`** (`internal/services/window_service.go` + `_server.go` build-tagged stub) — Wails-bound service with `PopOut(route, title) → (id, error)`, `ClosePopout(id)`, `CloseAllPopouts()`, `ListPopouts()`. Each pop-out is a real Wails window backed by the same Go process — zero IPC round trip between panel views.
 - [x] **Pop-out URL convention** — `/?popout=1&route=<route>`. `App.svelte`'s onMount detects the param, navigates to the requested route, and skips rendering the sidebar so the spawned window is a clean single-panel view.
-- [x] **`PopOutButton.svelte`** (`frontend/src/components/ui/`) — drop-in toolbar component with route/title props. Currently opted in on SIEMSearch, AlertManagement, AlertDashboard, FleetDashboard. Browser mode falls back to `window.open(?popout=1&route=...)` so web-mode operators can still spawn extra tabs onto extra monitors.
+- [x] **`PopOutButton.svelte`** (`frontend/src/components/ui/`) — drop-in toolbar component with route/title props. Opted in on 30 SOC pages (see 23.13). Browser mode falls back to `window.open(?popout=1&route=...)` so web-mode operators can still spawn extra tabs onto extra monitors.
 - [x] **TitleBar pop-out indicator** — when one or more pop-outs are open, TitleBar renders a "N POP-OUT(S)" chip in the chrome with click-to-close-all. Polls `WindowService.ListPopouts()` every 1.5s.
 
 ### 23.8 — Window Chrome (Frameless) ✅ (new)
@@ -983,8 +978,8 @@
 ### 23.10 — Application Menu Bar + System Tray ✅ (new)
 > Wails v3 native menu bar + system tray for SOC operators who want full keyboard / OS-level control without ever opening the main window.
 
-- [x] **Application menu** (`internal/app/menu.go`) — File, Edit, View, Navigate, Window, Help submenus. Native roles for cut/copy/paste, undo/redo, fullscreen, zoom, reload. Custom items emit `menu:<action>` events on the Wails event bus; `App.svelte` onMount listens and dispatches to `appStore.navigate(...)`, `appStore.toggleCommandPalette()`, the `WindowService` pop-out methods, etc. Accelerators wired: `Ctrl+T` new terminal, `Ctrl+Shift+O` pop out current, `Ctrl+B` toggle sidebar, `Ctrl+1..5` quick-jump to Dashboard / SIEM / Alerts / Fleet / Terminal, `Ctrl+Shift+S/R` save/restore workspace, `Ctrl+/` shortcuts, `Ctrl+,` settings.
-- [x] **System tray** (`internal/app/tray.go`) — minimize-to-tray with a quick-action menu: Show OBLIVRA, Open SIEM/Alerts/Fleet/Terminal, New Pop-Out → SIEM/Alerts, Close All Pop-Outs, Quit. Tray icon embedded via `//go:embed appicon.png` so it works in air-gap deployments. Click-through emits `tray:show` / `menu:goto` / `tray:popout` events the frontend listens for.
+- [x] **Application menu** (`internal/app/menu.go`) — File, Edit, View, Navigate, Window, Help submenus. Native roles for cut/copy/paste, undo/redo, fullscreen, zoom, reload. Custom items emit `menu:<action>` events on the Wails event bus; `App.svelte` onMount listens and dispatches to `appStore.navigate(...)`, `appStore.toggleCommandPalette()`, the `WindowService` pop-out methods, etc. Accelerators wired: `Ctrl+Shift+O` pop out current, `Ctrl+B` toggle sidebar, `Ctrl+1..4` quick-jump to Overview / SIEM / Alerts / Fleet, `Ctrl+Shift+S/R` save/restore workspace, `Ctrl+/` shortcuts, `Ctrl+,` settings. *(Phase 32: `Ctrl+T` "new terminal" accelerator removed with the shell subsystem; "Terminal" entries pruned from menu/tray.)*
+- [x] **System tray** (`internal/app/tray.go`) — minimize-to-tray with a quick-action menu: Show OBLIVRA, Open SIEM / Alerts / Fleet, New Pop-Out → SIEM / Alerts, Close All Pop-Outs, Quit. Tray icon embedded via `//go:embed appicon.png` so it works in air-gap deployments. Click-through emits `tray:show` / `menu:goto` / `tray:popout` events the frontend listens for.
 
 ### 23.11 — Workspace Save/Restore ✅ (new)
 - [x] **`WindowService.SaveWorkspace()`** — captures every open pop-out's route, title, and (best-effort) position+size to `<DataDir>/workspace.json`. Atomic temp-file + rename. Wails-bound so the menu's "Save Workspace" item invokes it.
@@ -1422,10 +1417,10 @@
 | **22.2 Correlation state isolation** | LRU at `correlation.go:138` keys on `tenant+ruleID`, not `tenant+ruleID+groupKey`. groupKey isolation enforced *within* the LRU at lines 153-162. Functionally correct, claim wording overstates. | 🟡 partial (wording, not behaviour) |
 | **22.2 Tenant deletion audit trail** | Status flip + salt wipe done; no immutable deletion record (no `deletion_log`, no audit-bus publish). GDPR right-to-erasure evidence missing. | 🔴 open |
 | **22.2 50-tenant isolation test** | Test runs **10 events/tenant**, not 1000 as claimed. Structural isolation valid; throughput claim overstated. | 🟡 partial (wording, not behaviour) |
-| **22.4 SSH → anomaly banner** | `OperatorService.GetContext()` exists. UI status-bar surfacing + one-keypress event panel keybind missing. | 🟢 CLOSED v1.2.0 — `OperatorBanner.svelte` wired into TerminalPage; "View events" + "Isolate" pivots; re-shows on severity escalation. |
-| **22.4 Host isolation from terminal** | `agentStore.toggleQuarantine` wired. No `Ctrl+Shift+I` keybind handler, no confirmation modal, titlebar status indicator unverified. | 🟢 CLOSED v1.2.0 — `Ctrl+Shift+I` global keybind in `App.svelte` dispatches `oblivra:isolate-host`; OperatorMode listens + calls `agentStore.toggleQuarantine`. Same for `Ctrl+Shift+E` evidence capture. Pop-out windows bind the same keybind. |
-| **23.2 Session restore banner** | Backend `session_persistence.go` save/restore present. `TerminalLayout.svelte` doesn't exist (current page is `TerminalPage.svelte`); banner UI missing. | 🟢 CLOSED v1.2.0 — `SessionRestoreBanner.svelte` wired into TerminalPage; queries SessionPersistence binding with graceful fallback across naming variants. |
-| **23.4 OperatorBanner.svelte** | `OperatorService` backend exists; component file `OperatorBanner.svelte` does not. | 🟢 CLOSED v1.2.0 — file shipped at `frontend/src/components/terminal/OperatorBanner.svelte`. |
+| **22.4 SSH → anomaly banner** | ⚫ **REMOVED in Phase 32** with the shell subsystem. The Host-Detail anomaly banner re-implementation is tracked as a new open `[ ]` item under Phase 22.4. |
+| **22.4 Host isolation from terminal** | 🟡 partial — keybind survives (Ctrl+Shift+I → `oblivra:isolate-host` event → OperatorMode), but the "from terminal context" entry point is gone with Phase 32. Reachable from Host Detail and Operator Mode pages instead. |
+| **23.2 Session restore banner** | ⚫ **REMOVED in Phase 32** with the shell subsystem. `session_persistence.go` and `SessionRestoreBanner.svelte` deleted. |
+| **23.4 OperatorBanner.svelte** | ⚫ **REMOVED in Phase 32** with the shell subsystem. File deleted; backend `operator_service.go` retained because it can serve a future host-detail banner. |
 | **23.5 Clipboard OSC 52** | XTerm imported. No OSC 52 handler, no auto-copy-on-selection, no right-click paste. Reset to `[ ]`. | 🟢 CLOSED v1.2.0 — `term.parser.registerOscHandler(52, ...)` for vim/tmux push, `term.onSelectionChange` auto-copy, `contextmenu` paste-via-SendInput. |
 | **23.6 AI Autocomplete UI** | `CommandHistoryService.GetSuggestions` exists. No floating suggestion box, no cursor anchoring. Reset to `[ ]`. | 🔴 open (only ↑-arrow + Tab from 23.3) |
 | **25.10 No multi-party enforcement** | HMAC-token replacement closes the *forgery* hole; FIDO2 hardware-signature verification of each approval is still missing (`quorum.go:111` skips it). | 🟢 CLOSED 2026-04-25 — `QuorumManager.Approve` now drives `FIDO2Manager.CompleteAuthentication` (ECDSA verify against registered hardware key) before counting the vote; failed verification rejects with WARN. |

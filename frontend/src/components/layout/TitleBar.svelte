@@ -37,6 +37,38 @@
     if (ua.includes('linux')) return 'linux';
     return 'win';
   })();
+
+  // Audit fix — window-control visibility used to gate solely on
+  // `IS_BROWSER` from context.ts, computed at module load. The Wails
+  // v3 runtime injects its globals (window._wails) AFTER
+  // WindowLoadFinished, which fires after the JS bundle parses; on
+  // Windows WebView2 the `window.chrome.webview` channel is normally
+  // synchronous but can race the bundle on cold start. When detection
+  // misfires the operator sees no min / max / close buttons at all
+  // (the OS chrome is suppressed by Frameless: true in main_gui.go).
+  //
+  // We now treat "should we draw window controls" as a separate
+  // reactive signal: we render them whenever the page lives inside a
+  // Wails / WebView host, re-evaluated on every render so a late
+  // runtime injection makes them appear within one tick.
+  let inWailsHost = $state(false);
+  function detectWailsHost(): boolean {
+    if (typeof window === 'undefined') return false;
+    const w = window as any;
+    return !!(
+      w.chrome?.webview                       // Windows WebView2
+      || w.webkit?.messageHandlers?.external  // macOS / Linux WebKit2GTK
+      || w._wails                             // Wails v3 namespace
+      || w.__WAILS__                          // Wails v2 namespace
+      || w.runtime                            // Wails v2 legacy
+      || w.wails                              // Wails v2 legacy
+    );
+  }
+  // showWindowControls = "render our own chrome buttons". Falls back
+  // to the original IS_BROWSER signal when Wails detection is uncertain
+  // so we never DOUBLE-render OS chrome on a real browser.
+  const showWindowControls = $derived(inWailsHost || !IS_BROWSER);
+
   let isMaximised = $state(false);
   let popoutCount = $state(0);
 
@@ -50,7 +82,25 @@
   let pollInterval: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
-    if (IS_BROWSER) return;
+    // Re-evaluate the Wails-host signal once on mount AND once after a
+    // tick (covers a late `_wails` injection by Wails v3's
+    // WindowLoadFinished hook). After this initial probe, the
+    // `showWindowControls` derived expression is stable.
+    inWailsHost = detectWailsHost();
+    if (!inWailsHost) {
+      // Try again after the next animation frame — Wails v3 injects
+      // _wails during DOM ready, which can fire AFTER our first paint.
+      requestAnimationFrame(() => {
+        inWailsHost = detectWailsHost();
+      });
+      // And once more after 500ms as a belt-and-braces guard against
+      // very slow WebView2 cold starts on Windows.
+      setTimeout(() => {
+        if (!inWailsHost) inWailsHost = detectWailsHost();
+      }, 500);
+    }
+
+    if (IS_BROWSER && !inWailsHost) return;
 
     const pollState = async () => {
       try {
@@ -157,7 +207,7 @@
   style="--wails-draggable: drag;"
 >
   <!-- macOS traffic lights (left side, Mac-only) -->
-  {#if !IS_BROWSER && platform === 'mac'}
+  {#if showWindowControls && platform === 'mac'}
     <div class="flex items-center gap-1.5 shrink-0 pl-1 pr-1" style="--wails-draggable: no-drag;">
       <button
         class="w-3 h-3 rounded-full bg-[#ff5f57] hover:opacity-80 transition-opacity border-none cursor-pointer flex items-center justify-center group"
@@ -313,8 +363,11 @@
        can't push them off — earlier symptom: the close button was
        invisible on a 1280-wide window because the search bar refused
        to shrink. The vertical separator before the controls helps the
-       eye find them as a logical group. -->
-  {#if !IS_BROWSER}
+       eye find them as a logical group.
+       Audit fix — gating switched from IS_BROWSER (which can misfire
+       on cold-start WebView2 timing) to showWindowControls, which
+       reactively responds to a late Wails runtime injection. -->
+  {#if showWindowControls}
     <div class="flex items-center shrink-0 ml-auto">
       <!-- SOC mode (multi-monitor pop-out shortcut) — label only on
            lg+ to keep the chrome compact on smaller windows. -->
