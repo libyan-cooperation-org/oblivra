@@ -252,6 +252,12 @@
 
 ## Phase 0.5: Architectural Hardening (Desktop vs. Browser) ✅
 
+> Enforce the Golden Rule (Desktop = sensitive/local/operator, Web = shared/
+> scalable/multi-user) at the code level. Every route declares its target
+> context; the router refuses to render a desktop-only page in browser mode
+> and vice-versa. ContextBadge surfaces the mode to the operator at all times.
+
+### Stages
 - [x] `context.ts` — `APP_CONTEXT` detection, `IS_DESKTOP`, `IS_BROWSER`, `IS_HYBRID` exports
 - [x] `isRouteAvailable()`, `getServiceCapabilities()`, `configureHybridMode()` / `disconnectHybridMode()`
 - [x] `ContextRoute.svelte` route guard (desktop/web/any context scoping)
@@ -271,6 +277,12 @@
 ---
 
 ## Phase 1: Core Storage + Ingestion + Search ✅
+
+> The SIEM core: BadgerDB for hot storage, Bleve for full-text search,
+> Parquet for cold archival, plus a crash-safe WAL in front of all of it.
+> An ingest pipeline that handles syslog/JSON/CEF/LEEF with backpressure
+> and rate limiting. A query layer (OQL + Lucene) that reads through all
+> three storage tiers. Validated under 72 h × 5,000 EPS soak with no loss.
 
 ### 1.1 — Storage Layer
 - [v] Integrate BadgerDB 🏗️
@@ -330,6 +342,11 @@
 
 ## Phase 2: Alerting + REST API ✅
 
+> Detection rules become alerts. Alerts become notifications (webhook /
+> email / Slack / Teams) with multi-level escalation chains, on-call
+> rotations, SLA tracking. Everything also exposed through a versioned
+> REST API (`/api/v1/...`) gated by API keys + RBAC + TLS.
+
 ### 2.1 — Alerting Hardening
 - [x] YAML detection rule loader (`internal/detection/rules/`) 🏗️
 - [x] Rule engine: threshold, frequency, sequence, correlation rules 🏗️
@@ -369,6 +386,11 @@
 
 ## Phase 3: Threat Intel + Enrichment ✅
 
+> Make every event richer at ingest time. STIX/TAXII threat-intel feed,
+> O(1) IOC matcher (IP / hash / domain), GeoIP + DNS PTR/ASN + asset/user
+> mapping enrichment, plus full parsers for Windows Event Log, Linux
+> syslog/journald, AWS/Azure/GCP cloud audit, NetFlow/firewall logs.
+
 ### 3.1 — Threat Intelligence
 - [x] STIX/TAXII Client (`internal/threatintel/taxii.go`) 🏗️
 - [x] Offline rule ingestion (JSON, OpenIOC) 🏗️
@@ -397,6 +419,13 @@
 
 ## Phase 4: Detection Engineering + MITRE ✅
 
+> Library + engine. 82 YAML detection rules across all 12 MITRE ATT&CK
+> tactics covering 45+ techniques. Correlation engine for multi-event
+> patterns. MITRE heatmap for coverage visualisation. Companion hardening
+> work (component a11y, regex DoS prevention, RBAC on destructive
+> endpoints) in **HARDENING.md → Phase 4.5 Hardening Sprint**.
+
+### Stages
 - [x] 82 YAML detection rules across all 12 tactics, 45+ techniques 🏗️
 - [x] MITRE ATT&CK technique mapper (`internal/detection/mitre.go`) 🏗️
 - [x] Correlation engine (`internal/detection/correlation.go`) 🏗️
@@ -412,6 +441,12 @@
 
 ## Phase 5: Limits, Leaks & Lifecycles ✅
 
+> Long-running stability. Bounded memory in correlation state, async GC
+> for BadgerDB value-log, mutable Incident lifecycle (New / Active /
+> Investigating / Closed). CI for pre-compiled binary releases plus a
+> zero-dependency `docker-compose.yml` for one-line deployment.
+
+### Stages
 - [x] LRU/TTL bounded memory for `internal/detection/correlation.go`
 - [x] Asynchronous value log GC for BadgerDB
 - [x] Incident Aggregation: mutable DB records (New/Active/Investigating/Closed)
@@ -423,6 +458,14 @@
 
 ## Phase 6: Forensics & Compliance ✅
 
+> Make logs admissible. Merkle-chained audit log, signed evidence locker
+> with chain-of-custody, RFC 3161 timestamping, NIST SP 800-86-formalised
+> evidence collection. Compliance packs (PCI-DSS / NIST / ISO 27001 /
+> GDPR / HIPAA / SOC2 Type II) with PDF/HTML reports and a regulator-
+> ready audit-export portal. *(Phase 36: disk/memory imaging removed;
+> log-event chain-of-custody retained.)*
+
+### Stages
 - [s] Merkle tree immutable logging (`internal/integrity/merkle.go`)
 - [s] Evidence locker with chain of custody (`internal/forensics/evidence.go`)
 - [x] Enhanced FIM with baseline diffing
@@ -451,6 +494,13 @@
 
 ## Phase 7: Agent Framework ✅
 
+> The endpoint collector. A single-binary Go agent (`cmd/agent`) collecting
+> file-tail / Windows Event Log / system metrics / FIM / eBPF, shipping
+> over gRPC+mTLS with zstd compression and a local WAL for offline buffering.
+> Edge-side filtering + PII redaction. 7.5 adds agentless collectors
+> (WMI / SNMP / SQL audit / REST polling) for sources that can't take an agent.
+
+### Stages
 - [v] Agent binary scaffold (`cmd/agent/main.go`) 🏗️
 - [v] File tailing, Windows Event Log streaming, system metrics, FIM collectors 🏗️
 - [v] gRPC/TLS/mTLS transport layer 🏗️
@@ -472,8 +522,14 @@
 
 ---
 
-## Phase 8: Autonomous Response (SOAR) ✅
+## Phase 8: Autonomous Response (SOAR) ✅ → ⚫ REMOVED in Phase 36
 
+> *Historical*. Case management, playbook engine, SOAR builder UI, ITSM
+> integrations (Jira / ServiceNow). All deleted in **Phase 36** (broad scope
+> cut — log-driven SIEM only). Pair OBLIVRA with an external SOAR (Tines,
+> Torq, XSOAR) instead.
+
+### Stages (no longer in code)
 - [v] Case management (CRUD, assignment, timeline) 🌐
 - [v] Playbook Engine: selective response & approval gating 🏗️
 - [v] Rollback Integrity: state-aware recovery 🏗️
@@ -490,8 +546,16 @@
 
 ---
 
-## Phase 9: Ransomware Defense ✅
+## Phase 9: Ransomware Defense ✅ → 🟡 partial after Phase 36
 
+> Detection layer **retained**: entropy-based behavioural detection
+> (`internal/detection/ransomware_engine.go`), honeypot infrastructure,
+> Sigma ransomware rules. Response layer **removed in Phase 36**: canary
+> file deployment, automated network isolation, `RansomwareCenter.svelte`
+> response page. `/api/v1/ransomware/{events,hosts,stats}` endpoints stay;
+> `/api/v1/ransomware/isolate` endpoint deleted.
+
+### Stages
 - [x] Entropy-based behavioral detection (`internal/detection/ransomware_engine.go`) 🏗️
 - [x] Canary file deployment (`canary_deployment_service.go`) 🏗️
 - [v] Honeypot infrastructure 🏗️
@@ -513,6 +577,14 @@
 
 ## Phase 10: UEBA / ML ✅
 
+> User & Entity Behaviour Analytics. Per-user/entity behavioural baselines
+> in BadgerDB; Isolation Forest anomaly detection (deterministic seeding);
+> Identity Threat Detection & Response with EMA tracking. 10.5 adds peer-
+> group analysis (auto-cluster by role/dept, σ-deviation outlier detection).
+> 10.6 adds the multi-stage attack fusion engine — kill-chain progression
+> tracking, campaign clustering, Bayesian probabilistic scoring.
+
+### Stages
 - [v] Per-user/entity behavioral baselines (persistence in BadgerDB) 🏗️
 - [v] Isolation Forest anomaly detection (deterministic seeding) 🏗️
 - [v] Identity Threat Detection & Response (EMA behavior tracking) 🏗️
@@ -538,6 +610,13 @@
 
 ## Phase 11: NDR ✅
 
+> Network Detection & Response. NetFlow/IPFIX collection, DNS log analysis
+> (DGA + tunnel detection), TLS metadata extraction (JA3/JA3S without
+> decryption), HTTP proxy log normalisation, eBPF kernel network probes
+> (extends the agent), lateral-movement detection via multi-hop connection
+> correlation. `NDRDashboard.svelte` + `NetworkMap.svelte` UI surfaces.
+
+### Stages
 - [x] NetFlow/IPFIX collector 🌐
 - [x] DNS log analysis engine — DGA and DNS tunneling detection 🌐
 - [x] TLS metadata extraction — JA3/JA3S fingerprints (no decryption) 🌐
@@ -554,6 +633,13 @@
 
 ## Phase 12: Enterprise ✅
 
+> Multi-tenancy with per-tenant data partitioning at every storage layer
+> (BadgerDB keys, Bleve indexes). HA clustering via Hashicorp Raft.
+> Identity stack: User & Role models, OIDC/OAuth2 + SAML 2.0 + TOTP MFA,
+> granular RBAC engine. Data-lifecycle management (7 retention policies +
+> legal hold + 6 h purge loop). Executive dashboard, password vault.
+
+### Stages
 - [x] Multi-tenancy with data partitioning
 - [s] HA clustering (Raft consensus) — `internal/cluster/`, `cluster_service.go`
 - [x] User & Role DB models + migration v12 (`internal/database/users.go`)

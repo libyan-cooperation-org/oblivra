@@ -149,7 +149,7 @@ type ProductCluster struct {
 	ShareService      *services.ShareService
 	RecordingService  *services.RecordingService
 	TransferManager   *services.TransferManager
-	ComplianceService *services.ComplianceService
+	// ComplianceService removed in Phase 36.x — compliance packs deleted.
 	TailingService    *services.TailingService
 	RecordingManager  *sharing.RecordingManager
 	ShareManager      *sharing.ShareManager

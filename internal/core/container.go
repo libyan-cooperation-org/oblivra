@@ -11,7 +11,7 @@ import (
 	"github.com/kingknull/oblivrashell/internal/attestation"
 	"github.com/kingknull/oblivrashell/internal/auth"
 	"github.com/kingknull/oblivrashell/internal/cloud"
-	"github.com/kingknull/oblivrashell/internal/compliance"
+	// Phase 36.x: compliance package removed.
 	"github.com/kingknull/oblivrashell/internal/database"
 	"github.com/kingknull/oblivrashell/internal/decision"
 	"github.com/kingknull/oblivrashell/internal/detection"
@@ -460,9 +460,8 @@ func (c *Container) initProduct() error {
 	c.Product.NotesService = services.NewNotesService(notes.NewNotesManager(), c.Infra.Bus, c.Log)
 	c.Product.ShareService = services.NewShareService(nil, nil, c.Infra.Bus, c.Log)
 	c.Product.RecordingService = services.NewRecordingService(nil, c.Infra.Bus, c.Log)
-	complianceGen := compliance.NewReportGenerator(database.NewAuditRepository(c.Infra.DB), sessRepo, hostRepo)
-	complianceEval, _ := compliance.NewEvaluator()
-	c.Product.ComplianceService = services.NewComplianceService(complianceGen, complianceEval, c.Infra.Bus, c.Log, c.Infra.Vault, c.Security.IdentityService, nil)
+	// Phase 36.x: ComplianceService removed (compliance packs deleted —
+	// PCI-DSS / NIST / ISO / GDPR / HIPAA / SOC2 packs all gone).
 	c.Product.TailingService = services.NewTailingService(c.Infra.Bus, c.Log)
 	c.Product.TeamService = services.NewTeamService(team.NewTeamVault("Org Vault"), c.Infra.Bus, c.Log)
 
@@ -689,7 +688,7 @@ func (c *Container) registerServices() {
 	c.mustRegister(c.Product.NotesService)
 	c.mustRegister(c.Product.ShareService)
 	c.mustRegister(c.Product.RecordingService)
-	c.mustRegister(c.Product.ComplianceService)
+	// Phase 36.x: ComplianceService removed.
 	c.mustRegister(c.Product.TailingService)
 	c.mustRegister(c.Product.TeamService)
 	c.mustRegister(c.Product.BookmarkService)
