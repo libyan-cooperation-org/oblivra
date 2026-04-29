@@ -15,7 +15,7 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { PageLayout, Badge, Button, DataTable, EmptyState } from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, EmptyState, LastRefreshed } from '@components/ui';
   import { ShieldCheck, ShieldAlert, ShieldQuestion, RefreshCw, Activity } from 'lucide-svelte';
   import { apiFetch } from '@lib/apiClient';
   import { appStore } from '@lib/stores/app.svelte';
@@ -34,6 +34,9 @@
   let rows = $state<IntegrityRow[]>([]);
   let counts = $state({ healthy: 0, stale: 0, dark: 0, tampered: 0 });
   let loading = $state(false);
+  // Trust signal — operators auditing tamper indicators need to know
+  // whether the table is fresh or a stale 30s-old poll.
+  let lastSync = $state<Date | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() {
@@ -49,6 +52,7 @@
         dark: body.dark_count ?? 0,
         tampered: body.tampered_count ?? 0,
       };
+      lastSync = new Date();
     } catch (e: any) {
       appStore.notify('Integrity load failed', 'error', e?.message ?? String(e));
     } finally {
@@ -87,6 +91,7 @@
   subtitle="Tamper-evidence · heartbeat · log-truncation detection"
 >
   {#snippet toolbar()}
+    <LastRefreshed time={lastSync} staleThresholdSec={45} />
     <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh} disabled={loading}>
       {loading ? 'Loading…' : 'Refresh'}
     </Button>

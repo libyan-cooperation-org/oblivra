@@ -32,6 +32,12 @@
   let loading = $state(false);
   let paused = $state(false);
   let liveCount = $state(0);
+  // Phase 35 — track events that arrived but were dropped from the
+  // visible buffer because we hit MAX_LIVE_EVENTS. Without this
+  // counter the stream silently truncates above 500 EPS and the
+  // operator sees a steady "500 events" with no signal that they're
+  // missing real-time data. Reset by Refresh.
+  let droppedCount = $state(0);
   let unsubStream: (() => void) | null = null;
 
   function formatEvent(ev: any) {
@@ -46,6 +52,11 @@
 
   async function refreshLogs() {
     loading = true;
+    // Refresh re-seeds the buffer from the backend, so the
+    // accumulated UI eviction count from the previous live-stream
+    // window is now stale — reset to 0 so the operator sees the
+    // counter relative to this refresh window only.
+    droppedCount = 0;
     try {
       const query = searchQuery || 'severity:>=info';
       let result;
@@ -85,6 +96,14 @@
       if (paused) return;
       liveCount++;
       const entry = formatEvent(evt);
+      // If the buffer is already full, prepending this event evicts
+      // the oldest from the tail. We count those evictions so the
+      // operator sees "showing 500 of 1247 — 747 evicted from buffer"
+      // instead of a misleading silent cap. The backend keeps every
+      // event; this counter is purely a UI-buffer signal.
+      if (logs.length >= MAX_LIVE_EVENTS) {
+        droppedCount++;
+      }
       logs = [entry, ...logs].slice(0, MAX_LIVE_EVENTS);
     });
   });
@@ -137,7 +156,15 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
       <KPI label="Event Rate" value={eps + " EPS"} trend={eps > 0 ? 'up' : 'stable'} trendValue="live" />
       <KPI label="Storage Index" value="0%" trend="stable" trendValue="PENDING" variant="default" />
-      <KPI label="Live Events" value={liveCount} trend={liveCount > 0 ? 'up' : 'stable'} trendValue="ingested" variant="critical" />
+      <KPI
+        label="Live Events"
+        value={liveCount.toString()}
+        trend={liveCount > 0 ? 'up' : 'stable'}
+        trendValue={droppedCount > 0
+          ? `showing ${logs.length} · ${droppedCount} evicted`
+          : 'ingested'}
+        variant={droppedCount > 0 ? 'warning' : 'critical'}
+      />
       <KPI label="Data Hygiene" value="0%" trend="stable" trendValue="PENDING" variant="default" />
     </div>
 

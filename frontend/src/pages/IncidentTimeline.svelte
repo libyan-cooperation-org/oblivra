@@ -74,7 +74,11 @@
         <History size={14} class="mr-1" />
         Regenerate Story
       </Button>
-      <PopOutButton route={window.location.pathname} title="Incident Timeline" />
+      <!-- Phase 35 audit fix #12: drop the explicit `route` so PopOutButton's
+           own resolveRoute() (using the hash router) takes over. The
+           previous explicit `window.location.pathname` always resolved
+           to '/' under hash routing, popping out the dashboard. -->
+      <PopOutButton title="Incident Timeline" />
     </div>
   {/snippet}
 

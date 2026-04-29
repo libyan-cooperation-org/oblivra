@@ -87,9 +87,12 @@
         {/each}
       </ul>
 
-      <footer class="px-4 py-2 bg-surface-2/50 border-t border-border-primary">
+      <footer class="px-4 py-2 bg-surface-2/50 border-t border-border-primary space-y-1">
         <p class="text-[var(--fs-micro)] text-text-muted leading-relaxed">
-          Tier: <span class="font-mono uppercase tracking-widest text-text-secondary">{sovereigntyStore.score.tier}</span>. Set <span class="font-mono">OBLIVRA_AIRGAP=1</span> / disable remote KMS to maximise.
+          Tier: <span class="font-mono uppercase tracking-widest text-text-secondary">{sovereigntyStore.score.tier}</span> — composite of four pillars (on-prem · TPM · air-gap · KMS).
+        </p>
+        <p class="text-[var(--fs-micro)] text-text-muted leading-relaxed">
+          To raise the score: set <span class="font-mono text-text-secondary">OBLIVRA_AIRGAP=1</span> in the server environment, deploy on hardware with a TPM 2.0 module, and disable any cloud-KMS providers in <span class="font-mono text-text-secondary">Settings → Vault</span>.
         </p>
       </footer>
     </div>

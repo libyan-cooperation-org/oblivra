@@ -389,7 +389,14 @@ import Sidebar from '@components/layout/CommandRail.svelte';
           const mod = await getWindowService();
           if (!mod) return;
           try {
-            await mod.PopOut(window.location.pathname, document.title || '');
+            // Phase 35 audit fix #12 — same hash-routing bug as
+            // PopOutButton. The app uses hash routing (#/foo) so
+            // window.location.pathname is always '/' and Ctrl+Shift+O
+            // always popped out the dashboard regardless of view.
+            // Use the router's getCurrentPath() instead.
+            const { getCurrentPath } = await import('@lib/router.svelte');
+            const route = getCurrentPath() || '/';
+            await mod.PopOut(route, document.title || '');
           } catch (e) {
             toastStore.add({ type: 'error', title: 'Pop-out failed', message: String(e) });
           }
@@ -425,8 +432,12 @@ import Sidebar from '@components/layout/CommandRail.svelte';
           }
         });
         on(rt, 'menu:diagnostics', () => {
-          (appStore as any).showDiagnostics?.() ??
-            appStore.navigate('/monitoring');
+          // Phase 35 cleanup — `appStore.showDiagnostics()` was a
+          // dangling reference (no such method exists on appStore).
+          // We always fell through to the navigate path; just call
+          // it directly. The /monitoring page is the diagnostics
+          // surface (live EPS, goroutines, heap, GC, health grade).
+          appStore.navigate('/monitoring');
         });
         on(rt, 'menu:open-url', (url: string) => {
           window.open(url, '_blank', 'noopener,noreferrer');

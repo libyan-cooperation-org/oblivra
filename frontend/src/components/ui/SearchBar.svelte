@@ -30,7 +30,7 @@
   }
 </script>
 
-<div role="search" class="relative flex items-center">
+<div role="search" aria-label="Search form" class="relative flex items-center">
   <!-- Search icon -->
   <span class="absolute left-2.5 text-text-muted text-[11px] pointer-events-none">⌕</span>
 

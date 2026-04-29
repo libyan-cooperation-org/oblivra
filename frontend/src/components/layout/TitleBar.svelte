@@ -82,22 +82,31 @@
   let pollInterval: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
-    // Re-evaluate the Wails-host signal once on mount AND once after a
-    // tick (covers a late `_wails` injection by Wails v3's
-    // WindowLoadFinished hook). After this initial probe, the
-    // `showWindowControls` derived expression is stable.
+    // Re-evaluate the Wails-host signal at staggered intervals
+    // covering the spectrum of cold-start timings:
+    //   - synchronous (most cases — chrome.webview / webkit.messageHandlers
+    //     are present before any JS runs)
+    //   - next animation frame (covers Wails v3's WindowLoadFinished hook
+    //     firing AFTER the first paint, which is the common Wails v3 path)
+    //   - 500ms (slow WebView2 cold start on Windows)
+    //   - 1500ms (Phase 35 audit fix #13 — extended belt-and-braces guard
+    //     for very slow first-launch WebView2 initialisation on machines
+    //     with cold-cache antivirus scanning, low-end laptops, or Windows
+    //     domain-bound profiles where group-policy hooks delay injection.
+    //     Cost: one extra 50ns property read; benefit: chrome controls
+    //     never go missing on a borderline-slow boot.)
+    // After the final probe, the derived `showWindowControls` is stable.
     inWailsHost = detectWailsHost();
     if (!inWailsHost) {
-      // Try again after the next animation frame — Wails v3 injects
-      // _wails during DOM ready, which can fire AFTER our first paint.
       requestAnimationFrame(() => {
-        inWailsHost = detectWailsHost();
+        if (!inWailsHost) inWailsHost = detectWailsHost();
       });
-      // And once more after 500ms as a belt-and-braces guard against
-      // very slow WebView2 cold starts on Windows.
       setTimeout(() => {
         if (!inWailsHost) inWailsHost = detectWailsHost();
       }, 500);
+      setTimeout(() => {
+        if (!inWailsHost) inWailsHost = detectWailsHost();
+      }, 1500);
     }
 
     if (IS_BROWSER && !inWailsHost) return;

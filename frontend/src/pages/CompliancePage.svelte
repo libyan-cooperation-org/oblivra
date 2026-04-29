@@ -3,10 +3,19 @@
   Real-time regulatory posture and continuous control monitoring.
 -->
 <script lang="ts">
-  import { PageLayout, Badge, Button, DataTable, ProgressBar, PopOutButton} from '@components/ui';
+  import { PageLayout, Badge, Button, DataTable, ProgressBar, PopOutButton, LastRefreshed } from '@components/ui';
   import { Shield, CheckCircle, AlertTriangle, Clock, RefreshCw, Filter, Download } from 'lucide-svelte';
   import { complianceStore } from '@lib/stores/compliance.svelte';
   import { onMount } from 'svelte';
+
+  // Trust signal — when did we last successfully fetch the control
+  // ledger? Operators auditing posture need to know whether the
+  // numbers below are a fresh validation pass or a hour-old cache.
+  let lastSync = $state<Date | null>(null);
+  async function refreshWithTimestamp() {
+    await complianceStore.validateAll();
+    lastSync = new Date();
+  }
 
   const controls = $derived(complianceStore.controls);
   const stats = $derived(complianceStore.stats);
@@ -38,15 +47,17 @@
       .sort((a, b) => b.pct - a.pct);
   });
 
-  onMount(() => {
-    complianceStore.refresh();
+  onMount(async () => {
+    await complianceStore.refresh();
+    lastSync = new Date();
   });
 </script>
 
 <PageLayout title="Compliance Hub" subtitle="Continuous regulatory monitoring and autonomous control validation">
   {#snippet toolbar()}
     <div class="flex items-center gap-2">
-      <Button variant="secondary" size="sm" icon={RefreshCw} onclick={() => complianceStore.validateAll()} loading={complianceStore.loading}>VALIDATE ALL</Button>
+      <LastRefreshed time={lastSync} staleThresholdSec={120} />
+      <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refreshWithTimestamp} loading={complianceStore.loading}>VALIDATE ALL</Button>
       <Button variant="primary" size="sm" icon={Download}>GENERATE REPORT</Button>
     </div>
       <PopOutButton route="/compliance" title="Compliance" />

@@ -90,6 +90,8 @@
 
 <div
   role="status"
+  aria-live="polite"
+  aria-atomic="true"
   class="bg-surface-2 border border-border-primary rounded-sm p-2.5 flex flex-col gap-1
          transition-colors hover:border-border-hover relative overflow-hidden"
 >

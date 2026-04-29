@@ -109,10 +109,23 @@
             
             <div class="flex flex-col gap-1.5">
               <div class="text-[10px] font-bold uppercase tracking-wider text-text-muted font-sans">Theme</div>
-              <div class="flex gap-2">
+              <div class="flex gap-2 items-center">
                 <Button variant={theme === 'dark' ? 'primary' : 'secondary'} size="sm" onclick={() => theme = 'dark'}>Tokyo Night (Dark)</Button>
-                <Button variant={theme === 'light' ? 'primary' : 'secondary'} size="sm" onclick={() => theme = 'light'}>Paper (Light)</Button>
+                <!-- Phase 35 honesty fix — the light-mode button used to
+                     accept the click and save 'light' to settings, but
+                     no light-mode CSS exists in app.css so nothing
+                     changed visually. That's a UI lie: operator clicks,
+                     saves, nothing happens, trust drops. Disabled until
+                     a real light-mode token pass lands; tooltip
+                     explains why. -->
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled
+                  title="Light mode pending — operator-grade dark theme is the only fully-styled option today. Tracked as a future design pass."
+                >Paper (Light) — coming soon</Button>
               </div>
+              <div class="text-[9px] text-text-muted">SIEM operators run dark by default; light-mode tokens are a separate design pass.</div>
             </div>
 
             <!-- Density toggle (UIUX_IMPROVEMENTS.md P0 #2). 'Comfortable'

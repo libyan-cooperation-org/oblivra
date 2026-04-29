@@ -21,7 +21,7 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { PageLayout, KPI, Badge, Button, PopOutButton } from '@components/ui';
+  import { PageLayout, KPI, Badge, Button, PopOutButton, LastRefreshed } from '@components/ui';
   import { Database, HardDrive, Snowflake, RefreshCw, Zap } from 'lucide-svelte';
   import { apiFetch } from '@lib/apiClient';
   import { appStore } from '@lib/stores/app.svelte';
@@ -42,6 +42,10 @@
   let unavailable = $state(false);
   let promoting = $state(false);
   let lastError = $state<string | null>(null);
+  // Trust signal — when did we last successfully fetch tier stats?
+  // Surface this so operators auditing the dashboard know whether
+  // they're looking at fresh numbers or a stale poll.
+  let lastSync = $state<Date | null>(null);
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   function fmtBytes(n: number): string {
@@ -87,6 +91,7 @@
       unavailable = false;
       tiers = body.tiers ?? [];
       lastCycle = body.last_cycle ?? null;
+      lastSync = new Date();
     } catch (err: any) {
       lastError = String(err?.message ?? err);
     } finally {
@@ -145,6 +150,7 @@
   subtitle="Hot · Warm · Cold storage lifecycle and migration observability"
 >
   {#snippet toolbar()}
+    <LastRefreshed time={lastSync} staleThresholdSec={45} />
     <Button variant="secondary" size="sm" icon={RefreshCw} onclick={refresh} loading={loading}>
       Refresh
     </Button>

@@ -23,7 +23,7 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { PageLayout, Badge, Button } from '@components/ui';
+  import { PageLayout, Badge, Button, LastRefreshed } from '@components/ui';
   import { Cable, RefreshCw, Save, FlaskConical, Plug, ArrowLeftRight } from 'lucide-svelte';
   import { apiFetch } from '@lib/apiClient';
   import { appStore } from '@lib/stores/app.svelte';
@@ -33,6 +33,9 @@
   let dirty = $derived(yamlText !== originalYaml);
 
   let stats = $state<{ events_in: number; events_out: number; events_drop: number } | null>(null);
+  // Trust signal — pipeline stats poll every 5s; surface freshness
+  // so operators can tell if the connector telemetry has stalled.
+  let statsLastSync = $state<Date | null>(null);
   let testResult = $state<{ ok: boolean; error?: string; inputs?: number; outputs?: number } | null>(null);
   let busy = $state(false);
   let loadError = $state<string | null>(null);
@@ -174,7 +177,10 @@ outputs:
   async function refreshStats() {
     try {
       const res = await apiFetch('/api/v1/io/stats');
-      if (res.ok) stats = await res.json();
+      if (res.ok) {
+        stats = await res.json();
+        statsLastSync = new Date();
+      }
     } catch { /* network blip — keep last value */ }
   }
 
@@ -240,6 +246,7 @@ outputs:
 
 <PageLayout title="Connectors" subtitle="Inputs / outputs / pipeline · YAML edit · hot-reloads on apply">
   {#snippet toolbar()}
+    <LastRefreshed time={statsLastSync} staleThresholdSec={15} />
     <Button variant="secondary" size="sm" icon={RefreshCw} onclick={loadConfig} disabled={busy}>
       {busy ? 'Loading…' : 'Reload from disk'}
     </Button>

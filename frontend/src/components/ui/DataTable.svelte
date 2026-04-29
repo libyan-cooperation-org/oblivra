@@ -77,10 +77,17 @@
             role={col.sortable !== false ? "button" : undefined}
             tabindex={col.sortable !== false ? 0 : undefined}
             aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+            aria-label={col.sortable !== false
+              ? `Sort by ${col.label}${sortKey === col.key ? `, currently ${sortDir === 'asc' ? 'ascending' : 'descending'}` : ', not sorted'}`
+              : undefined}
           >
             <span class="inline-flex items-center gap-1">
               {col.label}
               {#if sortKey === col.key}
+                <!-- Audit fix #9 — icon-only triangle still aria-hidden,
+                     because the parent th's aria-label now spells out
+                     the current sort direction explicitly for screen
+                     readers. Sighted users keep the visual triangle. -->
                 <span class="text-accent text-[8px]" aria-hidden="true">{sortDir === 'asc' ? '▲' : '▼'}</span>
               {/if}
             </span>
