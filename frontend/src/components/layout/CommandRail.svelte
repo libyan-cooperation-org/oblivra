@@ -27,7 +27,7 @@
     'threat-map': '/threat-map',
     ndr: '/ndr', 'ndr-overview': '/ndr-overview', 'purple-team': '/purple-team',
     graph: '/graph', ransomware: '/ransomware', 'ransomware-ui': '/ransomware-ui',
-    simulation: '/simulation', vault: '/vault',
+    vault: '/vault',
     'war-mode': '/war-mode', forensics: '/forensics',
     'remote-forensics': '/remote-forensics', security: '/trust',
     temporal: '/temporal-integrity', lineage: '/lineage',

@@ -39,7 +39,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
   // TasksPage import removed Phase 36.9 — depended on deleted playbookservice.
   import FeaturesPage from '@pages/FeaturesPage.svelte';
   import LicensePage from '@pages/LicensePage.svelte';
-  import SimulationPanel from '@pages/SimulationPanel.svelte';
+  // SimulationPanel import removed Phase 36.9 — depended on deleted playbookservice.
   import ThreatHunter from '@pages/ThreatHunter.svelte';
   import ThreatIntelPanel from '@pages/ThreatIntelPanel.svelte';
   import CredentialIntel from '@pages/CredentialIntel.svelte';
@@ -209,7 +209,7 @@ import Sidebar from '@components/layout/CommandRail.svelte';
     // incidentservice / playbookservice — deleted with SOAR scope cut).
     { path: '/war-mode',         component: WarMode },
     { path: '/data-destruction', component: DataDestruction },
-    { path: '/simulation',       component: SimulationPanel },
+    // Phase 36.9: /simulation removed (SimulationPanel depended on playbookservice).
 
     // Forensics & Audit
     { path: '/terminal-forensics', component: TerminalForensics },

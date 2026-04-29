@@ -186,7 +186,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Automate',
         subtitle: 'Run playbooks, contain, simulate',
         items: [
-          { id: 'simulation',         route: '/simulation',         label: 'Simulation',          icon: 'FlaskConical',    description: 'Attack-path replay' },
+          // Phase 36.9: 'simulation' removed (SimulationPanel depended on playbookservice).
           { id: 'data-destruction',   route: '/data-destruction',   label: 'Data Destruction',    icon: 'Trash2',          description: 'DoD-compliant wipe', context: 'desktop' },
         ],
       },

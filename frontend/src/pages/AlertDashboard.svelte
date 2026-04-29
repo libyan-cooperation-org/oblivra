@@ -40,24 +40,10 @@
     }).length,
   );
 
-  // Try to resolve an alert via IncidentService.UpdateIncidentStatus.
-  // Falls back to a notify if the alert isn't tied to an incident.
-  async function resolveAlert(alertID: string) {
-    try {
-      if (IS_BROWSER) {
-        appStore.notify('Resolve via API not yet wired in browser mode', 'info');
-        return;
-      }
-      const { UpdateIncidentStatus } = await import(
-        '@wailsjs/github.com/kingknull/oblivrashell/internal/services/incidentservice'
-      );
-      await UpdateIncidentStatus(alertID, 'resolved', 'Resolved from alert dashboard');
-      appStore.notify(`Alert ${alertID} resolved`, 'success');
-      if (typeof alertStore.refresh === 'function') void alertStore.refresh();
-    } catch (e: any) {
-      appStore.notify(`Resolve failed: ${e?.message ?? e}`, 'error');
-    }
-  }
+  // Phase 36.9: resolveAlert removed — depended on IncidentService which was
+  // deleted with the broad scope cut. Operators close alerts via the live
+  // /api/v1/alerts/{id}/suppress endpoint (per-row suppress button); pair
+  // with an external SOAR for incident-status workflows.
 
   function investigate(alertID: string, hostID: string) {
     // Pivot to incident timeline if we can; otherwise drop into a host-scoped
@@ -86,16 +72,7 @@
     <div class="flex items-center gap-3">
       <Input variant="search" placeholder="Filter incidents..." bind:value={searchQuery} class="w-64" />
       <Button variant="secondary" size="sm" onclick={() => alertStore.refresh?.()}>Refresh</Button>
-      <Button
-        variant="cta"
-        size="sm"
-        onclick={() => {
-          const open = alertStore.alerts.filter((a) => a.status === 'open');
-          if (open.length === 0) { appStore.notify('No open alerts to resolve', 'info'); return; }
-          if (!confirm(`Resolve ${open.length} open alerts?`)) return;
-          Promise.all(open.map((a) => resolveAlert(a.id)));
-        }}
-      >Bulk Resolve</Button>
+      <!-- Phase 36.9: Bulk Resolve removed (depended on IncidentService). -->
       <PopOutButton route="/alerts" title="Security Alerts" />
     </div>
   {/snippet}
@@ -130,13 +107,9 @@
           {:else if col.key === 'timestamp'}
             <span class="text-[10px] text-text-muted font-mono tabular-nums">{String(value).split(' ')[1]}</span>
           {:else if col.key === 'action'}
+            <!-- Phase 36.9: Resolve button removed (depended on IncidentService). -->
             <div class="flex items-center gap-1 justify-end">
               <Button variant="ghost" size="sm" onclick={() => investigate(row.id, row.host)}>Investigate</Button>
-              <Button variant="ghost" size="sm"
-                onclick={() => resolveAlert(row.id)}
-                disabled={IS_BROWSER}
-                title={IS_BROWSER ? 'Resolve requires the desktop binary (Wails-only RPC)' : 'Mark this alert resolved'}
-              >Resolve</Button>
             </div>
           {:else}
             <span class="text-[11px] text-text-secondary">{value}</span>

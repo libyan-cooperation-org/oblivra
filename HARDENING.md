@@ -719,6 +719,14 @@ The audit found 2 fully-orphaned stores + 8 pages whose primary actions call del
 **Cosmetic stale comments** (already in 36.7.9-36.7.13, repeat here for cross-reference):
 - [ ] AlertDashboard / ConfigRisk / EscalationCenter / PurpleTeam / SimulationPanel — search-and-replace pass to remove `IncidentService` / `ComplianceService` / `PlaybookService` mentions.
 
+**Phase 36.9 emergency follow-up (2026-04-29 — caught by `wails3 build`)**:
+The original Phase 36.9 sweep missed three additional dead callers that only surfaced when `vite build` tried to resolve dynamic imports:
+- [x] **36.9.6** `frontend/src/pages/AlertDashboard.svelte:51` — `incidentservice.UpdateIncidentStatus` import. Resolve button + Bulk Resolve stripped; Investigate retained. Closed.
+- [x] **36.9.7** `frontend/src/pages/SimulationPanel.svelte` — entire page depended on `playbookservice.{ListAvailableActions, ExecuteAction}`. **Option 1**: page deleted, route + nav entry + CommandPalette/Rail entries removed. Closed.
+- [x] **36.9.8** Lingering `purple-team` / `simulation` entries in CommandPalette routeMap (Phase 36.10 follow-on). Stripped. Closed.
+
+**Lesson**: `tsc --noEmit` (the project's `typecheck` script) does **not** resolve dynamic `await import()` strings — only static imports. Future scope cuts must run `vite build` (or `wails3 build`) as the canonical "did I break the bundle?" gate. Recommend adding `npm run build` to CI alongside `npm run typecheck`.
+
 ### Phase 36.10 — UI registry consolidation (post-audit, 2026-04-29)
 
 Routes and command-palette entries currently live in **three** unsynchronized files. Phase 36 deleted routes from `App.svelte` and `nav-config.ts` but left entries in the other two. Result: dead clicks land on `DevelopmentPage` placeholder.

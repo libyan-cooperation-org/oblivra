@@ -52,7 +52,7 @@
     { id: 'threat-intel',         label: 'Threat Intel',          sublabel: 'Threat intelligence dashboard',          path: '/threat-intel',         section: 'INTEL' },
     { id: 'enrichment',           label: 'Enrichment Viewer',     sublabel: 'IOC enrichment & context',               path: '/enrichment',           section: 'INTEL' },
     { id: 'ndr',                  label: 'NDR',                   sublabel: 'Network detection & response',           path: '/ndr',                  section: 'INTEL' },
-    { id: 'purple-team',          label: 'Purple Team',           sublabel: 'Adversary simulation & red/blue',        path: '/purple-team',          section: 'INTEL' },
+    // Phase 36.9: 'purple-team' removed (PurpleTeam page depended on playbookservice).
     { id: 'threat-graph',         label: 'Threat Graph',          sublabel: 'Entity relationship graph',              path: '/threat-graph',         section: 'INTEL' },
     { id: 'credentials',          label: 'Credential Intel',      sublabel: 'Exposed credential monitoring',          path: '/credentials',          section: 'INTEL' },
     { id: 'global-topology',      label: 'Global Topology',       sublabel: 'Cross-site network map',                 path: '/global-topology',      section: 'INTEL' },
@@ -73,7 +73,7 @@
     { id: 'chain-of-custody',     label: 'Chain of Custody',      sublabel: 'Evidence chain of custody',              path: '/chain-of-custody',     section: 'AUDIT' },
     { id: 'oql',                  label: 'OQL Dashboard',         sublabel: 'OBLIVRA query language',                 path: '/oql',                  section: 'AUDIT' },
     // Phase 36: SOAR Panel removed (broad scope cut).
-    { id: 'simulation',           label: 'Simulation',            sublabel: 'Attack simulation & testing',            path: '/simulation',           section: 'AUDIT' },
+    // Phase 36.9: 'simulation' removed (SimulationPanel depended on playbookservice).
     // System
     { id: 'executive',            label: 'Executive Dashboard',   sublabel: 'C-suite risk & metrics view',            path: '/executive',            section: 'SYS' },
     { id: 'team',                 label: 'Team Dashboard',        sublabel: 'Team collaboration & ops',               path: '/team',                 section: 'SYS' },
