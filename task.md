@@ -2015,6 +2015,22 @@ After Phase 35:
 - [ ] **36.4e Compliance-pack doc on response actions** — PCI-DSS / NIST 800-53 packs may reference response-action controls (host isolation, evidence acquisition). Audit the pack YAML and either remove those controls or mark them as "external-tool dependency" in the report.
 - [ ] **36.4f License feature flags** — `internal/licensing/license.go` still has `FeatureSOAR`, `FeatureAIAssistant`, `FeaturePlugins`, `FeatureRansomware` (response-side). Keep them defined but unused for now (forward compat for the deferred premium reintroduction); flag-gate the still-existing endpoints as `FeatureRansomware` for the detection-side ransomware events.
 
+### 36.6 — External observability stack removed ✅
+
+> **Date**: 2026-04-29 (continuation)
+> **Decision**: drop the bundled Prometheus + Grafana + Grafana Tempo
+> companion containers. Rationale: OBLIVRA's own agent + ingest
+> pipeline can collect platform health metrics (goroutines, heap, GC,
+> EPS, detection rate) directly into the SIEM. No need for a separate
+> scrape-and-graph layer when our own SIEM IS the graphing layer.
+
+- [x] **Deleted** `ops/` directory — `prometheus.yml`, `tempo.yml`, `grafana/provisioning/`.
+- [x] **Simplified** `docker-compose.yml` — single service (sovereign-server). Removed prometheus / tempo / grafana service blocks, OTLP exporter env, plugin volume mount (plugins gone in Phase 36).
+- [x] **README** — replaced "Observability Stack" section with "Self-Observability" explaining the agent-based path; dropped the port table entries (9090/3000/3200) and the URL/credentials table for the external dashboards. Tech stack row updated to "Self-ingest via OBLIVRA agent (`/metrics` Prometheus-format scrape target if needed)".
+- [x] **`docs/FEATURES.md`** — line 90 updated to reflect agent-ingest model.
+- [x] **Retained**: the `/metrics` REST endpoint (Prometheus-format scrape target) and the OTel SDK shim (already a no-op without a configured exporter — see `internal/monitoring/otel.go:118`). Operators with existing observability infrastructure can still point Prometheus / Datadog / New Relic at `:8080/metrics` without any OBLIVRA-side changes.
+- [x] **Verified**: `go build ./internal/... ./cmd/...` exit 0; `npm run typecheck` exit 0.
+
 ### 36.5 — Strategic implications
 - **Positioning**: "Logs platform with detection + UEBA + NDR + compliance" — competes with Wazuh, Security Onion, Elastic Security on quality / TCO; complementary to (not competing with) CrowdStrike, SentinelOne, Tines, Torq, XSOAR.
 - **Customer message**: "Bring your own SOAR. Bring your own DFIR. We're the place your logs go." Smaller scope, sharper value prop.

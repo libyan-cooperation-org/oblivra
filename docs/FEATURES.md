@@ -87,7 +87,7 @@ This document provides a comprehensive list of all features currently implemente
 - **Zero Internet Dependency**: Fully functional in air-gapped environments.
 - **Signed Releases**: Cosign/Sigstore verification for all binary artifacts.
 - **SBOM Generation**: Full transparency into the software supply chain (SPDX/CycloneDX).
-- **Self-Observability**: Integrated Prometheus metrics and pprof profiling.
+- **Self-Observability**: Platform metrics ingested by the OBLIVRA agent into the SIEM pipeline; `/metrics` (Prometheus-format) and pprof endpoints exposed for external observability stacks if needed.
 
 ### Strategic Roadmap
 - **SovereignQL (OQL)**: Custom pipe-based query language for tactical analytics.
