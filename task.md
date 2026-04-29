@@ -1695,3 +1695,122 @@ After Phase 31 close-out, only 3 items remain on the GA path:
 | **BYOK / SCIM** | Multi-week investments. | future phase |
 
 **Beta-1 ship-readiness: confirmed.** GA gated on storage tiering (engineering, ~1 week) and external auditors (months, runs in parallel).
+
+---
+
+## Phase 32: Backend Audit-Fix Sweep + Shell Subsystem Removal
+
+> **Date**: 2026-04-29
+> **Scope**: Eight critical+debt audit findings on the backend; full removal of the
+> interactive shell subsystem from the operator UI; housekeeping (tsc warnings,
+> scratch/ build failure).
+
+### 32.1 — Shell subsystem removed from operator UI ✅
+- [x] Frontend `frontend/src/components/terminal/` directory deleted (TerminalPage, XTerm, OperatorBanner, SessionRestoreBanner, panes, useShellSession, layout helpers).
+- [x] Routes `/shell`, `/ssh`, `/tunnels`, `/recordings`, `/session-playback` hidden from `nav-config.ts` (entries kept registered in `App.svelte` so deep links 404 cleanly rather than crash). 🖥️
+- [x] Backend Go libraries retained — `internal/ssh/`, `internal/services/{ssh,local,tunnel,recording,share,multiexec,broadcast,file,transfer,pty}_*.go` still compile and back canary deployment / SCP / SSH key rotation.
+- [x] Phase 22.4 / Phase 23.1–23.6 / Phase 28 verification rows updated in this file to reflect the deletion.
+
+### 32.2 — Backend security audit (8 findings) ✅
+> All eight items annotated in-source with `Audit fix #N` so future readers can trace rationale. Single commit `641907f` + tests committed in `internal/api/{replay_cache_test.go,rate_limit_gc_test.go}`.
+
+**🔴 Critical (security-impacting)**
+- [x] **#1 Replay-attack defence for agent endpoints** — new `internal/api/replay_cache.go`: `ReplayCache` (sha256(`agent_id|ts|body`), 60 s TTL, 100 k LRU). Consulted after HMAC verify in `verifyAgentRequest` (`rest_tamper.go`) and `/api/v1/agent/ingest` (`agent_handlers.go`). HMAC + 30 s timestamp window alone permitted bit-for-bit replay within the window. 🌐
+- [x] **#2 `/api/v1/users` + `/api/v1/roles` returned hardcoded mock data** (`admin@oblivra.io`, etc.) → wired to real `IdentityProvider.ListUsers` and the canonical `auth.Role*` constants (`internal/api/rest_phase8_12.go`). 🌐
+- [x] **#3 evidence/seal silently swallowed JSON parse errors** — a malformed body decoded to `incident_id=""` which seals every unsealed item. Now strict: `DisallowUnknownFields` + content-length-aware decoder; malformed body returns 400 (`internal/api/rest_evidence_seal.go`). 🌐
+- [x] **#4 ReportService allocated twice** (nil-then-real) → single construction in `initIntel`; flipped initIntel's stale `!= nil` guard (which would have left the service nil and caused a boot-time nil-receiver panic) (`internal/core/container.go`). Caught by re-running bootcheck. 🏗️
+
+**🟡 Debt (quality / observability)**
+- [x] **#5 Rate-limiter map eviction** — new `internal/api/rate_limit_gc.go`: wrap `*rate.Limiter` values in `*limiterEntry` with atomic `lastUsed`. `sweepRateLimiters` runs hourly, drops IP / tenant entries idle > 24 h, prunes failedLogins whose lockout window already expired. Previous maps grew unbounded under drip portscans. 🌐
+- [x] **#6 Vault default-key fallback now fail-loud** — `forensics_service.go` captures the `AccessMasterKey` access error, logs WARN with the reason, emits a `forensics:key_downgrade` bus event with `event_type=destructive_action`. Previous code did `_ = v.AccessMasterKey(...)` and silently dropped to a public sentinel key on transient vault failures. Verified live during bootcheck — WARN line fires correctly when vault is locked. 🏗️
+- [x] **#7 Hash sensitive setting key names in audit rows** — new `auditSettingKey()` (`rest_settings.go`): replaces names like `slack_webhook_token` / `oidc_client_secret` with deterministic `secret:<sha256[0:4]>` tokens; non-sensitive keys pass through verbatim. 🌐
+- [x] **#8 AIAssistantPage browser-mode honesty** — previous `loadHistory` and `submitQuery` returned a fake "Cognitive Core online" greeting and a 1.2 s setTimeout canned reply that quoted the operator's question with fabricated correlation results. Now shows "AI Cortex is desktop-only" so operators don't trust phantom analysis (`AIAssistantPage.svelte`). 🌐
+
+### 32.3 — Coverage tests ✅
+- [x] **`internal/api/replay_cache_test.go`** (~120 LOC, 9 tests): first-seen=false, duplicate detected, different agent / ts / body distinct, TTL expiry, bounded eviction at maxEntries cap, fingerprint determinism + length=64 (sha256 hex).
+- [x] **`internal/api/rate_limit_gc_test.go`** (~165 LOC, 7 tests): fresh entries survive, stale entries dropped, mixed survival/eviction, failedLogins expired-lockout dropped, active-lockout survives, sub-threshold (until=zero) survives, `limiterEntry.touch()` advances atomic timestamp.
+- [x] All 16 tests pass under `go test ./internal/api/ -run 'ReplayCache|RateLimitGC|LimiterEntry'`.
+
+### 32.4 — Defensive: bootcheck stack capture ✅
+- [x] `main.go::bootcheckCmd` recovery now captures `runtime/debug.Stack()` so CI nil-deref panics surface their origin without re-running with `GOTRACEBACK=all`. Caught fix #4's regression mid-pass. 🏗️
+
+### 32.5 — Housekeeping ✅
+- [x] **`tsc --noEmit` warnings** — `frontend/src/lib/stores/campaigns.svelte.ts` dropped unused `derived` import; `frontend/src/main.ts` dropped unused `app` const from `mount(App, { target })` return value. 🌐
+- [x] **`scratch/` build failure** — three files (`regen_certs.go`, `test_container.go`, `test_stability.go`) all declared `package main` together, breaking `go build ./...`. Tagged each with `//go:build ignore` so they're only compiled when run explicitly via `go run scratch/<file>.go`. 🏗️
+
+### 32.6 — Verification ✅
+| Check | Result |
+|---|---|
+| `go build ./internal/... ./cmd/...` | exit 0 |
+| `go build ./...` (now passes since scratch/ is build-ignored) | exit 0 |
+| `go test ./internal/api/ -run 'ReplayCache\|RateLimitGC\|LimiterEntry'` | 16/16 pass |
+| `oblivrashell.exe bootcheck` | OK — all services start, vault-fallback WARN fires correctly |
+| `npm run typecheck` | clean |
+| `npm run build` (vite) | clean |
+| Binaries rebuilt | server (75 MB), agent (12 MB), desktop (81 MB) |
+
+### 32.7 — Commits
+
+| Hash | Scope |
+|---|---|
+| `641907f` | 8 backend audit fixes + 16 coverage tests |
+| `0a1c81d` | tsc warnings + scratch/ build failure (housekeeping) |
+
+---
+
+## Phase 33: Frontend ↔ Backend Wiring Audit + UI Honesty Pass
+
+> **Date**: 2026-04-29
+> **Scope**: Ten critical+debt findings from a frontend↔backend wiring audit.
+> Every operator-facing tile audited derives from real backend data with honest
+> empty / loading states. No more fake `MALICIOUS.EXE-A1B2C3D4`, fictional
+> `maverick:88 risk`, or hardcoded geo-attribution.
+
+### 33.1 — Critical (operator-facing fake data) ✅
+- [x] **#1 IncidentResponse** (`pages/IncidentResponse.svelte`) — hardcoded `activeResponse[]` of fake containment actions (`prod-web-01 → Traffic Throttling executing`, `db-cluster-b → Snapshot Backup completed`, …) → derived from `alertStore.alerts` filtered by status. "Active Containments" + "Automated Logic" KPIs now real (playbook count from `/api/v1/playbooks`). 🌐
+- [x] **#2 ForensicsPage** (`pages/ForensicsPage.svelte`) — fake browser-mode artifacts (`MALICIOUS.EXE-A1B2C3D4.pf` RiskScore=98, `Amcache.hve` etc.) → `apiFetch('/api/v1/forensics/evidence')`; "Suspicious Files" KPI derived from real risk scores; honest empty state. 🌐
+- [x] **#3 UEBAPanel** (`pages/UEBAPanel.svelte`) — hardcoded `riskEntities` (`maverick:88, operator_k:94`) + literal "12.4" / "94.2%" KPIs + fake `[['Unusual Hours','42%'],['Geo-Drift','12%'],['Process Lineage','24%']]` anomaly sources → all derived from `uebaStore.profiles` / `anomalies` / `stats`; top anomaly sources computed from the evidence-key histogram across real anomaly records. 🌐
+- [x] **#4 CompliancePage sidebar** (`pages/CompliancePage.svelte`) — hardcoded `[['NIST',98],['SOC2',82],['ISO',100],['GDPR',45]]` (which contradicted the real ledger table on the same page) → `frameworkScores` `$derived` from `controls`, averaging `coverage` per framework. Auditors no longer see conflicting numbers. 🌐
+- [x] **#5 ThreatMap** (`pages/ThreatMap.svelte`) — hardcoded geo origins (`CN:41 / RU:28 / KP:12 / US:15`) + fake live-attack stream (`Shenzhen → PROD-CLUSTER-1`) → indicator-type counts from `/api/v1/threatintel/stats`, "Active Sources" derived from `alertStore` by host (no fake geo attribution since GeoIP isn't online in air-gap mode), fake stream removed. 🌐
+
+### 33.2 — Debt (real data, unreliable wiring) ✅
+- [x] **#6 ComplianceStore desktop branch** (`lib/stores/compliance.svelte.ts`) — `if (IS_BROWSER)` gate that left desktop empty → unified through `apiFetch` (which retargets `/api/*` to localhost:8080 in desktop mode). Desktop CompliancePage now populates correctly. 🌐
+- [x] **#7 DashboardStudio IDs** (`pages/DashboardStudio.svelte`) — `Math.random().toString(36)` for both widget and dashboard IDs → `crypto.randomUUID()` with `getRandomValues` fallback for older WebView2; dashboard ID computed once at script load (was re-rolling every render, breaking save/reopen identity). 🌐
+- [x] **#8 SessionPlayback** (`pages/SessionPlayback.svelte`) — hardcoded `eventLog` + fake `maverick (UID: 1000)@10.0.4.15` metadata (with title hardcoded to `TS-9921`) → reads `?id=...` from URL hash, calls `RecordingService.GetRecordingMeta + GetRecordingFrames`, honest empty state when no id; honest "desktop-only" message in browser. 🖥️
+- [x] **#9 IdentityAdmin browser mode** (`pages/IdentityAdmin.svelte`) — `if (IS_BROWSER) { users = []; roles = []; return; }` → consumes the real `/api/v1/users` + `/api/v1/roles` endpoints we wired in Phase 32 fix #2. The endpoint we shipped is now actually consumed. 🌐
+- [x] **#10 FleetDashboard schema** (`pages/FleetDashboard.svelte` + `lib/stores/agent.svelte.ts`) — `(a as any).severity` / `(a as any).quarantined` casts that masked schema drift → typed `quarantined?: boolean` + `severity?: string` on `AgentDTO`, mapped through in `agentStore.refresh` (accepts both snake_case and PascalCase). If the backend renames a field, tsc now fails instead of silently going to 0. 🌐
+
+### 33.3 — Window controls (TitleBar) regression fix ✅
+- [x] **`TitleBar.svelte` showWindowControls** — operator reported "close/minimize/maximize defaults not found on the app". Root cause: `main_gui.go:124` sets `Frameless: true`, the in-app controls were gated solely on `IS_BROWSER` from `context.ts` (computed once at module load). On Windows WebView2, `_wails` is injected only after `WindowLoadFinished` — it can race the bundle on cold start, mis-classify the desktop binary as `browser`, and the `{#if !IS_BROWSER}` gate hid all controls. Fix: separate reactive signal `inWailsHost` probing `chrome.webview` / `webkit.messageHandlers.external` / `_wails` / `__WAILS__` / `runtime` / `wails`; new `$derived showWindowControls = inWailsHost || !IS_BROWSER`. `onMount` re-probes immediately, on the next animation frame, and again at 500 ms — covers slow WebView2 cold starts. Both render gates switched from `{#if !IS_BROWSER ...}` to `{#if showWindowControls ...}`. 🖥️
+
+### 33.4 — Verification ✅
+| Check | Result |
+|---|---|
+| `npm run typecheck` (tsc --noEmit) | clean |
+| `npm run build` (vite) | clean |
+| `go build ./internal/... ./cmd/...` | exit 0 |
+| Desktop binary | rebuilt 81 MB with patched assets |
+| Pages audited (already clean before pass) | Dashboard, AlertDashboard, AlertManagement, VaultManager, Integrity, Connectors, RansomwareUI, NDROverview, UEBAOverview, DataTable, KPI |
+
+### 33.5 — Commits
+
+| Hash | Scope |
+|---|---|
+| `8cf3e1b` | Auto-bundled with prior tamper work — Fixes #1, #3, #9 (IncidentResponse, UEBAPanel, IdentityAdmin) |
+| `ced0191` | Auto-bundled — Fixes #2, #4, #5, #6, #7, #8, #10 + new `docs/wiring-summary.md` |
+| *(uncommitted at task.md update time)* | Fix #11 (TitleBar showWindowControls) + Phase 32/33 task.md entries |
+
+### 33.6 — Cross-checked Gemini Pro audit (false positives)
+
+A second-opinion audit was run with Gemini Pro against a generic Svelte 5 + Wails SIEM checklist. **Of 14 claims, 11 were hallucinated** — file contents, line numbers, function names, package names, and event names that don't exist in this codebase (e.g. `Severity int` at `models.go:88` — actual line is `BytesSent int64`; `auth:key_removed` event — doesn't exist; `pty_session.go:112-140` — file is 47 lines long; "no Wails event listener for notify:new" — `notifications.svelte.ts:198-232` already subscribes to 4 events; "no drag/window controls in TitleBar" — full implementation already shipped). Three findings were partially valid concerns wrapped in fictional fixes (TenantSwitcher race, OQL pre-flight validation, DataTable virtualization) — none acted on. Documented to prevent re-litigation.
+
+---
+
+## Operating Convention (effective Phase 32)
+
+> When work lands, update `task.md` in the same PR / commit:
+> - **Add** to the relevant phase if the work fits an existing scope.
+> - **Open a new sub-section** (e.g. `32.7`, `33.7`) if it's a new arc.
+> - **Remove deleted features** rather than annotating them as `~~struck through~~`. The git history is the historical record; `task.md` reflects the *current* surface.
+> - **Cross-reference real file paths and line numbers** so the entry is verifiable, not aspirational.
+> - **Mark verification** with the check table format used in 32.6 / 33.4.
