@@ -1,22 +1,31 @@
 // Audit service implements a Merkle-chained, append-only audit log plus the
 // evidence-package generator.
 //
-// Each entry stores its parent's hash so any tampering breaks the chain. The
-// root is exposed via /api/v1/audit/verify and signed with HMAC-SHA256 if a
-// signing key is configured.
+// Every entry stores its parent's hash so any tampering breaks the chain. The
+// chain is persisted to a line-delimited JSON file (`audit.log`); on startup
+// we replay every line, verify it against its parent hash, and refuse to
+// start if the chain is broken. The in-memory entries slice is a write-
+// through cache of the on-disk journal.
 package services
 
 import (
+	"bufio"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
+
+const auditFile = "audit.log"
 
 type AuditEntry struct {
 	Seq        int64             `json:"seq"`
@@ -35,15 +44,95 @@ type AuditService struct {
 	mu      sync.RWMutex
 	entries []AuditEntry
 	hmacKey []byte
+
+	path string   // on-disk journal path; "" means in-memory only (tests)
+	file *os.File // append-mode handle, fsynced after every write
 }
 
+// NewAuditService returns an in-memory-only audit service. Use NewDurable
+// for production where the chain must survive restarts.
 func NewAuditService(log *slog.Logger, hmacKey []byte) *AuditService {
 	return &AuditService{log: log, hmacKey: hmacKey}
 }
 
+// NewDurable opens (or creates) an append-only on-disk journal at
+// {dir}/audit.log, replays every entry, verifies the chain, and returns a
+// service that fsyncs every subsequent Append.
+//
+// Returns an error (with the broken seq) if the persisted chain has been
+// tampered — callers should refuse to start in that case.
+func NewDurable(log *slog.Logger, dir string, hmacKey []byte) (*AuditService, error) {
+	if dir == "" {
+		return nil, errors.New("audit: dir required for durable journal")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("audit mkdir: %w", err)
+	}
+	path := filepath.Join(dir, auditFile)
+
+	a := &AuditService{log: log, hmacKey: hmacKey, path: path}
+
+	// Replay (creates the file if missing).
+	if err := a.replay(path); err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("audit open: %w", err)
+	}
+	a.file = f
+	log.Info("audit journal opened", "path", path, "entries", len(a.entries))
+	return a, nil
+}
+
+// replay reads the on-disk journal, validates each entry's hash against its
+// declared parent, and populates a.entries. Returns an error citing the
+// first bad sequence number on tamper.
+func (a *AuditService) replay(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	br := bufio.NewReader(f)
+	parent := ""
+	seq := int64(0)
+	for {
+		line, err := br.ReadBytes('\n')
+		if len(line) > 0 {
+			var e AuditEntry
+			if jerr := json.Unmarshal(line, &e); jerr != nil {
+				return fmt.Errorf("audit replay: bad json at offset %d: %w", seq+1, jerr)
+			}
+			seq++
+			if e.Seq != seq {
+				return fmt.Errorf("audit replay: seq mismatch at line %d (got %d)", seq, e.Seq)
+			}
+			recomputed := canonical(e, parent)
+			if hashEntry(recomputed) != e.Hash {
+				return fmt.Errorf("audit replay: chain broken at seq %d", seq)
+			}
+			a.entries = append(a.entries, e)
+			parent = e.Hash
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
 func (a *AuditService) ServiceName() string { return "AuditService" }
 
-// Append adds a new entry to the chain.
+// Append adds a new entry to the chain. Persists synchronously when a journal
+// is attached.
 func (a *AuditService) Append(_ context.Context, actor, action, tenantID string, detail map[string]string) AuditEntry {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -61,16 +150,30 @@ func (a *AuditService) Append(_ context.Context, actor, action, tenantID string,
 		Detail:     detail,
 		ParentHash: parent,
 	}
-	e.Hash = hashEntry(e)
+	e.Hash = hashEntry(canonical(e, parent))
 	if len(a.hmacKey) > 0 {
 		mac := hmac.New(sha256.New, a.hmacKey)
 		mac.Write([]byte(e.Hash))
 		e.Signature = hex.EncodeToString(mac.Sum(nil))
 	}
+
+	if a.file != nil {
+		line, err := json.Marshal(e)
+		if err == nil {
+			line = append(line, '\n')
+			if _, werr := a.file.Write(line); werr != nil {
+				a.log.Error("audit journal write failed", "err", werr)
+			} else if serr := a.file.Sync(); serr != nil {
+				a.log.Error("audit journal fsync failed", "err", serr)
+			}
+		}
+	}
+
 	a.entries = append(a.entries, e)
 	return e
 }
 
+// Recent returns the newest N entries (newest first).
 func (a *AuditService) Recent(limit int) []AuditEntry {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -86,11 +189,12 @@ func (a *AuditService) Recent(limit int) []AuditEntry {
 }
 
 type VerifyResult struct {
-	OK        bool   `json:"ok"`
-	Entries   int    `json:"entries"`
-	BrokenAt  int64  `json:"brokenAt,omitempty"`
-	RootHash  string `json:"rootHash"`
+	OK          bool      `json:"ok"`
+	Entries     int       `json:"entries"`
+	BrokenAt    int64     `json:"brokenAt,omitempty"`
+	RootHash    string    `json:"rootHash"`
 	GeneratedAt time.Time `json:"generatedAt"`
+	Path        string    `json:"path,omitempty"`
 }
 
 // Verify recomputes every hash; returns false on first mismatch.
@@ -99,22 +203,14 @@ func (a *AuditService) Verify() VerifyResult {
 	defer a.mu.RUnlock()
 	parent := ""
 	for i, e := range a.entries {
-		recomputed := AuditEntry{
-			Seq:        e.Seq,
-			Timestamp:  e.Timestamp,
-			Actor:      e.Actor,
-			Action:     e.Action,
-			TenantID:   e.TenantID,
-			Detail:     e.Detail,
-			ParentHash: parent,
-		}
-		if hashEntry(recomputed) != e.Hash {
-			return VerifyResult{OK: false, Entries: len(a.entries), BrokenAt: int64(i + 1), GeneratedAt: time.Now().UTC()}
+		if hashEntry(canonical(e, parent)) != e.Hash {
+			return VerifyResult{OK: false, Entries: len(a.entries), BrokenAt: int64(i + 1), GeneratedAt: time.Now().UTC(), Path: a.path}
 		}
 		parent = e.Hash
 	}
 	return VerifyResult{
-		OK: true, Entries: len(a.entries), RootHash: parent, GeneratedAt: time.Now().UTC(),
+		OK: true, Entries: len(a.entries), RootHash: parent,
+		GeneratedAt: time.Now().UTC(), Path: a.path,
 	}
 }
 
@@ -126,7 +222,9 @@ type EvidencePackage struct {
 	Algorithm   string       `json:"algorithm"`
 }
 
-// GeneratePackage produces a snapshot suitable for archival or external review.
+// GeneratePackage produces a snapshot suitable for archival or external
+// review. Pure read — callers (HTTP handler / Wails service) are responsible
+// for auditing the export action, since they know the actor identity.
 func (a *AuditService) GeneratePackage(_ context.Context) (EvidencePackage, error) {
 	res := a.Verify()
 	if !res.OK {
@@ -148,8 +246,36 @@ func (a *AuditService) GeneratePackage(_ context.Context) (EvidencePackage, erro
 	return pkg, nil
 }
 
+// Close flushes and closes the journal file.
+func (a *AuditService) Close() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.file != nil {
+		if err := a.file.Sync(); err != nil {
+			return err
+		}
+		err := a.file.Close()
+		a.file = nil
+		return err
+	}
+	return nil
+}
+
+// canonical returns the deterministic shape we hash. We exclude Hash + Signature
+// so re-derivation matches.
+func canonical(e AuditEntry, parent string) AuditEntry {
+	return AuditEntry{
+		Seq:        e.Seq,
+		Timestamp:  e.Timestamp,
+		Actor:      e.Actor,
+		Action:     e.Action,
+		TenantID:   e.TenantID,
+		Detail:     e.Detail,
+		ParentHash: parent,
+	}
+}
+
 func hashEntry(e AuditEntry) string {
-	// Deterministic hash over the canonicalised payload.
 	canon := struct {
 		Seq        int64             `json:"seq"`
 		Timestamp  time.Time         `json:"timestamp"`

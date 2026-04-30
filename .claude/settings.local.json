@@ -26,7 +26,12 @@
       "Bash(echo \"task installed: $\\(task --version\\)\")",
       "Bash(task --list)",
       "Bash(task windows:build)",
-      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18084 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")"
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18084 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(powershell.exe -NoProfile -Command 'Get-NetTCPConnection -LocalPort 18085,18086 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }')"
     ]
   }
 }

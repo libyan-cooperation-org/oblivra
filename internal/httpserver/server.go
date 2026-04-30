@@ -91,6 +91,11 @@ func New(log *slog.Logger, deps Deps) *Server {
 
 func (s *Server) Handler() http.Handler {
 	var h http.Handler = s.mux
+	// Order matters: auth must run before the audit middleware so the actor
+	// (rbac.Subject) is in context when the audit entry is written.
+	if s.audit != nil {
+		h = queryAudit(s.audit, h)
+	}
 	if s.auth != nil {
 		h = s.auth.Wrap(h)
 	}

@@ -117,7 +117,13 @@ func New(opts Options) (*Stack, error) {
 	siem := services.NewSiemService(opts.Logger, pipeline)
 	alerts := services.NewAlertService(opts.Logger)
 	intel := services.NewThreatIntelService(opts.Logger)
-	audit := services.NewAuditService(opts.Logger, hmacKey())
+	audit, err := services.NewDurable(opts.Logger, dir, hmacKey())
+	if err != nil {
+		_ = idx.Close()
+		_ = store.Close()
+		_ = w.Close()
+		return nil, fmt.Errorf("audit journal: %w", err)
+	}
 	rules := services.NewRulesService(opts.Logger, alerts)
 	// Wire the Sigma directory if it exists alongside the binary or under
 	// the data dir. The loader is best-effort; missing dir = no-op.
@@ -313,6 +319,11 @@ func (s *Stack) Close() error {
 	s.wg.Wait()
 
 	var first error
+	if s.Audit != nil {
+		if err := s.Audit.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
 	if s.search != nil {
 		if err := s.search.Close(); err != nil && first == nil {
 			first = err

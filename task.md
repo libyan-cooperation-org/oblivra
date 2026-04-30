@@ -34,7 +34,7 @@ It is a system designed to:
 
 * [ ] Sustained-load soak test (documented + reproducible) — `cmd/soak`, fires N events/sec for M hours, reports loss/latency/percentiles
 * [ ] End-to-end ingestion latency tracking — per-event `receivedAt → walAt → hotAt → indexedAt`, p50/p95/p99 in `/api/v1/siem/stats`
-* [ ] Ingestion gap detection (agent offline, pipeline drops) — already wired in `ForensicsService.Observe`; surface in /metrics + UI
+* [v] Ingestion gap detection (agent offline, pipeline drops) — `ForensicsService.Observe` flags >5min host silence; visible at `/api/v1/forensics/gaps` and on Evidence view. Still needs /metrics gauge + UI prominence.
 * [ ] WAL integrity verification tooling — `cmd/wal-verify` replays the WAL, confirms every line parses, reports first corruption offset
 * [ ] Cross-tier write consistency (Hot → Warm) — sample-hash N events per migration, verify Parquet decode round-trips back
 
