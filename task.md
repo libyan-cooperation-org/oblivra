@@ -77,10 +77,14 @@ It is a system designed to:
 * Views: Overview, SIEM (live tail via WebSocket + query bar + filter chips + ingest probe), Detection (rules + alerts + MITRE heatmap), Investigations (per-host triage + UEBA detail), Evidence (audit chain + sealed packages + log gaps), Fleet (agents + IOCs), Admin (storage tiering)
 
 **CLI**
-* `oblivra-cli`: ping / stats / ingest / search / alerts / audit verify / audit log / fleet / rules / intel
+* `oblivra-cli` — ping / stats / ingest / search / alerts / audit verify / audit log / fleet / rules / intel
+* `oblivra-verify` — **offline integrity verifier**. Auto-detects audit logs / WALs / evidence packages by content shape and verifies the appropriate cryptographic invariants. Runs without network or server. Exit code 1 on any failure.
+* `oblivra-migrate` — schema migration runner. `plan` reports target schema; `run` upgrades a file with `.pre-migrate` rollback. No-op today (schema v1) but framework is in place.
+* `oblivra-agent` — log-tailing agent (file or stdin) with on-disk spill+replay
+* `oblivra-server` — headless REST + Svelte UI
 
 **Tests**
-* `go test ./...` clean across **events (hash determinism, mutation, JSON-roundtrip, provenance tamper, field-order independence)**, parsers, sigma loader, audit (durable journal restart + tamper), rules, vault, OQL, and **investigations (snapshot freeze, persist-across-restart, sealed rejects mutation)**
+* `go test ./...` clean across events (hash determinism, mutation, JSON-roundtrip, provenance tamper, field-order independence), parsers, sigma loader, audit (durable journal restart + tamper), rules, vault, OQL, investigations (snapshot freeze, persist-across-restart, sealed rejects mutation), **verify (audit/WAL/evidence happy path + 2 tamper flavours + unknown-format rejection)**, and **migrate (no-op, plan, future-version)**
 
 ---
 
@@ -105,7 +109,7 @@ data that was already mutable.
 * [s] **Durable, append-only audit journal** — `audit.log` line-delimited JSON file, fsynced after every `Append`. Replay-on-startup verifies every entry's parent-hash; refuses to start on tamper. Tested for restart roundtrip + tamper detection.
 * [s] **Tamper-evident query log** — `internal/httpserver/auditmw.go` wraps the mux so every audited route lands an entry in the chain with `{actor, role, method, path, status, bytes, duration, query, uaHash}`. Verified end-to-end. Routes use exact-match for parents to keep child paths classified separately.
 * [s] **Per-event provenance + content hash + schema version** — every event carries `{schemaVersion, hash, provenance:{ingestPath, peer, agentId, parser, tlsFingerprint, format}}`. Hash is sha256 over a canonicalised view (sorted fields, RFC3339Nano timestamps); `VerifyHash()` returns false on any mutation including provenance. Wired through REST single/batch/raw, syslog UDP listener, and agent ingest. 8 unit tests (determinism, JSON-roundtrip, mutation detection, provenance tampering, field-order independence, empty rejection).
-* [ ] **Schema versioning migration tool** — Event struct now stamped with `SchemaVersion=1`; `cmd/migrate` for upgrading old WAL/Parquet files when the schema bumps still TODO.
+* [s] **Schema versioning + migration framework** — Event struct stamped with `SchemaVersion=1`; `internal/migrate` is the upgrader registry (`v→v+1` pure functions, idempotent); `cmd/migrate plan|run [--all]` performs file-level migration with atomic rename + `.pre-migrate` rollback file. Tests cover no-op-at-current and future-version handling. Today's runs are no-ops because no upgraders are registered yet — but the infrastructure is in place so the next schema bump is a one-line addition, not a script-and-pray exercise.
 * [ ] **Time-anchored daily Merkle root** — at end of each day, hash all evidence + audit entries into a daily root committed to next day's root. Optional public-ledger publish path for post-incident proof
 
 ---
@@ -155,7 +159,7 @@ data that was already mutable.
 * [ ] Evidence graph model (event relationships)
 * [v] Chain-of-custody tracking — `auditmw` records every audited request; evidence seals also append to chain.
 * [ ] Immutable export hashing (query + result set hash committed to audit chain)
-* [ ] **Self-contained offline verifier** — single static binary (no Go runtime needed on target box) that ingests an evidence package and verifies Merkle proofs + HMAC signatures + (when present) public-ledger anchoring. **Strongest demo-able artifact for court / external auditors.**
+* [s] **Self-contained offline verifier** — `cmd/verify` (built standalone, no server connection) auto-detects artifact kind by content shape (audit log / WAL / evidence package) and verifies the appropriate invariants: Merkle chain, parent-hash links, optional HMAC signature, per-event content hash. Demoed end-to-end against a real `audit.log` (3 entries, root hash printed) + `ingest.wal` (3 events, every hash recomputed) + a tampered audit log (correctly flagged "BROKEN at entry 1: hash mismatch", exit code 1). 6 unit tests covering all artifact kinds + tamper detection + unknown-format rejection. **Strongest demo-able artifact for court / external auditors — now done.**
 
 ---
 

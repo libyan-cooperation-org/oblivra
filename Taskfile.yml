@@ -119,6 +119,27 @@ tasks:
       - go run ./tools/ensure-dir {{.BIN_DIR}}
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-agent ./cmd/agent
 
+  verify:build:
+    desc: Build oblivra-verify (offline integrity verifier)
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-verify ./cmd/verify
+
+  migrate:build:
+    desc: Build oblivra-migrate (schema migration runner)
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-migrate ./cmd/migrate
+
+  tools:build:
+    desc: Build all CLI tools (server + cli + agent + verify + migrate)
+    cmds:
+      - task: server:build
+      - task: cli:build
+      - task: agent:build
+      - task: verify:build
+      - task: migrate:build
+
   # ---- Quality ------------------------------------------------------------
 
   test:
