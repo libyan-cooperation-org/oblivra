@@ -46,8 +46,8 @@ These are the bedrock guarantees the rest of the platform leans on. They land
 *before* reconstruction features so we never have to retrofit integrity onto
 data that was already mutable.
 
-* [ ] **Durable, append-only audit journal** — today the Merkle chain lives in RAM; if the process dies the chain is gone. Persist to `audit.log` with periodic on-disk root checkpoints so verify-across-restarts is possible
-* [ ] **Tamper-evident query log** — every search, every export, every CLI call lands in the audit chain (`actor`, `query`, `resultHash`). This is what makes "cherry-picked evidence" detectable
+* [s] **Durable, append-only audit journal** — `audit.log` line-delimited JSON file, fsynced after every `Append`. Replay-on-startup verifies every entry's parent-hash; refuses to start on tamper. Tested for restart roundtrip + tamper detection.
+* [s] **Tamper-evident query log** — `internal/httpserver/auditmw.go` wraps the mux so every audited route (siem search/oql/raw, audit read/verify/export, evidence seal, storage promote, rules reload, intel add, vault ops, fleet register) lands an entry in the chain with `{actor, role, method, path, status, bytes, duration, query, uaHash}`. Verified end-to-end (3 alice queries → 3 audit entries; restart preserves them).
 * [ ] **Per-event provenance block** — structured `{peer, agentId, parser, tlsFingerprint, ingestPath}` hashed into the event ID; mutation breaks identity
 * [ ] **Schema versioning** — every WAL line + Parquet file stamped with `schemaVersion`; one-shot migration tool committed to `cmd/migrate`
 * [ ] **Time-anchored daily Merkle root** — at end of each day, hash all evidence + audit entries into a daily root committed to next day's root. Optional public-ledger publish path for post-incident proof
