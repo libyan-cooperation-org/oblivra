@@ -241,6 +241,10 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET /api/v1/reconstruction/sessions", s.reconSessions)
 		s.mux.HandleFunc("GET /api/v1/reconstruction/sessions/{id}", s.reconSessionGet)
 		s.mux.HandleFunc("GET /api/v1/reconstruction/state", s.reconState)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/entities", s.reconEntities)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/entities/{kind}/{id}", s.reconEntityProfile)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/cmdline", s.reconCmdLines)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/cmdline/suspicious", s.reconCmdLineSus)
 	}
 	// Cases.
 	if s.investigations != nil {
@@ -731,6 +735,50 @@ func (s *Server) runImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, res)
+}
+
+func (s *Server) reconEntities(w http.ResponseWriter, r *http.Request) {
+	kind := r.URL.Query().Get("kind")
+	if kind == "" {
+		kind = "host"
+	}
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.recon.EntityList(kind, limit))
+}
+
+func (s *Server) reconEntityProfile(w http.ResponseWriter, r *http.Request) {
+	p := s.recon.EntityProfile(r.PathValue("kind"), r.PathValue("id"))
+	if p == nil {
+		writeError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+func (s *Server) reconCmdLines(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.recon.CmdLines(host, limit))
+}
+
+func (s *Server) reconCmdLineSus(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.recon.SuspiciousCmdLines(limit))
 }
 
 func (s *Server) graphStats(w http.ResponseWriter, _ *http.Request) {

@@ -17,6 +17,8 @@ type ReconstructionService struct {
 	sessions *reconstruction.SessionEngine
 	state    *reconstruction.StateService
 	network  *reconstruction.NetworkStitcher
+	entity   *reconstruction.EntityIndex
+	cmdline  *reconstruction.CmdLineEngine
 }
 
 func NewReconstructionService(log *slog.Logger, h *hot.Store) *ReconstructionService {
@@ -25,6 +27,8 @@ func NewReconstructionService(log *slog.Logger, h *hot.Store) *ReconstructionSer
 		sessions: reconstruction.NewSessionEngine(),
 		state:    reconstruction.NewStateService(h),
 		network:  reconstruction.NewNetworkStitcher(),
+		entity:   reconstruction.NewEntityIndex(),
+		cmdline:  reconstruction.NewCmdLineEngine(),
 	}
 }
 
@@ -35,6 +39,28 @@ func (r *ReconstructionService) ServiceName() string { return "ReconstructionSer
 func (r *ReconstructionService) Observe(ctx context.Context, ev events.Event) {
 	r.sessions.Observe(ctx, ev)
 	r.network.Observe(ctx, ev)
+	r.entity.Observe(ctx, ev)
+	r.cmdline.Observe(ctx, ev)
+}
+
+// EntityProfile returns the rolled-up profile for a (kind, id) pair.
+func (r *ReconstructionService) EntityProfile(kind, id string) *reconstruction.EntityProfile {
+	return r.entity.Profile(kind, id)
+}
+
+// EntityList lists profiles per kind.
+func (r *ReconstructionService) EntityList(kind string, limit int) []reconstruction.EntityProfile {
+	return r.entity.List(kind, limit)
+}
+
+// CmdLines returns the most recent command-line invocations.
+func (r *ReconstructionService) CmdLines(host string, limit int) []reconstruction.CmdLine {
+	return r.cmdline.ByHost(host, limit)
+}
+
+// SuspiciousCmdLines surfaces the flagged ones.
+func (r *ReconstructionService) SuspiciousCmdLines(limit int) []reconstruction.CmdLine {
+	return r.cmdline.Suspicious(limit)
 }
 
 func (r *ReconstructionService) Sessions(host string) []reconstruction.Session {
