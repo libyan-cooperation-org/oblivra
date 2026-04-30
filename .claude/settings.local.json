@@ -8,7 +8,14 @@
       "Bash(go vet *)",
       "Bash(npm install *)",
       "Bash(npm run *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git check-ignore *)",
+      "Bash(powershell.exe -NoProfile -Command 'Get-Process | Where-Object { $_.ProcessName -like '\\\\''*oblivra*'\\\\'' -or $_.ProcessName -like '\\\\''*go-build*'\\\\'' } | Format-Table Id,ProcessName')",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18080 -ErrorAction SilentlyContinue\\).OwningProcess | Format-Table Id,ProcessName\")",
+      "Bash(powershell.exe -NoProfile -Command \"Stop-Process -Id 8496 -Force\")",
+      "Bash(rm -rf tmp/smoke-data)",
+      "Bash(OBLIVRA_DATA_DIR=\"$\\(pwd\\)/tmp/smoke-data\" OBLIVRA_ADDR=:18081 ./oblivra-server.exe)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18081 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")"
     ]
   }
 }

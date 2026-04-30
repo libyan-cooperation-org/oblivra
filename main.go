@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/kingknull/oblivra/internal/services"
+	"github.com/kingknull/oblivra/internal/platform"
 	"github.com/kingknull/oblivra/webassets"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -13,12 +13,19 @@ import (
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
+	stack, err := platform.New(platform.Options{Logger: logger})
+	if err != nil {
+		log.Fatalf("oblivra: bootstrap: %v", err)
+	}
+	defer stack.Close()
+
 	app := application.New(application.Options{
 		Name:        "OBLIVRA",
 		Description: "Sovereign Log-Driven Security Platform",
 		LogLevel:    slog.LevelDebug,
 		Services: []application.Service{
-			application.NewService(services.NewSystemService(logger)),
+			application.NewService(stack.System),
+			application.NewService(stack.Siem),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(webassets.Raw()),

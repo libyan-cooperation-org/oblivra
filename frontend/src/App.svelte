@@ -3,6 +3,7 @@
   import TopBar from './lib/components/TopBar.svelte';
   import StatusBar from './lib/components/StatusBar.svelte';
   import Overview from './lib/views/Overview.svelte';
+  import Siem from './lib/views/Siem.svelte';
   import Placeholder from './lib/views/Placeholder.svelte';
   import { NAV, type NavId } from './lib/nav';
 
@@ -30,6 +31,8 @@
     <main class="flex-1 overflow-auto scrollbar-thin">
       {#if active === 'overview'}
         <Overview />
+      {:else if active === 'siem'}
+        <Siem />
       {:else}
         <Placeholder name={current.label} />
       {/if}

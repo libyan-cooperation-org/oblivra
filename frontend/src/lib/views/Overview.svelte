@@ -1,23 +1,37 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { getSystemInfo, type SystemInfo } from '../bridge';
+  import { onMount, onDestroy } from 'svelte';
+  import { getSystemInfo, siemStats, type SystemInfo, type IngestStats } from '../bridge';
+  import Tile from '../components/Tile.svelte';
 
   let info = $state<SystemInfo | null>(null);
+  let stats = $state<IngestStats | null>(null);
   let loadError = $state<string | null>(null);
+  let timer: ReturnType<typeof setInterval> | null = null;
 
-  onMount(async () => {
+  async function refresh() {
     try {
-      info = await getSystemInfo();
+      const [i, s] = await Promise.all([getSystemInfo(), siemStats()]);
+      info = i;
+      stats = s;
+      loadError = null;
     } catch (err) {
       loadError = (err as Error).message;
     }
+  }
+
+  onMount(() => {
+    void refresh();
+    timer = setInterval(() => void refresh(), 3000);
+  });
+  onDestroy(() => {
+    if (timer) clearInterval(timer);
   });
 
   const tiles = $derived([
-    { label: 'Ingest pipeline',  value: '— EPS',  hint: 'Phase 1 not yet wired' },
-    { label: 'Detection rules',  value: '0 / 0',  hint: 'Sigma engine pending' },
-    { label: 'Active alerts',    value: '0',      hint: 'No detections active' },
-    { label: 'Evidence sealed',  value: '0',      hint: 'Locker empty' },
+    { label: 'Events ingested', value: stats?.total ?? 0, hint: 'lifetime' },
+    { label: 'Hot store rows',  value: stats?.hotCount ?? 0, hint: 'BadgerDB' },
+    { label: 'Current EPS',     value: stats?.eps ?? 0, hint: 'rolling 1s window' },
+    { label: 'WAL bytes',       value: stats ? `${(stats.wal.bytes / 1024).toFixed(1)} KiB` : '—', hint: `${stats?.wal.count ?? 0} entries` },
   ]);
 </script>
 
@@ -34,11 +48,7 @@
 
   <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
     {#each tiles as tile}
-      <div class="rounded-xl border border-night-700 bg-night-900/70 p-4 shadow-sm">
-        <div class="text-[11px] uppercase tracking-widest text-night-300">{tile.label}</div>
-        <div class="mt-1 font-mono text-2xl text-slate-100">{tile.value}</div>
-        <div class="mt-2 text-xs text-night-300">{tile.hint}</div>
-      </div>
+      <Tile label={tile.label} value={tile.value} hint={tile.hint} />
     {/each}
   </section>
 

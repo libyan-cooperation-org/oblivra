@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/kingknull/oblivra/internal/httpserver"
-	"github.com/kingknull/oblivra/internal/services"
+	"github.com/kingknull/oblivra/internal/platform"
 	"github.com/kingknull/oblivra/webassets"
 )
 
@@ -23,14 +23,24 @@ func main() {
 		addr = ":8080"
 	}
 
+	stack, err := platform.New(platform.Options{Logger: logger})
+	if err != nil {
+		logger.Error("bootstrap failed", "err", err)
+		os.Exit(1)
+	}
+	defer stack.Close()
+
 	sub, err := webassets.FS()
 	if err != nil {
 		logger.Warn("static assets unavailable; serving API only", "err", err)
 		sub = nil
 	}
 
-	system := services.NewSystemService(logger)
-	srv := httpserver.New(logger, system, sub)
+	srv := httpserver.New(logger, httpserver.Deps{
+		System: stack.System,
+		Siem:   stack.Siem,
+		Assets: sub,
+	})
 
 	httpSrv := &http.Server{
 		Addr:              addr,
