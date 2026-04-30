@@ -22,8 +22,16 @@ func main() {
 	if addr == "" {
 		addr = ":8080"
 	}
+	syslogAddr := os.Getenv("OBLIVRA_SYSLOG_ADDR")
+	if syslogAddr == "" && os.Getenv("OBLIVRA_DISABLE_SYSLOG") == "" {
+		syslogAddr = ":1514"
+	}
 
-	stack, err := platform.New(platform.Options{Logger: logger})
+	stack, err := platform.New(platform.Options{
+		Logger:         logger,
+		SyslogAddr:     syslogAddr,
+		StartListeners: true,
+	})
 	if err != nil {
 		logger.Error("bootstrap failed", "err", err)
 		os.Exit(1)
@@ -36,9 +44,23 @@ func main() {
 		sub = nil
 	}
 
+	auth := httpserver.NewAuth(os.Getenv("OBLIVRA_API_KEYS"))
+	if auth.Required() {
+		logger.Info("API auth required")
+	} else {
+		logger.Warn("API auth disabled (set OBLIVRA_API_KEYS to enable)")
+	}
+
 	srv := httpserver.New(logger, httpserver.Deps{
 		System: stack.System,
 		Siem:   stack.Siem,
+		Alerts: stack.Alerts,
+		Intel:  stack.Intel,
+		Rules:  stack.Rules,
+		Audit:  stack.Audit,
+		Fleet:  stack.Fleet,
+		Bus:    stack.Bus,
+		Auth:   auth,
 		Assets: sub,
 	})
 
@@ -55,7 +77,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		logger.Info("oblivra-server listening", "addr", addr)
+		logger.Info("oblivra-server listening", "addr", addr, "syslog", syslogAddr)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("server failed", "err", err)
 			stop()

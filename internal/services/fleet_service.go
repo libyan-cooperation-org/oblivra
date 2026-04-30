@@ -1,0 +1,117 @@
+package services
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/kingknull/oblivra/internal/events"
+	"github.com/kingknull/oblivra/internal/ingest"
+)
+
+type AgentRegistration struct {
+	Hostname string   `json:"hostname"`
+	OS       string   `json:"os"`
+	Arch     string   `json:"arch"`
+	Version  string   `json:"version"`
+	Tags     []string `json:"tags,omitempty"`
+}
+
+type Agent struct {
+	ID         string    `json:"id"`
+	Token      string    `json:"token"`
+	Hostname   string    `json:"hostname"`
+	OS         string    `json:"os"`
+	Arch       string    `json:"arch"`
+	Version    string    `json:"version"`
+	Tags       []string  `json:"tags,omitempty"`
+	Registered time.Time `json:"registered"`
+	LastSeen   time.Time `json:"lastSeen"`
+	Events     int64     `json:"events"`
+}
+
+type FleetService struct {
+	log      *slog.Logger
+	pipeline *ingest.Pipeline
+	mu       sync.RWMutex
+	agents   map[string]*Agent
+}
+
+func NewFleetService(log *slog.Logger, p *ingest.Pipeline) *FleetService {
+	return &FleetService{log: log, pipeline: p, agents: map[string]*Agent{}}
+}
+
+func (s *FleetService) ServiceName() string { return "FleetService" }
+
+func (s *FleetService) Register(req AgentRegistration) (*Agent, error) {
+	if req.Hostname == "" {
+		return nil, errors.New("hostname required")
+	}
+	id := randomID(8)
+	tok := randomID(16)
+	a := &Agent{
+		ID:         id,
+		Token:      tok,
+		Hostname:   req.Hostname,
+		OS:         req.OS,
+		Arch:       req.Arch,
+		Version:    req.Version,
+		Tags:       req.Tags,
+		Registered: time.Now().UTC(),
+		LastSeen:   time.Now().UTC(),
+	}
+	s.mu.Lock()
+	s.agents[id] = a
+	s.mu.Unlock()
+	return a, nil
+}
+
+func (s *FleetService) IngestFromAgent(ctx context.Context, agentID string, batch []events.Event) (int, error) {
+	if agentID == "" {
+		return 0, errors.New("agentId required")
+	}
+	s.mu.Lock()
+	a, ok := s.agents[agentID]
+	if !ok {
+		s.mu.Unlock()
+		return 0, errors.New("unknown agent")
+	}
+	a.LastSeen = time.Now().UTC()
+	s.mu.Unlock()
+
+	written := 0
+	for i := range batch {
+		batch[i].Source = events.SourceAgent
+		if batch[i].HostID == "" {
+			batch[i].HostID = a.Hostname
+		}
+		if err := s.pipeline.Submit(ctx, &batch[i]); err != nil {
+			return written, err
+		}
+		written++
+	}
+	s.mu.Lock()
+	a.Events += int64(written)
+	s.mu.Unlock()
+	return written, nil
+}
+
+func (s *FleetService) List() []Agent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Agent, 0, len(s.agents))
+	for _, a := range s.agents {
+		out = append(out, *a)
+	}
+	return out
+}
+
+func randomID(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}

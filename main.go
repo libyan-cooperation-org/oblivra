@@ -13,7 +13,11 @@ import (
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	stack, err := platform.New(platform.Options{Logger: logger})
+	stack, err := platform.New(platform.Options{
+		Logger:         logger,
+		SyslogAddr:     "", // desktop doesn't bind to network listeners by default
+		StartListeners: false,
+	})
 	if err != nil {
 		log.Fatalf("oblivra: bootstrap: %v", err)
 	}
@@ -26,6 +30,11 @@ func main() {
 		Services: []application.Service{
 			application.NewService(stack.System),
 			application.NewService(stack.Siem),
+			application.NewService(stack.Alerts),
+			application.NewService(stack.Intel),
+			application.NewService(stack.Rules),
+			application.NewService(stack.Audit),
+			application.NewService(stack.Fleet),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(webassets.Raw()),
