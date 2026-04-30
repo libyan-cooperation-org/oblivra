@@ -116,6 +116,7 @@
       aria-labelledby={title ? titleId : undefined}
       tabindex="-1"
       onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
     >
       <!-- Header -->
       {#if title}

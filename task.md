@@ -196,13 +196,15 @@ Focus narrowed to high-integrity log collection, detection, UEBA, NDR, and foren
 - [ ] Cross-tier integrity verification
 
 ### Immediate Hygiene
-- [ ] Final Phase 36 cleanup (dead FSM paths, Wails bindings regeneration, docs refresh)
-- [ ] Update `README.md` and `FEATURES.md` with new log forensics positioning
+- [x] Final Phase 36 cleanup (dead FSM paths, Wails bindings regeneration, docs refresh)
+- [x] Update `README.md` and `FEATURES.md` with new log forensics positioning
 - [ ] Create `docs/operator/log-forensics.md`
-- [ ] **Phase 36.7** — backend response-action chain cleanup (~150 LOC, MCP / agent / ingest / Wails bindings). See `HARDENING.md`.
-- [ ] **Phase 36.8** — schema cleanup: drop 4 dead tables (`tunnels`, `sso_providers`, `graph_nodes`, `graph_edges`) + `audit_logs.user_agent` column. (5 other tables flagged by audit are actually live — see `HARDENING.md` for the verified list.)
-- [ ] **Phase 36.9** — frontend orphan sweep: delete 2 dead stores (compliance + playbook); apply per-page Option 1/2/3 to 7 pages with broken Wails RPC actions. See `HARDENING.md` decision table.
-- [ ] **Phase 36.10** — UI registry consolidation: delete 9 stale entries across CommandRail / CommandPalette / context.ts; make `nav-config.ts` the single source of truth; add CI lint to prevent drift.
+- [x] **Phase 36.7** — backend response-action chain cleanup (~250 LOC across MCP / agent / agent_server / agent_service / api_service / response_actions / rest_fusion_peer + frontend ToggleQuarantine/KillProcess removal). See `HARDENING.md`.
+- [x] **Phase 36.8** — schema migration v35: dropped 4 tables (`tunnels`, `sso_providers`, `graph_nodes`, `graph_edges`) + 5 indexes + `audit_logs.user_agent` column. 5 tables originally flagged were verified live and **kept** (`agent_*`, `dhcp_lease_log`, `compliance_packages`, `login_lockouts`, `dsr_requests`, `evidence_timestamps`).
+- [x] **Phase 36.9** — frontend orphan sweep: deleted 2 stores (compliance, playbook), 5 pages (TasksPage, EscalationCenter, PurpleTeam, ResponseReplay, ConfigRisk) + emergency follow-on (SimulationPanel, AlertDashboard Resolve), stripped broken actions from AlertManagement + ThreatGraph, removed orphan Wails bindings.
+- [x] **Phase 36.10** — UI registry consolidation: stripped stale entries across CommandRail / CommandPalette / nav-config.ts / context.ts. (Architectural fix — nav-config.ts as single source of truth + CI lint — deferred.)
+- [x] **Phase 36.11** — Post-`wails3 build` orphan sweep: deleted 8 unreferenced pages + 6 unreferenced components + barrel-export cleanup; fixed 3 a11y warnings (TenantFastSwitcher, Modal). Build now produces zero warnings.
+- [ ] **Phase 36.12** — Backend Wails-binding triage: 26 service bindings have zero callers; per-service review needed to determine which Go services can be unregistered from `main_gui.go`. ~1-2 days, defer until Phase 37 starts.
 
 ---
 

@@ -727,6 +727,42 @@ The original Phase 36.9 sweep missed three additional dead callers that only sur
 
 **Lesson**: `tsc --noEmit` (the project's `typecheck` script) does **not** resolve dynamic `await import()` strings — only static imports. Future scope cuts must run `vite build` (or `wails3 build`) as the canonical "did I break the bundle?" gate. Recommend adding `npm run build` to CI alongside `npm run typecheck`.
 
+### Phase 36.11 — Post-`wails3 build` orphan sweep (2026-04-30)
+
+After `wails3 build` succeeded, a fresh `find . -name "*.svelte"` + reverse-import audit surfaced **15 additional unreferenced files** that previous sweeps missed. None blocked the build (they were just dead weight on the bundle), but they violate the "every file traceable" cleanup discipline.
+
+**Pages deleted (8) — zero `@pages/X` imports across `frontend/src/`:**
+- [x] **36.11.1** `pages/PasswordVault.svelte` — superseded by `SecretManager.svelte`
+- [x] **36.11.2** `pages/UEBAPanel.svelte` — superseded by `UEBAOverview.svelte`
+- [x] **36.11.3** `pages/VaultManager.svelte` — superseded by `EvidenceVault.svelte`
+- [x] **36.11.4** `pages/RecordingsPage.svelte` — Phase 32 leftover (shell removal)
+- [x] **36.11.5** `pages/SSHBookmarks.svelte` — Phase 32 leftover
+- [x] **36.11.6** `pages/SessionPlayback.svelte` — Phase 32 leftover
+- [x] **36.11.7** `pages/TunnelsPage.svelte` — Phase 32 leftover
+- [x] **36.11.8** `pages/Placeholder.svelte` — only mentioned in a comment in `ThreatMap.svelte`; wildcard route uses `DevelopmentPage`
+
+**Components deleted (6) — zero non-barrel/non-self imports:**
+- [x] **36.11.9** `components/ui/DecisionCard.svelte` + its sole consumer `decision.types.ts` — only re-exported in `ui/index.ts`, never actually imported
+- [x] **36.11.10** `components/ui/ProgressBar.svelte` — same status
+- [x] **36.11.11** `components/ui/LanguageSwitcher.svelte` — same status
+- [x] **36.11.12** `components/sidebar/AddHostModal.svelte` — orphaned
+- [x] **36.11.13** `components/transfers/TransferDrawer.svelte` — orphaned
+- [x] **36.11.14** `components/layout/StatusBar.svelte` — only mentioned in a comment in `BottomDock.svelte`
+- [x] **36.11.15** `components/ui/index.ts` — exports for the 3 deleted ui components stripped
+
+**A11y warnings fixed (2)** — dialog elements were flagged by `vite-plugin-svelte`:
+- [x] **36.11.16** `components/ui/TenantFastSwitcher.svelte:122` — added `tabindex="-1"`, `aria-modal="true"`, `onkeydown={(e) => e.stopPropagation()}`
+- [x] **36.11.17** `components/ui/Modal.svelte:118` — added `onkeydown={(e) => e.stopPropagation()}` (already had `tabindex` + `aria-modal`)
+
+**Still-open items (not cleaned in this pass):**
+- [ ] **36.11.18** Wails-binding orphans — 26 service binding files in `frontend/bindings/.../services/` have zero `await import('@wailsjs/...services/X')` callers. They auto-regenerate from `main_gui.go` service registrations on every `wails generate bindings`, so disk-deleting them is fruitless until the corresponding services are unregistered. Audit candidates: `tailingservice`, `operatorservice`, `transfermanager`, `sessionpersistence`, `syntheticservice`, `counterfactualservice`, `datalifecycleservice`, `policyservice`, `governanceservice`, `metricsservice`, `telemetryservice`, `analyticsservice`, `broadcastservice`, `commandhistoryservice`, `credentialintelservice`, `diagnosticsservice`, `discoveryservice`, `fileservice`, `logsourceservice`, `multiexecservice`, `observabilityservice`, `riskservice`, `securityservice`, `sessionservice`, `shareservice`, `workspaceservice`. **Some of these may still be live via REST API** even with no Wails binding caller — needs per-service triage before any unregistration.
+- [ ] **36.11.19** Pre-existing dynamic-vs-static import warnings (vault/host/alerting services dual-imported in `bridge.ts` + `SecretManager.svelte` etc.) — bundle-shape suboptimality, not bugs.
+
+**Verification**:
+- `wails3 build` → ✅ exit 0, built in 11.03s, **zero a11y warnings**, zero plugin warnings
+- `go build ./...` → ✅ exit 0
+- `npm run typecheck` → ✅ exit 0
+
 ### Phase 36.10 — UI registry consolidation (post-audit, 2026-04-29)
 
 Routes and command-palette entries currently live in **three** unsynchronized files. Phase 36 deleted routes from `App.svelte` and `nav-config.ts` but left entries in the other two. Result: dead clicks land on `DevelopmentPage` placeholder.

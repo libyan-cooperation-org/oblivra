@@ -20,15 +20,14 @@ export { default as LoadingScreen } from './LoadingScreen.svelte';
 export { default as ErrorScreen } from './ErrorScreen.svelte';
 export { default as CommandPalette } from './CommandPalette.svelte';
 export { default as Toggle } from './Toggle.svelte';
-export { default as DecisionCard } from './DecisionCard.svelte';
+// Phase 36.11: DecisionCard / ProgressBar / LanguageSwitcher exports removed —
+// underlying components had zero non-barrel call sites. decision.types removed
+// (only consumer was DecisionCard).
 export { default as InvestigationCanvas } from './InvestigationCanvas.svelte';
-export { default as ProgressBar } from './ProgressBar.svelte';
 export { default as LoadingSkeleton } from './LoadingSkeleton.svelte';
 export { default as PopOutButton } from './PopOutButton.svelte';
-export { default as LanguageSwitcher } from './LanguageSwitcher.svelte';
 export { default as ActivityFeed } from './ActivityFeed.svelte';
 export { default as TimeRangePicker } from './TimeRangePicker.svelte';
 export { default as TenantSwitcher } from './TenantSwitcher.svelte';
 export { default as EntityLink } from './EntityLink.svelte';
 export { default as LastRefreshed } from './LastRefreshed.svelte';
-export * from './decision.types';

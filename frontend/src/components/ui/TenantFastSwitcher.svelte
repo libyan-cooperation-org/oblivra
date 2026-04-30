@@ -122,8 +122,11 @@
     <div
       class="w-full max-w-md bg-surface-1 border border-border-secondary rounded-md shadow-2xl overflow-hidden"
       role="dialog"
+      aria-modal="true"
       aria-label="Tenant fast switcher"
+      tabindex="-1"
       onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
     >
       <div class="flex items-center gap-2 px-3 py-2 border-b border-border-primary">
         <Building2 size={12} class="text-accent" />

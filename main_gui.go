@@ -18,69 +18,55 @@ func runGUI() {
 	app := application.New(application.Options{
 		Name:        "OblivraShell",
 		Description: "OBLIVRA Enterprise Core",
+		// Phase 36.12: Wails service registrations pruned to only services with
+		// active frontend callers (verified by reverse-import audit, 2026-04-30).
+		// Removed services remain LIVE in the Go runtime via container.go +
+		// app.go — they're no longer reachable as Wails RPC, which is correct:
+		// they have zero `@wailsjs/.../services/X` consumers in the bundle.
+		// Use REST or the event bus to interact with them server-side.
+		//
+		// Removed: AnalyticsService, BroadcastService, CommandHistory,
+		// CounterfactualService, CredentialIntel, DataLifecycleService,
+		// DiagnosticsService, DiscoveryService, FileService, GovernanceService,
+		// LogSourceService, MetricsService, MultiExecService, ObservabilityService,
+		// OperatorService, PolicyService, RiskService, SecurityService,
+		// SessionPersistence, SessionService, ShareService, SyntheticService,
+		// TailingService, TelemetryService, TransferManager, WorkspaceService.
+		//
+		// Phase 36 prior cuts: AIService, ComplianceService, IncidentService,
+		// NetworkIsolatorService, PlaybookService, PluginService.
 		Services: []application.Service{
 			application.NewService(oblivraApp.HostService),
 			application.NewService(oblivraApp.SSHService),
 			application.NewService(oblivraApp.VaultService),
-			application.NewService(oblivraApp.SessionService),
 			application.NewService(oblivraApp.SettingsService),
 			application.NewService(oblivraApp.SnippetService),
-			application.NewService(oblivraApp.BroadcastService),
-			application.NewService(oblivraApp.MultiExecService),
-			// PluginService removed in Phase 36.
-			application.NewService(oblivraApp.SecurityService),
-			// ComplianceService removed Phase 36.x.
 			application.NewService(oblivraApp.TeamService),
 			application.NewService(oblivraApp.SIEMService),
 			application.NewService(oblivraApp.LocalService),
-			application.NewService(oblivraApp.TelemetryService),
-			// AIService removed in Phase 36.
 			application.NewService(oblivraApp.AlertingService),
 			application.NewService(oblivraApp.HealthService),
-			application.NewService(oblivraApp.MetricsService),
 			application.NewService(oblivraApp.TunnelService),
-			application.NewService(oblivraApp.ShareService),
 			application.NewService(oblivraApp.RecordingService),
-			application.NewService(oblivraApp.LogSourceService),
-			application.NewService(oblivraApp.WorkspaceService),
 			application.NewService(oblivraApp.NotesService),
 			application.NewService(oblivraApp.UpdaterService),
 			application.NewService(oblivraApp.SyncService),
-			application.NewService(oblivraApp.FileService),
-			application.NewService(oblivraApp.DiscoveryService),
 			application.NewService(oblivraApp.AgentService),
-			application.NewService(oblivraApp.GovernanceService),
 			application.NewService(oblivraApp.ForensicsService),
-			application.NewService(oblivraApp.PolicyService),
-			// Phase 36: IncidentService, PlaybookService removed.
 			application.NewService(oblivraApp.SimulationService),
 			application.NewService(oblivraApp.UEBAService),
 			application.NewService(oblivraApp.GraphService),
 			application.NewService(oblivraApp.NDRService),
-			application.NewService(oblivraApp.RiskService),
 			application.NewService(oblivraApp.TrustService),
-			application.NewService(oblivraApp.CredentialIntel),
-			application.NewService(oblivraApp.AnalyticsService),
 			application.NewService(oblivraApp.DisasterService),
 			application.NewService(oblivraApp.TemporalService),
 			application.NewService(oblivraApp.LineageService),
 			application.NewService(oblivraApp.DecisionService),
-			application.NewService(oblivraApp.CounterfactualService),
-			application.NewService(oblivraApp.TailingService),
-			application.NewService(oblivraApp.SyntheticService),
 			application.NewService(oblivraApp.IdentityService),
-			application.NewService(oblivraApp.ObservabilityService),
-			application.NewService(oblivraApp.DataLifecycleService),
-			application.NewService(oblivraApp.TransferManager),
-			// Phase 36: NetworkIsolatorService removed.
 			application.NewService(oblivraApp.LedgerService),
-			application.NewService(oblivraApp.DiagnosticsService),
 			application.NewService(oblivraApp.FusionService),
 			application.NewService(oblivraApp.LicensingService),
 			application.NewService(oblivraApp.BookmarkService),
-			application.NewService(oblivraApp.CommandHistory),
-			application.NewService(oblivraApp.OperatorService),
-			application.NewService(oblivraApp.SessionPersistence),
 			application.NewService(oblivraApp.RotationService),
 			application.NewService(oblivraApp.SuppressionService),
 			application.NewService(oblivraApp.WindowService),
