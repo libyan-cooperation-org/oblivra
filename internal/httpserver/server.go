@@ -30,6 +30,11 @@ type Server struct {
 	rules  *services.RulesService
 	audit  *services.AuditService
 	fleet  *services.FleetService
+	ueba    *services.UebaService
+	ndr     *services.NdrService
+	foren   *services.ForensicsService
+	tier    *services.TieringService
+	lineage *services.LineageService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -44,6 +49,11 @@ type Deps struct {
 	Rules  *services.RulesService
 	Audit  *services.AuditService
 	Fleet  *services.FleetService
+	Ueba    *services.UebaService
+	Ndr     *services.NdrService
+	Foren   *services.ForensicsService
+	Tier    *services.TieringService
+	Lineage *services.LineageService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -59,6 +69,11 @@ func New(log *slog.Logger, deps Deps) *Server {
 		rules:  deps.Rules,
 		audit:  deps.Audit,
 		fleet:  deps.Fleet,
+		ueba:    deps.Ueba,
+		ndr:     deps.Ndr,
+		foren:   deps.Foren,
+		tier:    deps.Tier,
+		lineage: deps.Lineage,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -120,6 +135,33 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET /api/v1/agent/fleet", s.fleetList)
 		s.mux.HandleFunc("POST /api/v1/agent/register", s.fleetRegister)
 		s.mux.HandleFunc("POST /api/v1/agent/ingest", s.fleetIngest)
+	}
+	// UEBA.
+	if s.ueba != nil {
+		s.mux.HandleFunc("GET /api/v1/ueba/profiles", s.uebaProfiles)
+		s.mux.HandleFunc("GET /api/v1/ueba/anomalies", s.uebaAnomalies)
+	}
+	// NDR.
+	if s.ndr != nil {
+		s.mux.HandleFunc("GET /api/v1/ndr/flows", s.ndrFlows)
+		s.mux.HandleFunc("POST /api/v1/ndr/flows", s.ndrAdd)
+		s.mux.HandleFunc("GET /api/v1/ndr/top-talkers", s.ndrTopTalkers)
+	}
+	// Forensics.
+	if s.foren != nil {
+		s.mux.HandleFunc("GET /api/v1/forensics/gaps", s.forenGaps)
+		s.mux.HandleFunc("GET /api/v1/forensics/evidence", s.forenList)
+		s.mux.HandleFunc("POST /api/v1/forensics/evidence", s.forenSeal)
+	}
+	// Tiering.
+	if s.tier != nil {
+		s.mux.HandleFunc("GET /api/v1/storage/stats", s.tierStats)
+		s.mux.HandleFunc("POST /api/v1/storage/promote", s.tierPromote)
+	}
+	// Lineage.
+	if s.lineage != nil {
+		s.mux.HandleFunc("GET /api/v1/forensics/lineage", s.lineageHosts)
+		s.mux.HandleFunc("GET /api/v1/forensics/lineage/tree", s.lineageTree)
 	}
 
 	if s.assets != nil {
@@ -403,6 +445,115 @@ func (s *Server) fleetIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"written": written})
+}
+
+// ---- UEBA ----
+
+func (s *Server) uebaProfiles(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.ueba.Profiles())
+}
+func (s *Server) uebaAnomalies(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.ueba.Anomalies())
+}
+
+// ---- NDR ----
+
+func (s *Server) ndrFlows(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.ndr.Recent(limit))
+}
+
+func (s *Server) ndrAdd(w http.ResponseWriter, r *http.Request) {
+	var rec services.NetFlowRecord
+	if err := readJSON(r, &rec); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.ndr.Record(rec)
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "recorded"})
+}
+
+func (s *Server) ndrTopTalkers(w http.ResponseWriter, r *http.Request) {
+	limit := 25
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.ndr.TopTalkers(limit))
+}
+
+// ---- Forensics ----
+
+func (s *Server) forenGaps(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.foren.Gaps())
+}
+func (s *Server) forenList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.foren.List())
+}
+
+func (s *Server) forenSeal(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		TenantID string `json:"tenantId"`
+		HostID   string `json:"hostId"`
+		Title    string `json:"title"`
+		FromUnix int64  `json:"fromUnix"`
+		ToUnix   int64  `json:"toUnix"`
+	}
+	var body req
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	from := time.Unix(body.FromUnix, 0).UTC()
+	to := time.Unix(body.ToUnix, 0).UTC()
+	if body.FromUnix == 0 {
+		from = time.Now().Add(-24 * time.Hour).UTC()
+	}
+	if body.ToUnix == 0 {
+		to = time.Now().UTC()
+	}
+	item, err := s.foren.CollectByHost(r.Context(), body.TenantID, body.HostID, body.Title, from, to)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
+}
+
+// ---- Tiering ----
+
+func (s *Server) tierStats(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.tier.Stats())
+}
+
+func (s *Server) tierPromote(w http.ResponseWriter, r *http.Request) {
+	moved, err := s.tier.Promote(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"moved": moved})
+}
+
+// ---- Lineage ----
+
+func (s *Server) lineageHosts(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.lineage.Hosts())
+}
+
+func (s *Server) lineageTree(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "host query param required")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.lineage.Tree(host))
 }
 
 // ---- helpers ----

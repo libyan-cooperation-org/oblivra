@@ -20,6 +20,7 @@ import (
 	"github.com/kingknull/oblivra/internal/services"
 	"github.com/kingknull/oblivra/internal/storage/hot"
 	"github.com/kingknull/oblivra/internal/storage/search"
+	"github.com/kingknull/oblivra/internal/storage/tiering"
 	"github.com/kingknull/oblivra/internal/wal"
 )
 
@@ -34,9 +35,12 @@ type Stack struct {
 	Fleet  *services.FleetService
 	Ueba   *services.UebaService
 	Ndr    *services.NdrService
-	Foren  *services.ForensicsService
-	Bus    *events.Bus
-	Syslog *listeners.SyslogUDP
+	Foren   *services.ForensicsService
+	Tier    *services.TieringService
+	Lineage *services.LineageService
+	Bus     *events.Bus
+	Syslog  *listeners.SyslogUDP
+	NetFlow *listeners.NetFlowV5
 
 	pipeline *ingest.Pipeline
 	hot      *hot.Store
@@ -51,6 +55,7 @@ type Options struct {
 	Logger         *slog.Logger
 	InMemory       bool
 	SyslogAddr     string // "" disables; ":1514" enables
+	NetFlowAddr    string // "" disables; ":2055" enables
 	StartListeners bool
 }
 
@@ -111,6 +116,23 @@ func New(opts Options) (*Stack, error) {
 	ndr := services.NewNdrService(opts.Logger)
 	foren := services.NewForensicsService(store, audit)
 
+	warmDir, err := datapath.Sub(dir, "warm.parquet")
+	if err != nil {
+		_ = idx.Close()
+		_ = store.Close()
+		_ = w.Close()
+		return nil, fmt.Errorf("warm dir: %w", err)
+	}
+	migrator, err := tiering.New(opts.Logger, store, tiering.Options{WarmDir: warmDir})
+	if err != nil {
+		_ = idx.Close()
+		_ = store.Close()
+		_ = w.Close()
+		return nil, fmt.Errorf("tiering: %w", err)
+	}
+	tier := services.NewTieringService(opts.Logger, migrator)
+	lineage := services.NewLineageService(opts.Logger)
+
 	stack := &Stack{
 		Log:      opts.Logger,
 		System:   system,
@@ -123,6 +145,8 @@ func New(opts Options) (*Stack, error) {
 		Ueba:     ueba,
 		Ndr:      ndr,
 		Foren:    foren,
+		Tier:     tier,
+		Lineage:  lineage,
 		Bus:      bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -147,6 +171,19 @@ func New(opts Options) (*Stack, error) {
 		}()
 		stack.Syslog = s
 	}
+	if opts.NetFlowAddr != "" && opts.StartListeners {
+		nf := listeners.NewNetFlowV5(opts.Logger, ndr, listeners.NetFlowOptions{Addr: opts.NetFlowAddr})
+		ctx, cancel := context.WithCancel(context.Background())
+		stack.cancelFns = append(stack.cancelFns, cancel)
+		stack.wg.Add(1)
+		go func() {
+			defer stack.wg.Done()
+			if err := nf.Start(ctx); err != nil {
+				opts.Logger.Error("netflow listener stopped", "err", err)
+			}
+		}()
+		stack.NetFlow = nf
+	}
 
 	// Audit our own startup so the chain has a root.
 	_ = audit.Append(context.Background(), "system", "platform.start", "default", map[string]string{
@@ -163,6 +200,7 @@ func (s *Stack) startProcessors(parent context.Context) {
 		func(ctx context.Context, ev events.Event) { s.Rules.Evaluate(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Ueba.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) { s.Foren.Observe(ev) },
+		func(_ context.Context, ev events.Event) { s.Lineage.Observe(ev) },
 		func(_ context.Context, ev events.Event) {
 			// IOC enrichment — match every text field against the IOC table.
 			candidates := []string{ev.HostID, ev.Message, ev.Raw}

@@ -4,6 +4,11 @@
   import StatusBar from './lib/components/StatusBar.svelte';
   import Overview from './lib/views/Overview.svelte';
   import Siem from './lib/views/Siem.svelte';
+  import Detection from './lib/views/Detection.svelte';
+  import Investigations from './lib/views/Investigations.svelte';
+  import Evidence from './lib/views/Evidence.svelte';
+  import Fleet from './lib/views/Fleet.svelte';
+  import Admin from './lib/views/Admin.svelte';
   import Placeholder from './lib/views/Placeholder.svelte';
   import { NAV, type NavId } from './lib/nav';
 
@@ -33,6 +38,16 @@
         <Overview />
       {:else if active === 'siem'}
         <Siem />
+      {:else if active === 'detection'}
+        <Detection />
+      {:else if active === 'investigations'}
+        <Investigations />
+      {:else if active === 'evidence'}
+        <Evidence />
+      {:else if active === 'fleet'}
+        <Fleet />
+      {:else if active === 'admin'}
+        <Admin />
       {:else}
         <Placeholder name={current.label} />
       {/if}

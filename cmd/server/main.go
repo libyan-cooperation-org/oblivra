@@ -26,10 +26,15 @@ func main() {
 	if syslogAddr == "" && os.Getenv("OBLIVRA_DISABLE_SYSLOG") == "" {
 		syslogAddr = ":1514"
 	}
+	netflowAddr := os.Getenv("OBLIVRA_NETFLOW_ADDR")
+	if netflowAddr == "" && os.Getenv("OBLIVRA_DISABLE_NETFLOW") == "" {
+		netflowAddr = ":2055"
+	}
 
 	stack, err := platform.New(platform.Options{
 		Logger:         logger,
 		SyslogAddr:     syslogAddr,
+		NetFlowAddr:    netflowAddr,
 		StartListeners: true,
 	})
 	if err != nil {
@@ -59,7 +64,12 @@ func main() {
 		Rules:  stack.Rules,
 		Audit:  stack.Audit,
 		Fleet:  stack.Fleet,
-		Bus:    stack.Bus,
+		Ueba:   stack.Ueba,
+		Ndr:    stack.Ndr,
+		Foren:   stack.Foren,
+		Tier:    stack.Tier,
+		Lineage: stack.Lineage,
+		Bus:     stack.Bus,
 		Auth:   auth,
 		Assets: sub,
 	})

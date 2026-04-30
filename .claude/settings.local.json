@@ -15,7 +15,11 @@
       "Bash(powershell.exe -NoProfile -Command \"Stop-Process -Id 8496 -Force\")",
       "Bash(rm -rf tmp/smoke-data)",
       "Bash(OBLIVRA_DATA_DIR=\"$\\(pwd\\)/tmp/smoke-data\" OBLIVRA_ADDR=:18081 ./oblivra-server.exe)",
-      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18081 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")"
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18081 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(git remote *)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18082 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(go test *)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id \\(Get-NetTCPConnection -LocalPort 18083 -ErrorAction SilentlyContinue\\).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force\")"
     ]
   }
 }

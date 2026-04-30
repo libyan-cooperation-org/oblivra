@@ -4,10 +4,12 @@
     siemIngest,
     siemSearch,
     siemStats,
+    liveTail,
     type OblivraEvent,
     type IngestStats,
     type Severity,
     type SearchResponse,
+    type LiveTailHandle,
   } from '../bridge';
   import Tile from '../components/Tile.svelte';
 
@@ -26,6 +28,9 @@
   let probeSeverity = $state<Severity>('warning');
 
   let timer: ReturnType<typeof setInterval> | null = null;
+  let tail: LiveTailHandle | null = null;
+  let tailEvents = $state<OblivraEvent[]>([]);
+  let tailDropped = $state(0);
 
   async function refresh() {
     try {
@@ -44,7 +49,7 @@
   function startTimer() {
     stopTimer();
     if (live) {
-      timer = setInterval(() => void refresh(), 2000);
+      timer = setInterval(() => void refresh(), 5000);
     }
   }
   function stopTimer() {
@@ -54,9 +59,30 @@
     }
   }
 
+  function startTail() {
+    stopTail();
+    if (!live) return;
+    tail = liveTail(
+      (ev) => {
+        tailEvents = [ev, ...tailEvents].slice(0, 200);
+        if (tailEvents.length === 200) tailDropped++;
+      },
+      () => {
+        // ignore — auto-reconnects
+      },
+    );
+  }
+  function stopTail() {
+    if (tail) {
+      tail.close();
+      tail = null;
+    }
+  }
+
   $effect(() => {
-    // re-evaluate timer when `live` changes
+    // re-evaluate timer + websocket when `live` changes
     startTimer();
+    startTail();
   });
 
   async function probe() {
@@ -112,7 +138,10 @@
   onMount(() => {
     void refresh();
   });
-  onDestroy(stopTimer);
+  onDestroy(() => {
+    stopTimer();
+    stopTail();
+  });
 
   function handleQueryKey(e: KeyboardEvent) {
     if (e.key === 'Enter') {
@@ -264,6 +293,32 @@
       <p class="mt-2 text-xs text-signal-error">{error}</p>
     {/if}
   </section>
+
+  {#if live && tailEvents.length > 0}
+    <section class="rounded-xl border border-accent-500/40 bg-night-900/70">
+      <div class="flex items-center justify-between border-b border-night-700 px-4 py-2">
+        <h3 class="text-sm font-semibold tracking-wide text-slate-100">
+          <span class="mr-1 inline-block h-2 w-2 rounded-full bg-accent-500 animate-pulse"></span>
+          Live tail (WebSocket)
+        </h3>
+        <span class="text-[11px] text-night-300">
+          {tailEvents.length} buffered{tailDropped ? ` · ${tailDropped} dropped` : ''}
+        </span>
+      </div>
+      <ul class="divide-y divide-night-700/70 font-mono text-xs max-h-72 overflow-y-auto scrollbar-thin">
+        {#each tailEvents.slice(0, 30) as ev (ev.id)}
+          <li class="flex items-start gap-3 px-4 py-1.5">
+            <span class="text-night-300">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+            <span class={sevColor[(ev.severity ?? 'info') as Severity]}>
+              {(ev.severity ?? 'info').toUpperCase().padEnd(8)}
+            </span>
+            <span class="text-night-200">{ev.hostId ?? '—'}</span>
+            <span class="flex-1 truncate text-slate-100">{ev.message}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
   <section class="rounded-xl border border-night-700 bg-night-900/70">
     <div class="flex items-center justify-between border-b border-night-700 px-4 py-3">

@@ -29,7 +29,7 @@ const (
 // event. The Raw field always carries the original line.
 func Parse(raw string, format Format) (*events.Event, error) {
 	raw = strings.TrimRight(raw, "\r\n")
-	if raw == "" {
+	if strings.TrimSpace(raw) == "" {
 		return nil, errors.New("parsers: empty line")
 	}
 	if format == "" || format == FormatAuto {
