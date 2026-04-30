@@ -30,11 +30,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/kingknull/oblivra/internal/storage/hot"
 )
+
+var _ = strings.ContainsAny // reserved for future scope helpers
 
 const casesFile = "cases.log"
 
@@ -58,16 +61,50 @@ type CaseScope struct {
 }
 
 type Case struct {
-	ID         string            `json:"id"`
-	Title      string            `json:"title"`
-	OpenedBy   string            `json:"openedBy"`
-	OpenedAt   time.Time         `json:"openedAt"`
-	State      CaseState         `json:"state"`
-	Scope      CaseScope         `json:"scope"`
-	Notes      []CaseNote        `json:"notes,omitempty"`
-	SealedAt   time.Time         `json:"sealedAt,omitempty"`
-	SealedBy   string            `json:"sealedBy,omitempty"`
-	Detail     map[string]string `json:"detail,omitempty"`
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	OpenedBy    string            `json:"openedBy"`
+	OpenedAt    time.Time         `json:"openedAt"`
+	State       CaseState         `json:"state"`
+	Scope       CaseScope         `json:"scope"`
+	Notes       []CaseNote        `json:"notes,omitempty"`
+	Hypotheses  []Hypothesis      `json:"hypotheses,omitempty"`
+	Annotations []Annotation      `json:"annotations,omitempty"`
+	SealedAt    time.Time         `json:"sealedAt,omitempty"`
+	SealedBy    string            `json:"sealedBy,omitempty"`
+	Detail      map[string]string `json:"detail,omitempty"`
+}
+
+// Hypothesis is an analyst's working theory attached to a case. The validity
+// flips when the evidence either confirms or refutes it.
+type Hypothesis struct {
+	ID          string        `json:"id"`
+	Statement   string        `json:"statement"`
+	Status      string        `json:"status"` // "open" | "confirmed" | "refuted"
+	EvidenceIDs []string      `json:"evidenceIds,omitempty"`
+	CreatedBy   string        `json:"createdBy"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt,omitempty"`
+}
+
+// Annotation is a free-form note pinned to a specific event ID inside a case.
+type Annotation struct {
+	EventID   string    `json:"eventId"`
+	Body      string    `json:"body"`
+	Author    string    `json:"author"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// Confidence is the rough completeness score for a case. Cheap heuristic
+// over scope coverage + corroborating events / alerts / sources.
+type Confidence struct {
+	Score          int      `json:"score"`        // 0–100
+	EventCount     int      `json:"eventCount"`
+	AlertCount     int      `json:"alertCount"`
+	SourceCount    int      `json:"sourceCount"`
+	GapCount       int      `json:"gapCount"`
+	Explanation    string   `json:"explanation"`
+	Contributions  []string `json:"contributions,omitempty"`
 }
 
 type CaseNote struct {
@@ -396,4 +433,202 @@ func caseID() string {
 	var b [8]byte
 	_, _ = rand.Read(b[:])
 	return hex.EncodeToString(b[:])
+}
+
+// AddHypothesis records a new working theory on a case.
+func (s *InvestigationsService) AddHypothesis(ctx context.Context, caseID, author, statement string) (*Case, error) {
+	if statement == "" {
+		return nil, errors.New("statement required")
+	}
+	s.mu.Lock()
+	c, ok := s.cases[caseID]
+	if !ok {
+		s.mu.Unlock()
+		return nil, errors.New("case not found")
+	}
+	if c.State == CaseStateSealed {
+		s.mu.Unlock()
+		return nil, errors.New("case sealed")
+	}
+	h := Hypothesis{
+		ID:        randomID(6),
+		Statement: statement,
+		Status:    "open",
+		CreatedBy: author,
+		CreatedAt: time.Now().UTC(),
+	}
+	c.Hypotheses = append(c.Hypotheses, h)
+	cc := *c
+	s.mu.Unlock()
+	_ = s.persist(&cc)
+	if s.audit != nil {
+		s.audit.Append(ctx, author, "investigation.hypothesis.add", c.Scope.TenantID, map[string]string{
+			"caseId":     caseID,
+			"hypothesis": h.ID,
+		})
+	}
+	return &cc, nil
+}
+
+// SetHypothesisStatus flips an existing hypothesis to confirmed/refuted.
+func (s *InvestigationsService) SetHypothesisStatus(ctx context.Context, caseID, hypoID, author, status string, evidenceIDs []string) (*Case, error) {
+	if status != "confirmed" && status != "refuted" && status != "open" {
+		return nil, errors.New("status must be open|confirmed|refuted")
+	}
+	s.mu.Lock()
+	c, ok := s.cases[caseID]
+	if !ok {
+		s.mu.Unlock()
+		return nil, errors.New("case not found")
+	}
+	if c.State == CaseStateSealed {
+		s.mu.Unlock()
+		return nil, errors.New("case sealed")
+	}
+	updated := false
+	for i := range c.Hypotheses {
+		if c.Hypotheses[i].ID == hypoID {
+			c.Hypotheses[i].Status = status
+			c.Hypotheses[i].UpdatedAt = time.Now().UTC()
+			if len(evidenceIDs) > 0 {
+				c.Hypotheses[i].EvidenceIDs = append(c.Hypotheses[i].EvidenceIDs, evidenceIDs...)
+			}
+			updated = true
+			break
+		}
+	}
+	cc := *c
+	s.mu.Unlock()
+	if !updated {
+		return nil, errors.New("hypothesis not found")
+	}
+	_ = s.persist(&cc)
+	if s.audit != nil {
+		s.audit.Append(ctx, author, "investigation.hypothesis.update", c.Scope.TenantID, map[string]string{
+			"caseId":     caseID,
+			"hypothesis": hypoID,
+			"status":     status,
+		})
+	}
+	return &cc, nil
+}
+
+// Annotate pins a free-form note to a specific event ID.
+func (s *InvestigationsService) Annotate(ctx context.Context, caseID, eventID, author, body string) (*Case, error) {
+	if eventID == "" || body == "" {
+		return nil, errors.New("eventId and body required")
+	}
+	s.mu.Lock()
+	c, ok := s.cases[caseID]
+	if !ok {
+		s.mu.Unlock()
+		return nil, errors.New("case not found")
+	}
+	if c.State == CaseStateSealed {
+		s.mu.Unlock()
+		return nil, errors.New("case sealed")
+	}
+	c.Annotations = append(c.Annotations, Annotation{
+		EventID: eventID, Body: body, Author: author, Timestamp: time.Now().UTC(),
+	})
+	cc := *c
+	s.mu.Unlock()
+	_ = s.persist(&cc)
+	if s.audit != nil {
+		s.audit.Append(ctx, author, "investigation.annotate", c.Scope.TenantID, map[string]string{
+			"caseId":  caseID,
+			"eventId": eventID,
+		})
+	}
+	return &cc, nil
+}
+
+// Confidence runs a cheap heuristic over the case scope.
+//
+//	+30 if any sealed evidence package exists for the host in scope
+//	+25 if at least one alert fired inside the case window
+//	+20 if at least 2 sources corroborated (3+ events from each)
+//	+15 if the case has at least one confirmed hypothesis
+//	-10 per detected log gap (caps at -30)
+//	+10 base for any non-empty case
+func (s *InvestigationsService) Confidence(ctx context.Context, caseID string) (*Confidence, error) {
+	c, ok := s.Get(caseID)
+	if !ok {
+		return nil, errors.New("case not found")
+	}
+	conf := &Confidence{Score: 10}
+	conf.Contributions = append(conf.Contributions, "+10 base")
+
+	tl, err := s.Timeline(ctx, caseID)
+	if err == nil {
+		sources := map[string]int{}
+		for _, e := range tl {
+			switch e.Kind {
+			case "event":
+				conf.EventCount++
+			case "alert":
+				conf.AlertCount++
+			case "gap":
+				conf.GapCount++
+			}
+			if e.Kind == "event" {
+				// Source is unavailable in TimelineEntry — approximate with severity bucket
+				sources[e.Severity]++
+			}
+		}
+		conf.SourceCount = len(sources)
+		if conf.AlertCount > 0 {
+			conf.Score += 25
+			conf.Contributions = append(conf.Contributions, "+25 alerts fired")
+		}
+		if conf.SourceCount >= 2 {
+			conf.Score += 20
+			conf.Contributions = append(conf.Contributions, "+20 multi-source")
+		}
+		if conf.GapCount > 0 {
+			penalty := conf.GapCount * 10
+			if penalty > 30 {
+				penalty = 30
+			}
+			conf.Score -= penalty
+			conf.Contributions = append(conf.Contributions, fmt.Sprintf("-%d log gaps", penalty))
+		}
+	}
+	for _, h := range c.Hypotheses {
+		if h.Status == "confirmed" {
+			conf.Score += 15
+			conf.Contributions = append(conf.Contributions, "+15 confirmed hypothesis")
+			break
+		}
+	}
+	if s.foren != nil {
+		for _, ev := range s.foren.List() {
+			if c.Scope.HostID == "" || ev.HostID == c.Scope.HostID {
+				conf.Score += 30
+				conf.Contributions = append(conf.Contributions, "+30 sealed evidence")
+				break
+			}
+		}
+	}
+	if conf.Score < 0 {
+		conf.Score = 0
+	}
+	if conf.Score > 100 {
+		conf.Score = 100
+	}
+	conf.Explanation = explainScore(conf.Score)
+	return conf, nil
+}
+
+func explainScore(s int) string {
+	switch {
+	case s >= 80:
+		return "high — multi-source corroboration with sealed evidence"
+	case s >= 60:
+		return "moderate — strong signal but evidence not yet sealed"
+	case s >= 40:
+		return "preliminary — some corroboration, more pivots recommended"
+	default:
+		return "weak — case scope contains few signals"
+	}
 }

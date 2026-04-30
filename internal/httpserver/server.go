@@ -247,6 +247,10 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET /api/v1/cases/{id}/timeline", s.caseTimeline)
 		s.mux.HandleFunc("POST /api/v1/cases/{id}/notes", s.caseNote)
 		s.mux.HandleFunc("POST /api/v1/cases/{id}/seal", s.caseSeal)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/hypotheses", s.caseHypothesisAdd)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/hypotheses/{hid}", s.caseHypothesisStatus)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/annotate", s.caseAnnotate)
+		s.mux.HandleFunc("GET /api/v1/cases/{id}/confidence", s.caseConfidence)
 	}
 	// Vault.
 	if s.vault != nil {
@@ -933,6 +937,82 @@ func (s *Server) caseNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseHypothesisAdd(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		Statement string `json:"statement"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	author, _ := actorOf(r.Context())
+	if author == "" {
+		author = "anonymous"
+	}
+	c, err := s.investigations.AddHypothesis(r.Context(), id, author, body.Statement)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseHypothesisStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	hid := r.PathValue("hid")
+	var body struct {
+		Status      string   `json:"status"`
+		EvidenceIDs []string `json:"evidenceIds"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	author, _ := actorOf(r.Context())
+	if author == "" {
+		author = "anonymous"
+	}
+	c, err := s.investigations.SetHypothesisStatus(r.Context(), id, hid, author, body.Status, body.EvidenceIDs)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseAnnotate(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		EventID string `json:"eventId"`
+		Body    string `json:"body"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	author, _ := actorOf(r.Context())
+	if author == "" {
+		author = "anonymous"
+	}
+	c, err := s.investigations.Annotate(r.Context(), id, body.EventID, author, body.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseConfidence(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	conf, err := s.investigations.Confidence(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, conf)
 }
 
 func (s *Server) caseSeal(w http.ResponseWriter, r *http.Request) {
