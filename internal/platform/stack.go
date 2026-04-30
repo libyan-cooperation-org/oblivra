@@ -51,6 +51,7 @@ type Stack struct {
 	Graph          *services.EvidenceGraphService
 	Import         *services.ImportService
 	Report         *services.ReportService
+	Tamper         *services.TamperService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -173,6 +174,9 @@ func New(opts Options) (*Stack, error) {
 	}
 	tier := services.NewTieringService(opts.Logger, migrator)
 	lineage := services.NewLineageService(opts.Logger)
+	if err := lineage.AttachJournal(dir); err != nil {
+		opts.Logger.Warn("lineage journal disabled", "err", err)
+	}
 	vaultSvc := services.NewVaultService(opts.Logger, dir)
 	timeline := services.NewTimelineService(store, alerts, foren)
 	investigations, err := services.NewInvestigationsService(opts.Logger, dir, store, alerts, foren, audit)
@@ -188,6 +192,7 @@ func New(opts Options) (*Stack, error) {
 	graphSvc := services.NewEvidenceGraphService(opts.Logger)
 	importSvc := services.NewImportService(opts.Logger, pipeline)
 	reportSvc := services.NewReportService(opts.Logger, investigations, audit)
+	tamperSvc := services.NewTamperService(opts.Logger, alerts)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -213,6 +218,7 @@ func New(opts Options) (*Stack, error) {
 		Graph:          graphSvc,
 		Import:         importSvc,
 		Report:         reportSvc,
+		Tamper:         tamperSvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -317,6 +323,7 @@ func (s *Stack) startProcessors(parent context.Context) {
 		func(ctx context.Context, ev events.Event) { s.Reconstruction.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Trust.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Quality.Observe(ctx, ev) },
+		func(ctx context.Context, ev events.Event) { s.Tamper.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) {
 			// IOC enrichment — match every text field against the IOC table.
 			candidates := []string{ev.HostID, ev.Message, ev.Raw}
@@ -370,6 +377,11 @@ func (s *Stack) Close() error {
 	var first error
 	if s.Investigations != nil {
 		if err := s.Investigations.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	if s.Lineage != nil {
+		if err := s.Lineage.Close(); err != nil && first == nil {
 			first = err
 		}
 	}

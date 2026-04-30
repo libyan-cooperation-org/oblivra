@@ -47,6 +47,7 @@ type Server struct {
 	graph          *services.EvidenceGraphService
 	imp            *services.ImportService
 	report         *services.ReportService
+	tamper         *services.TamperService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -76,6 +77,7 @@ type Deps struct {
 	Graph          *services.EvidenceGraphService
 	Import         *services.ImportService
 	Report         *services.ReportService
+	Tamper         *services.TamperService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -106,6 +108,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		graph:          deps.Graph,
 		imp:            deps.Import,
 		report:         deps.Report,
+		tamper:         deps.Tamper,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -231,6 +234,11 @@ func (s *Server) routes() {
 	if s.lineage != nil {
 		s.mux.HandleFunc("GET /api/v1/forensics/lineage", s.lineageHosts)
 		s.mux.HandleFunc("GET /api/v1/forensics/lineage/tree", s.lineageTree)
+		s.mux.HandleFunc("GET /api/v1/forensics/lineage/cross-host", s.lineageCrossHost)
+	}
+	// Tamper findings.
+	if s.tamper != nil {
+		s.mux.HandleFunc("GET /api/v1/forensics/tamper", s.tamperFindings)
 	}
 	// Timeline.
 	if s.timeline != nil {
@@ -837,6 +845,26 @@ func (s *Server) lineageTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.lineage.Tree(host))
+}
+
+func (s *Server) lineageCrossHost(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name query param required")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.lineage.CrossHostByName(name))
+}
+
+func (s *Server) tamperFindings(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.tamper.Findings(host, limit))
 }
 
 // ---- Timeline ----

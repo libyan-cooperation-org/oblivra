@@ -14,11 +14,26 @@
 package trust
 
 import (
+	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/kingknull/oblivra/internal/events"
 )
+
+// pickSeq extracts a monotonic sequence number from common log shapes.
+// Returns 0 when no usable sequence is present.
+func pickSeq(ev events.Event) int64 {
+	for _, k := range []string{"seq", "RecordNumber", "EventRecordID", "msgId", "serial"} {
+		if v, ok := ev.Fields[k]; ok && v != "" {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
 
 type Grade string
 
@@ -52,6 +67,7 @@ type Engine struct {
 	records      map[string]*Record       // eventID → record
 	fingerprints map[string][]string      // fingerprint → event IDs
 	srcWatermark map[string]time.Time     // host|source → last-seen timestamp
+	seqWatermark map[string]int64         // host|source → last-seen sequence number
 	skewLimit    time.Duration
 }
 
@@ -60,6 +76,7 @@ func New() *Engine {
 		records:      map[string]*Record{},
 		fingerprints: map[string][]string{},
 		srcWatermark: map[string]time.Time{},
+		seqWatermark: map[string]int64{},
 		skewLimit:    5 * time.Minute,
 	}
 }
@@ -99,6 +116,29 @@ func (e *Engine) Observe(ev events.Event) {
 	}
 	if ev.Timestamp.After(last) {
 		e.srcWatermark[srcKey] = ev.Timestamp
+	}
+
+	// Sequence-number break detection. Windows EventID (`recordId`), syslog
+	// `seq` field, and auditd-like serial numbers all expose a monotonic
+	// sequence we can check for missing IDs.
+	if seq := pickSeq(ev); seq > 0 {
+		seqKey := srcKey
+		if prev, ok := e.seqWatermark[seqKey]; ok {
+			if seq > prev+1 {
+				rec.Anomalies = append(rec.Anomalies, Anomaly{
+					Kind:   "sequence-gap",
+					Detail: fmt.Sprintf("missing %d sequence numbers between %d and %d", seq-prev-1, prev, seq),
+				})
+			} else if seq < prev {
+				rec.Anomalies = append(rec.Anomalies, Anomaly{
+					Kind:   "sequence-rewound",
+					Detail: fmt.Sprintf("seq %d arrived after %d (clock or rotation issue?)", seq, prev),
+				})
+			}
+		}
+		if seq > e.seqWatermark[seqKey] {
+			e.seqWatermark[seqKey] = seq
+		}
 	}
 	e.mu.Unlock()
 

@@ -1,7 +1,13 @@
 package services
 
 import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -36,10 +42,128 @@ type LineageService struct {
 	mu  sync.RWMutex
 	// host → pid → node
 	byHost map[string]map[int]*LineageNode
+
+	// optional persistence
+	path string
+	file *os.File
 }
 
 func NewLineageService(log *slog.Logger) *LineageService {
 	return &LineageService{log: log, byHost: map[string]map[int]*LineageNode{}}
+}
+
+// AttachJournal opens (and replays) {dir}/lineage.log so process-tree state
+// survives restarts. Best-effort — failures fall back to in-memory only.
+func (s *LineageService) AttachJournal(dir string) error {
+	if dir == "" {
+		return errors.New("lineage: dir required")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "lineage.log")
+	if err := s.replay(path); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	s.path = path
+	s.file = f
+	return nil
+}
+
+func (s *LineageService) replay(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		line, err := br.ReadBytes('\n')
+		if len(line) > 0 {
+			var n LineageNode
+			if jerr := json.Unmarshal(line, &n); jerr == nil {
+				s.upsert(&n)
+			}
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+func (s *LineageService) upsert(n *LineageNode) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	hosts, ok := s.byHost[n.HostID]
+	if !ok {
+		hosts = map[int]*LineageNode{}
+		s.byHost[n.HostID] = hosts
+	}
+	cur, exists := hosts[n.PID]
+	if !exists {
+		cp := *n
+		hosts[n.PID] = &cp
+		return
+	}
+	if n.LastSeen.After(cur.LastSeen) {
+		cur.LastSeen = n.LastSeen
+	}
+	if n.PPID > 0 {
+		cur.PPID = n.PPID
+	}
+	if n.Name != "" {
+		cur.Name = n.Name
+	}
+	if n.Command != "" {
+		cur.Command = n.Command
+	}
+	cur.Events += n.Events
+}
+
+// Close flushes the journal file.
+func (s *LineageService) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file != nil {
+		if err := s.file.Sync(); err != nil {
+			return err
+		}
+		err := s.file.Close()
+		s.file = nil
+		return err
+	}
+	return nil
+}
+
+// CrossHostByName returns every process across every host whose Name (image)
+// matches the given executable. Useful for "where did powershell.exe run
+// today?" analyst pivots.
+func (s *LineageService) CrossHostByName(name string) []LineageNode {
+	if name == "" {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []LineageNode{}
+	for _, hosts := range s.byHost {
+		for _, n := range hosts {
+			if n.Name == name {
+				out = append(out, *n)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].LastSeen.After(out[j].LastSeen) })
+	return out
 }
 
 func (s *LineageService) ServiceName() string { return "LineageService" }
@@ -54,7 +178,6 @@ func (s *LineageService) Observe(ev events.Event) {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	hosts, ok := s.byHost[ev.HostID]
 	if !ok {
 		hosts = map[int]*LineageNode{}
@@ -76,6 +199,17 @@ func (s *LineageService) Observe(ev events.Event) {
 	}
 	n.LastSeen = ev.Timestamp
 	n.Events++
+	snapshot := *n
+	file := s.file
+	s.mu.Unlock()
+
+	if file != nil {
+		if b, err := json.Marshal(snapshot); err == nil {
+			b = append(b, '\n')
+			_, _ = file.Write(b)
+			_ = file.Sync()
+		}
+	}
 }
 
 func (s *LineageService) Tree(host string) Tree {

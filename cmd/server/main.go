@@ -79,6 +79,7 @@ func main() {
 		Graph:          stack.Graph,
 		Import:         stack.Import,
 		Report:         stack.Report,
+		Tamper:         stack.Tamper,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,
