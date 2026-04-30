@@ -132,13 +132,35 @@ tasks:
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-migrate ./cmd/migrate
 
   tools:build:
-    desc: Build all CLI tools (server + cli + agent + verify + migrate)
+    desc: Build all CLI tools (server + cli + agent + verify + migrate + soak + smoke)
     cmds:
       - task: server:build
       - task: cli:build
       - task: agent:build
       - task: verify:build
       - task: migrate:build
+      - task: soak:build
+      - task: smoke:build
+
+  soak:build:
+    desc: Build oblivra-soak
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-soak ./cmd/soak
+
+  smoke:build:
+    desc: Build oblivra-smoke
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-smoke ./cmd/smoke
+
+  ci:
+    desc: Run the full CI gauntlet — fmt, vet, tests, frontend build
+    cmds:
+      - gofmt -l . | (! grep .)
+      - go vet ./...
+      - go test ./...
+      - task: build:frontend
 
   # ---- Quality ------------------------------------------------------------
 
