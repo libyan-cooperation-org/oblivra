@@ -28,6 +28,54 @@ It is a system designed to:
 
 ---
 
+## Snapshot of what's built (auto-updated each working session)
+
+**Foundation**
+* Wails v3 desktop shell + headless `cmd/server` sharing one Svelte 5 + Tailwind 4 frontend
+* BadgerDB hot store, line-delimited JSON WAL with fsync, Bleve per-tenant full-text indices, Parquet warm tier with hot eviction
+* Event bus with bounded fan-out, async processors (rules / UEBA / forensics / lineage / IOC enrichment)
+* Cross-platform Taskfile (`windows:build` / `darwin:build` / `linux:build`) so `wails3 build` works on every platform
+
+**Services**
+* `SiemService` — ingest (single/batch/raw), search (Bleve / chronological / OQL pipe-syntax), stats, EPS rolling window
+* `RulesService` — 29 builtin rules + Sigma YAML loader + fsnotify hot-reload + MITRE heatmap
+* `AlertService`, `ThreatIntelService` (with seeded IOCs)
+* `AuditService` — durable on-disk Merkle journal, replay-on-startup tamper detection, HMAC-signed
+* `FleetService` — agent register/token/batch ingest
+* `UebaService` — per-host EPM baselines, z-score anomalies (≥3σ raises alerts)
+* `NdrService` + NetFlow v5 UDP listener (`:2055`)
+* `ForensicsService` — log-gap detection, evidence sealing
+* `TieringService` — hot→warm Parquet migration with crash-safe write→fsync→evict
+* `LineageService` — pid/ppid/image extraction from log messages
+* `VaultService` — AES-256-GCM + Argon2id passphrase-encrypted secrets
+* `TimelineService` — merged event/alert/gap/evidence stream per host
+* `internal/scheduler` — periodic warm migration + audit health checks
+
+**Listeners / ingest paths**
+* Syslog UDP (`:1514`) — RFC 5424 / 3164 / JSON / CEF / auto-detect parsers
+* NetFlow v5 UDP (`:2055`)
+* `cmd/agent` — file-tail or stdin → batched HTTPS forward, on-disk spill+replay
+* `POST /api/v1/siem/ingest`, `/ingest/batch`, `/ingest/raw?format=`
+* WebSocket live tail at `/api/v1/events`
+
+**HTTP surface**
+* `/healthz`, `/readyz`, `/metrics` (Prometheus exposition; auth-exempt)
+* RBAC middleware: `OBLIVRA_API_KEYS=key:role,...` (admin/analyst/readonly/agent)
+* **`auditmw`** wraps every audited route — search, OQL, audit ops, evidence, storage, rules reload, intel, vault, fleet — and records `{actor, role, method, path, status, bytes, duration, query, uaHash}` in the durable chain
+* Endpoints: siem/{ingest, search, oql, stats}, alerts, detection/rules{,/reload}, mitre/heatmap, threatintel/{lookup,indicators,indicator}, audit/{log,verify,packages/generate}, agent/{fleet,register,ingest}, ueba/{profiles,anomalies}, ndr/{flows,top-talkers}, forensics/{gaps,evidence,lineage,lineage/tree}, storage/{stats,promote}, vault/{status,init,unlock,lock,secret}, investigations/timeline
+
+**Frontend (Svelte 5 + Tailwind 4)**
+* Sidebar nav with grouped sections (Observe / Respond / Manage)
+* Views: Overview, SIEM (live tail via WebSocket + query bar + filter chips + ingest probe), Detection (rules + alerts + MITRE heatmap), Investigations (per-host triage + UEBA detail), Evidence (audit chain + sealed packages + log gaps), Fleet (agents + IOCs), Admin (storage tiering)
+
+**CLI**
+* `oblivra-cli`: ping / stats / ingest / search / alerts / audit verify / audit log / fleet / rules / intel
+
+**Tests**
+* `go test ./...` clean across parsers, sigma loader, audit (incl. durable journal restart + tamper), rules, vault, OQL
+
+---
+
 # 🔥 Beta-1 Critical Path (Must Ship)
 
 ## 1. Ingestion Integrity
