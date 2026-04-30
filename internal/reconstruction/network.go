@@ -227,6 +227,15 @@ func flowKey(src, dst string, sp, dp int, proto string) string {
 	return src + ":" + itoa(sp) + "→" + dst + ":" + itoa(dp) + "/" + proto
 }
 
+func contains(s []string, x string) bool {
+	for _, v := range s {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return ""
