@@ -2,9 +2,14 @@ version: '3'
 
 # OBLIVRA build commands. Install Task: https://taskfile.dev/installation/
 # Run `task --list` to see all targets.
+#
+# `wails3 build` looks up the task named for the current platform — windows:build /
+# darwin:build / linux:build — so those need to exist. The generic `build` target
+# dispatches to the right one.
 
 vars:
   BIN_DIR: ./build/bin
+  APP_NAME: oblivra
   LDFLAGS: '-w -s'
 
 tasks:
@@ -13,11 +18,56 @@ tasks:
     cmds:
       - task --list
 
-  install:
-    desc: Install all dependencies (Go modules + frontend)
+  # ---- Wails-canonical entry points ---------------------------------------
+
+  dev:
+    desc: Wails3 dev shell (hot-reload) — invoked by `wails3 dev`
     cmds:
-      - go mod tidy
       - task: frontend:install
+      - task: build:frontend:dev
+      - go run -tags dev .
+
+  build:
+    desc: Build the desktop binary for the current OS — invoked by `wails3 build`
+    cmds:
+      - task: '{{OS}}:build'
+
+  windows:build:
+    desc: Build Wails desktop binary for Windows
+    deps: [build:frontend]
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -tags production -trimpath -ldflags "-H windowsgui {{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}}.exe .
+
+  darwin:build:
+    desc: Build Wails desktop binary for macOS
+    deps: [build:frontend]
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -tags production -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}} .
+
+  linux:build:
+    desc: Build Wails desktop binary for Linux
+    deps: [build:frontend]
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -tags production -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}} .
+
+  # ---- Frontend ------------------------------------------------------------
+
+  build:frontend:
+    desc: Build production Svelte bundle into webassets/dist
+    dir: frontend
+    cmds:
+      - npm install
+      - npm run build
+
+  build:frontend:dev:
+    desc: One-off frontend build so dev start doesn't 404
+    dir: frontend
+    cmds:
+      - npm install
+      - npm run build
 
   frontend:install:
     desc: Install frontend dependencies
@@ -32,10 +82,9 @@ tasks:
       - npm run dev
 
   frontend:build:
-    desc: Build production frontend bundle into webassets/dist
-    dir: frontend
+    desc: Alias for build:frontend
     cmds:
-      - npm run build
+      - task: build:frontend
 
   frontend:check:
     desc: Type-check Svelte components
@@ -43,28 +92,34 @@ tasks:
     cmds:
       - npm run check
 
-  desktop:dev:
-    desc: Run Wails v3 desktop shell with hot-reload
-    cmds:
-      - wails3 dev
-
-  desktop:build:
-    desc: Build production desktop binary
-    deps: [frontend:build]
-    cmds:
-      - wails3 build
+  # ---- Server / CLI / Agent -----------------------------------------------
 
   server:run:
     desc: Run headless REST server (browser UI at http://localhost:8080)
-    deps: [frontend:build]
+    deps: [build:frontend]
     cmds:
       - go run ./cmd/server
 
   server:build:
     desc: Build production headless server binary
-    deps: [frontend:build]
+    deps: [build:frontend]
     cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-server ./cmd/server
+
+  cli:build:
+    desc: Build oblivra-cli
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-cli ./cmd/cli
+
+  agent:build:
+    desc: Build oblivra-agent (log-tailing forwarder)
+    cmds:
+      - go run ./tools/ensure-dir {{.BIN_DIR}}
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-agent ./cmd/agent
+
+  # ---- Quality ------------------------------------------------------------
 
   test:
     desc: Run Go tests
@@ -85,6 +140,4 @@ tasks:
   clean:
     desc: Remove build artifacts
     cmds:
-      - rm -rf build/bin webassets/dist/* frontend/node_modules
-      - mkdir -p webassets/dist
-      - 'echo "<!doctype html><html><body>placeholder</body></html>" > webassets/dist/index.html'
+      - go run ./tools/clean

@@ -94,6 +94,13 @@ func (s *AlertService) Recent(limit int) []Alert {
 	return out
 }
 
+// Count returns the current alert ring size without copying.
+func (s *AlertService) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.all)
+}
+
 // Ack flips an alert to acknowledged.
 func (s *AlertService) Ack(id string) bool {
 	s.mu.Lock()

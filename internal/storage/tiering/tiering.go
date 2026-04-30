@@ -94,6 +94,16 @@ func New(log *slog.Logger, store *hot.Store, opts Options) (*Migrator, error) {
 }
 
 // Run performs one migration pass. Returns the number of events moved.
+//
+// Order of operations is important for crash safety:
+//  1. Range-scan eligible events from hot.
+//  2. Write them to a parquet file in warm.
+//  3. fsync the file (close() + os.File.Sync()).
+//  4. Only then delete from hot.
+//
+// If we crash between (3) and (4), the next run re-reads the same events from
+// hot and writes them to a new file — duplicate-but-safe. If we crashed after
+// the delete the events are gone but already in warm.
 func (m *Migrator) Run(ctx context.Context) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -115,8 +125,10 @@ func (m *Migrator) Run(ctx context.Context) (int, error) {
 	}
 
 	rows := make([]ParquetEvent, len(evs))
+	ids := make([]string, len(evs))
 	for i, e := range evs {
 		rows[i] = toParquet(e)
+		ids[i] = e.ID
 	}
 
 	stamp := time.Now().UTC().Format("20060102T150405Z")
@@ -125,24 +137,38 @@ func (m *Migrator) Run(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
 
 	w := parquet.NewGenericWriter[ParquetEvent](f)
 	if _, err := w.Write(rows); err != nil {
 		_ = w.Close()
+		_ = f.Close()
 		return 0, err
 	}
 	if err := w.Close(); err != nil {
+		_ = f.Close()
+		return 0, err
+	}
+	// fsync before declaring durability
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return 0, err
+	}
+	if err := f.Close(); err != nil {
 		return 0, err
 	}
 
-	// Hot eviction is deferred — the README treats warm as a copy until a
-	// purge confirms the warm tier; safer for a Phase-22.3 first cut.
+	// Warm is durable — now safe to evict from hot.
+	if err := m.hot.Delete(m.tenantID, ids); err != nil {
+		// Warm has the data; hot eviction failed. Log but report success
+		// since the durable side is fine.
+		m.log.Warn("warm written but hot delete failed", "err", err, "file", path)
+	}
+
 	m.files.Add(1)
 	m.events.Add(int64(len(rows)))
 	m.lastRun = time.Now().UTC()
 	m.lastMoved.Store(int64(len(rows)))
-	m.log.Info("warm tier write", "file", path, "rows", len(rows))
+	m.log.Info("warm tier write+evict", "file", path, "rows", len(rows))
 	return len(rows), nil
 }
 

@@ -69,6 +69,7 @@ func main() {
 		Foren:   stack.Foren,
 		Tier:    stack.Tier,
 		Lineage: stack.Lineage,
+		Vault:   stack.Vault,
 		Bus:     stack.Bus,
 		Auth:   auth,
 		Assets: sub,

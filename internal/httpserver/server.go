@@ -35,6 +35,7 @@ type Server struct {
 	foren   *services.ForensicsService
 	tier    *services.TieringService
 	lineage *services.LineageService
+	vault   *services.VaultService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -54,6 +55,7 @@ type Deps struct {
 	Foren   *services.ForensicsService
 	Tier    *services.TieringService
 	Lineage *services.LineageService
+	Vault   *services.VaultService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -74,6 +76,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		foren:   deps.Foren,
 		tier:    deps.Tier,
 		lineage: deps.Lineage,
+		vault:   deps.Vault,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -92,9 +95,10 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes() {
-	// Liveness — never auth-gated.
+	// Liveness + metrics — never auth-gated, scraped by ops tooling.
 	s.mux.HandleFunc("GET /healthz", s.health)
 	s.mux.HandleFunc("GET /readyz", s.health)
+	s.mux.HandleFunc("GET /metrics", metricsHandler(s.siem, s.alerts, s.fleet))
 
 	// System.
 	s.mux.HandleFunc("GET /api/v1/system/info", s.systemInfo)
@@ -162,6 +166,15 @@ func (s *Server) routes() {
 	if s.lineage != nil {
 		s.mux.HandleFunc("GET /api/v1/forensics/lineage", s.lineageHosts)
 		s.mux.HandleFunc("GET /api/v1/forensics/lineage/tree", s.lineageTree)
+	}
+	// Vault.
+	if s.vault != nil {
+		s.mux.HandleFunc("GET /api/v1/vault/status", s.vaultStatus)
+		s.mux.HandleFunc("POST /api/v1/vault/init", s.vaultInit)
+		s.mux.HandleFunc("POST /api/v1/vault/unlock", s.vaultUnlock)
+		s.mux.HandleFunc("POST /api/v1/vault/lock", s.vaultLock)
+		s.mux.HandleFunc("POST /api/v1/vault/secret", s.vaultSet)
+		s.mux.HandleFunc("DELETE /api/v1/vault/secret", s.vaultDelete)
 	}
 
 	if s.assets != nil {
@@ -554,6 +567,83 @@ func (s *Server) lineageTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.lineage.Tree(host))
+}
+
+// ---- Vault ----
+
+func (s *Server) vaultStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.vault.Status())
+}
+
+type vaultReq struct {
+	Passphrase string `json:"passphrase,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Value      string `json:"value,omitempty"`
+}
+
+func (s *Server) vaultInit(w http.ResponseWriter, r *http.Request) {
+	var req vaultReq
+	if err := readJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Passphrase == "" {
+		writeError(w, http.StatusBadRequest, "passphrase required")
+		return
+	}
+	if err := s.vault.Initialize(req.Passphrase); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, s.vault.Status())
+}
+
+func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
+	var req vaultReq
+	if err := readJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.vault.Unlock(req.Passphrase); err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, s.vault.Status())
+}
+
+func (s *Server) vaultLock(w http.ResponseWriter, _ *http.Request) {
+	s.vault.Lock()
+	writeJSON(w, http.StatusOK, s.vault.Status())
+}
+
+func (s *Server) vaultSet(w http.ResponseWriter, r *http.Request) {
+	var req vaultReq
+	if err := readJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	if err := s.vault.Set(req.Name, req.Value); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusNoContent, nil)
+}
+
+func (s *Server) vaultDelete(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "name required")
+		return
+	}
+	if err := s.vault.Delete(name); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusNoContent, nil)
 }
 
 // ---- helpers ----

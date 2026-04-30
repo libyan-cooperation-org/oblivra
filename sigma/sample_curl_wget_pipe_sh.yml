@@ -1,0 +1,20 @@
+title: Curl/Wget piped to shell (Sigma)
+id: sigma-pipe-curl-sh
+description: Classic remote-payload installer pattern — fetch and execute in one command
+status: experimental
+level: high
+logsource:
+  product: linux
+detection:
+  selection:
+    CommandLine|contains:
+      - 'curl '
+      - 'wget '
+      - '| bash'
+      - '| sh'
+      - '| zsh'
+  condition: selection
+tags:
+  - attack.execution
+  - attack.t1059.004
+  - attack.t1105

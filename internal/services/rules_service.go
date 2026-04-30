@@ -27,15 +27,22 @@ type Rule struct {
 	Disabled   bool          `json:"disabled,omitempty"`
 }
 
+// SigmaLoader is the dependency injection seam for loading external Sigma
+// rule bundles. We only define the interface here so the services package
+// stays free of YAML/file I/O — internal/sigma plugs in via SetLoader.
+type SigmaLoader func(dir string) (rules []Rule, errs []error)
+
 type RulesService struct {
 	log    *slog.Logger
 	alerts *AlertService
 
-	mu       sync.RWMutex
-	rules    []Rule
-	matched  map[string]int  // ruleID → match count
-	heatmap  map[string]int  // MITRE technique → count
-	lastLoad time.Time
+	mu        sync.RWMutex
+	rules     []Rule
+	matched   map[string]int // ruleID → match count
+	heatmap   map[string]int // MITRE technique → count
+	lastLoad  time.Time
+	sigmaDir  string
+	sigmaLoad SigmaLoader
 }
 
 func NewRulesService(log *slog.Logger, alerts *AlertService) *RulesService {
@@ -48,6 +55,15 @@ func NewRulesService(log *slog.Logger, alerts *AlertService) *RulesService {
 	r.rules = builtinRules()
 	r.lastLoad = time.Now().UTC()
 	return r
+}
+
+// AttachSigma points the rules service at a directory of *.yml Sigma rules
+// and a loader function. Calling Reload() afterwards picks them up.
+func (r *RulesService) AttachSigma(dir string, loader SigmaLoader) {
+	r.mu.Lock()
+	r.sigmaDir = dir
+	r.sigmaLoad = loader
+	r.mu.Unlock()
 }
 
 func (r *RulesService) ServiceName() string { return "RulesService" }
@@ -88,11 +104,19 @@ func (r *RulesService) List() []Rule {
 	return out
 }
 
-// Reload re-imports built-ins. Hot-reload from disk lands in Phase 4 polish.
+// Reload re-imports built-ins and any attached Sigma directory.
 func (r *RulesService) Reload() (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.rules = builtinRules()
+	all := builtinRules()
+	if r.sigmaLoad != nil && r.sigmaDir != "" {
+		more, errs := r.sigmaLoad(r.sigmaDir)
+		for _, e := range errs {
+			r.log.Warn("sigma load", "err", e)
+		}
+		all = append(all, more...)
+	}
+	r.rules = all
 	r.lastLoad = time.Now().UTC()
 	return len(r.rules), nil
 }
@@ -165,70 +189,91 @@ func buildTarget(fields []string, ev events.Event) string {
 }
 
 func builtinRules() []Rule {
+	mk := func(id, name string, sev AlertSeverity, mitre []string, any []string) Rule {
+		return Rule{
+			ID: id, Name: name, Severity: sev,
+			Fields: []string{"message", "raw"}, AnyContain: any,
+			MITRE: mitre, Source: "builtin",
+		}
+	}
 	return []Rule{
+		// Linux / SSH
+		mk("builtin-ssh-bruteforce", "Possible SSH brute force", AlertSeverityHigh,
+			[]string{"T1110.001"}, []string{"failed password", "authentication failure"}),
+		mk("builtin-ssh-key-injected", "SSH key injection into authorized_keys", AlertSeverityHigh,
+			[]string{"T1098.004"}, []string{"authorized_keys", "ssh-rsa AAAA"}),
+		mk("builtin-sudo-failed", "Failed sudo attempt", AlertSeverityMedium,
+			[]string{"T1548.003"}, []string{"sudo: pam_unix", "sudo: 3 incorrect"}),
+		mk("builtin-cron-tamper", "Cron persistence written", AlertSeverityMedium,
+			[]string{"T1053.003"}, []string{"crontab -e", "REPLACE crontab", "/etc/cron.d/"}),
+		mk("builtin-ld-preload", "LD_PRELOAD hijack", AlertSeverityHigh,
+			[]string{"T1574.006"}, []string{"LD_PRELOAD=", "/etc/ld.so.preload"}),
+		mk("builtin-rootkit-load", "Suspicious kernel module load", AlertSeverityCritical,
+			[]string{"T1547.006"}, []string{"insmod ", "modprobe ", "init_module"}),
+
+		// Windows — LSASS rule keeps AllContain so plain "comsvcs.dll loaded"
+		// (legitimate audit) doesn't fire; we want lsass + a dump-tooling token.
 		{
-			ID:       "builtin-ssh-bruteforce",
-			Name:     "Possible SSH brute force",
-			Severity: AlertSeverityHigh,
-			AnyContain: []string{"failed password", "authentication failure"},
-			Fields:   []string{"message", "raw"},
-			MITRE:    []string{"T1110.001"},
-			Source:   "builtin",
-		},
-		{
-			ID:       "builtin-sudo-failed",
-			Name:     "Failed sudo attempt",
-			Severity: AlertSeverityMedium,
-			AnyContain: []string{"sudo: pam_unix", "sudo: 3 incorrect"},
-			Fields:   []string{"message", "raw"},
-			MITRE:    []string{"T1548.003"},
-			Source:   "builtin",
-		},
-		{
-			ID:       "builtin-firewall-drop",
-			Name:     "Firewall dropped traffic",
-			Severity: AlertSeverityLow,
-			AnyContain: []string{"firewalld dropped", "iptables: drop", "kernel: ufw block"},
-			Fields:   []string{"message", "raw"},
-			MITRE:    []string{"T1190"},
-			Source:   "builtin",
-		},
-		{
-			ID:       "builtin-windows-lsass",
-			Name:     "LSASS access (possible credential dumping)",
+			ID: "builtin-windows-lsass", Name: "LSASS access (possible credential dumping)",
 			Severity: AlertSeverityCritical,
-			AnyContain: []string{"lsass.exe", "MiniDump", "comsvcs.dll"},
+			Fields:   []string{"message", "raw"},
 			AllContain: []string{"lsass"},
-			Fields:   []string{"message", "raw"},
-			MITRE:    []string{"T1003.001"},
-			Source:   "builtin",
-		},
-		{
-			ID:       "builtin-powershell-encoded",
-			Name:     "PowerShell encoded command",
-			Severity: AlertSeverityHigh,
-			AnyContain: []string{"powershell -enc", "powershell.exe -encodedcommand", " -e JAB"},
-			Fields:   []string{"message", "raw"},
-			MITRE:    []string{"T1059.001"},
-			Source:   "builtin",
-		},
-		{
-			ID:       "builtin-ransomware-shadow-delete",
-			Name:     "Volume shadow copy deletion",
-			Severity: AlertSeverityCritical,
-			AnyContain: []string{"vssadmin delete shadows", "wmic shadowcopy delete", "bcdedit /set bootstatuspolicy"},
-			Fields:   []string{"message", "raw"},
-			MITRE:    []string{"T1490"},
-			Source:   "builtin",
-		},
-		{
-			ID:       "builtin-ioc-match",
-			Name:     "Threat-intel indicator matched in event",
-			Severity: AlertSeverityHigh,
-			Fields:   []string{"message", "raw", "hostId"},
-			AnyContain: []string{"198.51.100.7", "malicious.example.com"}, // mirrors threatintel seed
-			MITRE:      []string{"T1071"},
+			AnyContain: []string{"lsass.exe", "MiniDump", "comsvcs.dll", "procdump", "rundll32 comsvcs"},
+			MITRE:      []string{"T1003.001"},
 			Source:     "builtin",
 		},
+		mk("builtin-powershell-encoded", "PowerShell encoded command", AlertSeverityHigh,
+			[]string{"T1059.001"}, []string{"powershell -enc", "powershell.exe -encodedcommand", " -e JAB"}),
+		mk("builtin-powershell-downloadstring", "PowerShell DownloadString", AlertSeverityHigh,
+			[]string{"T1059.001", "T1105"}, []string{"DownloadString", "Invoke-Expression", "iex (", "(New-Object Net.WebClient)"}),
+		mk("builtin-mshta-remote", "Mshta launching remote payload", AlertSeverityHigh,
+			[]string{"T1218.005"}, []string{"mshta http", "mshta.exe javascript:"}),
+		mk("builtin-rundll32-from-temp", "Rundll32 launched from temp", AlertSeverityHigh,
+			[]string{"T1218.011"}, []string{"rundll32 \\appdata\\local\\temp", "rundll32.exe c:\\users\\public"}),
+		mk("builtin-bitsadmin-transfer", "BITSAdmin transfer", AlertSeverityMedium,
+			[]string{"T1197"}, []string{"bitsadmin /transfer", "bitsadmin.exe /create"}),
+		mk("builtin-certutil-decode", "Certutil decode (LOLBin)", AlertSeverityMedium,
+			[]string{"T1140"}, []string{"certutil -decode", "certutil.exe -urlcache -split -f"}),
+		mk("builtin-wmic-process-create", "WMIC remote process create", AlertSeverityHigh,
+			[]string{"T1047"}, []string{"wmic /node:", "wmic.exe process call create"}),
+		mk("builtin-psexec-launch", "PsExec lateral movement", AlertSeverityHigh,
+			[]string{"T1021.002"}, []string{"psexec.exe \\\\", "psexec -accepteula"}),
+		mk("builtin-runkey-registry", "Registry Run key persistence", AlertSeverityMedium,
+			[]string{"T1547.001"}, []string{"\\CurrentVersion\\Run", "reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"}),
+		mk("builtin-dcsync", "DCSync access requested", AlertSeverityCritical,
+			[]string{"T1003.006"}, []string{"DRSGetNCChanges", "GetNCChanges"}),
+		mk("builtin-kerberoast", "Kerberos service-ticket harvest", AlertSeverityHigh,
+			[]string{"T1558.003"}, []string{"Audit Failure 4769", "Ticket Encryption Type:0x17"}),
+
+		// Ransomware / impact
+		mk("builtin-ransomware-shadow-delete", "Volume shadow copy deletion", AlertSeverityCritical,
+			[]string{"T1490"}, []string{"vssadmin delete shadows", "wmic shadowcopy delete", "bcdedit /set bootstatuspolicy"}),
+		mk("builtin-ransomware-backup-delete", "Backup catalog wipe", AlertSeverityCritical,
+			[]string{"T1490"}, []string{"wbadmin delete catalog", "wbadmin delete backup"}),
+		mk("builtin-ransomware-recovery-disable", "Recovery disabled (bcdedit)", AlertSeverityCritical,
+			[]string{"T1490"}, []string{"bcdedit /set recoveryenabled no", "bcdedit /set bootstatuspolicy ignoreallfailures"}),
+
+		// Network / firewall
+		mk("builtin-firewall-drop", "Firewall dropped traffic", AlertSeverityLow,
+			[]string{"T1190"}, []string{"firewalld dropped", "iptables: drop", "kernel: ufw block"}),
+		mk("builtin-dns-tunnel-suspect", "Suspect DNS tunneling", AlertSeverityMedium,
+			[]string{"T1071.004"}, []string{"TXT IN A", "very long TXT", " query length 200"}),
+		mk("builtin-smb-enum", "SMB host enumeration", AlertSeverityMedium,
+			[]string{"T1018"}, []string{"net view \\\\", "smbclient -L \\\\"}),
+		mk("builtin-rdp-bruteforce", "RDP brute force", AlertSeverityHigh,
+			[]string{"T1110.001"}, []string{"event 4625 logon type 10", "TermService logon failed"}),
+		mk("builtin-c2-beacon-ua", "Suspicious user-agent (cobalt strike)", AlertSeverityHigh,
+			[]string{"T1071.001"}, []string{"User-Agent: Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)", "User-Agent: Cobalt"}),
+
+		// Cloud
+		mk("builtin-aws-iam-escalate", "AWS IAM privilege escalation", AlertSeverityHigh,
+			[]string{"T1098"}, []string{"AttachUserPolicy", "PutUserPolicy", "CreateAccessKey"}),
+		mk("builtin-azure-impossible-travel", "Azure impossible travel", AlertSeverityHigh,
+			[]string{"T1078.004"}, []string{"signInLogs anomaly impossibleTravel"}),
+
+		// Threat-intel cross-check (catches obvious indicator strings; the
+		// async fan-out also handles the structured matcher).
+		mk("builtin-ioc-match", "Threat-intel indicator matched in event", AlertSeverityHigh,
+			[]string{"T1071"}, []string{"198.51.100.7", "malicious.example.com"}),
 	}
 }

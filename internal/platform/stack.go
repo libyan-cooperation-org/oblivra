@@ -18,6 +18,7 @@ import (
 	"github.com/kingknull/oblivra/internal/ingest"
 	"github.com/kingknull/oblivra/internal/listeners"
 	"github.com/kingknull/oblivra/internal/services"
+	"github.com/kingknull/oblivra/internal/sigma"
 	"github.com/kingknull/oblivra/internal/storage/hot"
 	"github.com/kingknull/oblivra/internal/storage/search"
 	"github.com/kingknull/oblivra/internal/storage/tiering"
@@ -38,6 +39,7 @@ type Stack struct {
 	Foren   *services.ForensicsService
 	Tier    *services.TieringService
 	Lineage *services.LineageService
+	Vault   *services.VaultService
 	Bus     *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -111,6 +113,15 @@ func New(opts Options) (*Stack, error) {
 	intel := services.NewThreatIntelService(opts.Logger)
 	audit := services.NewAuditService(opts.Logger, hmacKey())
 	rules := services.NewRulesService(opts.Logger, alerts)
+	// Wire the Sigma directory if it exists alongside the binary or under
+	// the data dir. The loader is best-effort; missing dir = no-op.
+	sigmaDir := pickSigmaDir(dir)
+	rules.AttachSigma(sigmaDir, func(d string) ([]services.Rule, []error) {
+		return sigma.LoadDir(d)
+	})
+	if _, err := rules.Reload(); err != nil {
+		opts.Logger.Warn("sigma reload", "err", err)
+	}
 	fleet := services.NewFleetService(opts.Logger, pipeline)
 	ueba := services.NewUebaService(opts.Logger, alerts)
 	ndr := services.NewNdrService(opts.Logger)
@@ -132,6 +143,7 @@ func New(opts Options) (*Stack, error) {
 	}
 	tier := services.NewTieringService(opts.Logger, migrator)
 	lineage := services.NewLineageService(opts.Logger)
+	vaultSvc := services.NewVaultService(opts.Logger, dir)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -147,6 +159,7 @@ func New(opts Options) (*Stack, error) {
 		Foren:    foren,
 		Tier:     tier,
 		Lineage:  lineage,
+		Vault:    vaultSvc,
 		Bus:      bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -268,6 +281,27 @@ func (s *Stack) Close() error {
 		}
 	}
 	return first
+}
+
+// pickSigmaDir picks the first existing candidate among:
+//   $OBLIVRA_SIGMA_DIR, ./sigma, {dataDir}/sigma
+func pickSigmaDir(dataDir string) string {
+	candidates := []string{
+		os.Getenv("OBLIVRA_SIGMA_DIR"),
+		"sigma",
+	}
+	if dataDir != "" {
+		candidates = append(candidates, dataDir+"/sigma")
+	}
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if info, err := os.Stat(c); err == nil && info.IsDir() {
+			return c
+		}
+	}
+	return ""
 }
 
 // hmacKey returns the audit-log signing key. Generated random per-process if

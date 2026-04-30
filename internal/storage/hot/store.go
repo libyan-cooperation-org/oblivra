@@ -66,6 +66,62 @@ func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) Count() int64 { return s.count.Load() }
 
+// Delete removes a batch of events by (tenantID, eventID). Used by the
+// tiering migrator after a successful warm-tier write to reclaim hot space.
+// Missing IDs are silently skipped.
+func (s *Store) Delete(tenantID string, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	want := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		want[id] = struct{}{}
+	}
+	prefix := tenantPrefix(tenantID)
+	deleted := int64(0)
+	err := s.db.Update(func(txn *badger.Txn) error {
+		iopts := badger.DefaultIteratorOptions
+		iopts.Prefix = prefix
+		it := txn.NewIterator(iopts)
+		defer it.Close()
+		var keys [][]byte
+		for it.Rewind(); it.Valid(); it.Next() {
+			k := it.Item().KeyCopy(nil)
+			lastColon := -1
+			for i := len(k) - 1; i >= 0; i-- {
+				if k[i] == ':' {
+					lastColon = i
+					break
+				}
+			}
+			if lastColon < 0 {
+				continue
+			}
+			id := string(k[lastColon+1:])
+			if _, hit := want[id]; hit {
+				keys = append(keys, k)
+			}
+		}
+		// Iterator is closed before mutations — Badger requires it.
+		it.Close()
+		for _, k := range keys {
+			if err := txn.Delete(k); err != nil {
+				return err
+			}
+			deleted++
+		}
+		return nil
+	})
+	if err == nil {
+		// keep counter approximately accurate
+		newCount := s.count.Add(-deleted)
+		if newCount < 0 {
+			s.count.Store(0)
+		}
+	}
+	return err
+}
+
 // Lookup hydrates a slice of events by (tenantID, eventID). Missing IDs are
 // silently skipped — callers are expected to tolerate index/store skew.
 func (s *Store) Lookup(tenantID string, ids []string) ([]events.Event, error) {

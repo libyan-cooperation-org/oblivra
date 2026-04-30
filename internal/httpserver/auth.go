@@ -57,6 +57,7 @@ func NewAuth(commaSeparatedKeys string) *AuthMiddleware {
 		exempt: map[string]struct{}{
 			"/healthz":           {},
 			"/readyz":            {},
+			"/metrics":           {},
 			"/api/v1/auth/login": {},
 		},
 	}

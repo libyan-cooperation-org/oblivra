@@ -1,0 +1,22 @@
+title: PowerShell IEX Download (Sigma)
+id: sigma-ps-iex-download
+description: Detects PowerShell calling DownloadString/Invoke-Expression to load remote payloads
+status: stable
+level: high
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - DownloadString
+      - Invoke-Expression
+      - 'iex ('
+      - '(New-Object Net.WebClient)'
+  condition: selection
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.t1105
+falsepositives:
+  - Legitimate admin tooling
