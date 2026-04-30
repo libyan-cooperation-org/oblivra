@@ -204,7 +204,8 @@ Focus narrowed to high-integrity log collection, detection, UEBA, NDR, and foren
 - [x] **Phase 36.9** — frontend orphan sweep: deleted 2 stores (compliance, playbook), 5 pages (TasksPage, EscalationCenter, PurpleTeam, ResponseReplay, ConfigRisk) + emergency follow-on (SimulationPanel, AlertDashboard Resolve), stripped broken actions from AlertManagement + ThreatGraph, removed orphan Wails bindings.
 - [x] **Phase 36.10** — UI registry consolidation: stripped stale entries across CommandRail / CommandPalette / nav-config.ts / context.ts. (Architectural fix — nav-config.ts as single source of truth + CI lint — deferred.)
 - [x] **Phase 36.11** — Post-`wails3 build` orphan sweep: deleted 8 unreferenced pages + 6 unreferenced components + barrel-export cleanup; fixed 3 a11y warnings (TenantFastSwitcher, Modal). Build now produces zero warnings.
-- [ ] **Phase 36.12** — Backend Wails-binding triage: 26 service bindings have zero callers; per-service review needed to determine which Go services can be unregistered from `main_gui.go`. ~1-2 days, defer until Phase 37 starts.
+- [x] **Phase 36.12** — Backend Wails-binding triage: 26 services unregistered from `main_gui.go` (Wails-dead but Go-live — kept running in container.go for REST/eventbus consumers). Bindings will stop auto-regenerating. See `HARDENING.md` for the per-service verification.
+- [x] Create `docs/operator/log-forensics.md`
 
 ---
 

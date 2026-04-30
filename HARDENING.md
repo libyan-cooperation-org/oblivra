@@ -755,8 +755,30 @@ After `wails3 build` succeeded, a fresh `find . -name "*.svelte"` + reverse-impo
 - [x] **36.11.17** `components/ui/Modal.svelte:118` — added `onkeydown={(e) => e.stopPropagation()}` (already had `tabindex` + `aria-modal`)
 
 **Still-open items (not cleaned in this pass):**
-- [ ] **36.11.18** Wails-binding orphans — 26 service binding files in `frontend/bindings/.../services/` have zero `await import('@wailsjs/...services/X')` callers. They auto-regenerate from `main_gui.go` service registrations on every `wails generate bindings`, so disk-deleting them is fruitless until the corresponding services are unregistered. Audit candidates: `tailingservice`, `operatorservice`, `transfermanager`, `sessionpersistence`, `syntheticservice`, `counterfactualservice`, `datalifecycleservice`, `policyservice`, `governanceservice`, `metricsservice`, `telemetryservice`, `analyticsservice`, `broadcastservice`, `commandhistoryservice`, `credentialintelservice`, `diagnosticsservice`, `discoveryservice`, `fileservice`, `logsourceservice`, `multiexecservice`, `observabilityservice`, `riskservice`, `securityservice`, `sessionservice`, `shareservice`, `workspaceservice`. **Some of these may still be live via REST API** even with no Wails binding caller — needs per-service triage before any unregistration.
+- [x] **36.11.18** Wails-binding orphans — closed via Phase 36.12 (see below).
 - [ ] **36.11.19** Pre-existing dynamic-vs-static import warnings (vault/host/alerting services dual-imported in `bridge.ts` + `SecretManager.svelte` etc.) — bundle-shape suboptimality, not bugs.
+
+### Phase 36.12 — Wails service unregistration (2026-04-30)
+
+The 36.11.18 audit found 26 service bindings with zero `@wailsjs/.../services/X` consumers across the frontend. An Explore-agent pass over each service confirmed all 26 are **Wails-dead but Go-live** — they're instantiated in `container.go`, registered via `mustRegister()`, declared as struct fields in `app.go`/`clusters.go`, and feed the event bus / REST handlers / inter-service wiring. The right cleanup is therefore **not** to delete the Go services, but to **unregister them from the Wails service surface** so bindings stop auto-regenerating.
+
+**26 Wails registrations removed from `main_gui.go`:**
+
+`AnalyticsService`, `BroadcastService`, `CommandHistory`, `CounterfactualService`, `CredentialIntel`, `DataLifecycleService`, `DiagnosticsService`, `DiscoveryService`, `FileService`, `GovernanceService`, `LogSourceService`, `MetricsService`, `MultiExecService`, `ObservabilityService`, `OperatorService`, `PolicyService`, `RiskService`, `SecurityService`, `SessionPersistence`, `SessionService`, `ShareService`, `SyntheticService`, `TailingService`, `TelemetryService`, `TransferManager`, `WorkspaceService`.
+
+**Result**:
+- `wails generate bindings` will no longer create `frontend/bindings/.../services/{above}.js` for these 26 services.
+- The Go services remain live in `container.go` — REST handlers, event bus subscribers, and inter-service dependencies all keep working.
+- `main_gui.go` now exposes 34 services to Wails (down from 60), matching the actual frontend usage surface.
+
+**Verification**:
+- [x] **36.12.1** `go build ./...` → exit 0
+- [x] **36.12.2** `npm run build` (vite frontend bundle) → exit 0, built in 11.01s, zero warnings
+- [x] **36.12.3** `go test ./internal/app/... ./internal/services/...` → all pass
+- [x] **36.12.4** Spot-check: no frontend caller broke (no new `Could not load …` errors)
+
+**Open follow-on (low priority)**:
+- [ ] **36.12.5** The existing binding files in `frontend/bindings/.../services/` for the 26 unregistered services are still on disk (zero importers, harmless to the bundle). Delete on next `wails generate bindings --clean` or by running `rm` against them now. Cosmetic only.
 
 **Verification**:
 - `wails3 build` → ✅ exit 0, built in 11.03s, **zero a11y warnings**, zero plugin warnings
