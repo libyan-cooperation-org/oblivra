@@ -48,6 +48,7 @@ type Stack struct {
 	TenantPolicy   *services.TenantPolicyService
 	Trust          *services.TrustService
 	Quality        *services.QualityService
+	Graph          *services.EvidenceGraphService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -182,6 +183,7 @@ func New(opts Options) (*Stack, error) {
 	recon := services.NewReconstructionService(opts.Logger, store)
 	trustSvc := services.NewTrustService(opts.Logger)
 	qualitySvc := services.NewQualityService(opts.Logger)
+	graphSvc := services.NewEvidenceGraphService(opts.Logger)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -204,6 +206,7 @@ func New(opts Options) (*Stack, error) {
 		TenantPolicy:   tenantPolicy,
 		Trust:          trustSvc,
 		Quality:        qualitySvc,
+		Graph:          graphSvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,

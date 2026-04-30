@@ -76,6 +76,7 @@ func main() {
 		TenantPolicy:   stack.TenantPolicy,
 		Trust:          stack.Trust,
 		Quality:        stack.Quality,
+		Graph:          stack.Graph,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,

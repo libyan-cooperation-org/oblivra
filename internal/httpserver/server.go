@@ -44,6 +44,7 @@ type Server struct {
 	tenantPolicy   *services.TenantPolicyService
 	trust          *services.TrustService
 	qual           *services.QualityService
+	graph          *services.EvidenceGraphService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -70,6 +71,7 @@ type Deps struct {
 	TenantPolicy   *services.TenantPolicyService
 	Trust          *services.TrustService
 	Quality        *services.QualityService
+	Graph          *services.EvidenceGraphService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -97,6 +99,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		tenantPolicy:   deps.TenantPolicy,
 		trust:          deps.Trust,
 		qual:           deps.Quality,
+		graph:          deps.Graph,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -203,6 +206,11 @@ func (s *Server) routes() {
 	if s.recon != nil {
 		s.mux.HandleFunc("GET /api/v1/reconstruction/flows", s.reconFlows)
 		s.mux.HandleFunc("GET /api/v1/reconstruction/dns", s.reconDNS)
+	}
+	// Evidence graph.
+	if s.graph != nil {
+		s.mux.HandleFunc("GET /api/v1/graph/stats", s.graphStats)
+		s.mux.HandleFunc("GET /api/v1/graph/subgraph", s.graphSubgraph)
 	}
 	// Tenant policy.
 	if s.tenantPolicy != nil {
@@ -694,6 +702,27 @@ func (s *Server) qualCoverage(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) reconFlows(w http.ResponseWriter, r *http.Request) {
 	host := r.URL.Query().Get("host")
 	writeJSON(w, http.StatusOK, s.recon.FlowsByHost(host))
+}
+
+func (s *Server) graphStats(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.graph.Stats())
+}
+
+func (s *Server) graphSubgraph(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	kind := q.Get("kind")
+	id := q.Get("id")
+	if kind == "" || id == "" {
+		writeError(w, http.StatusBadRequest, "kind and id query params required")
+		return
+	}
+	depth := 2
+	if v := q.Get("depth"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 5 {
+			depth = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.graph.Subgraph(services.Node{Kind: kind, ID: id}, depth))
 }
 
 func (s *Server) reconDNS(w http.ResponseWriter, r *http.Request) {

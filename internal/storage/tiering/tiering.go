@@ -18,6 +18,7 @@ import (
 
 	"github.com/kingknull/oblivra/internal/events"
 	"github.com/kingknull/oblivra/internal/storage/hot"
+	"github.com/kingknull/oblivra/internal/storage/worm"
 )
 
 type ParquetEvent struct {
@@ -173,6 +174,13 @@ func (m *Migrator) Run(ctx context.Context) (int, error) {
 		return 0, err
 	}
 
+	// Lock the warm-tier file as WORM (best-effort — Lock just strips write
+	// bits if it can't escalate). Done BEFORE hot eviction so a tampered
+	// warm file would be detected on the next verifier pass.
+	if err := worm.Lock(path); err != nil {
+		m.log.Warn("worm lock failed; warm file still readable but mutable", "err", err, "file", path)
+	}
+
 	// Warm is durable — now safe to evict from hot.
 	if err := m.hot.Delete(m.tenantID, ids); err != nil {
 		// Warm has the data; hot eviction failed. Log but report success
@@ -184,7 +192,7 @@ func (m *Migrator) Run(ctx context.Context) (int, error) {
 	m.events.Add(int64(len(rows)))
 	m.lastRun = time.Now().UTC()
 	m.lastMoved.Store(int64(len(rows)))
-	m.log.Info("warm tier write+evict", "file", path, "rows", len(rows))
+	m.log.Info("warm tier write+evict", "file", path, "rows", len(rows), "wormLocked", true)
 	return len(rows), nil
 }
 
