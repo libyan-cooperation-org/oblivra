@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(go mod *)",
+      "Bash(go get *)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+# Binaries
+/oblivra
+/oblivra.exe
+/oblivra-server
+/oblivra-server.exe
+/oblivra-agent
+/oblivra-agent.exe
+/oblivra-cli
+/oblivra-cli.exe
+/build/bin/
+/dist/
+
+# Frontend
+node_modules/
+frontend/node_modules/
+frontend/.vite/
+frontend/dist/
+
+# Generated assets / bindings
+# webassets/dist contains a checked-in placeholder so the Go embed compiles on
+# fresh checkouts; real builds overwrite it.
+/webassets/dist/*
+!/webassets/dist/index.html
+/frontend/bindings/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime data
+/data/
+/tmp/
+*.log
+*.vault
+*.badger/
+*.bleve/
+
+# Task / cache
+.task/
+
+# Local secrets
+.env
+.env.local

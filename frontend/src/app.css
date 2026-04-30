@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  --color-night-50:  #f4f6fb;
+  --color-night-100: #e6eaf3;
+  --color-night-200: #c8d0e2;
+  --color-night-300: #97a3bf;
+  --color-night-400: #5e6b8a;
+  --color-night-500: #3a455f;
+  --color-night-600: #2a3247;
+  --color-night-700: #1c2236;
+  --color-night-800: #141927;
+  --color-night-900: #0e121d;
+  --color-night-950: #0b0d12;
+
+  --color-accent-400: #8b5cf6;
+  --color-accent-500: #7c3aed;
+  --color-accent-600: #6d28d9;
+
+  --color-signal-success: #22c55e;
+  --color-signal-warn:    #f59e0b;
+  --color-signal-error:   #ef4444;
+  --color-signal-info:    #38bdf8;
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background: radial-gradient(circle at top left, #14182a 0%, #0b0d12 60%);
+}
+
+::selection {
+  background: var(--color-accent-500);
+  color: white;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-night-600) transparent;
+}
