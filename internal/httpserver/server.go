@@ -45,6 +45,7 @@ type Server struct {
 	trust          *services.TrustService
 	qual           *services.QualityService
 	graph          *services.EvidenceGraphService
+	imp            *services.ImportService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -72,6 +73,7 @@ type Deps struct {
 	Trust          *services.TrustService
 	Quality        *services.QualityService
 	Graph          *services.EvidenceGraphService
+	Import         *services.ImportService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -100,6 +102,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		trust:          deps.Trust,
 		qual:           deps.Quality,
 		graph:          deps.Graph,
+		imp:            deps.Import,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -206,6 +209,10 @@ func (s *Server) routes() {
 	if s.recon != nil {
 		s.mux.HandleFunc("GET /api/v1/reconstruction/flows", s.reconFlows)
 		s.mux.HandleFunc("GET /api/v1/reconstruction/dns", s.reconDNS)
+	}
+	// Import / backfill.
+	if s.imp != nil {
+		s.mux.HandleFunc("POST /api/v1/import", s.runImport)
 	}
 	// Evidence graph.
 	if s.graph != nil {
@@ -702,6 +709,20 @@ func (s *Server) qualCoverage(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) reconFlows(w http.ResponseWriter, r *http.Request) {
 	host := r.URL.Query().Get("host")
 	writeJSON(w, http.StatusOK, s.recon.FlowsByHost(host))
+}
+
+func (s *Server) runImport(w http.ResponseWriter, r *http.Request) {
+	tenant := r.URL.Query().Get("tenant")
+	source := r.URL.Query().Get("source")
+	format := r.URL.Query().Get("format")
+	// Cap: 256 MiB per request — chunk larger imports through the CLI.
+	r.Body = http.MaxBytesReader(nil, r.Body, 256<<20)
+	res, err := s.imp.Run(r.Context(), r.Body, tenant, source, format)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusAccepted, res)
 }
 
 func (s *Server) graphStats(w http.ResponseWriter, _ *http.Request) {
