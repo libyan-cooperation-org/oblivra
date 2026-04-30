@@ -45,6 +45,7 @@ type Stack struct {
 	Timeline       *services.TimelineService
 	Investigations *services.InvestigationsService
 	Reconstruction *services.ReconstructionService
+	TenantPolicy   *services.TenantPolicyService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -148,7 +149,17 @@ func New(opts Options) (*Stack, error) {
 		_ = w.Close()
 		return nil, fmt.Errorf("warm dir: %w", err)
 	}
-	migrator, err := tiering.New(opts.Logger, store, tiering.Options{WarmDir: warmDir})
+	tenantPolicy, err := services.NewTenantPolicyService(opts.Logger, dir)
+	if err != nil {
+		_ = idx.Close()
+		_ = store.Close()
+		_ = w.Close()
+		return nil, fmt.Errorf("tenant policy: %w", err)
+	}
+	migrator, err := tiering.New(opts.Logger, store, tiering.Options{
+		WarmDir:    warmDir,
+		ResolveAge: tenantPolicy.HotMaxAge,
+	})
 	if err != nil {
 		_ = idx.Close()
 		_ = store.Close()
@@ -186,6 +197,7 @@ func New(opts Options) (*Stack, error) {
 		Timeline:       timeline,
 		Investigations: investigations,
 		Reconstruction: recon,
+		TenantPolicy:   tenantPolicy,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,

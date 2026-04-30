@@ -31,7 +31,8 @@
       "Bash(git checkout *)",
       "Bash(git merge *)",
       "Bash(git stash *)",
-      "Bash(powershell.exe -NoProfile -Command 'Get-NetTCPConnection -LocalPort 18085,18086 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }')"
+      "Bash(powershell.exe -NoProfile -Command 'Get-NetTCPConnection -LocalPort 18085,18086 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }')",
+      "Bash(git commit *)"
     ]
   }
 }

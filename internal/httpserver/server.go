@@ -41,6 +41,7 @@ type Server struct {
 	timeline       *services.TimelineService
 	investigations *services.InvestigationsService
 	recon          *services.ReconstructionService
+	tenantPolicy   *services.TenantPolicyService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -64,6 +65,7 @@ type Deps struct {
 	Timeline       *services.TimelineService
 	Investigations *services.InvestigationsService
 	Reconstruction *services.ReconstructionService
+	TenantPolicy   *services.TenantPolicyService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -88,6 +90,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		timeline:       deps.Timeline,
 		investigations: deps.Investigations,
 		recon:          deps.Reconstruction,
+		tenantPolicy:   deps.TenantPolicy,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -178,6 +181,12 @@ func (s *Server) routes() {
 	if s.tier != nil {
 		s.mux.HandleFunc("GET /api/v1/storage/stats", s.tierStats)
 		s.mux.HandleFunc("POST /api/v1/storage/promote", s.tierPromote)
+		s.mux.HandleFunc("GET /api/v1/storage/verify-warm", s.tierVerifyWarm)
+	}
+	// Tenant policy.
+	if s.tenantPolicy != nil {
+		s.mux.HandleFunc("GET /api/v1/tenants/policies", s.tenantPolicyList)
+		s.mux.HandleFunc("PUT /api/v1/tenants/policies", s.tenantPolicySet)
 	}
 	// Lineage.
 	if s.lineage != nil {
@@ -619,6 +628,38 @@ func (s *Server) tierPromote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"moved": moved})
+}
+
+func (s *Server) tierVerifyWarm(w http.ResponseWriter, r *http.Request) {
+	max := 50
+	if v := r.URL.Query().Get("max"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			max = n
+		}
+	}
+	res, err := s.tier.VerifyWarm(max)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) tenantPolicyList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.tenantPolicy.List())
+}
+
+func (s *Server) tenantPolicySet(w http.ResponseWriter, r *http.Request) {
+	var p services.TenantPolicy
+	if err := readJSON(r, &p); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.tenantPolicy.Set(p); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }
 
 // ---- Lineage ----

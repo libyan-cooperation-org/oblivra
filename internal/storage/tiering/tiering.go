@@ -57,12 +57,18 @@ type Stats struct {
 	HotAgeMax   string    `json:"hotAgeMax"`
 }
 
+// AgeResolver is an injection seam for per-tenant retention policy. The
+// tiering package can't import services without a cycle, so the platform
+// stack provides this closure.
+type AgeResolver func(tenantID string) time.Duration
+
 type Migrator struct {
 	log      *slog.Logger
 	hot      *hot.Store
 	warmDir  string
 	maxAge   time.Duration
 	tenantID string
+	resolveAge AgeResolver
 
 	mu          sync.Mutex
 	files       atomic.Int64
@@ -72,9 +78,10 @@ type Migrator struct {
 }
 
 type Options struct {
-	WarmDir  string        // directory for parquet files
-	MaxAge   time.Duration // events older than this migrate to warm
-	TenantID string        // optional — defaults to "default"
+	WarmDir     string        // directory for parquet files
+	MaxAge      time.Duration // fallback events-older-than for migration
+	TenantID    string        // optional — defaults to "default"
+	ResolveAge  AgeResolver   // optional — per-tenant override
 }
 
 func New(log *slog.Logger, store *hot.Store, opts Options) (*Migrator, error) {
@@ -90,7 +97,10 @@ func New(log *slog.Logger, store *hot.Store, opts Options) (*Migrator, error) {
 	if err := os.MkdirAll(opts.WarmDir, 0o755); err != nil {
 		return nil, err
 	}
-	return &Migrator{log: log, hot: store, warmDir: opts.WarmDir, maxAge: opts.MaxAge, tenantID: opts.TenantID}, nil
+	return &Migrator{
+		log: log, hot: store, warmDir: opts.WarmDir, maxAge: opts.MaxAge,
+		tenantID: opts.TenantID, resolveAge: opts.ResolveAge,
+	}, nil
 }
 
 // Run performs one migration pass. Returns the number of events moved.
@@ -108,7 +118,13 @@ func (m *Migrator) Run(ctx context.Context) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	cutoff := time.Now().UTC().Add(-m.maxAge)
+	maxAge := m.maxAge
+	if m.resolveAge != nil {
+		if v := m.resolveAge(m.tenantID); v > 0 {
+			maxAge = v
+		}
+	}
+	cutoff := time.Now().UTC().Add(-maxAge)
 	evs, err := m.hot.Range(ctx, hot.RangeOpts{
 		TenantID: m.tenantID,
 		From:     time.Unix(0, 0),

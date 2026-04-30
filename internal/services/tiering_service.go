@@ -32,3 +32,11 @@ func (s *TieringService) Stats() tiering.Stats {
 	}
 	return s.migrator.Stats()
 }
+
+// VerifyWarm runs a cross-tier integrity check on recent warm Parquet files.
+func (s *TieringService) VerifyWarm(maxFiles int) (tiering.VerifyResult, error) {
+	if s.migrator == nil {
+		return tiering.VerifyResult{}, nil
+	}
+	return s.migrator.Verify(maxFiles)
+}
