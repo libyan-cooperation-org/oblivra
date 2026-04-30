@@ -10,9 +10,9 @@ import (
 )
 
 type ReportService struct {
-	log    *slog.Logger
-	cases  *InvestigationsService
-	audit  *AuditService
+	log   *slog.Logger
+	cases *InvestigationsService
+	audit *AuditService
 }
 
 func NewReportService(log *slog.Logger, cases *InvestigationsService, audit *AuditService) *ReportService {
@@ -22,8 +22,7 @@ func NewReportService(log *slog.Logger, cases *InvestigationsService, audit *Aud
 func (s *ReportService) ServiceName() string { return "ReportService" }
 
 // CaseHTML renders a sealed-or-open case to a self-contained HTML evidence
-// package. Returns the bytes; the caller (HTTP handler / Wails) decides
-// whether to write to disk, return as a download, etc.
+// package. The caller decides what to do with the bytes.
 func (s *ReportService) CaseHTML(ctx context.Context, caseID string) ([]byte, error) {
 	c, ok := s.cases.Get(caseID)
 	if !ok {
@@ -38,13 +37,65 @@ func (s *ReportService) CaseHTML(ctx context.Context, caseID string) ([]byte, er
 	if s.audit != nil {
 		root = s.audit.Verify().RootHash
 	}
+
 	pkg := report.Package{
-		Case:        *c,
-		Timeline:    tl,
-		Confidence:  conf,
+		Case: report.CaseInfo{
+			ID:              c.ID,
+			Title:           c.Title,
+			OpenedBy:        c.OpenedBy,
+			OpenedAt:        c.OpenedAt,
+			State:           string(c.State),
+			HostID:          c.Scope.HostID,
+			From:            c.Scope.From,
+			To:              c.Scope.To,
+			AuditRootAtOpen: c.Scope.AuditRootAtOpen,
+			SealedBy:        c.SealedBy,
+			SealedAt:        c.SealedAt,
+			Hypotheses:      mapHypotheses(c.Hypotheses),
+			Annotations:     mapAnnotations(c.Annotations),
+		},
+		Timeline:    mapTimeline(tl),
+		Confidence:  mapConfidence(conf),
 		AuditRoot:   root,
 		GeneratedAt: time.Now().UTC(),
 		Verifier:    "oblivra-verify --hmac $OBLIVRA_AUDIT_KEY audit.log",
 	}
 	return report.Render(pkg)
+}
+
+func mapHypotheses(in []Hypothesis) []report.Hypothesis {
+	out := make([]report.Hypothesis, len(in))
+	for i, h := range in {
+		out[i] = report.Hypothesis{
+			ID: h.ID, Statement: h.Statement, Status: h.Status,
+			CreatedBy: h.CreatedBy, CreatedAt: h.CreatedAt, UpdatedAt: h.UpdatedAt,
+		}
+	}
+	return out
+}
+
+func mapAnnotations(in []Annotation) []report.Annotation {
+	out := make([]report.Annotation, len(in))
+	for i, a := range in {
+		out[i] = report.Annotation{EventID: a.EventID, Body: a.Body, Author: a.Author, Timestamp: a.Timestamp}
+	}
+	return out
+}
+
+func mapTimeline(in []TimelineEntry) []report.TimelineEntry {
+	out := make([]report.TimelineEntry, len(in))
+	for i, t := range in {
+		out[i] = report.TimelineEntry{
+			Kind: t.Kind, Timestamp: t.Timestamp, Severity: t.Severity,
+			Title: t.Title, Detail: t.Detail, RefID: t.RefID,
+		}
+	}
+	return out
+}
+
+func mapConfidence(c *Confidence) *report.ConfidenceInfo {
+	if c == nil {
+		return nil
+	}
+	return &report.ConfidenceInfo{Score: c.Score, Explanation: c.Explanation}
 }

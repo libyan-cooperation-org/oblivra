@@ -19,18 +19,63 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/kingknull/oblivra/internal/services"
 )
 
-// Package is everything we render.
+// To avoid an import cycle (services imports report from report_service.go;
+// report would otherwise import services), we redefine flat structs here.
+// services maps Case → report.CaseInfo at the boundary.
+
+type Hypothesis struct {
+	ID         string    `json:"id"`
+	Statement  string    `json:"statement"`
+	Status     string    `json:"status"`
+	CreatedBy  string    `json:"createdBy"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type Annotation struct {
+	EventID   string    `json:"eventId"`
+	Body      string    `json:"body"`
+	Author    string    `json:"author"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type CaseInfo struct {
+	ID, Title       string
+	OpenedBy        string
+	OpenedAt        time.Time
+	State           string
+	HostID          string
+	From, To        time.Time
+	AuditRootAtOpen string
+	SealedBy        string
+	SealedAt        time.Time
+	Hypotheses      []Hypothesis
+	Annotations     []Annotation
+}
+
+type TimelineEntry struct {
+	Kind      string
+	Timestamp time.Time
+	Severity  string
+	Title     string
+	Detail    string
+	RefID     string
+}
+
+type ConfidenceInfo struct {
+	Score       int
+	Explanation string
+}
+
 type Package struct {
-	Case       services.Case
-	Timeline   []services.TimelineEntry
-	Confidence *services.Confidence
-	AuditRoot  string
+	Case        CaseInfo
+	Timeline    []TimelineEntry
+	Confidence  *ConfidenceInfo
+	AuditRoot   string
 	GeneratedAt time.Time
-	Verifier    string // verification command line
+	Verifier    string
 }
 
 // Render returns a fully-inlined HTML document.
@@ -57,17 +102,17 @@ func Narrative(p Package) string {
 
 	fmt.Fprintf(&b, "Investigation \"%s\" was opened by %s at %s and ", c.Title, c.OpenedBy, c.OpenedAt.UTC().Format(time.RFC3339))
 	switch c.State {
-	case services.CaseStateSealed:
+	case "sealed":
 		fmt.Fprintf(&b, "sealed by %s at %s. ", c.SealedBy, c.SealedAt.UTC().Format(time.RFC3339))
 	default:
 		b.WriteString("remains open. ")
 	}
-	if c.Scope.HostID != "" {
-		fmt.Fprintf(&b, "Scope is host %s ", c.Scope.HostID)
+	if c.HostID != "" {
+		fmt.Fprintf(&b, "Scope is host %s ", c.HostID)
 	} else {
 		b.WriteString("Scope spans every host ")
 	}
-	fmt.Fprintf(&b, "between %s and %s. ", c.Scope.From.UTC().Format(time.RFC3339), c.Scope.To.UTC().Format(time.RFC3339))
+	fmt.Fprintf(&b, "between %s and %s. ", c.From.UTC().Format(time.RFC3339), c.To.UTC().Format(time.RFC3339))
 
 	// Tally kinds.
 	kinds := map[string]int{}
@@ -86,15 +131,15 @@ func Narrative(p Package) string {
 	if p.Confidence != nil {
 		fmt.Fprintf(&b, "Forensic confidence: %d%% — %s. ", p.Confidence.Score, p.Confidence.Explanation)
 	}
-	if c.Scope.AuditRootAtOpen != "" {
-		fmt.Fprintf(&b, "Audit chain root at case open: %s. ", c.Scope.AuditRootAtOpen)
+	if c.AuditRootAtOpen != "" {
+		fmt.Fprintf(&b, "Audit chain root at case open: %s. ", c.AuditRootAtOpen)
 	}
 	if p.Verifier != "" {
 		fmt.Fprintf(&b, "Verification: run `%s` against the accompanying audit.log to confirm chain integrity. ", p.Verifier)
 	}
 
 	// Confirmed hypotheses, in declaration order.
-	confirmed := []services.Hypothesis{}
+	confirmed := []Hypothesis{}
 	for _, h := range c.Hypotheses {
 		if h.Status == "confirmed" {
 			confirmed = append(confirmed, h)
@@ -158,10 +203,10 @@ code { background: #f3f3f3; padding: 1px 4px; border-radius: 2px; font-size: 11p
 <tr><th>Opened by</th><td>{{.Case.OpenedBy}}</td></tr>
 <tr><th>Opened at</th><td>{{time .Case.OpenedAt}}</td></tr>
 <tr><th>State</th><td>{{.Case.State}}</td></tr>
-<tr><th>Scope host</th><td>{{.Case.Scope.HostID}}</td></tr>
-<tr><th>Scope from</th><td>{{time .Case.Scope.From}}</td></tr>
-<tr><th>Scope to</th><td>{{time .Case.Scope.To}}</td></tr>
-<tr><th>Audit root @ open</th><td class="hash">{{.Case.Scope.AuditRootAtOpen}}</td></tr>
+<tr><th>Scope host</th><td>{{.Case.HostID}}</td></tr>
+<tr><th>Scope from</th><td>{{time .Case.From}}</td></tr>
+<tr><th>Scope to</th><td>{{time .Case.To}}</td></tr>
+<tr><th>Audit root @ open</th><td class="hash">{{.Case.AuditRootAtOpen}}</td></tr>
 {{if .Case.SealedAt.IsZero}}{{else}}
 <tr><th>Sealed by</th><td>{{.Case.SealedBy}} at {{time .Case.SealedAt}}</td></tr>
 {{end}}
