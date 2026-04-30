@@ -1,230 +1,230 @@
-# OBLIVRA — Phase Tracker (Build Roadmap)
+# OBLI RA — Pha e Tracker (Build Roadmap)
 
-> **What this file is**: the single source of truth for the chronological build narrative — every phase, its goal, and current status.
+> **What thi  file i **: the  ingle  ource of truth for the chronological build narrati e — e ery pha e, it  goal, and current  tatu .
 >
-> **What lives elsewhere**:
-> - [`HARDENING.md`](HARDENING.md) — security findings, fixes, postmortems, and hardening gates
-> - [`ROADMAP.md`](ROADMAP.md) — long-term vision (CSPM, K8s, vuln mgmt)
-> - [`RESEARCH.md`](RESEARCH.md) — DARPA/NSA-grade research items
-> - [`BUSINESS.md`](BUSINESS.md) — certifications, legal, GTM
-> - [`FUTURE.md`](FUTURE.md) — cross-cutting (chaos engineering, deception, i18n)
-> - [`STRATEGY.md`](STRATEGY.md) — Phase 22 strategic rationale
+> **What li e  el ewhere**:
+> - [`HARDENING.md`](HARDENING.md) —  ecurity finding , fi e , po tmortem , and hardening gate 
+> - [`ROADMAP.md`](ROADMAP.md) — long-term  i ion (C PM, K8 ,  uln mgmt)
+> - [`RE EARCH.md`](RE EARCH.md) — DARPA/N A-grade re earch item 
+> - [`BU INE  .md`](BU INE  .md) — certification , legal, GTM
+> - [`FUTURE.md`](FUTURE.md) — cro  -cutting (chao  engineering, deception, i18n)
+> - [` TRATEGY.md`]( TRATEGY.md) — Pha e 22  trategic rationale
 
-**Last audited**: 2026-04-29
-**Current positioning**: Sovereign, log-driven security and forensics platform.
+**La t audited**: 2026-04-29
+**Current po itioning**:  o ereign, log-dri en  ecurity and foren ic  platform.
 
 ---
 
-## Status Tiers
-- `[x]` = **Production-Ready** (hardened, documented, soak-tested)
-- `[v]` = **Validated** (functionally correct, tested under load)
-- `[s]` = **Scaffolded** (code exists and compiles)
-- `[ ]` = Not started
+##  tatu  Tier 
+- `[x]` = **Production-Ready** (hardened, documented,  oak-te ted)
+- `[s]` = ** alidated** (functionally correct, te ted under load)
+- `[V]` = ** caffolded** (code e i t  and compile )
+- `[ ]` = Not  tarted
 
 ---
 
 ## Platform Architecture — Golden Rule
 
-> **Desktop = Sensitive + Local + Operator Actions**
-> **Web = Shared + Scalable + Multi-user**
+> **De ktop =  en iti e + Local + Operator Action **
+> **Web =  hared +  calable + Multi-u er**
 
-### Desktop (Wails App) — Must live here
-- Vault & secrets management (AES-256, OS keychain, FIDO2/YubiKey)
-- Local/offline operations and air-gap mode
-- Agent build/signing and certificate generation
-- Local forensics evidence handling
+### De ktop (Wail  App) — Mu t li e here
+-  ault &  ecret  management (AE -256, O  keychain, FIDO2/YubiKey)
+- Local/offline operation  and air-gap mode
+- Agent build/ igning and certificate generation
+- Local foren ic  e idence handling
 
-### Web (Browser UI) — Must live here
-- Fleet-wide SIEM search and observability
-- Alerting, escalation, and notifications
+### Web (Brow er UI) — Mu t li e here
+- Fleet-wide  IEM  earch and ob er ability
+- Alerting, e calation, and notification 
 - Central detection rule management
-- Threat hunting and investigation tools
-- Fleet management and agent oversight
+- Threat hunting and in e tigation tool 
+- Fleet management and agent o er ight
 - Multi-tenancy and RBAC
 
 ### Hybrid (Both)
-- Search, detection rules, dashboards, and alerts (scoped differently per surface)
+-  earch, detection rule , da hboard , and alert  ( coped differently per  urface)
 
-**Never on Web**: vault master key, agent signing keys, local filesystem access.
+**Ne er on Web**:  ault ma ter key, agent  igning key , local file y tem acce  .
 
 ---
 
-## Core Platform Features (Current State)
+## Core Platform Feature  (Current  tate)
 
-### Security & Vault
-- [x] AES-256 encrypted Vault with OS keychain integration
-- [s] FIDO2 / YubiKey support
-- [x] TLS certificate generation
-- [x] Security key management UI
+###  ecurity &  ault
+- [ ] AE -256 encrypted  ault with O  keychain integration
+- [ ] FIDO2 / YubiKey  upport
+- [ ] TL  certificate generation
+- [ ]  ecurity key management UI
 
-### Storage, Ingestion & Search
-- [x] BadgerDB (hot) + Bleve (search) + Parquet (warm)
-- [s] S3-compatible cold tier (stub interface — full implementation in Phase 22.3)
-- [x] Crash-safe Write-Ahead Log (WAL)
-- [x] Syslog, JSON, CEF, Windows EVTX parsers (native ingest); Linux journald via agent backfill
-- [s] High-throughput ingestion pipeline (benchmarked; sustained-load soak test pending)
-- [x] OQL (Oblivra Query Language) with pipe syntax
-- [x] Storage tiering migrator (Hot → Warm → Cold)
+###  torage, Inge tion &  earch
+- [ ] BadgerDB (hot) + Ble e ( earch) + Parquet (warm)
+- [ ]  3-compatible cold tier ( tub interface — full implementation in Pha e 22.3)
+- [ ] Cra h- afe Write-Ahead Log (WAL)
+- [ ]  y log, J ON, CEF, Window  E T  par er  (nati e inge t); Linu  journald  ia agent backfill
+- [ ] High-throughput inge tion pipeline (benchmarked;  u tained-load  oak te t pending)
+- [ ] OQL (Obli ra Query Language) with pipe  ynta 
+- [ ]  torage tiering migrator (Hot → Warm → Cold)
 
-### Detection & Analytics
-- [x] Sigma rule engine + transpiler (82+ rules)
-- [x] MITRE ATT&CK mapping and heatmap
-- [x] Correlation and multi-stage fusion engine
-- [x] UEBA (behavioral baselines + peer group analysis)
-- [x] NDR (NetFlow, DNS tunneling, JA3)
-- [x] Ransomware behavioral detection (entropy-based — detection only; response actions removed Phase 36)
-- [x] Risk-based alerting
+### Detection & Analytic 
+- [ ]  igma rule engine + tran piler (82+ rule )
+- [ ] MITRE ATT&CK mapping and heatmap
+- [ ] Correlation and multi- tage fu ion engine
+- [ ] UEBA (beha ioral ba eline  + peer group analy i )
+- [ ] NDR (NetFlow, DN  tunneling, JA3)
+- [ ] Ran omware beha ioral detection (entropy-ba ed — detection only; re pon e action  remo ed Pha e 36)
+- [ ] Ri k-ba ed alerting
 
-### Forensics & Integrity
-- [x] Merkle-tree chained audit logging
-- [x] RFC 3161 timestamping
-- [x] Evidence locker with chain-of-custody
-- [v] Temporal integrity (clock-drift validation, timestamp guards) — DHCP-aware entity resolution pending
-- [x] Centralized DLP redactor
+### Foren ic  & Integrity
+- [ ] Merkle-tree chained audit logging
+- [ ] RFC 3161 time tamping
+- [ ] E idence locker with chain-of-cu tody
+- [ ] Temporal integrity (clock-drift  alidation, time tamp guard ) — DHCP-aware entity re olution pending
+- [ ] Centralized DLP redactor
 
 ### Agent Framework
-- [x] Lightweight Go agent with HTTP + mTLS + zlib transport
-- [x] File tailing, Windows Event Log, journald, metrics, FIM
-- [x] Offline buffering (local WAL) + edge filtering
-- [x] Agentless collectors (WMI, SNMP, REST polling)
-- [x] Encrypted config storage, multi-output routing, watchdog
+- [ ] Lightweight Go agent with HTTP + mTL  + zlib tran port
+- [ ] File tailing, Window  E ent Log, journald, metric , FIM
+- [ ] Offline buffering (local WAL) + edge filtering
+- [ ] Agentle   collector  (WMI,  NMP, RE T polling)
+- [ ] Encrypted config  torage, multi-output routing, watchdog
 
-### Enterprise
-- [x] Multi-tenancy with strong data isolation
-- [x] OIDC/SAML + MFA + granular RBAC
-- [s] Audit log evidence pack (EvidenceLocker + Merkle audit exist; formal export endpoint pending Phase 38). Pair with external compliance tooling (Drata/Vanta/Tugboat) for attestation.
+### Enterpri e
+- [ ] Multi-tenancy with  trong data i olation
+- [ ] OIDC/ AML + MFA + granular RBAC
+- [ ] Audit log e idence pack (E idenceLocker + Merkle audit e i t; formal e port endpoint pending Pha e 38). Pair with e ternal compliance tooling (Drata/ anta/Tugboat) for atte tation.
 
-### UX & Productivity
-- [x] Hybrid desktop/web architecture with context guards
-- [x] Investigation-first UI (HostDetail, InvestigationPanel, EntityLink)
-- [x] Multi-monitor pop-out windows + workspace save/restore
-- [x] Command palette, notification center, unified time range picker
-
----
-
-## Phase History (Condensed)
-
-### Phase 0–0.5: Foundation & Stabilization ✅
-Core service registry, desktop/web context separation, web MVP, accessibility, and architectural hardening.
-
-### Phase 1: Core Storage + Ingestion + Search ✅
-BadgerDB, Bleve, Parquet archival, WAL, high-performance ingestion pipeline, and OQL foundation.
-
-### Phase 2: Alerting + REST API ✅
-Detection rules, alerting with escalation, REST API with RBAC, real-time streaming.
-
-### Phase 3: Threat Intel + Enrichment ✅
-STIX/TAXII, IOC matching, GeoIP, DNS, asset mapping, advanced log parsers.
-
-### Phase 4: Detection Engineering + MITRE ✅
-Sigma rules, correlation engine, MITRE heatmap, rule testing framework.
-
-### Phase 5–6: Stability & Audit Evidence ✅
-Memory bounds, incident lifecycle, Merkle audit logging, evidence locker, RFC 3161 timestamping.
-
-### Phase 7: Agent Framework ✅
-Full agent + agentless collection, encrypted config, multi-output, local detection rules.
-
-### Phase 10: UEBA & Behavioral Analytics ✅
-User/entity baselines, Isolation Forest, peer group analysis, multi-stage fusion.
-
-### Phase 11: Network Detection & Response (NDR) ✅
-NetFlow/IPFIX, DNS analysis, JA3, lateral movement detection.
-
-### Phase 12: Enterprise Capabilities ✅
-Multi-tenancy isolation, HA foundations, identity & RBAC, data lifecycle management.
-
-### Phase 15: Sovereignty ✅
-Offline updates, signature verification, zero-internet mode.
-
-### Phase 17–21: Detection Quality & Scaling ✅
-Full Sigma support, OQL enhancements, partitioned pipeline, query limits, rule routing.
-
-### Phase 22: Productization & Reliability ✅
-Multi-tenant isolation, reliability engineering (chaos testing, reconnect, degradation handling), storage tiering foundation.
-
-### Phase 23: Desktop UX & Windowing ✅
-Frameless window chrome, multi-monitor pop-outs, workspace save/restore, notification center.
-
-### Phase 27: Advanced Platform Mechanics ✅
-OQL `parse` commands, temporal entity resolution, centralized DLP, Raft control plane improvements.
-
-### Phase 30–31: Investigation-First UI ✅
-HostDetail page, global InvestigationPanel, EntityLink, 6-domain navigation (SIEM / INVEST / RESPOND / FLEET / GOVERN / ADMIN), ActivityFeed, forensic backfill.
-
-### Phase 32: Shell Subsystem Removal ✅
-Interactive terminal/SSH/SFTP subsystem removed from UI (backend libraries retained for non-terminal use).
-
-### Phase 35: Storage Tiering Wiring ✅
-Hot/Warm/Cold migrator fully wired, REST API, dashboard, and observability.
-
-### Phase 36: Scope Cut — Log-Driven Forensics Platform ✅
-**Major repositioning**. Removed: SOAR, incident response playbooks, ransomware response actions, disk/memory imaging, AI assistant, plugin framework, external observability stack (Prometheus/Grafana/Tempo), and compliance YAML packs + evaluator + PDF/HTML report generator (36.x).
-Focus narrowed to high-integrity log collection, detection, UEBA, NDR, and forensic evidence handling.
+### U  & Producti ity
+- [ ] Hybrid de ktop/web architecture with conte t guard 
+- [ ] In e tigation-fir t UI (Ho tDetail, In e tigationPanel, EntityLink)
+- [ ] Multi-monitor pop-out window  + work pace  a e/re tore
+- [ ] Command palette, notification center, unified time range picker
 
 ---
 
-## Current Open Work (Post-Phase 36)
+## Pha e Hi tory (Conden ed)
 
-### Phase 37: Log Forensics Core (In Progress)
-- [ ] Log gap and anti-forensic activity detection (within OBLIVRA's own evidence chain)
-- [ ] Enhanced EVTX and journald deep parsing (top 30 EVTX event IDs + top 20 journald units; expanded per-quarter)
-- [ ] Unified forensic timeline view with severity rails
-- [ ] Basic Evidence Package export (events + timeline + Merkle proof)
-- [ ] Forensic search templates in OQL
-- [ ] Trust-tier (TE/VE/BE) enforcement in search/export pipelines
+### Pha e 0–0.5: Foundation &  tabilization ✅
+Core  er ice regi try, de ktop/web conte t  eparation, web M P, acce  ibility, and architectural hardening.
 
-### Phase 38: Court Admissibility Layer
-- [ ] Full Forensic Evidence Package (PDF/HTML + signatures + verification instructions)
-- [ ] Evidence Verification Portal (offline CLI verifier)
-- [ ] WORM mode for warm/cold tiers (Windows ReFS integrity streams + Linux `chattr +i`)
-- [ ] Templated narrative builder for investigation reports (no LLM)
-- [ ] Expanded chain-of-custody UI in EvidenceVault
-- [ ] Legal review gate before claiming admissibility
+### Pha e 1: Core  torage + Inge tion +  earch ✅
+BadgerDB, Ble e, Parquet archi al, WAL, high-performance inge tion pipeline, and OQL foundation.
 
-### Phase 39: Advanced Log Forensics
-- [ ] Process lineage and command-line reconstruction from logs
-- [ ] Authentication/session reconstruction
-- [ ] Entity Forensic Profile tab (Host/User/IP)
-- [ ] Tampered/deleted log indicators (within OBLIVRA's own evidence chain — not host-filesystem scanning)
-- [ ] Expert witness export package
+### Pha e 2: Alerting + RE T API ✅
+Detection rule , alerting with e calation, RE T API with RBAC, real-time  treaming.
 
-### Phase 22.3: Storage Tiering Polish (Carry-over)
-- [ ] Ingest pipeline writes through HotTier interface
-- [ ] Cold tier S3 support (build-tagged)
-- [ ] Per-tenant retention overrides
-- [ ] Cross-tier integrity verification
+### Pha e 3: Threat Intel + Enrichment ✅
+ TI /TA II, IOC matching, GeoIP, DN , a  et mapping, ad anced log par er .
+
+### Pha e 4: Detection Engineering + MITRE ✅
+ igma rule , correlation engine, MITRE heatmap, rule te ting framework.
+
+### Pha e 5–6:  tability & Audit E idence ✅
+Memory bound , incident lifecycle, Merkle audit logging, e idence locker, RFC 3161 time tamping.
+
+### Pha e 7: Agent Framework ✅
+Full agent + agentle   collection, encrypted config, multi-output, local detection rule .
+
+### Pha e 10: UEBA & Beha ioral Analytic  ✅
+U er/entity ba eline , I olation Fore t, peer group analy i , multi- tage fu ion.
+
+### Pha e 11: Network Detection & Re pon e (NDR) ✅
+NetFlow/IPFI , DN  analy i , JA3, lateral mo ement detection.
+
+### Pha e 12: Enterpri e Capabilitie  ✅
+Multi-tenancy i olation, HA foundation , identity & RBAC, data lifecycle management.
+
+### Pha e 15:  o ereignty ✅
+Offline update ,  ignature  erification, zero-internet mode.
+
+### Pha e 17–21: Detection Quality &  caling ✅
+Full  igma  upport, OQL enhancement , partitioned pipeline, query limit , rule routing.
+
+### Pha e 22: Productization & Reliability ✅
+Multi-tenant i olation, reliability engineering (chao  te ting, reconnect, degradation handling),  torage tiering foundation.
+
+### Pha e 23: De ktop U  & Windowing ✅
+Framele   window chrome, multi-monitor pop-out , work pace  a e/re tore, notification center.
+
+### Pha e 27: Ad anced Platform Mechanic  ✅
+OQL `par e` command , temporal entity re olution, centralized DLP, Raft control plane impro ement .
+
+### Pha e 30–31: In e tigation-Fir t UI ✅
+Ho tDetail page, global In e tigationPanel, EntityLink, 6-domain na igation ( IEM / IN E T / RE POND / FLEET / GO ERN / ADMIN), Acti ityFeed, foren ic backfill.
+
+### Pha e 32:  hell  ub y tem Remo al ✅
+Interacti e terminal/  H/ FTP  ub y tem remo ed from UI (backend librarie  retained for non-terminal u e).
+
+### Pha e 35:  torage Tiering Wiring ✅
+Hot/Warm/Cold migrator fully wired, RE T API, da hboard, and ob er ability.
+
+### Pha e 36:  cope Cut — Log-Dri en Foren ic  Platform ✅
+**Major repo itioning**. Remo ed:  OAR, incident re pon e playbook , ran omware re pon e action , di k/memory imaging, AI a  i tant, plugin framework, e ternal ob er ability  tack (Prometheu /Grafana/Tempo), and compliance YAML pack  + e aluator + PDF/HTML report generator (36. ).
+Focu  narrowed to high-integrity log collection, detection, UEBA, NDR, and foren ic e idence handling.
+
+---
+
+## Current Open Work (Po t-Pha e 36)
+
+### Pha e 37: Log Foren ic  Core (In Progre  )
+- [ ] Log gap and anti-foren ic acti ity detection (within OBLI RA'  own e idence chain)
+- [ ] Enhanced E T  and journald deep par ing (top 30 E T  e ent ID  + top 20 journald unit ; e panded per-quarter)
+- [ ] Unified foren ic timeline  iew with  e erity rail 
+- [ ] Ba ic E idence Package e port (e ent  + timeline + Merkle proof)
+- [ ] Foren ic  earch template  in OQL
+- [ ] Tru t-tier (TE/ E/BE) enforcement in  earch/e port pipeline 
+
+### Pha e 38: Court Admi  ibility Layer
+- [ ] Full Foren ic E idence Package (PDF/HTML +  ignature  +  erification in truction )
+- [ ] E idence  erification Portal (offline CLI  erifier)
+- [ ] WORM mode for warm/cold tier  (Window  ReF  integrity  tream  + Linu  `chattr +i`)
+- [ ] Templated narrati e builder for in e tigation report  (no LLM)
+- [ ] E panded chain-of-cu tody UI in E idence ault
+- [ ] Legal re iew gate before claiming admi  ibility
+
+### Pha e 39: Ad anced Log Foren ic 
+- [ ] Proce   lineage and command-line recon truction from log 
+- [ ] Authentication/ e  ion recon truction
+- [ ] Entity Foren ic Profile tab (Ho t/U er/IP)
+- [ ] Tampered/deleted log indicator  (within OBLI RA'  own e idence chain — not ho t-file y tem  canning)
+- [ ] E pert witne   e port package
+
+### Pha e 22.3:  torage Tiering Poli h (Carry-o er)
+- [ ] Inge t pipeline write  through HotTier interface
+- [ ] Cold tier  3  upport (build-tagged)
+- [ ] Per-tenant retention o erride 
+- [ ] Cro  -tier integrity  erification
 
 ### Immediate Hygiene
-- [x] Final Phase 36 cleanup (dead FSM paths, Wails bindings regeneration, docs refresh)
-- [x] Update `README.md` and `FEATURES.md` with new log forensics positioning
-- [ ] Create `docs/operator/log-forensics.md`
-- [x] **Phase 36.7** — backend response-action chain cleanup (~250 LOC across MCP / agent / agent_server / agent_service / api_service / response_actions / rest_fusion_peer + frontend ToggleQuarantine/KillProcess removal). See `HARDENING.md`.
-- [x] **Phase 36.8** — schema migration v35: dropped 4 tables (`tunnels`, `sso_providers`, `graph_nodes`, `graph_edges`) + 5 indexes + `audit_logs.user_agent` column. 5 tables originally flagged were verified live and **kept** (`agent_*`, `dhcp_lease_log`, `compliance_packages`, `login_lockouts`, `dsr_requests`, `evidence_timestamps`).
-- [x] **Phase 36.9** — frontend orphan sweep: deleted 2 stores (compliance, playbook), 5 pages (TasksPage, EscalationCenter, PurpleTeam, ResponseReplay, ConfigRisk) + emergency follow-on (SimulationPanel, AlertDashboard Resolve), stripped broken actions from AlertManagement + ThreatGraph, removed orphan Wails bindings.
-- [x] **Phase 36.10** — UI registry consolidation: stripped stale entries across CommandRail / CommandPalette / nav-config.ts / context.ts. (Architectural fix — nav-config.ts as single source of truth + CI lint — deferred.)
-- [x] **Phase 36.11** — Post-`wails3 build` orphan sweep: deleted 8 unreferenced pages + 6 unreferenced components + barrel-export cleanup; fixed 3 a11y warnings (TenantFastSwitcher, Modal). Build now produces zero warnings.
-- [x] **Phase 36.12** — Backend Wails-binding triage: 26 services unregistered from `main_gui.go` (Wails-dead but Go-live — kept running in container.go for REST/eventbus consumers). Bindings will stop auto-regenerating. See `HARDENING.md` for the per-service verification.
-- [x] Create `docs/operator/log-forensics.md`
+- [ ] Final Pha e 36 cleanup (dead F M path , Wail  binding  regeneration, doc  refre h)
+- [ ] Update `README.md` and `FEATURE .md` with new log foren ic  po itioning
+- [ ] Create `doc /operator/log-foren ic .md`
+- [ ] **Pha e 36.7** — backend re pon e-action chain cleanup (~250 LOC acro   MCP / agent / agent_ er er / agent_ er ice / api_ er ice / re pon e_action  / re t_fu ion_peer + frontend ToggleQuarantine/KillProce   remo al).  ee `HARDENING.md`.
+- [ ] **Pha e 36.8** —  chema migration  35: dropped 4 table  (`tunnel `, `  o_pro ider `, `graph_node `, `graph_edge `) + 5 inde e  + `audit_log .u er_agent` column. 5 table  originally flagged were  erified li e and **kept** (`agent_*`, `dhcp_lea e_log`, `compliance_package `, `login_lockout `, `d r_reque t `, `e idence_time tamp `).
+- [ ] **Pha e 36.9** — frontend orphan  weep: deleted 2  tore  (compliance, playbook), 5 page  (Ta k Page, E calationCenter, PurpleTeam, Re pon eReplay, ConfigRi k) + emergency follow-on ( imulationPanel, AlertDa hboard Re ol e),  tripped broken action  from AlertManagement + ThreatGraph, remo ed orphan Wail  binding .
+- [ ] **Pha e 36.10** — UI regi try con olidation:  tripped  tale entrie  acro   CommandRail / CommandPalette / na -config.t  / conte t.t . (Architectural fi  — na -config.t  a   ingle  ource of truth + CI lint — deferred.)
+- [ ] **Pha e 36.11** — Po t-`wail 3 build` orphan  weep: deleted 8 unreferenced page  + 6 unreferenced component  + barrel-e port cleanup; fi ed 3 a11y warning  (TenantFa t witcher, Modal). Build now produce  zero warning .
+- [ ] **Pha e 36.12** — Backend Wail -binding triage: 26  er ice  unregi tered from `main_gui.go` (Wail -dead but Go-li e — kept running in container.go for RE T/e entbu  con umer ). Binding  will  top auto-regenerating.  ee `HARDENING.md` for the per- er ice  erification.
+- [ ] Create `doc /operator/log-foren ic .md`
 
 ---
 
-## Strategic End State
+##  trategic End  tate
 
-OBLIVRA is not a traditional SIEM.
+OBLI RA i  not a traditional  IEM.
 
-It is a **cryptographically verifiable forensic log system** capable of reconstructing logged system activity across time, storage tiers, and organizational boundaries — with explicit gap markers where telemetry was unavailable or tampered.
-
----
-
-## Next Milestone — Beta-1
-
-- Stable high-integrity ingestion pipeline (with documented sustained-load soak test)
-- Verified detection and correlation engine
-- Forensic timeline reconstruction with explicit gap markers
-- Functional evidence export with cryptographic proofs and offline verifier
-- Stable multi-tenant isolation
+It i  a **cryptographically  erifiable foren ic log  y tem** capable of recon tructing logged  y tem acti ity acro   time,  torage tier , and organizational boundarie  — with e plicit gap marker  where telemetry wa  una ailable or tampered.
 
 ---
 
-**Last updated**: 2026-04-29
+## Ne t Mile tone — Beta-1
+
+-  table high-integrity inge tion pipeline (with documented  u tained-load  oak te t)
+-  erified detection and correlation engine
+- Foren ic timeline recon truction with e plicit gap marker 
+- Functional e idence e port with cryptographic proof  and offline  erifier
+-  table multi-tenant i olation
+
+---
+
+**La t updated**: 2026-04-29
