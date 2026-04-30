@@ -131,12 +131,45 @@ func (s *TimelineService) Build(ctx context.Context, req TimelineRequest) ([]Tim
 		}
 	}
 
-	// Newest first.
-	sort.Slice(out, func(i, j int) bool { return out[i].Timestamp.After(out[j].Timestamp) })
+	// Deterministic ordering: timestamp DESC primary, but break ties on
+	// (kind, refId) so two events that race the same nanosecond don't shuffle
+	// across renders. The clock-drift correction is happening upstream in
+	// Trust.Engine + Tamper.Service — by the time entries reach this sort,
+	// suspect timestamps are already labeled, so we trust the value here.
+	sort.Slice(out, func(i, j int) bool {
+		ti, tj := out[i].Timestamp, out[j].Timestamp
+		if !ti.Equal(tj) {
+			return ti.After(tj)
+		}
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].RefID < out[j].RefID
+	})
 	if len(out) > req.Limit {
 		out = out[:req.Limit]
 	}
 	return out, nil
+}
+
+// PivotWindow returns the timeline entries within ±delta of a pivot moment,
+// scoped to a host. The Beta-1 task tracker calls this the "pivot engine":
+// given an event, jump to "what else was happening within ±15 minutes".
+func (s *TimelineService) PivotWindow(ctx context.Context, tenantID, hostID string, pivot time.Time, delta time.Duration, limit int) ([]TimelineEntry, error) {
+	if pivot.IsZero() {
+		pivot = time.Now().UTC()
+	}
+	if delta <= 0 {
+		delta = 15 * time.Minute
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+	return s.Build(ctx, TimelineRequest{
+		TenantID: tenantID, HostID: hostID,
+		From: pivot.Add(-delta), To: pivot.Add(delta),
+		Limit: limit,
+	})
 }
 
 func orFallback(s, fallback string) string {

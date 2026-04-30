@@ -45,8 +45,11 @@ const casesFile = "cases.log"
 type CaseState string
 
 const (
-	CaseStateOpen   CaseState = "open"
-	CaseStateSealed CaseState = "sealed"
+	CaseStateOpen           CaseState = "open"
+	CaseStateLegalReview    CaseState = "legal-review"
+	CaseStateLegalApproved  CaseState = "legal-approved"
+	CaseStateLegalRejected  CaseState = "legal-rejected"
+	CaseStateSealed         CaseState = "sealed"
 )
 
 // CaseScope captures everything needed to recreate the analyst's view of the
@@ -402,7 +405,9 @@ func (s *InvestigationsService) AddNote(ctx context.Context, caseID, author, bod
 	return &cc, nil
 }
 
-// Seal locks a case so it cannot be modified.
+// Seal locks a case so it cannot be modified. Refuses to seal a case that's
+// in legal review unless that review approved it; rejected cases cannot be
+// sealed at all (operator must reopen and address the rejection).
 func (s *InvestigationsService) Seal(ctx context.Context, caseID, by string) (*Case, error) {
 	s.mu.Lock()
 	c, ok := s.cases[caseID]
@@ -415,6 +420,14 @@ func (s *InvestigationsService) Seal(ctx context.Context, caseID, by string) (*C
 		s.mu.Unlock()
 		return &cc, nil
 	}
+	if c.State == CaseStateLegalReview {
+		s.mu.Unlock()
+		return nil, errors.New("case is in legal review; await approval before sealing")
+	}
+	if c.State == CaseStateLegalRejected {
+		s.mu.Unlock()
+		return nil, errors.New("case was rejected by legal; reopen and address before sealing")
+	}
 	c.State = CaseStateSealed
 	c.SealedAt = time.Now().UTC()
 	c.SealedBy = by
@@ -424,6 +437,59 @@ func (s *InvestigationsService) Seal(ctx context.Context, caseID, by string) (*C
 	if s.audit != nil {
 		s.audit.Append(ctx, by, "investigation.seal", c.Scope.TenantID, map[string]string{
 			"caseId": caseID,
+		})
+	}
+	return &cc, nil
+}
+
+// SubmitForLegalReview moves a case from open → legal-review.
+func (s *InvestigationsService) SubmitForLegalReview(ctx context.Context, caseID, by string) (*Case, error) {
+	return s.transition(ctx, caseID, by, CaseStateOpen, CaseStateLegalReview, "investigation.legal.submit")
+}
+
+// LegalApprove records counsel sign-off; the case can now be sealed.
+func (s *InvestigationsService) LegalApprove(ctx context.Context, caseID, by, reason string) (*Case, error) {
+	return s.transitionWithReason(ctx, caseID, by, CaseStateLegalReview, CaseStateLegalApproved, "investigation.legal.approve", reason)
+}
+
+// LegalReject records counsel rejection; sealing is blocked until reopened.
+func (s *InvestigationsService) LegalReject(ctx context.Context, caseID, by, reason string) (*Case, error) {
+	return s.transitionWithReason(ctx, caseID, by, CaseStateLegalReview, CaseStateLegalRejected, "investigation.legal.reject", reason)
+}
+
+func (s *InvestigationsService) transition(ctx context.Context, caseID, by string, from, to CaseState, action string) (*Case, error) {
+	return s.transitionWithReason(ctx, caseID, by, from, to, action, "")
+}
+
+func (s *InvestigationsService) transitionWithReason(ctx context.Context, caseID, by string, from, to CaseState, action, reason string) (*Case, error) {
+	s.mu.Lock()
+	c, ok := s.cases[caseID]
+	if !ok {
+		s.mu.Unlock()
+		return nil, errors.New("case not found")
+	}
+	if c.State != from {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("invalid transition: case is %s, expected %s", c.State, from)
+	}
+	c.State = to
+	if c.Detail == nil {
+		c.Detail = map[string]string{}
+	}
+	if reason != "" {
+		c.Detail["legalReason"] = reason
+	}
+	c.Detail["legalActor"] = by
+	c.Detail["legalAt"] = time.Now().UTC().Format(time.RFC3339)
+	cc := *c
+	s.mu.Unlock()
+	_ = s.persist(&cc)
+	if s.audit != nil {
+		s.audit.Append(ctx, by, action, c.Scope.TenantID, map[string]string{
+			"caseId": caseID,
+			"from":   string(from),
+			"to":     string(to),
+			"reason": reason,
 		})
 	}
 	return &cc, nil

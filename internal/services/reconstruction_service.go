@@ -19,6 +19,7 @@ type ReconstructionService struct {
 	network  *reconstruction.NetworkStitcher
 	entity   *reconstruction.EntityIndex
 	cmdline  *reconstruction.CmdLineEngine
+	auth     *reconstruction.AuthCorrelator
 }
 
 func NewReconstructionService(log *slog.Logger, h *hot.Store) *ReconstructionService {
@@ -29,6 +30,7 @@ func NewReconstructionService(log *slog.Logger, h *hot.Store) *ReconstructionSer
 		network:  reconstruction.NewNetworkStitcher(),
 		entity:   reconstruction.NewEntityIndex(),
 		cmdline:  reconstruction.NewCmdLineEngine(),
+		auth:     reconstruction.NewAuthCorrelator(),
 	}
 }
 
@@ -41,6 +43,18 @@ func (r *ReconstructionService) Observe(ctx context.Context, ev events.Event) {
 	r.network.Observe(ctx, ev)
 	r.entity.Observe(ctx, ev)
 	r.cmdline.Observe(ctx, ev)
+	r.auth.Observe(ctx, ev)
+}
+
+// AuthChainsByUser returns every per-day cross-protocol chain for a user.
+func (r *ReconstructionService) AuthChainsByUser(user string) []reconstruction.AuthChain {
+	return r.auth.ChainsByUser(user)
+}
+
+// AuthMultiProtocol returns chains where the user authenticated via 2+
+// distinct protocols on the same day (lateral-movement signal).
+func (r *ReconstructionService) AuthMultiProtocol(limit int) []reconstruction.AuthChain {
+	return r.auth.MultiProtocol(limit)
 }
 
 // EntityProfile returns the rolled-up profile for a (kind, id) pair.

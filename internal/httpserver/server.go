@@ -243,6 +243,7 @@ func (s *Server) routes() {
 	// Timeline.
 	if s.timeline != nil {
 		s.mux.HandleFunc("GET /api/v1/investigations/timeline", s.timelineGet)
+		s.mux.HandleFunc("GET /api/v1/investigations/pivot", s.timelinePivot)
 	}
 	// Reconstruction.
 	if s.recon != nil {
@@ -253,6 +254,8 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET /api/v1/reconstruction/entities/{kind}/{id}", s.reconEntityProfile)
 		s.mux.HandleFunc("GET /api/v1/reconstruction/cmdline", s.reconCmdLines)
 		s.mux.HandleFunc("GET /api/v1/reconstruction/cmdline/suspicious", s.reconCmdLineSus)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/auth", s.reconAuthByUser)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/auth/multi-protocol", s.reconAuthMulti)
 	}
 	// Cases.
 	if s.investigations != nil {
@@ -267,6 +270,9 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("POST /api/v1/cases/{id}/annotate", s.caseAnnotate)
 		s.mux.HandleFunc("GET /api/v1/cases/{id}/confidence", s.caseConfidence)
 		s.mux.HandleFunc("GET /api/v1/cases/{id}/report.html", s.caseReportHTML)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/legal/submit", s.caseLegalSubmit)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/legal/approve", s.caseLegalApprove)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/legal/reject", s.caseLegalReject)
 	}
 	// Vault.
 	if s.vault != nil {
@@ -1106,6 +1112,94 @@ func (s *Server) caseConfidence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, conf)
+}
+
+func (s *Server) caseLegalSubmit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	by, _ := actorOf(r.Context())
+	if by == "" {
+		by = "anonymous"
+	}
+	c, err := s.investigations.SubmitForLegalReview(r.Context(), id, by)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseLegalApprove(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct{ Reason string `json:"reason"` }
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	by, _ := actorOf(r.Context())
+	if by == "" {
+		by = "anonymous"
+	}
+	c, err := s.investigations.LegalApprove(r.Context(), id, by, body.Reason)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseLegalReject(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct{ Reason string `json:"reason"` }
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	by, _ := actorOf(r.Context())
+	if by == "" {
+		by = "anonymous"
+	}
+	c, err := s.investigations.LegalReject(r.Context(), id, by, body.Reason)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) timelinePivot(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	host := q.Get("host")
+	tenant := q.Get("tenant")
+	pivotUnix, _ := strconv.ParseInt(q.Get("at"), 10, 64)
+	deltaSec, _ := strconv.Atoi(q.Get("delta"))
+	if deltaSec <= 0 {
+		deltaSec = 900 // ±15 minutes
+	}
+	out, err := s.timeline.PivotWindow(r.Context(), tenant, host, time.Unix(pivotUnix, 0).UTC(), time.Duration(deltaSec)*time.Second, 200)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) reconAuthByUser(w http.ResponseWriter, r *http.Request) {
+	user := r.URL.Query().Get("user")
+	if user == "" {
+		writeError(w, http.StatusBadRequest, "user query param required")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.recon.AuthChainsByUser(user))
+}
+
+func (s *Server) reconAuthMulti(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.recon.AuthMultiProtocol(limit))
 }
 
 func (s *Server) caseSeal(w http.ResponseWriter, r *http.Request) {
