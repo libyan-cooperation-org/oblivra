@@ -204,10 +204,12 @@ Each frame is `{"type":"event","event":{...}}`.
 
 ## Next steps
 
-- Add detection rules: `internal/services/rules_service.go` for the builtin
-  list; the engine accepts the same fields/AnyContain/AllContain shape from
-  user-supplied YAML once the loader lands.
-- Connect an agent: see `cmd/agent` (TBD) — for now any caller with the
-  `agent` role can POST to `/api/v1/agent/ingest`.
-- Wire your existing observability stack at `/metrics` once the Prometheus
-  exporter ships in Phase 22.5.
+- **Add detection rules** — drop a `*.yml` file in `sigma/`. Hot-reloaded via fsnotify, no restart needed.
+- **Connect an agent** — `oblivra-agent --tail /var/log/auth.log --server $URL --token $KEY` ships with on-disk spill+replay on network failure.
+- **Backfill historical data** — `POST /api/v1/import?tenant=X&source=splunk-export` with a JSONL/raw stream returns a static health summary (time range covered, host count, parse-failure ratio).
+- **Verify integrity offline** — copy `audit.log`, `wal/ingest.wal`, or a sealed evidence package off the box and run `oblivra-verify <path>`. Standalone binary, no server required.
+- **Open a forensic investigation** — `POST /api/v1/cases` with `{title, hostId, fromUnix, toUnix}`. The case freezes a snapshot of the audit-chain root + receivedAt cutoff so analysis is reproducible later. Add hypotheses (`POST /api/v1/cases/{id}/hypotheses`), annotate events (`POST /api/v1/cases/{id}/annotate`), check completeness (`GET /api/v1/cases/{id}/confidence`), then seal it.
+- **Reconstruct state** — `GET /api/v1/reconstruction/state?host=X&at=<unix>` replays process_creation/exit events up to time T.
+- **Reconstruct sessions** — `GET /api/v1/reconstruction/sessions?host=X` groups sshd / RDP / Windows EventID auth events into login → activity → logout sequences.
+- **Score source quality** — `GET /api/v1/quality/sources` ranks log sources by parse-failure rate + ingest delay; `GET /api/v1/quality/coverage` shows which hosts are talking to the platform.
+- **Wire your existing observability** — point Prometheus / Datadog / New Relic at `http://localhost:8080/metrics`. OBLIVRA does not ship a monitoring stack (see Phase 36 scope cut).
