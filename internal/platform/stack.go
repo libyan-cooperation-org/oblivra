@@ -50,6 +50,7 @@ type Stack struct {
 	Quality        *services.QualityService
 	Graph          *services.EvidenceGraphService
 	Import         *services.ImportService
+	Report         *services.ReportService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -186,6 +187,7 @@ func New(opts Options) (*Stack, error) {
 	qualitySvc := services.NewQualityService(opts.Logger)
 	graphSvc := services.NewEvidenceGraphService(opts.Logger)
 	importSvc := services.NewImportService(opts.Logger, pipeline)
+	reportSvc := services.NewReportService(opts.Logger, investigations, audit)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -210,6 +212,7 @@ func New(opts Options) (*Stack, error) {
 		Quality:        qualitySvc,
 		Graph:          graphSvc,
 		Import:         importSvc,
+		Report:         reportSvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,

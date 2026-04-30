@@ -78,6 +78,7 @@ func main() {
 		Quality:        stack.Quality,
 		Graph:          stack.Graph,
 		Import:         stack.Import,
+		Report:         stack.Report,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,

@@ -46,6 +46,7 @@ type Server struct {
 	qual           *services.QualityService
 	graph          *services.EvidenceGraphService
 	imp            *services.ImportService
+	report         *services.ReportService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -74,6 +75,7 @@ type Deps struct {
 	Quality        *services.QualityService
 	Graph          *services.EvidenceGraphService
 	Import         *services.ImportService
+	Report         *services.ReportService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -103,6 +105,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		qual:           deps.Quality,
 		graph:          deps.Graph,
 		imp:            deps.Import,
+		report:         deps.Report,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -251,6 +254,7 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("POST /api/v1/cases/{id}/hypotheses/{hid}", s.caseHypothesisStatus)
 		s.mux.HandleFunc("POST /api/v1/cases/{id}/annotate", s.caseAnnotate)
 		s.mux.HandleFunc("GET /api/v1/cases/{id}/confidence", s.caseConfidence)
+		s.mux.HandleFunc("GET /api/v1/cases/{id}/report.html", s.caseReportHTML)
 	}
 	// Vault.
 	if s.vault != nil {
@@ -1003,6 +1007,19 @@ func (s *Server) caseAnnotate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseReportHTML(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	body, err := s.report.CaseHTML(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="oblivra-evidence-`+id+`.html"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
 }
 
 func (s *Server) caseConfidence(w http.ResponseWriter, r *http.Request) {
