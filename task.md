@@ -56,12 +56,12 @@ data that was already mutable.
 
 ## 3. Timeline Reconstruction Engine
 
-* [ ] Unified multi-source timeline (host / network / identity)
+* [v] Unified multi-source timeline — `TimelineService.Build` merges events + alerts + log gaps + sealed evidence into one chronological stream, exposed at `GET /api/v1/investigations/timeline`. Per-host filtering works.
 * [ ] Deterministic event ordering (clock drift handling)
-* [ ] Timeline layering (events, detections, gaps, annotations)
-* [ ] Explicit gap markers (ingestion / telemetry absence)
+* [v] Timeline layering (events, detections, gaps, annotations) — kinds: `event` / `alert` / `gap` / `evidence`. Annotations not yet there.
+* [v] Explicit gap markers (ingestion / telemetry absence) — see §1.
 * [ ] Timeline filtering + pivoting engine (collapses into the interactive view)
-* [ ] Entity-centric timeline views (Host / User / IP)
+* [v] Entity-centric timeline views — `?host=` filter implemented; `user`/`ip` are derivable from `Fields` map but not yet first-class.
 * [ ] **Time-frozen investigation views** — opening an investigation at T snapshots the data; subsequent queries go through the snapshot lens. The "live" mode is monitoring, not reconstruction. **This is the single highest-leverage feature for court admissibility.**
 
 ---
@@ -77,14 +77,14 @@ data that was already mutable.
 * [ ] Cross-source validation engine — same login event seen by sshd + auditd + agent → "verified"; only one source → "untrusted"
 * [ ] Timestamp anomaly detection — events from the future, far past, or non-monotonic per-source sequence
 * [ ] Sequence break detection — for numbered sources (Windows EventID, syslog seq), detect missing IDs
-* [ ] Log silence pattern detection — already partial in `ForensicsService.Observe`; broaden to detect periodic silence (regular log gaps that may indicate stop/start tampering)
+* [v] Log silence pattern detection — `ForensicsService.Observe` flags any host that's been silent >5min. Periodic-silence pattern detection still TODO.
 
 ---
 
 ## 5. Reconstruction Engine
 
 * [ ] Session reconstruction (auth flows, user sessions) — group sshd / RDP / kerberos events into login → activity → logout sequences
-* [ ] Process lineage reconstruction (from logs only) — `LineageService` exists; needs persistence + cross-host stitching
+* [v] Process lineage reconstruction (from logs only) — `LineageService` extracts pid/ppid/image from sshd[pid], `pid=`/`ppid=`, and Windows `NewProcessId: 0x...` formats. In-memory only; persistence + cross-host stitching still TODO.
 * [ ] Network activity stitching (flows, DNS, connections) — join NetFlow + DNS lookups + connection logs by 5-tuple within a time window
 * [ ] State reconstruction at time T — "what was running on host X at 14:32?" — replay process_creation/exit events up to T
 * [ ] Event replay engine (step-by-step timeline playback) — frontend feature on top of the timeline view
