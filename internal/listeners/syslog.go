@@ -59,7 +59,7 @@ func (s *SyslogUDP) Start(ctx context.Context) error {
 
 	buf := make([]byte, 64*1024)
 	for {
-		n, _, err := conn.ReadFromUDP(buf)
+		n, peer, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
@@ -74,6 +74,12 @@ func (s *SyslogUDP) Start(ctx context.Context) error {
 			continue
 		}
 		ev.TenantID = s.tenant
+		ev.Provenance.IngestPath = "syslog-udp"
+		if peer != nil {
+			ev.Provenance.Peer = peer.IP.String()
+		}
+		ev.Provenance.Format = "syslog"
+		ev.Provenance.Parser = string(parsers.FormatAuto)
 		if err := s.pipeline.Submit(ctx, ev); err != nil {
 			s.log.Error("syslog submit", "err", err)
 			continue

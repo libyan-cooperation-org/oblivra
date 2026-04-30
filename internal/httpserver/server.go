@@ -2,6 +2,8 @@ package httpserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -36,7 +38,8 @@ type Server struct {
 	tier    *services.TieringService
 	lineage *services.LineageService
 	vault    *services.VaultService
-	timeline *services.TimelineService
+	timeline       *services.TimelineService
+	investigations *services.InvestigationsService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -57,7 +60,8 @@ type Deps struct {
 	Tier    *services.TieringService
 	Lineage *services.LineageService
 	Vault    *services.VaultService
-	Timeline *services.TimelineService
+	Timeline       *services.TimelineService
+	Investigations *services.InvestigationsService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -79,7 +83,8 @@ func New(log *slog.Logger, deps Deps) *Server {
 		tier:    deps.Tier,
 		lineage: deps.Lineage,
 		vault:    deps.Vault,
-		timeline: deps.Timeline,
+		timeline:       deps.Timeline,
+		investigations: deps.Investigations,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -180,6 +185,15 @@ func (s *Server) routes() {
 	if s.timeline != nil {
 		s.mux.HandleFunc("GET /api/v1/investigations/timeline", s.timelineGet)
 	}
+	// Cases.
+	if s.investigations != nil {
+		s.mux.HandleFunc("POST /api/v1/cases", s.caseOpen)
+		s.mux.HandleFunc("GET /api/v1/cases", s.caseList)
+		s.mux.HandleFunc("GET /api/v1/cases/{id}", s.caseGet)
+		s.mux.HandleFunc("GET /api/v1/cases/{id}/timeline", s.caseTimeline)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/notes", s.caseNote)
+		s.mux.HandleFunc("POST /api/v1/cases/{id}/seal", s.caseSeal)
+	}
 	// Vault.
 	if s.vault != nil {
 		s.mux.HandleFunc("GET /api/v1/vault/status", s.vaultStatus)
@@ -216,6 +230,7 @@ func (s *Server) siemIngest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	stampProvenance(&ev, "rest", r)
 	stored, err := s.siem.Ingest(r.Context(), ev)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -229,6 +244,9 @@ func (s *Server) siemIngestBatch(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &batch); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	for i := range batch {
+		stampProvenance(&batch[i], "rest-batch", r)
 	}
 	written, err := s.siem.IngestBatch(r.Context(), batch)
 	if err != nil {
@@ -264,6 +282,10 @@ func (s *Server) siemIngestRaw(w http.ResponseWriter, r *http.Request) {
 		if tenant != "" {
 			ev.TenantID = tenant
 		}
+		ev.Provenance.IngestPath = "raw"
+		ev.Provenance.Peer = strings.SplitN(r.RemoteAddr, ":", 2)[0]
+		ev.Provenance.Format = string(format)
+		ev.Provenance.Parser = string(format)
 		if _, err := s.siem.Ingest(r.Context(), *ev); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -636,6 +658,113 @@ func (s *Server) timelineGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// ---- Investigations / cases ----
+
+func (s *Server) caseOpen(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Title    string `json:"title"`
+		HostID   string `json:"hostId"`
+		TenantID string `json:"tenantId"`
+		FromUnix int64  `json:"fromUnix"`
+		ToUnix   int64  `json:"toUnix"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	openedBy := "anonymous"
+	if sub, ok := rbacFromContext(r); ok {
+		openedBy = sub
+	}
+	req := services.OpenCaseRequest{
+		Title:    body.Title,
+		HostID:   body.HostID,
+		TenantID: body.TenantID,
+		OpenedBy: openedBy,
+	}
+	if body.FromUnix > 0 {
+		req.From = time.Unix(body.FromUnix, 0).UTC()
+	}
+	if body.ToUnix > 0 {
+		req.To = time.Unix(body.ToUnix, 0).UTC()
+	}
+	c, err := s.investigations.Open(r.Context(), req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, c)
+}
+
+func (s *Server) caseList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.investigations.List())
+}
+
+func (s *Server) caseGet(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	c, ok := s.investigations.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "case not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseTimeline(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	out, err := s.investigations.Timeline(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) caseNote(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		Body string `json:"body"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	author := "anonymous"
+	if sub, ok := rbacFromContext(r); ok {
+		author = sub
+	}
+	c, err := s.investigations.AddNote(r.Context(), id, author, body.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (s *Server) caseSeal(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	by := "anonymous"
+	if sub, ok := rbacFromContext(r); ok {
+		by = sub
+	}
+	c, err := s.investigations.Seal(r.Context(), id, by)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+// rbacFromContext extracts a "role:id" label from the auth context, or
+// returns false if anonymous.
+func rbacFromContext(r *http.Request) (string, bool) {
+	actor, _ := actorOf(r.Context())
+	if actor == "anonymous" {
+		return "", false
+	}
+	return actor, true
+}
+
 // ---- Vault ----
 
 func (s *Server) vaultStatus(w http.ResponseWriter, _ *http.Request) {
@@ -736,6 +865,25 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 
 func writeError(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
+}
+
+// stampProvenance records how the event reached us. Called at the boundary
+// where we still have the request — once Ingest is called the provenance is
+// hashed into the content hash.
+func stampProvenance(ev *events.Event, ingestPath string, r *http.Request) {
+	ev.Provenance.IngestPath = ingestPath
+	ev.Provenance.Peer = strings.SplitN(r.RemoteAddr, ":", 2)[0]
+	if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+		// Quick fingerprint of the first cert; used by the operator to spot
+		// which mTLS principal sent the event.
+		raw := r.TLS.PeerCertificates[0].Raw
+		ev.Provenance.TLSFingerprint = sha256Hex(raw)
+	}
+}
+
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 func spaHandler(root fs.FS) http.Handler {

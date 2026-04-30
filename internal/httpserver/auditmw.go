@@ -14,30 +14,55 @@ import (
 	"github.com/kingknull/oblivra/internal/services"
 )
 
-// auditedRoutes lists path prefixes whose calls land in the tamper-evident
-// query log. We deliberately don't audit liveness, metrics, or static assets
-// — they'd drown the chain in noise.
+// auditedRoutes lists routes whose calls land in the tamper-evident query
+// log. We deliberately don't audit liveness, metrics, or static assets — they
+// would drown the chain in noise.
+//
+// `exact` routes only match an identical path; everything else matches by
+// prefix. List children before parents when both are audited so the longer
+// match wins. We deliberately set the parent (e.g. /api/v1/cases) to `exact`
+// so child paths like /api/v1/cases/{id}/notes get their own classification.
 var auditedRoutes = []struct {
 	prefix string
 	method string // "" matches any
 	action string
+	exact  bool
 }{
-	{"/api/v1/siem/search", "GET", "siem.search"},
-	{"/api/v1/siem/oql", "GET", "siem.oql"},
-	{"/api/v1/siem/ingest/raw", "POST", "siem.ingest.raw"},
-	{"/api/v1/audit/log", "GET", "audit.read"},
-	{"/api/v1/audit/verify", "GET", "audit.verify"},
-	{"/api/v1/audit/packages/generate", "POST", "audit.export"},
-	{"/api/v1/forensics/evidence", "POST", "evidence.seal"},
-	{"/api/v1/storage/promote", "POST", "storage.promote"},
-	{"/api/v1/detection/rules/reload", "POST", "rules.reload"},
-	{"/api/v1/threatintel/indicator", "POST", "intel.add"},
-	{"/api/v1/vault/init", "POST", "vault.init"},
-	{"/api/v1/vault/unlock", "POST", "vault.unlock"},
-	{"/api/v1/vault/lock", "POST", "vault.lock"},
-	{"/api/v1/vault/secret", "POST", "vault.secret.set"},
-	{"/api/v1/vault/secret", "DELETE", "vault.secret.delete"},
-	{"/api/v1/agent/register", "POST", "fleet.register"},
+	// SIEM / search
+	{prefix: "/api/v1/siem/search", method: "GET", action: "siem.search"},
+	{prefix: "/api/v1/siem/oql", method: "GET", action: "siem.oql"},
+	{prefix: "/api/v1/siem/ingest/raw", method: "POST", action: "siem.ingest.raw"},
+
+	// Audit
+	{prefix: "/api/v1/audit/log", method: "GET", action: "audit.read"},
+	{prefix: "/api/v1/audit/verify", method: "GET", action: "audit.verify"},
+	{prefix: "/api/v1/audit/packages/generate", method: "POST", action: "audit.export"},
+
+	// Evidence / forensics
+	{prefix: "/api/v1/forensics/evidence", method: "POST", action: "evidence.seal"},
+
+	// Storage / rules / intel
+	{prefix: "/api/v1/storage/promote", method: "POST", action: "storage.promote"},
+	{prefix: "/api/v1/detection/rules/reload", method: "POST", action: "rules.reload"},
+	{prefix: "/api/v1/threatintel/indicator", method: "POST", action: "intel.add"},
+
+	// Vault
+	{prefix: "/api/v1/vault/init", method: "POST", action: "vault.init"},
+	{prefix: "/api/v1/vault/unlock", method: "POST", action: "vault.unlock"},
+	{prefix: "/api/v1/vault/lock", method: "POST", action: "vault.lock"},
+	{prefix: "/api/v1/vault/secret", method: "POST", action: "vault.secret.set"},
+	{prefix: "/api/v1/vault/secret", method: "DELETE", action: "vault.secret.delete"},
+
+	// Fleet
+	{prefix: "/api/v1/agent/register", method: "POST", action: "fleet.register"},
+
+	// Cases — children first, parent exact. Service-level Append() in
+	// InvestigationsService records the *semantic* action; the middleware
+	// just records the HTTP-shaped call.
+	{prefix: "/api/v1/cases/", method: "POST", action: "investigation.mutate"},
+	{prefix: "/api/v1/cases/", method: "GET", action: "investigation.read"},
+	{prefix: "/api/v1/cases", method: "POST", action: "investigation.open", exact: true},
+	{prefix: "/api/v1/cases", method: "GET", action: "investigation.list", exact: true},
 }
 
 // queryAudit wraps an http.Handler so that every audited request lands a
@@ -83,6 +108,12 @@ func queryAudit(audit *services.AuditService, next http.Handler) http.Handler {
 func matchAudited(method, path string) (string, bool) {
 	for _, r := range auditedRoutes {
 		if r.method != "" && r.method != method {
+			continue
+		}
+		if r.exact {
+			if path == r.prefix {
+				return r.action, true
+			}
 			continue
 		}
 		if strings.HasPrefix(path, r.prefix) {

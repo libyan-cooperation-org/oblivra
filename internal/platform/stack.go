@@ -41,9 +41,10 @@ type Stack struct {
 	Foren   *services.ForensicsService
 	Tier    *services.TieringService
 	Lineage *services.LineageService
-	Vault    *services.VaultService
-	Timeline *services.TimelineService
-	Bus      *events.Bus
+	Vault          *services.VaultService
+	Timeline       *services.TimelineService
+	Investigations *services.InvestigationsService
+	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
 
@@ -157,6 +158,13 @@ func New(opts Options) (*Stack, error) {
 	lineage := services.NewLineageService(opts.Logger)
 	vaultSvc := services.NewVaultService(opts.Logger, dir)
 	timeline := services.NewTimelineService(store, alerts, foren)
+	investigations, err := services.NewInvestigationsService(opts.Logger, dir, store, alerts, foren, audit)
+	if err != nil {
+		_ = idx.Close()
+		_ = store.Close()
+		_ = w.Close()
+		return nil, fmt.Errorf("investigations: %w", err)
+	}
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -173,8 +181,9 @@ func New(opts Options) (*Stack, error) {
 		Tier:     tier,
 		Lineage:  lineage,
 		Vault:    vaultSvc,
-		Timeline: timeline,
-		Bus:      bus,
+		Timeline:       timeline,
+		Investigations: investigations,
+		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
 		wal:      w,
@@ -319,6 +328,11 @@ func (s *Stack) Close() error {
 	s.wg.Wait()
 
 	var first error
+	if s.Investigations != nil {
+		if err := s.Investigations.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
 	if s.Audit != nil {
 		if err := s.Audit.Close(); err != nil && first == nil {
 			first = err

@@ -89,6 +89,8 @@ func (s *FleetService) IngestFromAgent(ctx context.Context, agentID string, batc
 		if batch[i].HostID == "" {
 			batch[i].HostID = a.Hostname
 		}
+		batch[i].Provenance.IngestPath = "agent"
+		batch[i].Provenance.AgentID = agentID
 		if err := s.pipeline.Submit(ctx, &batch[i]); err != nil {
 			return written, err
 		}

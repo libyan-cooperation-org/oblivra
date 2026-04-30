@@ -36,6 +36,13 @@ It is a system designed to:
 * Event bus with bounded fan-out, async processors (rules / UEBA / forensics / lineage / IOC enrichment)
 * Cross-platform Taskfile (`windows:build` / `darwin:build` / `linux:build`) so `wails3 build` works on every platform
 
+**Cryptographic identity (foundational integrity §2)**
+* Every event sealed with sha256 content hash over a canonicalised view (sorted fields, RFC3339Nano timestamps); `VerifyHash()` returns false on any post-ingest mutation
+* `Provenance` block per event: `{ingestPath, peer, agentId, parser, tlsFingerprint, format}` — hashed into identity
+* `SchemaVersion` stamp on every event (v1 today)
+* Durable, append-only Merkle audit journal at `audit.log` (fsync per write, replay-on-startup, refuses to boot on tamper)
+* Tamper-evident query log: every audited HTTP route lands `{actor, role, method, path, status, bytes, duration, query, uaHash}` in the chain
+
 **Services**
 * `SiemService` — ingest (single/batch/raw), search (Bleve / chronological / OQL pipe-syntax), stats, EPS rolling window
 * `RulesService` — 29 builtin rules + Sigma YAML loader + fsnotify hot-reload + MITRE heatmap
@@ -49,6 +56,7 @@ It is a system designed to:
 * `LineageService` — pid/ppid/image extraction from log messages
 * `VaultService` — AES-256-GCM + Argon2id passphrase-encrypted secrets
 * `TimelineService` — merged event/alert/gap/evidence stream per host
+* `InvestigationsService` — **time-frozen analyst cases**; opens snapshot the audit root + receivedAt cutoff, sealed cases reject mutations, persisted to `cases.log` and replayed on restart
 * `internal/scheduler` — periodic warm migration + audit health checks
 
 **Listeners / ingest paths**
@@ -62,7 +70,7 @@ It is a system designed to:
 * `/healthz`, `/readyz`, `/metrics` (Prometheus exposition; auth-exempt)
 * RBAC middleware: `OBLIVRA_API_KEYS=key:role,...` (admin/analyst/readonly/agent)
 * **`auditmw`** wraps every audited route — search, OQL, audit ops, evidence, storage, rules reload, intel, vault, fleet — and records `{actor, role, method, path, status, bytes, duration, query, uaHash}` in the durable chain
-* Endpoints: siem/{ingest, search, oql, stats}, alerts, detection/rules{,/reload}, mitre/heatmap, threatintel/{lookup,indicators,indicator}, audit/{log,verify,packages/generate}, agent/{fleet,register,ingest}, ueba/{profiles,anomalies}, ndr/{flows,top-talkers}, forensics/{gaps,evidence,lineage,lineage/tree}, storage/{stats,promote}, vault/{status,init,unlock,lock,secret}, investigations/timeline
+* Endpoints: siem/{ingest, search, oql, stats}, alerts, detection/rules{,/reload}, mitre/heatmap, threatintel/{lookup,indicators,indicator}, audit/{log,verify,packages/generate}, agent/{fleet,register,ingest}, ueba/{profiles,anomalies}, ndr/{flows,top-talkers}, forensics/{gaps,evidence,lineage,lineage/tree}, storage/{stats,promote}, vault/{status,init,unlock,lock,secret}, investigations/timeline, **cases/{open,list,get,timeline,note,seal}**
 
 **Frontend (Svelte 5 + Tailwind 4)**
 * Sidebar nav with grouped sections (Observe / Respond / Manage)
@@ -72,7 +80,7 @@ It is a system designed to:
 * `oblivra-cli`: ping / stats / ingest / search / alerts / audit verify / audit log / fleet / rules / intel
 
 **Tests**
-* `go test ./...` clean across parsers, sigma loader, audit (incl. durable journal restart + tamper), rules, vault, OQL
+* `go test ./...` clean across **events (hash determinism, mutation, JSON-roundtrip, provenance tamper, field-order independence)**, parsers, sigma loader, audit (durable journal restart + tamper), rules, vault, OQL, and **investigations (snapshot freeze, persist-across-restart, sealed rejects mutation)**
 
 ---
 
@@ -95,9 +103,9 @@ These are the bedrock guarantees the rest of the platform leans on. They land
 data that was already mutable.
 
 * [s] **Durable, append-only audit journal** — `audit.log` line-delimited JSON file, fsynced after every `Append`. Replay-on-startup verifies every entry's parent-hash; refuses to start on tamper. Tested for restart roundtrip + tamper detection.
-* [s] **Tamper-evident query log** — `internal/httpserver/auditmw.go` wraps the mux so every audited route (siem search/oql/raw, audit read/verify/export, evidence seal, storage promote, rules reload, intel add, vault ops, fleet register) lands an entry in the chain with `{actor, role, method, path, status, bytes, duration, query, uaHash}`. Verified end-to-end (3 alice queries → 3 audit entries; restart preserves them).
-* [ ] **Per-event provenance block** — structured `{peer, agentId, parser, tlsFingerprint, ingestPath}` hashed into the event ID; mutation breaks identity
-* [ ] **Schema versioning** — every WAL line + Parquet file stamped with `schemaVersion`; one-shot migration tool committed to `cmd/migrate`
+* [s] **Tamper-evident query log** — `internal/httpserver/auditmw.go` wraps the mux so every audited route lands an entry in the chain with `{actor, role, method, path, status, bytes, duration, query, uaHash}`. Verified end-to-end. Routes use exact-match for parents to keep child paths classified separately.
+* [s] **Per-event provenance + content hash + schema version** — every event carries `{schemaVersion, hash, provenance:{ingestPath, peer, agentId, parser, tlsFingerprint, format}}`. Hash is sha256 over a canonicalised view (sorted fields, RFC3339Nano timestamps); `VerifyHash()` returns false on any mutation including provenance. Wired through REST single/batch/raw, syslog UDP listener, and agent ingest. 8 unit tests (determinism, JSON-roundtrip, mutation detection, provenance tampering, field-order independence, empty rejection).
+* [ ] **Schema versioning migration tool** — Event struct now stamped with `SchemaVersion=1`; `cmd/migrate` for upgrading old WAL/Parquet files when the schema bumps still TODO.
 * [ ] **Time-anchored daily Merkle root** — at end of each day, hash all evidence + audit entries into a daily root committed to next day's root. Optional public-ledger publish path for post-incident proof
 
 ---
@@ -110,7 +118,7 @@ data that was already mutable.
 * [v] Explicit gap markers (ingestion / telemetry absence) — see §1.
 * [ ] Timeline filtering + pivoting engine (collapses into the interactive view)
 * [v] Entity-centric timeline views — `?host=` filter implemented; `user`/`ip` are derivable from `Fields` map but not yet first-class.
-* [ ] **Time-frozen investigation views** — opening an investigation at T snapshots the data; subsequent queries go through the snapshot lens. The "live" mode is monitoring, not reconstruction. **This is the single highest-leverage feature for court admissibility.**
+* [s] **Time-frozen investigation views** — `InvestigationsService` opens cases that capture `{tenantId, hostId, from, to, receivedAtCutoff, auditRootAtOpen}`. `Timeline(caseId)` only returns events whose `receivedAt <= cutoff` AND fall within `[from, to]`, scoped to the case host. Cases persist to `cases.log` (line-delimited JSON, fsynced); replay restores them across restarts. Sealing locks the case (notes rejected). Verified end-to-end with `TestCaseSnapshotFreezesScope`: post-case event correctly excluded, pre-case events kept, scope-leak on different host blocked. **This was the single highest-leverage feature — now done.**
 
 ---
 
