@@ -57,7 +57,8 @@ It is a system designed to:
 * `VaultService` — AES-256-GCM + Argon2id passphrase-encrypted secrets
 * `TimelineService` — merged event/alert/gap/evidence stream per host
 * `InvestigationsService` — **time-frozen analyst cases**; opens snapshot the audit root + receivedAt cutoff, sealed cases reject mutations, persisted to `cases.log` and replayed on restart
-* `internal/scheduler` — periodic warm migration + audit health checks
+* `ReconstructionService` — **session reconstruction** (sshd / RDP / Windows EventID auth events grouped into login → activity → logout) + **state-at-time-T** (process_creation/exit replay)
+* `internal/scheduler` — periodic warm migration, audit health checks, and **hourly daily-Merkle anchor** (`AnchorYesterday`)
 
 **Listeners / ingest paths**
 * Syslog UDP (`:1514`) — RFC 5424 / 3164 / JSON / CEF / auto-detect parsers
@@ -70,7 +71,7 @@ It is a system designed to:
 * `/healthz`, `/readyz`, `/metrics` (Prometheus exposition; auth-exempt)
 * RBAC middleware: `OBLIVRA_API_KEYS=key:role,...` (admin/analyst/readonly/agent)
 * **`auditmw`** wraps every audited route — search, OQL, audit ops, evidence, storage, rules reload, intel, vault, fleet — and records `{actor, role, method, path, status, bytes, duration, query, uaHash}` in the durable chain
-* Endpoints: siem/{ingest, search, oql, stats}, alerts, detection/rules{,/reload}, mitre/heatmap, threatintel/{lookup,indicators,indicator}, audit/{log,verify,packages/generate}, agent/{fleet,register,ingest}, ueba/{profiles,anomalies}, ndr/{flows,top-talkers}, forensics/{gaps,evidence,lineage,lineage/tree}, storage/{stats,promote}, vault/{status,init,unlock,lock,secret}, investigations/timeline, **cases/{open,list,get,timeline,note,seal}**
+* Endpoints: siem/{ingest, search, oql, stats}, alerts, detection/rules{,/reload}, mitre/heatmap, threatintel/{lookup,indicators,indicator}, audit/{log,verify,packages/generate}, agent/{fleet,register,ingest}, ueba/{profiles,anomalies}, ndr/{flows,top-talkers}, forensics/{gaps,evidence,lineage,lineage/tree}, storage/{stats,promote}, vault/{status,init,unlock,lock,secret}, investigations/timeline, cases/{open,list,get,timeline,note,seal}, **reconstruction/{sessions,sessions/{id},state}**
 
 **Frontend (Svelte 5 + Tailwind 4)**
 * Sidebar nav with grouped sections (Observe / Respond / Manage)
@@ -84,7 +85,7 @@ It is a system designed to:
 * `oblivra-server` — headless REST + Svelte UI
 
 **Tests**
-* `go test ./...` clean across events (hash determinism, mutation, JSON-roundtrip, provenance tamper, field-order independence), parsers, sigma loader, audit (durable journal restart + tamper), rules, vault, OQL, investigations (snapshot freeze, persist-across-restart, sealed rejects mutation), **verify (audit/WAL/evidence happy path + 2 tamper flavours + unknown-format rejection)**, and **migrate (no-op, plan, future-version)**
+* `go test ./...` clean across events (hash determinism, mutation, JSON-roundtrip, provenance tamper, field-order independence), parsers, sigma loader, audit (durable journal restart + tamper, **daily-anchor idempotence + empty-day**), rules, vault, OQL, investigations (snapshot freeze, persist-across-restart, sealed rejects mutation), verify (audit/WAL/evidence happy path + 2 tamper flavours + unknown-format rejection), migrate (no-op, plan, future-version), and **reconstruction (sshd lifecycle, explicit-eventType fast path, unclassified-event ignore, host scoping, state-at-T at three different timestamps)**
 
 ---
 
@@ -110,7 +111,7 @@ data that was already mutable.
 * [s] **Tamper-evident query log** — `internal/httpserver/auditmw.go` wraps the mux so every audited route lands an entry in the chain with `{actor, role, method, path, status, bytes, duration, query, uaHash}`. Verified end-to-end. Routes use exact-match for parents to keep child paths classified separately.
 * [s] **Per-event provenance + content hash + schema version** — every event carries `{schemaVersion, hash, provenance:{ingestPath, peer, agentId, parser, tlsFingerprint, format}}`. Hash is sha256 over a canonicalised view (sorted fields, RFC3339Nano timestamps); `VerifyHash()` returns false on any mutation including provenance. Wired through REST single/batch/raw, syslog UDP listener, and agent ingest. 8 unit tests (determinism, JSON-roundtrip, mutation detection, provenance tampering, field-order independence, empty rejection).
 * [s] **Schema versioning + migration framework** — Event struct stamped with `SchemaVersion=1`; `internal/migrate` is the upgrader registry (`v→v+1` pure functions, idempotent); `cmd/migrate plan|run [--all]` performs file-level migration with atomic rename + `.pre-migrate` rollback file. Tests cover no-op-at-current and future-version handling. Today's runs are no-ops because no upgraders are registered yet — but the infrastructure is in place so the next schema bump is a one-line addition, not a script-and-pray exercise.
-* [ ] **Time-anchored daily Merkle root** — at end of each day, hash all evidence + audit entries into a daily root committed to next day's root. Optional public-ledger publish path for post-incident proof
+* [s] **Time-anchored daily Merkle root** — `AuditService.AnchorDaily(day)` hashes every audit entry from that UTC-day window into a single SHA-256 anchor written as a new chain entry tagged `audit.daily-anchor`. Idempotent (second call same day is a no-op). The scheduler runs `AnchorYesterday` hourly so the previous day is always anchored within an hour. Public-ledger / external-TSA publication still TODO (no air-gap-friendly default exists yet).
 
 ---
 
@@ -143,10 +144,10 @@ data that was already mutable.
 
 ## 5. Reconstruction Engine
 
-* [ ] Session reconstruction (auth flows, user sessions) — group sshd / RDP / kerberos events into login → activity → logout sequences
+* [s] Session reconstruction (auth flows, user sessions) — `internal/reconstruction/sessions.go` recognises sshd `Accepted`/`Failed password`/`session closed`, PAM `session opened`, and Windows EventID 4624/4625/4634 patterns; classifies events into `login_success` / `login_failed` / `logout`; groups by (host, user, srcIP) but routes logouts to the matching open session even when source IP isn't in the close message. Tested for: full sshd lifecycle, explicit-eventType fast path, unclassified-event ignore, host scoping. Endpoints: `/api/v1/reconstruction/sessions?host=`, `/api/v1/reconstruction/sessions/{id}`.
 * [v] Process lineage reconstruction (from logs only) — `LineageService` extracts pid/ppid/image from sshd[pid], `pid=`/`ppid=`, and Windows `NewProcessId: 0x...` formats. In-memory only; persistence + cross-host stitching still TODO.
 * [ ] Network activity stitching (flows, DNS, connections) — join NetFlow + DNS lookups + connection logs by 5-tuple within a time window
-* [ ] State reconstruction at time T — "what was running on host X at 14:32?" — replay process_creation/exit events up to T
+* [s] State reconstruction at time T — `internal/reconstruction/state.go` walks all events for a host up to T, replays process_creation / process_exit, returns running + exited process sets. Tested for `t+0.5s` (one running), `t+1.5s` (two running), `t+3s` (one running, one exited). Endpoint: `/api/v1/reconstruction/state?host=&at=`.
 * [ ] Event replay engine (step-by-step timeline playback) — frontend feature on top of the timeline view
 * [ ] **Backfill / import from external sources** — `POST /api/v1/import` + `oblivra-cli import file.jsonl|.parquet|.csv`. Forensic work routinely starts with "here's a 10GB Splunk export" — this is essential, not optional
 * [ ] **Static health summary on import** — time range covered, host count, format breakdown, parse-failure ratio, suspected gaps. Shown to the analyst *before* they start querying

@@ -40,6 +40,7 @@ type Server struct {
 	vault    *services.VaultService
 	timeline       *services.TimelineService
 	investigations *services.InvestigationsService
+	recon          *services.ReconstructionService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -62,6 +63,7 @@ type Deps struct {
 	Vault    *services.VaultService
 	Timeline       *services.TimelineService
 	Investigations *services.InvestigationsService
+	Reconstruction *services.ReconstructionService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -85,6 +87,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		vault:    deps.Vault,
 		timeline:       deps.Timeline,
 		investigations: deps.Investigations,
+		recon:          deps.Reconstruction,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -184,6 +187,12 @@ func (s *Server) routes() {
 	// Timeline.
 	if s.timeline != nil {
 		s.mux.HandleFunc("GET /api/v1/investigations/timeline", s.timelineGet)
+	}
+	// Reconstruction.
+	if s.recon != nil {
+		s.mux.HandleFunc("GET /api/v1/reconstruction/sessions", s.reconSessions)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/sessions/{id}", s.reconSessionGet)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/state", s.reconState)
 	}
 	// Cases.
 	if s.investigations != nil {
@@ -656,6 +665,44 @@ func (s *Server) timelineGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// ---- Reconstruction ----
+
+func (s *Server) reconSessions(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	writeJSON(w, http.StatusOK, s.recon.Sessions(host))
+}
+
+func (s *Server) reconSessionGet(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	sess, ok := s.recon.Session(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "session not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (s *Server) reconState(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "host query param required")
+		return
+	}
+	tenant := r.URL.Query().Get("tenant")
+	at := time.Now().UTC()
+	if v := r.URL.Query().Get("at"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			at = time.Unix(n, 0).UTC()
+		}
+	}
+	snap, err := s.recon.StateAt(r.Context(), tenant, host, at)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
 }
 
 // ---- Investigations / cases ----

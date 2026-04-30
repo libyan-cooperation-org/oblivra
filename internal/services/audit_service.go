@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -244,6 +245,63 @@ func (a *AuditService) GeneratePackage(_ context.Context) (EvidencePackage, erro
 		pkg.Signature = hex.EncodeToString(mac.Sum(nil))
 	}
 	return pkg, nil
+}
+
+// AnchorDaily computes the chain root over every entry from `day` (00:00 UTC
+// inclusive) until just before `day+24h`, then writes it as a new audit
+// entry tagged `audit.daily-anchor`. The next day's chain links forward
+// through this anchor, so a later "we cannot find evidence E from yesterday"
+// dispute is settled by re-running the verifier.
+//
+// Returns (anchorEntry, isNewAnchor, error). If an anchor already exists for
+// the day we report it without writing a duplicate.
+func (a *AuditService) AnchorDaily(ctx context.Context, day time.Time) (AuditEntry, bool, error) {
+	day = day.UTC().Truncate(24 * time.Hour)
+	endOfDay := day.Add(24 * time.Hour)
+	tag := day.Format("2006-01-02")
+
+	a.mu.RLock()
+	for _, e := range a.entries {
+		if e.Action == "audit.daily-anchor" && e.Detail["day"] == tag {
+			a.mu.RUnlock()
+			return e, false, nil // already anchored
+		}
+	}
+	// Hash everything in [day, endOfDay).
+	h := sha256.New()
+	count := 0
+	for _, e := range a.entries {
+		if e.Timestamp.Before(day) {
+			continue
+		}
+		if !e.Timestamp.Before(endOfDay) {
+			continue
+		}
+		h.Write([]byte(e.Hash))
+		count++
+	}
+	dailyRoot := hex.EncodeToString(h.Sum(nil))
+	a.mu.RUnlock()
+
+	if count == 0 {
+		return AuditEntry{}, false, nil // no entries that day; nothing to anchor
+	}
+
+	e := a.Append(ctx, "system", "audit.daily-anchor", "default", map[string]string{
+		"day":     tag,
+		"entries": strconv.Itoa(count),
+		"root":    dailyRoot,
+	})
+	a.log.Info("audit daily anchor", "day", tag, "entries", count, "dailyRoot", dailyRoot)
+	return e, true, nil
+}
+
+// AnchorYesterday is the scheduled-job variant — anchors whatever day
+// yesterday was relative to the local clock.
+func (a *AuditService) AnchorYesterday(ctx context.Context) error {
+	yesterday := time.Now().UTC().Add(-24 * time.Hour)
+	_, _, err := a.AnchorDaily(ctx, yesterday)
+	return err
 }
 
 // Close flushes and closes the journal file.

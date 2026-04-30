@@ -44,6 +44,7 @@ type Stack struct {
 	Vault          *services.VaultService
 	Timeline       *services.TimelineService
 	Investigations *services.InvestigationsService
+	Reconstruction *services.ReconstructionService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -165,6 +166,7 @@ func New(opts Options) (*Stack, error) {
 		_ = w.Close()
 		return nil, fmt.Errorf("investigations: %w", err)
 	}
+	recon := services.NewReconstructionService(opts.Logger, store)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -183,6 +185,7 @@ func New(opts Options) (*Stack, error) {
 		Vault:    vaultSvc,
 		Timeline:       timeline,
 		Investigations: investigations,
+		Reconstruction: recon,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -249,6 +252,13 @@ func New(opts Options) (*Stack, error) {
 			return nil
 		},
 	})
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "audit.daily-anchor",
+		Interval: 1 * time.Hour, // fires hourly; AnchorYesterday is idempotent
+		Run: func(ctx context.Context) error {
+			return audit.AnchorYesterday(ctx)
+		},
+	})
 	stack.scheduler.Start(context.Background())
 	stack.cancelFns = append(stack.cancelFns, stack.scheduler.Stop)
 
@@ -277,6 +287,7 @@ func (s *Stack) startProcessors(parent context.Context) {
 		func(ctx context.Context, ev events.Event) { s.Ueba.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) { s.Foren.Observe(ev) },
 		func(_ context.Context, ev events.Event) { s.Lineage.Observe(ev) },
+		func(ctx context.Context, ev events.Event) { s.Reconstruction.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) {
 			// IOC enrichment — match every text field against the IOC table.
 			candidates := []string{ev.HostID, ev.Message, ev.Raw}
