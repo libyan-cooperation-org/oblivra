@@ -42,6 +42,7 @@ type Server struct {
 	investigations *services.InvestigationsService
 	recon          *services.ReconstructionService
 	tenantPolicy   *services.TenantPolicyService
+	trust          *services.TrustService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -66,6 +67,7 @@ type Deps struct {
 	Investigations *services.InvestigationsService
 	Reconstruction *services.ReconstructionService
 	TenantPolicy   *services.TenantPolicyService
+	Trust          *services.TrustService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -91,6 +93,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		investigations: deps.Investigations,
 		recon:          deps.Reconstruction,
 		tenantPolicy:   deps.TenantPolicy,
+		trust:          deps.Trust,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -182,6 +185,11 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("GET /api/v1/storage/stats", s.tierStats)
 		s.mux.HandleFunc("POST /api/v1/storage/promote", s.tierPromote)
 		s.mux.HandleFunc("GET /api/v1/storage/verify-warm", s.tierVerifyWarm)
+	}
+	// Trust.
+	if s.trust != nil {
+		s.mux.HandleFunc("GET /api/v1/trust/summary", s.trustSummary)
+		s.mux.HandleFunc("GET /api/v1/trust/event/{id}", s.trustEvent)
 	}
 	// Tenant policy.
 	if s.tenantPolicy != nil {
@@ -647,6 +655,19 @@ func (s *Server) tierVerifyWarm(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) tenantPolicyList(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.tenantPolicy.List())
+}
+
+func (s *Server) trustSummary(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.trust.Summary())
+}
+
+func (s *Server) trustEvent(w http.ResponseWriter, r *http.Request) {
+	rec, ok := s.trust.Of(r.PathValue("id"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "no trust record for that event")
+		return
+	}
+	writeJSON(w, http.StatusOK, rec)
 }
 
 func (s *Server) tenantPolicySet(w http.ResponseWriter, r *http.Request) {

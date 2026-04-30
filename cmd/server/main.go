@@ -74,6 +74,7 @@ func main() {
 		Investigations: stack.Investigations,
 		Reconstruction: stack.Reconstruction,
 		TenantPolicy:   stack.TenantPolicy,
+		Trust:          stack.Trust,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,
