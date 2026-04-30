@@ -21,31 +21,51 @@ import (
 	"github.com/kingknull/oblivra/internal/storage/worm"
 )
 
+// ParquetEvent is the v2 row schema. Adds the per-event content hash, the
+// schema-version stamp, and a flat provenance hint so a verifier can re-derive
+// identity from a Parquet row alone, without consulting the WAL.
+//
+// v1 rows lacked Hash / SchemaVersion / provenance fields. The cross-tier
+// verifier handles both shapes: when SchemaVersion == 0 the row is treated
+// as v1 and only structural-parse is checked; v2+ rows are subject to the
+// stronger content-hash-recompute test.
 type ParquetEvent struct {
-	ID         string `parquet:"id"`
-	TenantID   string `parquet:"tenantId"`
-	Timestamp  int64  `parquet:"timestamp"`
-	ReceivedAt int64  `parquet:"receivedAt"`
-	Source     string `parquet:"source"`
-	HostID     string `parquet:"hostId"`
-	EventType  string `parquet:"eventType"`
-	Severity   string `parquet:"severity"`
-	Message    string `parquet:"message"`
-	Raw        string `parquet:"raw"`
+	SchemaVersion int    `parquet:"schemaVersion"`
+	ID            string `parquet:"id"`
+	Hash          string `parquet:"hash"`
+	TenantID      string `parquet:"tenantId"`
+	Timestamp     int64  `parquet:"timestamp"`
+	ReceivedAt    int64  `parquet:"receivedAt"`
+	Source        string `parquet:"source"`
+	HostID        string `parquet:"hostId"`
+	EventType     string `parquet:"eventType"`
+	Severity      string `parquet:"severity"`
+	Message       string `parquet:"message"`
+	Raw           string `parquet:"raw"`
+	IngestPath    string `parquet:"ingestPath"`
+	Peer          string `parquet:"peer"`
+	AgentID       string `parquet:"agentId"`
+	Parser        string `parquet:"parser"`
 }
 
 func toParquet(ev events.Event) ParquetEvent {
 	return ParquetEvent{
-		ID:         ev.ID,
-		TenantID:   ev.TenantID,
-		Timestamp:  ev.Timestamp.UnixNano(),
-		ReceivedAt: ev.ReceivedAt.UnixNano(),
-		Source:     string(ev.Source),
-		HostID:     ev.HostID,
-		EventType:  ev.EventType,
-		Severity:   string(ev.Severity),
-		Message:    ev.Message,
-		Raw:        ev.Raw,
+		SchemaVersion: ev.SchemaVersion,
+		ID:            ev.ID,
+		Hash:          ev.Hash,
+		TenantID:      ev.TenantID,
+		Timestamp:     ev.Timestamp.UnixNano(),
+		ReceivedAt:    ev.ReceivedAt.UnixNano(),
+		Source:        string(ev.Source),
+		HostID:        ev.HostID,
+		EventType:     ev.EventType,
+		Severity:      string(ev.Severity),
+		Message:       ev.Message,
+		Raw:           ev.Raw,
+		IngestPath:    ev.Provenance.IngestPath,
+		Peer:          ev.Provenance.Peer,
+		AgentID:       ev.Provenance.AgentID,
+		Parser:        ev.Provenance.Parser,
 	}
 }
 

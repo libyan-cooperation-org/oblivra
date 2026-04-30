@@ -6,6 +6,9 @@
   import Siem from './lib/views/Siem.svelte';
   import Detection from './lib/views/Detection.svelte';
   import Investigations from './lib/views/Investigations.svelte';
+  import Cases from './lib/views/Cases.svelte';
+  import Reconstruction from './lib/views/Reconstruction.svelte';
+  import Trust from './lib/views/Trust.svelte';
   import Evidence from './lib/views/Evidence.svelte';
   import Fleet from './lib/views/Fleet.svelte';
   import Admin from './lib/views/Admin.svelte';
@@ -42,6 +45,12 @@
         <Detection />
       {:else if active === 'investigations'}
         <Investigations />
+      {:else if active === 'cases'}
+        <Cases />
+      {:else if active === 'reconstruction'}
+        <Reconstruction />
+      {:else if active === 'trust'}
+        <Trust />
       {:else if active === 'evidence'}
         <Evidence />
       {:else if active === 'fleet'}

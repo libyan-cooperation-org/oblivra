@@ -373,3 +373,130 @@ export async function storageStats(): Promise<TierStats> {
 export async function storagePromote(): Promise<{ moved: number }> {
   return restPost('/api/v1/storage/promote', {});
 }
+
+// ---- Reconstruction / cases / trust / quality (round 12 surface) ----
+
+export interface Session {
+  id: string;
+  hostId: string;
+  user: string;
+  sourceIp?: string;
+  method?: string;
+  state: 'open' | 'closed' | 'failed' | 'unknown';
+  startedAt: string;
+  endedAt?: string;
+  failedAttempts?: number;
+}
+
+export interface ProcessSnapshot {
+  hostId: string;
+  at: string;
+  running: { pid: number; ppid?: number; image?: string; command?: string; started: string }[];
+  exited: { pid: number; ppid?: number; image?: string; started: string; ended: string }[];
+}
+
+export interface CmdLine {
+  hostId: string;
+  user?: string;
+  pid?: number;
+  image?: string;
+  command: string;
+  timestamp: string;
+  eventId: string;
+  suspicious?: boolean;
+}
+
+export interface AuthChain {
+  user: string;
+  day: string;
+  events: { protocol: string; result: string; hostId: string; sourceIp?: string; timestamp: string }[];
+  hosts: string[];
+  ips: string[];
+  protocols: string[];
+  successes: number;
+  failures: number;
+}
+
+export interface TrustSummary {
+  verified: number;
+  consistent: number;
+  suspicious: number;
+  untrusted: number;
+}
+
+export interface SourceProfile {
+  host: string;
+  source: string;
+  total: number;
+  parsed: number;
+  unparsedRate: number;
+  gapsObserved: number;
+  avgDelayMs: number;
+  lastSeen: string;
+  firstSeen: string;
+}
+
+export interface TamperFinding {
+  hostId: string;
+  kind: string;
+  detail: string;
+  eventId?: string;
+  timestamp: string;
+}
+
+export interface CaseSummary {
+  id: string;
+  title: string;
+  openedBy: string;
+  openedAt: string;
+  state: string;
+  scope: { hostId?: string; from: string; to: string; auditRootAtOpen: string };
+  hypotheses?: { id: string; statement: string; status: string }[];
+  notes?: { author: string; body: string; timestamp: string }[];
+  sealedAt?: string;
+  sealedBy?: string;
+}
+
+export interface CaseConfidence {
+  score: number;
+  eventCount: number;
+  alertCount: number;
+  sourceCount: number;
+  gapCount: number;
+  explanation: string;
+  contributions?: string[];
+}
+
+export const reconSessions = (host?: string) =>
+  rest<Session[]>(`/api/v1/reconstruction/sessions${host ? '?host=' + host : ''}`);
+
+export const reconStateAt = (host: string, atUnix?: number) =>
+  rest<ProcessSnapshot>(`/api/v1/reconstruction/state?host=${encodeURIComponent(host)}${atUnix ? '&at=' + atUnix : ''}`);
+
+export const reconCmdSus = () =>
+  rest<CmdLine[]>('/api/v1/reconstruction/cmdline/suspicious');
+
+export const reconAuthMulti = () =>
+  rest<AuthChain[]>('/api/v1/reconstruction/auth/multi-protocol');
+
+export const trustSummary = () => rest<TrustSummary>('/api/v1/trust/summary');
+
+export const qualitySources = () => rest<SourceProfile[]>('/api/v1/quality/sources');
+export const qualityCoverage = () =>
+  rest<{ host: string; lastSeen: string; eventsLastHour: number; eventsLastDay: number; sources: string[] }[]>('/api/v1/quality/coverage');
+
+export const tamperFindings = () => rest<TamperFinding[]>('/api/v1/forensics/tamper');
+
+export const casesList = () => rest<CaseSummary[]>('/api/v1/cases');
+export const caseGet = (id: string) => rest<CaseSummary>(`/api/v1/cases/${id}`);
+export const caseTimeline = (id: string) =>
+  rest<{ kind: string; timestamp: string; severity?: string; title: string; detail?: string }[]>(`/api/v1/cases/${id}/timeline`);
+export const caseConfidence = (id: string) => rest<CaseConfidence>(`/api/v1/cases/${id}/confidence`);
+export const caseOpen = (body: { title: string; hostId?: string; fromUnix?: number; toUnix?: number }) =>
+  restPost<CaseSummary, typeof body>('/api/v1/cases', body);
+export const caseSeal = (id: string) => restPost<CaseSummary, {}>(`/api/v1/cases/${id}/seal`, {});
+export const caseLegalSubmit = (id: string) => restPost<CaseSummary, {}>(`/api/v1/cases/${id}/legal/submit`, {});
+export const caseLegalApprove = (id: string, reason: string) =>
+  restPost<CaseSummary, { reason: string }>(`/api/v1/cases/${id}/legal/approve`, { reason });
+export const caseLegalReject = (id: string, reason: string) =>
+  restPost<CaseSummary, { reason: string }>(`/api/v1/cases/${id}/legal/reject`, { reason });

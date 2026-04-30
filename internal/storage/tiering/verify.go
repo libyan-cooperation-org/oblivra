@@ -103,8 +103,9 @@ func (m *Migrator) verifyFile(full string, r *VerifyResult) error {
 		for i := 0; i < n; i++ {
 			row := buf[i]
 			ev := events.Event{
-				SchemaVersion: events.SchemaVersion,
+				SchemaVersion: row.SchemaVersion,
 				ID:            row.ID,
+				Hash:          row.Hash,
 				TenantID:      row.TenantID,
 				Timestamp:     time.Unix(0, row.Timestamp).UTC(),
 				ReceivedAt:    time.Unix(0, row.ReceivedAt).UTC(),
@@ -114,8 +115,19 @@ func (m *Migrator) verifyFile(full string, r *VerifyResult) error {
 				Severity:      events.Severity(row.Severity),
 				Message:       row.Message,
 				Raw:           row.Raw,
+				Provenance: events.Provenance{
+					IngestPath: row.IngestPath,
+					Peer:       row.Peer,
+					AgentID:    row.AgentID,
+					Parser:     row.Parser,
+				},
 			}
-			ev.Hash = ev.ContentHash()
+			if ev.SchemaVersion == 0 || ev.Hash == "" {
+				// v1 row — no embedded hash to verify against. Just confirm
+				// structural parse worked.
+				r.EventsSeen++
+				continue
+			}
 			if !ev.VerifyHash() {
 				r.BadEvents++
 			}
