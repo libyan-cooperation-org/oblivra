@@ -75,6 +75,7 @@ func main() {
 		Reconstruction: stack.Reconstruction,
 		TenantPolicy:   stack.TenantPolicy,
 		Trust:          stack.Trust,
+		Quality:        stack.Quality,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,

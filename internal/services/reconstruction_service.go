@@ -16,6 +16,7 @@ type ReconstructionService struct {
 	log      *slog.Logger
 	sessions *reconstruction.SessionEngine
 	state    *reconstruction.StateService
+	network  *reconstruction.NetworkStitcher
 }
 
 func NewReconstructionService(log *slog.Logger, h *hot.Store) *ReconstructionService {
@@ -23,6 +24,7 @@ func NewReconstructionService(log *slog.Logger, h *hot.Store) *ReconstructionSer
 		log:      log,
 		sessions: reconstruction.NewSessionEngine(),
 		state:    reconstruction.NewStateService(h),
+		network:  reconstruction.NewNetworkStitcher(),
 	}
 }
 
@@ -32,6 +34,7 @@ func (r *ReconstructionService) ServiceName() string { return "ReconstructionSer
 // reconstructor cares.
 func (r *ReconstructionService) Observe(ctx context.Context, ev events.Event) {
 	r.sessions.Observe(ctx, ev)
+	r.network.Observe(ctx, ev)
 }
 
 func (r *ReconstructionService) Sessions(host string) []reconstruction.Session {
@@ -44,4 +47,14 @@ func (r *ReconstructionService) Session(id string) (*reconstruction.Session, boo
 
 func (r *ReconstructionService) StateAt(ctx context.Context, tenantID, hostID string, at time.Time) (*reconstruction.ProcessSnapshot, error) {
 	return r.state.Reconstruct(ctx, tenantID, hostID, at)
+}
+
+// FlowsByHost returns the network 5-tuple stories the stitcher remembers.
+func (r *ReconstructionService) FlowsByHost(host string) []reconstruction.Flow {
+	return r.network.FlowsByHost(host)
+}
+
+// DNSByQuery returns DNS resolutions seen for a given hostname.
+func (r *ReconstructionService) DNSByQuery(query string) []reconstruction.DNSAnswer {
+	return r.network.DNSByQuery(query)
 }

@@ -47,6 +47,7 @@ type Stack struct {
 	Reconstruction *services.ReconstructionService
 	TenantPolicy   *services.TenantPolicyService
 	Trust          *services.TrustService
+	Quality        *services.QualityService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -180,6 +181,7 @@ func New(opts Options) (*Stack, error) {
 	}
 	recon := services.NewReconstructionService(opts.Logger, store)
 	trustSvc := services.NewTrustService(opts.Logger)
+	qualitySvc := services.NewQualityService(opts.Logger)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -201,6 +203,7 @@ func New(opts Options) (*Stack, error) {
 		Reconstruction: recon,
 		TenantPolicy:   tenantPolicy,
 		Trust:          trustSvc,
+		Quality:        qualitySvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -304,6 +307,7 @@ func (s *Stack) startProcessors(parent context.Context) {
 		func(_ context.Context, ev events.Event) { s.Lineage.Observe(ev) },
 		func(ctx context.Context, ev events.Event) { s.Reconstruction.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Trust.Observe(ctx, ev) },
+		func(ctx context.Context, ev events.Event) { s.Quality.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) {
 			// IOC enrichment — match every text field against the IOC table.
 			candidates := []string{ev.HostID, ev.Message, ev.Raw}

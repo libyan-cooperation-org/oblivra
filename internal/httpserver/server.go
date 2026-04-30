@@ -43,6 +43,7 @@ type Server struct {
 	recon          *services.ReconstructionService
 	tenantPolicy   *services.TenantPolicyService
 	trust          *services.TrustService
+	qual           *services.QualityService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -68,6 +69,7 @@ type Deps struct {
 	Reconstruction *services.ReconstructionService
 	TenantPolicy   *services.TenantPolicyService
 	Trust          *services.TrustService
+	Quality        *services.QualityService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -94,6 +96,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		recon:          deps.Reconstruction,
 		tenantPolicy:   deps.TenantPolicy,
 		trust:          deps.Trust,
+		qual:           deps.Quality,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -190,6 +193,16 @@ func (s *Server) routes() {
 	if s.trust != nil {
 		s.mux.HandleFunc("GET /api/v1/trust/summary", s.trustSummary)
 		s.mux.HandleFunc("GET /api/v1/trust/event/{id}", s.trustEvent)
+	}
+	// Quality / coverage.
+	if s.qual != nil {
+		s.mux.HandleFunc("GET /api/v1/quality/sources", s.qualSources)
+		s.mux.HandleFunc("GET /api/v1/quality/coverage", s.qualCoverage)
+	}
+	// Network reconstruction.
+	if s.recon != nil {
+		s.mux.HandleFunc("GET /api/v1/reconstruction/flows", s.reconFlows)
+		s.mux.HandleFunc("GET /api/v1/reconstruction/dns", s.reconDNS)
 	}
 	// Tenant policy.
 	if s.tenantPolicy != nil {
@@ -668,6 +681,28 @@ func (s *Server) trustEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, rec)
+}
+
+func (s *Server) qualSources(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.qual.Profiles())
+}
+
+func (s *Server) qualCoverage(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.qual.Coverage())
+}
+
+func (s *Server) reconFlows(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	writeJSON(w, http.StatusOK, s.recon.FlowsByHost(host))
+}
+
+func (s *Server) reconDNS(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("query")
+	if q == "" {
+		writeError(w, http.StatusBadRequest, "query param required")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.recon.DNSByQuery(q))
 }
 
 func (s *Server) tenantPolicySet(w http.ResponseWriter, r *http.Request) {
