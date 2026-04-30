@@ -35,7 +35,8 @@ type Server struct {
 	foren   *services.ForensicsService
 	tier    *services.TieringService
 	lineage *services.LineageService
-	vault   *services.VaultService
+	vault    *services.VaultService
+	timeline *services.TimelineService
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -55,7 +56,8 @@ type Deps struct {
 	Foren   *services.ForensicsService
 	Tier    *services.TieringService
 	Lineage *services.LineageService
-	Vault   *services.VaultService
+	Vault    *services.VaultService
+	Timeline *services.TimelineService
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -76,7 +78,8 @@ func New(log *slog.Logger, deps Deps) *Server {
 		foren:   deps.Foren,
 		tier:    deps.Tier,
 		lineage: deps.Lineage,
-		vault:   deps.Vault,
+		vault:    deps.Vault,
+		timeline: deps.Timeline,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -109,6 +112,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/siem/ingest/batch", s.siemIngestBatch)
 	s.mux.HandleFunc("POST /api/v1/siem/ingest/raw", s.siemIngestRaw)
 	s.mux.HandleFunc("GET /api/v1/siem/search", s.siemSearch)
+	s.mux.HandleFunc("GET /api/v1/siem/oql", s.siemOQL)
 	s.mux.HandleFunc("GET /api/v1/siem/stats", s.siemStats)
 	s.mux.HandleFunc("GET /api/v1/events", s.liveTail) // WebSocket upgrade
 
@@ -166,6 +170,10 @@ func (s *Server) routes() {
 	if s.lineage != nil {
 		s.mux.HandleFunc("GET /api/v1/forensics/lineage", s.lineageHosts)
 		s.mux.HandleFunc("GET /api/v1/forensics/lineage/tree", s.lineageTree)
+	}
+	// Timeline.
+	if s.timeline != nil {
+		s.mux.HandleFunc("GET /api/v1/investigations/timeline", s.timelineGet)
 	}
 	// Vault.
 	if s.vault != nil {
@@ -294,6 +302,29 @@ func (s *Server) siemSearch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) siemStats(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.siem.Stats())
+}
+
+func (s *Server) siemOQL(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	raw := q.Get("q")
+	tenant := q.Get("tenant")
+	var fromU, toU int64
+	if v := q.Get("from"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			fromU = n
+		}
+	}
+	if v := q.Get("to"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			toU = n
+		}
+	}
+	resp, err := s.siem.SearchOQL(r.Context(), raw, tenant, fromU, toU)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // liveTail upgrades to a WebSocket and streams events in real time.
@@ -567,6 +598,37 @@ func (s *Server) lineageTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.lineage.Tree(host))
+}
+
+// ---- Timeline ----
+
+func (s *Server) timelineGet(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	req := services.TimelineRequest{
+		TenantID: q.Get("tenant"),
+		HostID:   q.Get("host"),
+	}
+	if v := q.Get("from"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			req.From = time.Unix(n, 0).UTC()
+		}
+	}
+	if v := q.Get("to"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			req.To = time.Unix(n, 0).UTC()
+		}
+	}
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			req.Limit = n
+		}
+	}
+	out, err := s.timeline.Build(r.Context(), req)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // ---- Vault ----

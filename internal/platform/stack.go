@@ -12,11 +12,13 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kingknull/oblivra/internal/datapath"
 	"github.com/kingknull/oblivra/internal/events"
 	"github.com/kingknull/oblivra/internal/ingest"
 	"github.com/kingknull/oblivra/internal/listeners"
+	"github.com/kingknull/oblivra/internal/scheduler"
 	"github.com/kingknull/oblivra/internal/services"
 	"github.com/kingknull/oblivra/internal/sigma"
 	"github.com/kingknull/oblivra/internal/storage/hot"
@@ -39,8 +41,9 @@ type Stack struct {
 	Foren   *services.ForensicsService
 	Tier    *services.TieringService
 	Lineage *services.LineageService
-	Vault   *services.VaultService
-	Bus     *events.Bus
+	Vault    *services.VaultService
+	Timeline *services.TimelineService
+	Bus      *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
 
@@ -51,6 +54,9 @@ type Stack struct {
 
 	cancelFns []func()
 	wg        sync.WaitGroup
+
+	scheduler   *scheduler.Scheduler
+	sigmaWatch  *sigma.Watcher
 }
 
 type Options struct {
@@ -144,6 +150,7 @@ func New(opts Options) (*Stack, error) {
 	tier := services.NewTieringService(opts.Logger, migrator)
 	lineage := services.NewLineageService(opts.Logger)
 	vaultSvc := services.NewVaultService(opts.Logger, dir)
+	timeline := services.NewTimelineService(store, alerts, foren)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -160,6 +167,7 @@ func New(opts Options) (*Stack, error) {
 		Tier:     tier,
 		Lineage:  lineage,
 		Vault:    vaultSvc,
+		Timeline: timeline,
 		Bus:      bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -202,6 +210,46 @@ func New(opts Options) (*Stack, error) {
 	_ = audit.Append(context.Background(), "system", "platform.start", "default", map[string]string{
 		"dataDir": dir,
 	})
+
+	// Background scheduler: run warm-tier migrations every 6h, audit health
+	// every 5m. The intervals are deliberately conservative — overrides land
+	// when we ship a config file.
+	stack.scheduler = scheduler.New(opts.Logger)
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "tiering.warm-migrate",
+		Interval: 6 * time.Hour,
+		Run: func(ctx context.Context) error {
+			_, err := tier.Promote(ctx)
+			return err
+		},
+	})
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "audit.health",
+		Interval: 5 * time.Minute,
+		Run: func(_ context.Context) error {
+			res := audit.Verify()
+			if !res.OK {
+				opts.Logger.Error("audit chain broken!", "brokenAt", res.BrokenAt, "entries", res.Entries)
+			}
+			return nil
+		},
+	})
+	stack.scheduler.Start(context.Background())
+	stack.cancelFns = append(stack.cancelFns, stack.scheduler.Stop)
+
+	// Sigma hot-reload — recompile rules on any change in the sigma directory.
+	if sigmaDir != "" {
+		stack.sigmaWatch = sigma.NewWatcher(opts.Logger, sigmaDir)
+		_ = stack.sigmaWatch.Start(context.Background(), func() {
+			n, err := rules.Reload()
+			if err != nil {
+				opts.Logger.Warn("sigma hot-reload failed", "err", err)
+				return
+			}
+			opts.Logger.Info("sigma hot-reload", "rules", n)
+		})
+		stack.cancelFns = append(stack.cancelFns, stack.sigmaWatch.Stop)
+	}
 
 	opts.Logger.Info("platform ready", "dataDir", dir)
 	return stack, nil

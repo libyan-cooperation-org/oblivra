@@ -5,10 +5,12 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kingknull/oblivra/internal/events"
 	"github.com/kingknull/oblivra/internal/ingest"
+	"github.com/kingknull/oblivra/internal/oql"
 	"github.com/kingknull/oblivra/internal/storage/hot"
 	"github.com/kingknull/oblivra/internal/storage/search"
 )
@@ -150,4 +152,106 @@ func (s *SiemService) searchFullText(_ context.Context, req SearchRequest, from,
 // Stats returns pipeline counters for the dashboard.
 func (s *SiemService) Stats() ingest.Stats {
 	return s.pipeline.Stats()
+}
+
+// SearchOQL parses an OQL pipe-syntax query, runs the expression through the
+// existing search path, and applies stage filters / sort / limit / tail in Go.
+func (s *SiemService) SearchOQL(ctx context.Context, raw string, tenantID string, fromUnix, toUnix int64) (SearchResponse, error) {
+	plan, err := oql.Parse(raw)
+	if err != nil {
+		return SearchResponse{}, err
+	}
+	req := SearchRequest{
+		TenantID:    tenantID,
+		Query:       plan.Expr,
+		FromUnix:    fromUnix,
+		ToUnix:      toUnix,
+		Limit:       plan.Limit,
+		NewestFirst: plan.SortDesc && plan.SortField == "timestamp",
+	}
+	if req.Limit == 0 {
+		req.Limit = 500 // pre-filter generously; we'll trim after where/sort/tail
+	}
+	resp, err := s.Search(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+	out := resp.Events
+
+	for _, f := range plan.Filters {
+		out = applyWhere(out, f)
+	}
+	if plan.SortField != "" {
+		applySort(out, plan.SortField, plan.SortDesc)
+	}
+	if plan.Tail > 0 && plan.Tail < len(out) {
+		out = out[len(out)-plan.Tail:]
+	}
+	if plan.Limit > 0 && plan.Limit < len(out) {
+		out = out[:plan.Limit]
+	}
+	return SearchResponse{
+		Events: out,
+		Total:  len(out),
+		Took:   resp.Took,
+		Mode:   "oql/" + resp.Mode,
+	}, nil
+}
+
+func applyWhere(in []events.Event, f oql.Filter) []events.Event {
+	out := in[:0]
+	want := strings.ToLower(f.Value)
+	for _, ev := range in {
+		val := fieldValue(ev, f.Field)
+		if strings.Contains(strings.ToLower(val), want) {
+			out = append(out, ev)
+		}
+	}
+	return out
+}
+
+func applySort(out []events.Event, field string, desc bool) {
+	sort.SliceStable(out, func(i, j int) bool {
+		a := fieldValue(out[i], field)
+		b := fieldValue(out[j], field)
+		if field == "timestamp" {
+			ta, tb := out[i].Timestamp, out[j].Timestamp
+			if desc {
+				return ta.After(tb)
+			}
+			return ta.Before(tb)
+		}
+		if desc {
+			return a > b
+		}
+		return a < b
+	})
+}
+
+func fieldValue(ev events.Event, field string) string {
+	switch field {
+	case "id":
+		return ev.ID
+	case "tenantId":
+		return ev.TenantID
+	case "host", "hostId":
+		return ev.HostID
+	case "source":
+		return string(ev.Source)
+	case "severity":
+		return string(ev.Severity)
+	case "eventType":
+		return ev.EventType
+	case "message":
+		return ev.Message
+	case "raw":
+		return ev.Raw
+	case "timestamp":
+		return ev.Timestamp.Format(time.RFC3339Nano)
+	default:
+		if v, ok := ev.Fields[field]; ok {
+			return v
+		}
+		return ""
+	}
 }
