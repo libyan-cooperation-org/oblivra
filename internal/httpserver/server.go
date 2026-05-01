@@ -48,6 +48,8 @@ type Server struct {
 	imp            *services.ImportService
 	report         *services.ReportService
 	tamper         *services.TamperService
+	webhooks       *services.WebhookService
+	oidc           *OIDCHandler
 	bus    *events.Bus
 	auth   *AuthMiddleware
 	assets fs.FS
@@ -78,6 +80,8 @@ type Deps struct {
 	Import         *services.ImportService
 	Report         *services.ReportService
 	Tamper         *services.TamperService
+	Webhooks       *services.WebhookService
+	OIDC           *OIDCHandler
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
 	Assets fs.FS
@@ -109,6 +113,8 @@ func New(log *slog.Logger, deps Deps) *Server {
 		imp:            deps.Import,
 		report:         deps.Report,
 		tamper:         deps.Tamper,
+		webhooks:       deps.Webhooks,
+		oidc:           deps.OIDC,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
 		assets: deps.Assets,
@@ -239,6 +245,18 @@ func (s *Server) routes() {
 	// Tamper findings.
 	if s.tamper != nil {
 		s.mux.HandleFunc("GET /api/v1/forensics/tamper", s.tamperFindings)
+	}
+	// Webhooks.
+	if s.webhooks != nil {
+		s.mux.HandleFunc("GET /api/v1/webhooks", s.webhookList)
+		s.mux.HandleFunc("POST /api/v1/webhooks", s.webhookRegister)
+		s.mux.HandleFunc("DELETE /api/v1/webhooks/{id}", s.webhookDelete)
+		s.mux.HandleFunc("GET /api/v1/webhooks/deliveries", s.webhookDeliveries)
+	}
+	// OIDC SSO (optional — only mounted when configured).
+	if s.oidc != nil && s.oidc.Configured() {
+		s.mux.HandleFunc("GET /api/v1/auth/oidc/login", s.oidc.Login)
+		s.mux.HandleFunc("GET /api/v1/auth/oidc/callback", s.oidc.Callback)
 	}
 	// Timeline.
 	if s.timeline != nil {
@@ -860,6 +878,39 @@ func (s *Server) lineageCrossHost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.lineage.CrossHostByName(name))
+}
+
+func (s *Server) webhookList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.webhooks.List())
+}
+
+func (s *Server) webhookRegister(w http.ResponseWriter, r *http.Request) {
+	var hook services.Webhook
+	if err := readJSON(r, &hook); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := s.webhooks.Register(hook)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
+func (s *Server) webhookDelete(w http.ResponseWriter, r *http.Request) {
+	s.webhooks.Delete(r.PathValue("id"))
+	writeJSON(w, http.StatusNoContent, nil)
+}
+
+func (s *Server) webhookDeliveries(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	writeJSON(w, http.StatusOK, s.webhooks.Recent(limit))
 }
 
 func (s *Server) tamperFindings(w http.ResponseWriter, r *http.Request) {

@@ -79,6 +79,32 @@ func (s *AlertService) Raise(_ context.Context, a Alert) Alert {
 	return a
 }
 
+// Subscribe lets a downstream consumer (e.g. WebhookService) receive every
+// alert as it's raised. The returned channel is closed when ctx is cancelled.
+func (s *AlertService) Subscribe(ctx context.Context, buffer int) <-chan Alert {
+	if buffer <= 0 {
+		buffer = 64
+	}
+	ch := make(chan Alert, buffer)
+	go func() {
+		defer close(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case a := <-s.bus:
+				select {
+				case ch <- a:
+				default:
+					// drop if subscriber is too slow — same posture as the
+					// event Bus: detection delivery must never block ingest.
+				}
+			}
+		}
+	}()
+	return ch
+}
+
 // Recent returns the most recent N alerts, newest first.
 func (s *AlertService) Recent(limit int) []Alert {
 	s.mu.RLock()

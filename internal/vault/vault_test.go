@@ -2,8 +2,10 @@ package vault
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -92,6 +94,60 @@ func TestNames(t *testing.T) {
 func TestUnreadableFile(t *testing.T) {
 	if _, err := Open("does-not-exist", "p"); err == nil {
 		t.Error("expected error for missing file")
+	}
+}
+
+func TestConcurrentReadWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.vault")
+	v, err := Create(path, "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const writers = 8
+	const readers = 8
+	const ops = 25
+	var wg sync.WaitGroup
+	wg.Add(writers + readers)
+
+	for w := 0; w < writers; w++ {
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < ops; i++ {
+				name := fmt.Sprintf("k-%d-%d", id, i)
+				if err := v.Set(name, "value"); err != nil {
+					t.Errorf("write: %v", err)
+					return
+				}
+			}
+		}(w)
+	}
+	for r := 0; r < readers; r++ {
+		go func() {
+			defer wg.Done()
+			for i := 0; i < ops; i++ {
+				_ = v.Names()
+			}
+		}()
+	}
+	wg.Wait()
+
+	// All writers' keys must be present.
+	names := v.Names()
+	if len(names) != writers*ops {
+		t.Errorf("got %d keys, want %d", len(names), writers*ops)
+	}
+
+	// Re-open: every key must round-trip.
+	v.Lock()
+	v2, err := Open(path, "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v2.Lock()
+	if got := len(v2.Names()); got != writers*ops {
+		t.Errorf("after re-open: %d keys, want %d", got, writers*ops)
 	}
 }
 

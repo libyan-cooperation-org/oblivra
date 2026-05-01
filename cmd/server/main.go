@@ -80,6 +80,7 @@ func main() {
 		Import:         stack.Import,
 		Report:         stack.Report,
 		Tamper:         stack.Tamper,
+		Webhooks:       stack.Webhooks,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,

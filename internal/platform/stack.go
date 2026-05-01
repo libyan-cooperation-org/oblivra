@@ -52,6 +52,7 @@ type Stack struct {
 	Import         *services.ImportService
 	Report         *services.ReportService
 	Tamper         *services.TamperService
+	Webhooks       *services.WebhookService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -193,6 +194,7 @@ func New(opts Options) (*Stack, error) {
 	importSvc := services.NewImportService(opts.Logger, pipeline)
 	reportSvc := services.NewReportService(opts.Logger, investigations, audit)
 	tamperSvc := services.NewTamperService(opts.Logger, alerts)
+	webhookSvc := services.NewWebhookService(opts.Logger, audit)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -219,6 +221,7 @@ func New(opts Options) (*Stack, error) {
 		Import:         importSvc,
 		Report:         reportSvc,
 		Tamper:         tamperSvc,
+		Webhooks:       webhookSvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -261,6 +264,22 @@ func New(opts Options) (*Stack, error) {
 	_ = audit.Append(context.Background(), "system", "platform.start", "default", map[string]string{
 		"dataDir": dir,
 	})
+
+	// Wire alerts → webhooks. Each alert raised lands in webhookSvc.Deliver
+	// which fans out to every registered hook that matches severity / rule
+	// filters.
+	{
+		ctx, cancel := context.WithCancel(context.Background())
+		stack.cancelFns = append(stack.cancelFns, cancel)
+		stack.wg.Add(1)
+		go func() {
+			defer stack.wg.Done()
+			ch := alerts.Subscribe(ctx, 256)
+			for a := range ch {
+				webhookSvc.Deliver(ctx, a)
+			}
+		}()
+	}
 
 	// Background scheduler: run warm-tier migrations every 6h, audit health
 	// every 5m. The intervals are deliberately conservative — overrides land

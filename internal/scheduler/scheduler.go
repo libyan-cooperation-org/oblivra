@@ -50,15 +50,18 @@ func (s *Scheduler) Start(parent context.Context) {
 	}
 	ctx, cancel := context.WithCancel(parent)
 	s.cancel = cancel
-	s.done = make(chan struct{})
+	done := make(chan struct{})
+	s.done = done
 	wg := &sync.WaitGroup{}
 	for _, j := range s.jobs {
 		wg.Add(1)
 		go s.run(ctx, j, wg)
 	}
+	// Capture `done` locally so a racing Stop() that nil-clears s.done
+	// doesn't make this close panic on a nil channel.
 	go func() {
 		wg.Wait()
-		close(s.done)
+		close(done)
 	}()
 	s.log.Info("scheduler started", "jobs", len(s.jobs))
 }

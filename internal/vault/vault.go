@@ -67,9 +67,16 @@ type plaintext struct {
 }
 
 // Vault is the in-memory unlocked view. Lock zeroes the key.
+//
+// Two mutexes intentionally:
+//   - mu protects the in-memory items + key + bookkeeping
+//   - saveMu serialises file writes so concurrent Set/Delete callers don't
+//     race on the atomic-rename `.tmp` file (which Windows enforces, but
+//     it's the right correctness invariant on every OS)
 type Vault struct {
 	path   string
 	mu     sync.RWMutex
+	saveMu sync.Mutex
 	key    []byte
 	params KDFParams
 	salt   []byte
@@ -197,6 +204,12 @@ func (v *Vault) Lock() {
 }
 
 func (v *Vault) save() error {
+	// Serialise the entire snapshot+write+rename so two concurrent Set()
+	// calls don't both try to claim the .tmp file. The data snapshot itself
+	// also holds mu.RLock so save() always reflects a consistent state.
+	v.saveMu.Lock()
+	defer v.saveMu.Unlock()
+
 	v.mu.RLock()
 	pt, err := json.Marshal(plaintext{Items: v.items})
 	v.mu.RUnlock()
