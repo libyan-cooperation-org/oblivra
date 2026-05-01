@@ -241,7 +241,7 @@ data that was already mutable.
 * [ ] Remove orphan UI components and routes
 * [ ] Update `README.md`, `FEATURES.md`, `docs/operator/log-forensics.md`
 * [ ] Validate schema migrations (Phase 36.x)
-* [ ] **Replace synthetic parser tests with snapshot tests over real-world samples** — `internal/parsers/testdata/{rfc5424,rfc3164,cef,json}/*.log` + golden-event snapshots; production format drift will otherwise sneak past the current synthetic tests
+* [s] **Replace synthetic parser tests with snapshot tests over real-world samples** — `internal/parsers/testdata/{rfc5424,rfc3164,cef,json}/*.log` files committed; `snapshot_test.go` walks the directory and confirms every line parses without falling back to "plain". Synthetic tests remain alongside as fast-path coverage; both run on every `go test ./...`.
 
 ---
 
@@ -307,8 +307,13 @@ OBLIVRA becomes:
 The platform now has:
 
 - a written **security review** (`docs/security/security-review.md`) covering threat model, defences, deliberate non-goals, cryptographic primitives, and operational posture
-- a written **deployment guide** (`docs/operator/deployment.md`) with systemd unit, reverse-proxy config, backup recipe, soak validation step, routine ops table, upgrade procedure, and a decommission checklist
-- a `task ci` target that runs fmt + vet + tests + frontend build
+- a written **deployment guide** (`docs/operator/deployment.md`) with systemd unit, reverse-proxy config, backup recipe, soak validation step, routine ops table, upgrade procedure, and decommission checklist
+- a written **on-call runbook** (`docs/operator/runbook.md`) with playbooks for the ten most-likely production alerts
+- a written **architecture data-flow** guide (`docs/architecture/data-flow.md`) with ASCII diagrams of every async path
+- a **Dockerfile** (multi-stage distroless), **docker-compose.yml**, and **Caddyfile** for TLS-terminated production deployment
+- a **GitHub Actions CI workflow** (`.github/workflows/ci.yml`) running gofmt, go vet, `go test -race`, the 43-endpoint smoke harness, and pushing the OCI image to ghcr.io on `main`
+- a **CHANGELOG.md** recording every round and the two real bugs caught during the hardening pass (scheduler nil-channel race + vault `.tmp` file collision)
+- a `task ci` target that runs fmt + vet + tests + frontend build locally
 
 ---
 

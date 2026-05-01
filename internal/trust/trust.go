@@ -149,26 +149,44 @@ func (e *Engine) Observe(ev events.Event) {
 	e.store(rec, fp)
 
 	// Promote earlier records that share this fingerprint to "consistent".
+	//
+	// Capped at maxCorrob corroborators per record so a high-cardinality
+	// fingerprint (e.g. an alert pattern that fires hundreds of times)
+	// doesn't turn this into O(n²) per call. Two corroborators is the
+	// meaningful claim ("seen via 2+ paths"); more is informational
+	// noise, not stronger evidence.
+	const maxCorrob = 5
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	others := e.fingerprints[fp]
 	if len(others) >= 2 {
-		for _, id := range others {
+		// Cap the inner promotion to maxCorrob most-recent peers — the
+		// outer loop also short-circuits once a record is already at the cap.
+		recent := others
+		if len(recent) > maxCorrob+1 {
+			recent = recent[len(recent)-(maxCorrob+1):]
+		}
+		for _, id := range recent {
 			r, ok := e.records[id]
 			if !ok {
 				continue
 			}
-			// Only upgrade — don't downgrade a verified record.
 			if r.Grade == GradeUntrusted {
 				r.Grade = GradeConsistent
 			}
-			// Track corroborators (omit self).
-			for _, otherID := range others {
+			if len(r.CorrobBy) >= maxCorrob {
+				r.UpdatedAt = time.Now().UTC()
+				continue
+			}
+			for _, otherID := range recent {
 				if otherID == id {
 					continue
 				}
 				if !contains(r.CorrobBy, otherID) {
 					r.CorrobBy = append(r.CorrobBy, otherID)
+					if len(r.CorrobBy) >= maxCorrob {
+						break
+					}
 				}
 			}
 			r.UpdatedAt = time.Now().UTC()

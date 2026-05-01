@@ -1,0 +1,41 @@
+# Replace `oblivra.local` with your real hostname. Caddy fetches a Let's
+# Encrypt cert automatically when the hostname is publicly resolvable;
+# for internal deployments, point it at your private CA via the `tls`
+# directive.
+
+oblivra.local {
+  encode gzip
+
+  # WebSocket upgrade for /api/v1/events
+  @ws {
+    header Connection *Upgrade*
+    header Upgrade websocket
+  }
+  reverse_proxy @ws oblivra:8080
+
+  # Cap import body sizes — generous for forensic backfills, mean enough
+  # to refuse abuse.
+  request_body /api/v1/import {
+    max_size 256MB
+  }
+  request_body /api/v1/siem/ingest/raw {
+    max_size 32MB
+  }
+  request_body * {
+    max_size 1MB
+  }
+
+  reverse_proxy oblivra:8080
+
+  log {
+    output file /data/oblivra-access.log
+    format json
+  }
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    -Server
+  }
+}

@@ -168,7 +168,9 @@ func (m *Migrator) Run(ctx context.Context) (int, error) {
 		ids[i] = e.ID
 	}
 
-	stamp := time.Now().UTC().Format("20060102T150405Z")
+	// Nanosecond precision so two migrations in the same second can't clash
+	// on the filename (the WORM-locked previous file would block re-open).
+	stamp := time.Now().UTC().Format("20060102T150405.000000000Z")
 	path := filepath.Join(m.warmDir, fmt.Sprintf("warm-%s-%s.parquet", m.tenantID, stamp))
 	f, err := os.Create(path)
 	if err != nil {
