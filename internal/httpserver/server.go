@@ -307,6 +307,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /services/collector", s.hecHandler())
 	s.mux.HandleFunc("POST /v1/logs", s.otlpLogsHandler())
 
+	// Phase 47 — pprof, behind the standard auth middleware.
+	if s.auth != nil && s.auth.Required() {
+		registerPprof(s.mux)
+	}
+
 	if s.assets != nil {
 		s.mux.Handle("/", spaHandler(s.assets))
 	}
