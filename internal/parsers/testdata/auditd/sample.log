@@ -1,0 +1,5 @@
+type=SYSCALL msg=audit(1714521600.123:456): arch=c000003e syscall=2 success=yes exit=3 a0=7ffe1234 a1=0 a2=1b6 a3=0 items=1 ppid=1 pid=1234 auid=1000 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=pts1 ses=1 comm="cat" exe="/usr/bin/cat" key=(null)
+type=PATH msg=audit(1714521600.123:456): item=0 name="/etc/shadow" inode=12345 dev=08:01 mode=0100640 ouid=0 ogid=0 rdev=00:00
+type=USER_AUTH msg=audit(1714521700.500:789): pid=4321 uid=0 auid=4294967295 ses=4294967295 msg='op=PAM:authentication grantors=? acct="root" exe="/usr/sbin/sshd" hostname=10.0.0.42 addr=10.0.0.42 terminal=ssh res=failed'
+type=EXECVE msg=audit(1714521800.000:1001): argc=3 a0="rm" a1="-rf" a2="/tmp/cache"
+type=SERVICE_START msg=audit(1714521900.000:1100): pid=1 uid=0 auid=4294967295 ses=4294967295 msg='unit=oblivra-agent comm="systemd" exe="/usr/lib/systemd/systemd" hostname=? addr=? terminal=? res=success'

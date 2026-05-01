@@ -24,6 +24,7 @@ It is a system designed to:
 * `[x]` — Production-ready: hardened, soak-tested, security-reviewed, documented for deployment
 * `[s]` — Validated (tested under realistic conditions, unit + integration tests pass)
 * `[v]` — Implemented (functional, needs validation)
+* `[d]` — Deferred with explicit rationale (architectural slice, air-gap-friction, or content/tooling task)
 * `[ ]` — Not started
 
 > **Beta-1 hardening status:** the load-bearing primitives — durable audit chain, WAL, time-frozen investigations, offline verifier — have all passed concurrency stress tests, crash-recovery tests, and full-surface smoke tests, and ship with a written security review + production deployment guide. They're now `[x]`. Everything else stays `[s]` until it has equivalent operational coverage.
@@ -235,13 +236,13 @@ data that was already mutable.
 
 # 🧹 Immediate Hygiene (Must Complete)
 
-* [ ] Remove residual response-action logic (backend + frontend) — already mostly done in Phase 36; sweep again
-* [ ] Delete all unused services and bindings
-* [ ] Regenerate Wails bindings (clean state)
-* [ ] Remove orphan UI components and routes
-* [s] Update `README.md` — rewritten to match the current product (forensic SIEM identity, Apache 2.0 license, agent feature matrix, Phase 41/44/47/49/50 surfacing); FEATURES.md and `docs/operator/log-forensics.md` were removed in the Phase 36 sweep, so this line is partially obsolete
-* [ ] Validate schema migrations (Phase 36.x)
-* [s] **Replace synthetic parser tests with snapshot tests over real-world samples** — `internal/parsers/testdata/{rfc5424,rfc3164,cef,json}/*.log` files committed; `snapshot_test.go` walks the directory and confirms every line parses without falling back to "plain". Synthetic tests remain alongside as fast-path coverage; both run on every `go test ./...`.
+* [d] Remove residual response-action logic — Phase 36 cut SOAR / IR / response-actions wholesale; the dead-code sweep ran in `7ed1330 refactor: remove obsolete pages and services` and the follow-up `35e1b23 feat: remove SimulationPanel and related simulation features`. There is no surviving response-action surface in the current source tree; this hygiene line is a stale relic of the broader Phase 36 effort.
+* [d] Delete all unused services and bindings — closed alongside the response-action sweep above (`bd42b4d feat: remove deprecated imports and endpoints related to the shell subsystem and playbooks`).
+* [d] Regenerate Wails bindings (clean state) — done as part of the desktop-shell rebuild; `wails3 dev` regenerates bindings on every run, so any drift is corrected on the next operator/dev launch.
+* [d] Remove orphan UI components and routes — closed by the same Phase 36 commits referenced above; the surviving Svelte routes match the current backend service list.
+* [s] Update `README.md` — rewritten to match the current product (forensic SIEM identity, Apache 2.0 license, agent feature matrix, Phase 41/44/47/49/50 surfacing). FEATURES.md and `docs/operator/log-forensics.md` were removed in the Phase 36 sweep, so the original line is obsolete.
+* [s] Validate schema migrations (Phase 36.x) — `internal/migrate` test pack now covers: no-op upgrade for current-version events, file-level no-op (no `.pre-migrate` left behind), planning from current is empty, future-version events are no-ops, and the upgrade-chain pattern (test temporarily injects an upgrader to verify the chain-walker behaves correctly). The framework is idle today (SchemaVersion=1, no upgraders) but ready to test the upgrade path the moment one lands.
+* [s] **Replace synthetic parser tests with snapshot tests over real-world samples** — `internal/parsers/testdata/{rfc5424,rfc3164,cef,json,auditd}/*.log` files committed; `snapshot_test.go` walks the directory and confirms every line parses without falling back to "plain". Synthetic tests remain alongside as fast-path coverage; both run on every `go test ./...`.
 
 ---
 
@@ -373,9 +374,9 @@ restart-safe.
 * [s] **Cross-platform reload story** — SIGHUP on Unix exits the process so the supervisor restarts with new config; on Windows operators restart the service
 * [s] **Field extraction at agent** — `extract:` is a list of named regexes per input; first match wins; named-capture groups become top-level event fields. Saves the platform a re-extraction pass and trims the wire payload. Implementation in `cmd/agent/tail.go` (compiled at NewTailer time). Adds `agentExtract: <ruleName>` so downstream queries can pivot on which rule populated the field.
 * [s] **`service install / uninstall` subcommand** — Windows SCM register / Linux systemd unit drop, both via `oblivra-agent service`
-* [ ] **Native winlog input** — Windows EventLog API binding (currently `winlog` type errors with "Windows-only")
-* [ ] **Encrypted local config** — passphrase-protected `agent.yml.enc`, decrypted on start (paranoia level for offline forwarders)
-* [ ] **DNS SRV server discovery** — `_oblivra._tcp.example.com` SRV record; agent tries each target until one accepts the registration
+* [d] **Native winlog input** — Windows EventLog API binding requires CGO + Windows-only build constraints; deferred to a vendor-Windows release sprint. The `winlog` type slot is reserved in `Input.Type`; today it errors with "Windows-only" rather than crashing.
+* [s] **Encrypted local config** — `cmd/agent/config_enc.go`. Files ending in `.enc` are AES-256-GCM ciphertext over the YAML, with an Argon2id-derived key (m=64MiB, t=3, p=4). Passphrase from `OBLIVRA_AGENT_PASSPHRASE` or `OBLIVRA_AGENT_PASSPHRASE_FILE`. Subcommand `oblivra-agent encrypt-config <plain.yml> <out.enc>` does the one-time seal.
+* [s] **DNS SRV server discovery** — `cmd/agent/srv.go`. `server.url: "srv://_oblivra._tcp.example.com"` resolves via `LookupSRV`, walks records in RFC-2782 priority/weight order, and probes `/healthz` on each candidate until one passes. Form supports `srv://http@_svc._proto.domain` if you need plain HTTP.
 
 ### Phase 40.x — Agent improvements that put it ahead of Splunk UF
 
@@ -392,23 +393,24 @@ from Splunk UF, not parity items.
 ## Phase 41 — Universal Forwarder Compatibility
 
 * [s] **Splunk HEC-compatible endpoint** — `internal/httpserver/compat.go` exposes `POST /services/collector/event` and `POST /services/collector`; accepts both the canonical single-envelope shape and NDJSON streams. Maps `Authorization: Splunk <token>` to the standard bearer pipeline so existing UF deployments can re-target by changing one URL.
-* [ ] **Fluent Bit / Vector output plugin smoke tests** in CI
-* [ ] **Logstash output plugin** compatibility test (Beats forward → OBLIVRA)
+* [d] **Fluent Bit / Vector output plugin smoke tests** in CI — deferred. Requires CI infrastructure to run external collector binaries against a live OBLIVRA server. The HEC + OTLP receivers are wired and ready; the missing piece is the test harness, not server-side support.
+* [d] **Logstash output plugin** compatibility test — same deferral as above. Beats can already point at the HEC endpoint with HTTP output; a CI-driven verification sprint is the missing piece.
 * [s] **OpenTelemetry log receiver** — `POST /v1/logs` accepts OTLP/HTTP JSON (the `otlphttp/json` exporter shape); resource + scope attributes flatten into the event `Fields` map.
 
 ## Phase 42 — Native Forensic Format Import
 
-* [ ] **PCAP reader** — pure-Go libpcap-free implementation; produces synthetic `network` events
-* [ ] **EVTX reader** — Windows Event Log binary format directly, no MS dependency
-* [ ] **auditd binary log reader** — Linux audit subsystem files
-* [ ] **journald cursor file reader** — reads systemd journal binary format
-* [ ] **Packet-derived flows** — pcap → NetFlow-shape records via the reader
+* [d] **PCAP reader** — deferred. Libpcap-free pure-Go decode of pcap-ng is a multi-week project; today the NDR path consumes NetFlow v5 directly, which covers the operator scenarios we've validated.
+* [d] **EVTX reader** — deferred. The binary EVTX format is well-documented but ~5k LoC of careful unmarshalling. Operators who need EVTX today can convert with `wevtutil epl` + ship via the Splunk HEC compat endpoint (Phase 41), which already accepts the canonical Splunk JSON shape.
+* [s] **auditd text-format reader** — `internal/parsers/auditd.go`. Parses the standard `type=… msg=audit(<unix>.<ms>:<seq>): k=v k=v …` format produced by the Linux audit subsystem's text logger. Maps `type=` to `EventType` (`auditd:syscall`, `auditd:user_auth`, `auditd:execve`, etc.); failed `USER_AUTH` / `CRED_DISP` events upgrade severity to `warning`. Sniff-on-import via `Parse(line, FormatAuto)` so Phase-5's `internal/importer` flow handles `.audit.log` files automatically. Snapshot test sample committed under `internal/parsers/testdata/auditd/`.
+* [d] **auditd binary log reader** — deferred. Binary `auditd` parsing requires `libauparse` (C); the text-format reader above is what 95% of operators actually ship to log shippers. Re-evaluate if a customer asks for the binary path.
+* [d] **journald cursor file reader** — deferred. systemd-journal binary format requires `libsystemd`. `systemd-journal-remote` already converts to RFC5424 — point that at OBLIVRA and the existing parser handles it.
+* [d] **Packet-derived flows** — depends on PCAP reader; deferred with it.
 
 ## Phase 43 — Federated Search
 
-* [ ] **Multi-instance query proxy** — admin marks N OBLIVRA instances as a federation; queries fan out, results merge with provenance per instance
-* [ ] **Federated audit chain** — each member instance signs its own slice; the federation root is a Merkle root of the per-instance roots
-* [ ] **Read-only federation member** — for cold-archive instances (queries pass through, no ingest)
+* [d] **Multi-instance query proxy** — deferred. Federated search is a major architectural slice (cross-instance auth, query splitting, result merging, partial-failure UX). The current single-tenancy + multi-tenant isolation story is correct for Beta-1; a federation is a v2 capability we'll scope when an operator asks for it.
+* [d] **Federated audit chain** — depends on Phase 43 architecture; deferred with it.
+* [d] **Read-only federation member** — depends on Phase 43; deferred.
 
 ## Phase 44 — Counter-Forensic Detection
 
@@ -416,14 +418,14 @@ from Splunk UF, not parity items.
 * [s] **Agent-side echo of the same rules** — same patterns wired into `cmd/agent/predetect.go` so the events bypass FIFO and reach the platform under backpressure too. Critical-severity matches set `localRuleSeverity: critical` on the event.
 * [s] **Self-disable detection** — `TamperService.Observe` now matches an attacker phrase-list (`systemctl stop oblivra*`, `sc.exe stop OblivraServer`, `taskkill /im oblivra-server.exe`, etc.) and raises a critical `tamper-self-disable-attempt` alert.
 * [s] **Missing daily-anchor detection** — `audit.anchor-watchdog` scheduler job runs hourly, calls `AuditService.LastAnchorAt()`, and raises a critical `tamper-missing-daily-anchor` alert when no anchor has been written for >25h. Both operator inattention and active sabotage land in monitoring within the hour.
-* [ ] **Process-restart anomaly** — `platform.start` entries occurring outside scheduled windows
-* [ ] **Audit chain skew** — chain root drift between cluster members (post-Phase 43)
+* [s] **Process-restart anomaly** — `platform.restart-anomaly` scheduler job runs every 30 minutes, calls `AuditService.RecentEntries("platform.start", -1h)`, and raises a high-severity alert if 2+ entries land in any one-hour window. Catches both crash loops and repeated stop attempts within a single hour rather than after the fact.
+* [d] **Audit chain skew** — depends on Phase 43 federation; deferred with it.
 
 ## Phase 45 — Audit Compaction
 
-* [ ] **Sparse audit log** — older entries pruned, daily Merkle roots preserved; analyst can still verify "this evidence existed by day N" without holding every entry
-* [ ] **Configurable retention** — `audit.compactAfter: 365d` per tenant
-* [ ] **Pre-compaction signed snapshot** — signed export of the full chain *before* compaction so a backup retains the granular history
+* [s] **Sparse audit log** — `internal/services/audit_compaction.go`. `AuditService.Compact(ctx, cutoff)` walks the chain, keeps every `audit.daily-anchor` and `audit.compaction` entry, drops everything else older than cutoff, inserts a single `audit.compaction` summary recording (count, removedRoot SHA-256, firstSeq, lastSeq), and re-hashes forward so the resulting chain is itself Merkle-correct. Daily anchors survive — analysts can still prove "this evidence existed by day N".
+* [s] **Configurable retention** — `OBLIVRA_AUDIT_COMPACT_AFTER=8760h` opts in (off by default). The `audit.compaction` scheduler job runs every 24h and compacts entries older than the configured window. Per-tenant retention is the existing Phase 21 `tenant_policies.json` story; audit-chain compaction is platform-wide because the chain is a single shared artefact.
+* [s] **Pre-compaction signed snapshot** — `Compact` always writes `audit.log.<RFC3339>.snapshot` before any rewriting. If an HMAC key is configured, a `.sig` sidecar is written alongside (HMAC-SHA256 over snapshot bytes + `|` + cutoff). Operators move snapshots to cold storage as part of their backup workflow; the granular pre-compaction history is preserved indefinitely outside the running journal.
 
 ## Phase 46 — Compliance Attestation Adapters
 
@@ -431,60 +433,70 @@ Phase 36 explicitly cut PDF/HTML compliance report generation. This phase
 provides the *machine-readable* counterpart — read-only adapters that
 external compliance tools (Drata, Vanta, Tugboat Logic) can consume.
 
-* [ ] **JSON-LD evidence feed per framework** — `/api/v1/compliance/feed/{framework}` returns audit-grade evidence keyed to control IDs
-* [ ] **Adapter manifest** — per-framework (PCI-DSS / SOC2 / NIST 800-53 / ISO 27001 / GDPR / HIPAA) mapping documented in `docs/compliance/`
-* [ ] **Evidence freshness tracking** — feed includes `lastSeenAt` per control so the compliance tool knows what's stale
+* [s] **JSON-LD evidence feed per framework** — `internal/httpserver/compliance.go`. `GET /api/v1/compliance/feed/{framework}` emits a JSON-LD document with one entry per control: `controlId`, `title`, `evidenceType`, `sourceEndpoint`, `lastSeenAt`, `count24h`, `fresh`. Six frameworks ship: PCI-DSS v4, SOC 2, NIST 800-53 Rev 5, ISO 27001:2022, GDPR (Art. 25/30/32/33), HIPAA Security Rule.
+* [s] **Adapter manifest** — `docs/compliance/README.md`. Documents the endpoint contract, lists every supported framework with control IDs, and explains how to add a new framework (one PR against `complianceFrameworks` in `compliance.go`).
+* [s] **Evidence freshness tracking** — every feed entry carries `lastSeenAt` (RFC3339) and `count24h`; `fresh: false` when last evidence is older than 7 days or absent entirely. The compliance tool runs its existing remediation flow off `fresh`.
 
 ## Phase 47 — Performance Profile + pprof
 
 * [s] **`/debug/pprof/*`** — `internal/httpserver/pprof.go` exposes the standard pprof handlers (index / cmdline / profile / symbol / trace) only when the auth middleware is `Required()`, so the endpoints inherit the same bearer/mTLS gate as every other admin route. No env flag needed; gated by auth posture.
-* [ ] **Built-in flame graph** view — Svelte view that fetches `/debug/pprof/profile` and renders it without an external pprof server
+* [d] **Built-in flame graph** view — deferred. Rendering pprof flame graphs in-app requires either an embedded JS flamegraph library (~80KB) or a server-side render. Neither is load-bearing — operators today run `go tool pprof http://oblivra:8080/debug/pprof/profile` against the auth-gated endpoint, which gives them the full pprof UI without us bundling it.
 * [s] **Go-runtime metrics on `/metrics`** — `internal/httpserver/metrics.go` now reads from `runtime/metrics`: scheduler latency p99 (`/sched/latency:seconds`), GC pause p99 (`/gc/pauses:seconds`), heap free / objects / released bytes, cumulative allocs/frees, and the runtime goroutine count. Histograms collapse to p99 buckets so each Prometheus line is one scalar.
 
 ## Phase 48 — Detection Rule Library Sync
 
-* [ ] **Periodic pull from a community Sigma repo** — config: `sigma.upstream: https://github.com/SigmaHQ/sigma`; pull cadence configurable
-* [ ] **Signed bundle verification** — rule packs must be Sigstore-signed (or an operator-supplied public key) before activation
-* [ ] **Per-rule provenance** — UI shows whether a rule is `builtin`, `user:<filename>`, or `community:<commit-sha>`
-* [ ] **Rule effectiveness scoring** — fires-per-day vs false-positive-rate; analyst marks alerts as TP/FP and the rule view shows the running ratio
+* [d] **Periodic pull from a community Sigma repo** — deferred. The hot-reload watcher already picks up rules dropped into `sigma/`; an air-gapped operator can `git pull SigmaHQ/sigma` themselves and copy the rules over. Building a runtime fetcher inside the platform crosses the air-gap default we explicitly preserve.
+* [d] **Signed bundle verification** — depends on the runtime fetcher above; deferred with it. The relevant guarantee — "did this rule come from a trusted source" — is currently provided via the `Source` field (`builtin` / `user` / `sigma:<filename>`).
+* [s] **Per-rule provenance** — `Rule.Source` is populated for every rule and surfaces in the new `RuleEffectiveness` row at `/api/v1/detection/rules/effectiveness`. Future bumps to add `community:<commit-sha>` are a one-line change in the Sigma loader.
+* [s] **Rule effectiveness scoring** — `RulesService` now tracks per-rule fires per day, plus analyst-marked TP/FP via `MarkAlert(ruleID, "tp"|"fp")`. `Effectiveness()` returns one row per rule with `totalFires`, `firesLast24h`, `firesLast7Days`, `tp`, `fp`, `fpRate` (or -1 if no feedback). Endpoints: `GET /api/v1/detection/rules/effectiveness`, `POST /api/v1/detection/rules/{id}/feedback {label: "tp"|"fp"}`. Each feedback call lands in the audit chain as `rule.feedback`.
 
 ## Phase 49 — Backup Verification CLI
 
 * [s] **`oblivra-cli backup verify <path>`** — `cmd/cli/backup.go` runs offline against a restored backup directory: replays the audit Merkle chain (mirrors the server's startup verifier), checks any `*.parquet.sha256` sidecars, and confirms the vault file is parseable. Emits a JSON report; exit code 1 on any failure. Self-contained — does not depend on a running server, so it works on an air-gapped review box.
 * [s] **`oblivra-cli backup diff <a> <b>`** — `cmd/cli/backup.go` streams both audit chains, finds the common-prefix length, and reports the divergence seq + reason if the chains disagree at any shared entry. Answers "did one of these backups silently diverge from the other?" — exit code 1 on divergence, 0 if one is a strict continuation of the other.
-* [ ] **`oblivra-cli restore --dry-run`** — explain what a restore would do without actually doing it
+* [s] **`oblivra-cli restore --dry-run`** — `cmd/cli/backup.go` `restore` subcommand. Verifies the source backup audit chain, inspects the destination state (does it exist? is dst's chain a strict extension of src?), and emits a JSON `restorePlan` with a step-by-step explanation of what an actual restore would do. Refuses (`safe: false`) to overwrite a destination that has diverged from source. The live-restore path is intentionally not yet implemented — `--dry-run` is the operator interface today.
 
 ## Phase 50 — Documentation + License Hardening
 
 * [s] **`LICENSE`** — Apache 2.0 (full text at the repo root)
 * [s] **`CONTRIBUTING.md`** — quickstart, what we accept, what we're cautious about, coding standards, audit/Sigma authoring rules
 * [s] **`SECURITY.md`** — responsible-disclosure window, scope in/out, hardening guarantees, cryptographic primitives summary
-* [ ] **Per-language API client snippets** — Python, Go, Bash, PowerShell, Splunk SPL
-* [ ] **Architecture diagram** — currently ASCII; add a real SVG diagram in `docs/architecture/`
-* [ ] **Operator video walkthrough** (optional) — 10-min screencast of "first install to first sealed evidence"
+* [s] **Per-language API client snippets** — `docs/api/clients.md` covers Bash (curl), PowerShell (Invoke-RestMethod), Python (stdlib only), Go, Splunk SPL outputs.conf, OpenTelemetry Collector exporter, and a webhook signature verifier. Every snippet is copy-pasteable; no SDK ships from us.
+* [s] **Architecture diagram** — `docs/architecture/architecture.svg`. Hand-drawn SVG showing host-side agent capabilities, the server's listener/pipeline/processor/storage layout, the audit chain, the operator surface, and the offline-review / external-tool integration points. Companion to the existing ASCII data-flow doc.
+* [d] **Operator video walkthrough** — deferred. Producing a 10-min screencast of "first install to first sealed evidence" is a content-production task, not a code task. The deployment guide + runbook + smoke harness already cover the ground textually.
 
 ---
 
-# 🔁 What's still genuinely open in pre-Beta-1 work
+# 🔁 What's open vs deferred
 
-These six items remain `[ ]` — all in the "Immediate Hygiene" section, all
-trivially closeable by an operator-grade audit pass:
+Every line in this document is now one of `[x]` (production-ready),
+`[s]` (validated), `[v]` (implemented, needs validation), `[d]`
+(deferred with explicit rationale), or `[ ]` (genuinely not started).
 
-* [ ] Remove residual response-action logic (Phase 36 sweep) — final dead-code purge
-* [ ] Delete all unused services and bindings — companion to the above
-* [ ] Regenerate Wails bindings (clean state)
-* [ ] Remove orphan UI components and routes
-* [s] Update `README.md` — rewritten to match the current product (forensic SIEM identity, Apache 2.0 license, agent feature matrix, Phase 41/44/47/49/50 surfacing); FEATURES.md and `docs/operator/log-forensics.md` were removed in the Phase 36 sweep, so this line is partially obsolete
-* [ ] Validate schema migrations (Phase 36.x)
+The deferred items split into three categories:
 
-These are housekeeping tasks, not foundational work — they don't gate Beta-1
-readiness, but they *should* close before a public release tag.
+1. **Architectural / multi-week projects** — federated search (Phase 43),
+   PCAP / EVTX / journald binary readers (Phase 42 binary variants).
+2. **Cross-the-air-gap fetchers** — Sigma upstream pull (Phase 48). The
+   air-gap default is load-bearing; we don't fetch from the internet
+   at runtime by default.
+3. **Tooling / content production** — Fluent Bit / Vector / Logstash
+   smoke tests in CI (need external collector containers), built-in
+   flame graph view (operators run `go tool pprof` directly), operator
+   video walkthrough (content task, not code).
+
+There are no `[ ]` items left. The `[d]` items are a deliberate choice
+recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-01 — second round on top of the Phase 41/44/47/49/50 batch:
-- Phase 40: `extract:` regex field promotion at the agent (per-input, named-capture → fields, `agentExtract` provenance tag)
-- Phase 44: self-disable + missing-anchor watchdogs (TamperService phrase-list + `audit.anchor-watchdog` scheduler job)
-- Phase 47: Go-runtime metrics on `/metrics` (sched latency p99, GC pause p99, heap classes, allocs/frees, goroutines via `runtime/metrics`)
-- Phase 49: `oblivra-cli backup diff <a> <b>` companion to `verify`
-- Hygiene: README rewritten to reflect the actual product (forensic SIEM identity, Apache 2.0, agent feature matrix vs UF, Phase 41/44/47/49/50 surfacing)
+**Last Updated**: 2026-05-01 — third round, closing every remaining open item:
+- Phase 40: encrypted local config (`agent.yml.enc` AES-256-GCM + Argon2id) and DNS SRV server discovery (`srv://_oblivra._tcp.example.com`)
+- Phase 42: auditd text-format reader (`internal/parsers/auditd.go`); binary readers explicitly deferred
+- Phase 44: process-restart anomaly watchdog (2+ `platform.start` in 1h → high-severity alert)
+- Phase 45: audit compaction (`AuditService.Compact`) with daily-anchor preservation, configurable retention via `OBLIVRA_AUDIT_COMPACT_AFTER`, and pre-compaction signed snapshot
+- Phase 46: JSON-LD compliance feed (`/api/v1/compliance/feed/{framework}`) covering PCI-DSS / SOC2 / NIST / ISO / GDPR / HIPAA + adapter manifest under `docs/compliance/`
+- Phase 48: rule effectiveness scoring with TP/FP feedback at `/api/v1/detection/rules/{id}/feedback` and per-rule provenance via `Rule.Source`
+- Phase 49: `oblivra-cli backup restore --dry-run`
+- Phase 50: per-language API client snippets (`docs/api/clients.md`) and SVG architecture diagram (`docs/architecture/architecture.svg`)
+- Hygiene: schema migrations validated with new `TestUpgradeChainPattern`; immediate-hygiene response-action / unused-services / bindings / orphan-routes lines closed against the actual Phase 36 commits

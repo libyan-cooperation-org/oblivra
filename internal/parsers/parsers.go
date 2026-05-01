@@ -23,6 +23,7 @@ const (
 	FormatRFC5424 Format = "rfc5424"
 	FormatRFC3164 Format = "rfc3164"
 	FormatCEF     Format = "cef"
+	FormatAuditd  Format = "auditd"
 )
 
 // Parse picks a parser by format (or auto-detects) and returns a populated
@@ -44,6 +45,8 @@ func Parse(raw string, format Format) (*events.Event, error) {
 		return parseRFC3164(raw)
 	case FormatCEF:
 		return parseCEF(raw)
+	case FormatAuditd:
+		return parseAuditd(raw)
 	default:
 		return parsePlain(raw), nil
 	}
@@ -67,6 +70,10 @@ func sniff(line string) Format {
 	}
 	if strings.HasPrefix(trimmed, "CEF:") {
 		return FormatCEF
+	}
+	// auditd lines always start with `type=` and contain `msg=audit(...)`.
+	if strings.HasPrefix(trimmed, "type=") && strings.Contains(trimmed, "msg=audit(") {
+		return FormatAuditd
 	}
 	return FormatAuto
 }

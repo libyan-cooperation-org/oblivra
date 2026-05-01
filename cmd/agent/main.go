@@ -67,6 +67,8 @@ func main() {
 		runReload(os.Args[2:])
 	case "service":
 		runService(os.Args[2:])
+	case "encrypt-config":
+		runEncryptConfig(os.Args[2:])
 	case "version", "-v", "--version":
 		fmt.Printf("oblivra-agent %s %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -88,6 +90,7 @@ Usage:
   oblivra-agent status     Show tail positions + queue depth
   oblivra-agent reload     Re-read config (or signal a running agent via SIGHUP)
   oblivra-agent service    Install / remove the agent as an OS service (systemd / Windows)
+  oblivra-agent encrypt-config <in> <out>   Seal a plaintext YAML config to <out>.enc
   oblivra-agent version    Print build version
 
 Common flags:
@@ -593,6 +596,34 @@ Windows: service registered via sc.exe`)
 		fmt.Fprintf(os.Stderr, "unknown service subcommand: %s\n", args[0])
 		os.Exit(2)
 	}
+}
+
+// runEncryptConfig seals a plain agent.yml into agent.yml.enc using
+// the passphrase from OBLIVRA_AGENT_PASSPHRASE / OBLIVRA_AGENT_PASSPHRASE_FILE.
+func runEncryptConfig(args []string) {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: oblivra-agent encrypt-config <plain.yml> <out.enc>")
+		os.Exit(2)
+	}
+	plain, err := os.ReadFile(args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "read input:", err)
+		os.Exit(1)
+	}
+	pass, err := readPassphrase()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if pass == nil {
+		fmt.Fprintln(os.Stderr, "set OBLIVRA_AGENT_PASSPHRASE or OBLIVRA_AGENT_PASSPHRASE_FILE before encrypting")
+		os.Exit(1)
+	}
+	if err := SaveEncryptedConfig(plain, pass, args[1]); err != nil {
+		fmt.Fprintln(os.Stderr, "encrypt:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Wrote %s (Argon2id + AES-256-GCM)\n", args[1])
 }
 
 func printServiceUnit() {

@@ -320,6 +320,27 @@ func (a *AuditService) LastAnchorAt() (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// RecentEntries returns audit entries with the given action whose
+// timestamps fall in [since, now]. Read-only and safe to call from any
+// goroutine. Used by the process-restart watchdog to detect crash loops
+// or repeated tampering attempts in a short window.
+func (a *AuditService) RecentEntries(action string, since time.Time) []AuditEntry {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	var out []AuditEntry
+	// Walk newest-first; stop as soon as we step before `since`.
+	for i := len(a.entries) - 1; i >= 0; i-- {
+		e := a.entries[i]
+		if e.Timestamp.Before(since) {
+			break
+		}
+		if e.Action == action {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Close flushes and closes the journal file.
 func (a *AuditService) Close() error {
 	a.mu.Lock()

@@ -170,6 +170,8 @@ func (s *Server) routes() {
 	if s.rules != nil {
 		s.mux.HandleFunc("GET /api/v1/detection/rules", s.rulesList)
 		s.mux.HandleFunc("POST /api/v1/detection/rules/reload", s.rulesReload)
+		s.mux.HandleFunc("GET /api/v1/detection/rules/effectiveness", s.rulesEffectiveness)
+		s.mux.HandleFunc("POST /api/v1/detection/rules/{id}/feedback", s.rulesFeedback)
 		s.mux.HandleFunc("GET /api/v1/mitre/heatmap", s.mitreHeatmap)
 	}
 	// Audit.
@@ -306,6 +308,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /services/collector/event", s.hecHandler())
 	s.mux.HandleFunc("POST /services/collector", s.hecHandler())
 	s.mux.HandleFunc("POST /v1/logs", s.otlpLogsHandler())
+
+	// Phase 46 — Compliance attestation feed (read-only).
+	if s.audit != nil {
+		s.mux.HandleFunc("GET /api/v1/compliance/feed/{framework}", s.complianceFeedHandler())
+	}
 
 	// Phase 47 — pprof, behind the standard auth middleware.
 	if s.auth != nil && s.auth.Required() {
@@ -563,6 +570,42 @@ func (s *Server) rulesReload(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) mitreHeatmap(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.rules.Heatmap())
+}
+
+// rulesEffectiveness returns the per-rule scorecard (Phase 48): cumulative
+// fires, recent fires, analyst-marked TP/FP counts, and running FP rate.
+func (s *Server) rulesEffectiveness(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.rules.Effectiveness())
+}
+
+// rulesFeedback marks an alert as TP or FP. The rule ID is in the path;
+// the body is `{"label": "tp"|"fp"}`. Lands in the audit chain so a
+// reviewer can see who tuned which rule.
+func (s *Server) rulesFeedback(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing rule id")
+		return
+	}
+	var body struct {
+		Label string `json:"label"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.Label != "tp" && body.Label != "fp" {
+		writeError(w, http.StatusBadRequest, `label must be "tp" or "fp"`)
+		return
+	}
+	s.rules.MarkAlert(id, body.Label)
+	if s.audit != nil {
+		s.audit.Append(r.Context(), "analyst", "rule.feedback", "default", map[string]string{
+			"ruleId": id,
+			"label":  body.Label,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ruleId": id, "label": body.Label})
 }
 
 // ---- Audit ----

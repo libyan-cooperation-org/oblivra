@@ -69,7 +69,7 @@ type vaultReport struct {
 
 func backupCmd(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "backup: need verify <path> | diff <a> <b>")
+		fmt.Fprintln(os.Stderr, "backup: need verify <path> | diff <a> <b> | restore --dry-run <src> <dst>")
 		os.Exit(2)
 	}
 	switch args[0] {
@@ -100,6 +100,25 @@ func backupCmd(args []string) {
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(report)
 		if report.Divergent {
+			os.Exit(1)
+		}
+	case "restore":
+		fs := flag.NewFlagSet("backup-restore", flag.ExitOnError)
+		dryRun := fs.Bool("dry-run", false, "explain what would happen without doing it")
+		_ = fs.Parse(args[1:])
+		if fs.NArg() < 2 {
+			fmt.Fprintln(os.Stderr, "usage: oblivra-cli backup restore --dry-run <src> <dst>")
+			os.Exit(2)
+		}
+		if !*dryRun {
+			fmt.Fprintln(os.Stderr, "live restore is not yet implemented; pass --dry-run for the explainer")
+			os.Exit(2)
+		}
+		plan := planRestore(fs.Arg(0), fs.Arg(1))
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(plan)
+		if !plan.Safe {
 			os.Exit(1)
 		}
 	default:
@@ -205,6 +224,112 @@ func shortHex(h string) string {
 		return h[:8]
 	}
 	return h
+}
+
+// restorePlan is a dry-run explainer: what `oblivra-cli backup restore`
+// *would* do if the operator passed --apply. Always read-only; safe to
+// run against a live system because we never touch dst.
+type restorePlan struct {
+	Src         string    `json:"src"`
+	Dst         string    `json:"dst"`
+	GeneratedAt time.Time `json:"generatedAt"`
+
+	// Source verification — refuse to plan a restore from a broken backup.
+	SrcVerified bool   `json:"srcVerified"`
+	SrcEntries  int    `json:"srcEntries"`
+	SrcRoot     string `json:"srcRoot,omitempty"`
+
+	// Destination state. If dst exists, we report whether it's a chain
+	// extension of src (safe) or has diverged (warns).
+	DstExists       bool  `json:"dstExists"`
+	DstHasAuditLog  bool  `json:"dstHasAuditLog"`
+	DstEntries      int   `json:"dstEntries"`
+	DstRoot         string `json:"dstRoot,omitempty"`
+	DstIsExtension bool   `json:"dstIsExtension"`
+
+	// Plan description — sequence of high-level actions an actual
+	// restore would perform.
+	Steps []string `json:"steps"`
+
+	// Safe = OK to restore in its current form. False if dst has
+	// diverged or src is broken.
+	Safe    bool     `json:"safe"`
+	Reasons []string `json:"reasons,omitempty"`
+}
+
+func planRestore(src, dst string) restorePlan {
+	p := restorePlan{Src: src, Dst: dst, GeneratedAt: time.Now().UTC(), Safe: true}
+
+	srcRep := verifyAuditChain(filepath.Join(src, "audit.log"))
+	p.SrcVerified = srcRep.OK
+	p.SrcEntries = int(srcRep.Entries)
+	p.SrcRoot = srcRep.RootHash
+
+	if !p.SrcVerified {
+		p.Safe = false
+		p.Reasons = append(p.Reasons, "source backup audit chain does not verify")
+	}
+
+	if st, err := os.Stat(dst); err == nil && st.IsDir() {
+		p.DstExists = true
+		dstAudit := filepath.Join(dst, "audit.log")
+		if st2, err := os.Stat(dstAudit); err == nil && !st2.IsDir() {
+			p.DstHasAuditLog = true
+			dstChain := readAuditChain(dstAudit)
+			p.DstEntries = len(dstChain)
+			if len(dstChain) > 0 {
+				p.DstRoot = dstChain[len(dstChain)-1].Hash
+			}
+
+			// Compare prefix: dst is an extension of src iff dst's first
+			// N entries match src's full chain.
+			srcChain := readAuditChain(filepath.Join(src, "audit.log"))
+			if len(dstChain) >= len(srcChain) {
+				match := true
+				for i, e := range srcChain {
+					if i >= len(dstChain) || dstChain[i].Hash != e.Hash {
+						match = false
+						break
+					}
+				}
+				p.DstIsExtension = match
+			}
+			if !p.DstIsExtension {
+				p.Safe = false
+				p.Reasons = append(p.Reasons,
+					"destination has diverged from source — restoring would discard newer entries")
+			}
+		}
+	}
+
+	if !p.DstExists {
+		p.Steps = append(p.Steps,
+			"create destination directory "+dst+" with mode 0700",
+			"copy "+src+"/audit.log → "+dst+"/audit.log (mode 0600)",
+		)
+	} else if !p.DstHasAuditLog {
+		p.Steps = append(p.Steps,
+			"copy "+src+"/audit.log → "+dst+"/audit.log (mode 0600)",
+		)
+	} else if p.DstIsExtension {
+		p.Steps = append(p.Steps,
+			"destination is an extension of source — restore would skip audit.log to preserve newer entries",
+		)
+	} else {
+		p.Steps = append(p.Steps,
+			"DESTRUCTIVE: would overwrite "+dst+"/audit.log with the source's chain (refused: --safe-only)",
+		)
+	}
+	for _, sub := range []string{"warm", "vault.oblivra"} {
+		srcPath := filepath.Join(src, sub)
+		if _, err := os.Stat(srcPath); err == nil {
+			p.Steps = append(p.Steps, "copy "+srcPath+" → "+filepath.Join(dst, sub))
+		}
+	}
+	if len(p.Steps) == 0 {
+		p.Steps = append(p.Steps, "no actions — source has nothing to restore")
+	}
+	return p
 }
 
 func verifyBackup(root string) backupReport {

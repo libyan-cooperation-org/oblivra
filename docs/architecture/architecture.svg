@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 720" font-family="Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <style>
+      .box     { fill: #f5f5f7; stroke: #2c2c34; stroke-width: 1.5; rx: 6; ry: 6; }
+      .group   { fill: #fafafa; stroke: #888; stroke-width: 1; stroke-dasharray: 4 3; rx: 8; ry: 8; }
+      .agent   { fill: #ecf6ff; stroke: #3a78c2; stroke-width: 1.5; rx: 6; ry: 6; }
+      .store   { fill: #fff5e6; stroke: #c2783a; stroke-width: 1.5; rx: 6; ry: 6; }
+      .audit   { fill: #f0e6ff; stroke: #6e3ac2; stroke-width: 1.5; rx: 6; ry: 6; }
+      .ui      { fill: #e6fff0; stroke: #3ac26e; stroke-width: 1.5; rx: 6; ry: 6; }
+      .label   { font-weight: 600; fill: #1a1a23; }
+      .meta    { fill: #555; font-size: 11px; }
+      .arr     { stroke: #2c2c34; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+      .arrSig  { stroke: #6e3ac2; stroke-width: 2; fill: none; marker-end: url(#arrowPurple); stroke-dasharray: 5 3; }
+      .title   { font-size: 18px; font-weight: 700; fill: #1a1a23; }
+      .grpLbl  { font-weight: 600; fill: #555; font-size: 12px; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#2c2c34"/>
+    </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#6e3ac2"/>
+    </marker>
+  </defs>
+
+  <text x="550" y="32" text-anchor="middle" class="title">OBLIVRA — sovereign log-driven security platform</text>
+
+  <!-- Hosts -->
+  <rect class="group" x="20" y="60" width="220" height="600"/>
+  <text x="130" y="82" text-anchor="middle" class="grpLbl">Hosts (operator-controlled)</text>
+
+  <rect class="agent" x="40" y="100" width="180" height="80"/>
+  <text x="130" y="122" text-anchor="middle" class="label">oblivra-agent</text>
+  <text x="130" y="140" text-anchor="middle" class="meta">file tail · stdin · syslog</text>
+  <text x="130" y="156" text-anchor="middle" class="meta">extract: regex → fields</text>
+  <text x="130" y="172" text-anchor="middle" class="meta">local pre-detect → priority</text>
+
+  <rect class="agent" x="40" y="200" width="180" height="60"/>
+  <text x="130" y="222" text-anchor="middle" class="label">ed25519 sign</text>
+  <text x="130" y="240" text-anchor="middle" class="meta">key never leaves host</text>
+  <text x="130" y="254" text-anchor="middle" class="meta">canonical-JSON over event</text>
+
+  <rect class="agent" x="40" y="280" width="180" height="60"/>
+  <text x="130" y="302" text-anchor="middle" class="label">encrypted spill</text>
+  <text x="130" y="320" text-anchor="middle" class="meta">AES-256-GCM + Argon2id</text>
+  <text x="130" y="334" text-anchor="middle" class="meta">replay on restart</text>
+
+  <rect class="agent" x="40" y="360" width="180" height="50"/>
+  <text x="130" y="382" text-anchor="middle" class="label">adaptive batching</text>
+  <text x="130" y="398" text-anchor="middle" class="meta">resize vs flush p99</text>
+
+  <rect class="agent" x="40" y="430" width="180" height="50"/>
+  <text x="130" y="452" text-anchor="middle" class="label">dual egress</text>
+  <text x="130" y="468" text-anchor="middle" class="meta">primary + N secondaries</text>
+
+  <text x="130" y="540" text-anchor="middle" class="meta">CLI: init / run / test /</text>
+  <text x="130" y="556" text-anchor="middle" class="meta">status / reload / service /</text>
+  <text x="130" y="572" text-anchor="middle" class="meta">encrypt-config</text>
+  <text x="130" y="600" text-anchor="middle" class="meta">SRV: srv://_oblivra._tcp.x</text>
+
+  <!-- OBLIVRA server -->
+  <rect class="group" x="280" y="60" width="540" height="600"/>
+  <text x="550" y="82" text-anchor="middle" class="grpLbl">OBLIVRA server (single binary)</text>
+
+  <!-- Listeners -->
+  <rect class="box" x="300" y="100" width="240" height="120"/>
+  <text x="420" y="122" text-anchor="middle" class="label">Listeners</text>
+  <text x="420" y="142" text-anchor="middle" class="meta">REST · WebSocket</text>
+  <text x="420" y="158" text-anchor="middle" class="meta">Splunk HEC · OTLP/HTTP JSON</text>
+  <text x="420" y="174" text-anchor="middle" class="meta">Syslog UDP/TCP</text>
+  <text x="420" y="190" text-anchor="middle" class="meta">Agent ingest (mTLS optional)</text>
+  <text x="420" y="208" text-anchor="middle" class="meta">/healthz · /readyz · /metrics</text>
+
+  <!-- Pipeline -->
+  <rect class="box" x="300" y="240" width="240" height="100"/>
+  <text x="420" y="262" text-anchor="middle" class="label">Ingest pipeline</text>
+  <text x="420" y="282" text-anchor="middle" class="meta">stamp provenance + content hash</text>
+  <text x="420" y="298" text-anchor="middle" class="meta">verify signatures (allow-list)</text>
+  <text x="420" y="314" text-anchor="middle" class="meta">WAL → hot store → index</text>
+  <text x="420" y="330" text-anchor="middle" class="meta">async fan-out to processors</text>
+
+  <!-- Processors -->
+  <rect class="box" x="300" y="360" width="240" height="120"/>
+  <text x="420" y="382" text-anchor="middle" class="label">Processors</text>
+  <text x="420" y="402" text-anchor="middle" class="meta">Rules (Sigma + builtin)</text>
+  <text x="420" y="418" text-anchor="middle" class="meta">UEBA · Trust · Quality · Tamper</text>
+  <text x="420" y="434" text-anchor="middle" class="meta">Reconstruction · Lineage · Forensics</text>
+  <text x="420" y="450" text-anchor="middle" class="meta">Webhook fan-out (HMAC-signed)</text>
+  <text x="420" y="468" text-anchor="middle" class="meta">Alert raise → audit chain entry</text>
+
+  <!-- Storage -->
+  <rect class="store" x="560" y="100" width="240" height="100"/>
+  <text x="680" y="122" text-anchor="middle" class="label">Hot — BadgerDB</text>
+  <text x="680" y="142" text-anchor="middle" class="meta">tenant:{id}:event:{ts}:{evId}</text>
+  <text x="680" y="158" text-anchor="middle" class="meta">Bleve full-text index</text>
+  <text x="680" y="174" text-anchor="middle" class="meta">per-tenant retention policy</text>
+  <text x="680" y="190" text-anchor="middle" class="meta">live-tail (WebSocket)</text>
+
+  <rect class="store" x="560" y="220" width="240" height="80"/>
+  <text x="680" y="242" text-anchor="middle" class="label">Warm — Parquet (WORM)</text>
+  <text x="680" y="262" text-anchor="middle" class="meta">scheduled migration (6h)</text>
+  <text x="680" y="278" text-anchor="middle" class="meta">v2 schema: hash + provenance</text>
+  <text x="680" y="294" text-anchor="middle" class="meta">VerifyWarm cross-tier hash check</text>
+
+  <rect class="store" x="560" y="320" width="240" height="60"/>
+  <text x="680" y="342" text-anchor="middle" class="label">Cold (optional) — S3 SigV4</text>
+  <text x="680" y="362" text-anchor="middle" class="meta">no SDK; direct request signing</text>
+  <text x="680" y="376" text-anchor="middle" class="meta">WORM honored at object level</text>
+
+  <!-- Audit chain -->
+  <rect class="audit" x="560" y="400" width="240" height="120"/>
+  <text x="680" y="422" text-anchor="middle" class="label">Merkle audit chain</text>
+  <text x="680" y="442" text-anchor="middle" class="meta">SHA-256 parent-hash links</text>
+  <text x="680" y="458" text-anchor="middle" class="meta">HMAC-signed root (optional)</text>
+  <text x="680" y="474" text-anchor="middle" class="meta">replay-on-startup verifies chain</text>
+  <text x="680" y="490" text-anchor="middle" class="meta">hourly daily-anchor + watchdog</text>
+  <text x="680" y="506" text-anchor="middle" class="meta">365d compaction (anchors kept)</text>
+
+  <!-- Operator -->
+  <rect class="ui" x="300" y="500" width="500" height="140"/>
+  <text x="550" y="522" text-anchor="middle" class="label">Operator surface</text>
+  <text x="550" y="544" text-anchor="middle" class="meta">Time-frozen cases → hypotheses → annotations → seal</text>
+  <text x="550" y="560" text-anchor="middle" class="meta">HTML evidence pack (deterministic, no JS, no network)</text>
+  <text x="550" y="576" text-anchor="middle" class="meta">/api/v1/compliance/feed/{framework} (Drata/Vanta/Tugboat)</text>
+  <text x="550" y="592" text-anchor="middle" class="meta">/debug/pprof/* (auth-gated) · runtime/metrics on /metrics</text>
+  <text x="550" y="608" text-anchor="middle" class="meta">Detection rule effectiveness (TP/FP feedback) at /api/v1/detection/rules/effectiveness</text>
+  <text x="550" y="624" text-anchor="middle" class="meta">CLI: ping · stats · search · alerts · audit · backup verify/diff/restore --dry-run</text>
+
+  <!-- Verifier (offline) -->
+  <rect class="group" x="860" y="60" width="220" height="280"/>
+  <text x="970" y="82" text-anchor="middle" class="grpLbl">Air-gapped review box</text>
+
+  <rect class="audit" x="880" y="100" width="180" height="100"/>
+  <text x="970" y="122" text-anchor="middle" class="label">oblivra-verify</text>
+  <text x="970" y="142" text-anchor="middle" class="meta">single static binary</text>
+  <text x="970" y="158" text-anchor="middle" class="meta">audit chain replay</text>
+  <text x="970" y="174" text-anchor="middle" class="meta">WAL hash recompute</text>
+  <text x="970" y="190" text-anchor="middle" class="meta">evidence pack root match</text>
+
+  <rect class="audit" x="880" y="220" width="180" height="100"/>
+  <text x="970" y="242" text-anchor="middle" class="label">oblivra-cli backup</text>
+  <text x="970" y="262" text-anchor="middle" class="meta">verify (offline)</text>
+  <text x="970" y="278" text-anchor="middle" class="meta">diff a vs b</text>
+  <text x="970" y="294" text-anchor="middle" class="meta">restore --dry-run</text>
+  <text x="970" y="310" text-anchor="middle" class="meta">no server required</text>
+
+  <!-- Compliance / SIEM consumers -->
+  <rect class="group" x="860" y="360" width="220" height="280"/>
+  <text x="970" y="382" text-anchor="middle" class="grpLbl">External tools (read-only)</text>
+
+  <rect class="ui" x="880" y="400" width="180" height="60"/>
+  <text x="970" y="422" text-anchor="middle" class="label">Drata · Vanta · Tugboat</text>
+  <text x="970" y="442" text-anchor="middle" class="meta">JSON-LD compliance feed</text>
+
+  <rect class="ui" x="880" y="475" width="180" height="60"/>
+  <text x="970" y="497" text-anchor="middle" class="label">Prometheus · Datadog</text>
+  <text x="970" y="517" text-anchor="middle" class="meta">/metrics scrape target</text>
+
+  <rect class="ui" x="880" y="550" width="180" height="60"/>
+  <text x="970" y="572" text-anchor="middle" class="label">SOAR (Tines · Torq · n8n)</text>
+  <text x="970" y="592" text-anchor="middle" class="meta">HMAC-signed webhooks</text>
+
+  <!-- Arrows -->
+  <path class="arrSig" d="M220 230 C260 230 260 280 300 280"/>
+  <text x="265" y="260" text-anchor="middle" class="meta">ed25519-signed events</text>
+
+  <path class="arr" d="M540 160 L560 160"/>
+  <path class="arr" d="M540 290 L560 290"/>
+  <path class="arr" d="M540 420 L560 420"/>
+  <path class="arr" d="M680 200 L680 220"/>
+  <path class="arr" d="M680 300 L680 320"/>
+
+  <path class="arr" d="M800 460 L860 460"/>
+  <path class="arr" d="M800 460 L860 505"/>
+  <path class="arr" d="M800 460 L860 580"/>
+
+  <path class="arr" d="M680 520 L680 580 L800 580"/>
+  <text x="745" y="570" text-anchor="middle" class="meta">backup tarball</text>
+  <path class="arr" d="M860 240 L820 240 L820 470 L800 470" stroke-dasharray="3 3"/>
+  <text x="850" y="350" text-anchor="middle" class="meta" transform="rotate(-90, 850, 350)">offline review path</text>
+</svg>

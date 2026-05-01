@@ -38,19 +38,46 @@ type RulesService struct {
 
 	mu        sync.RWMutex
 	rules     []Rule
-	matched   map[string]int // ruleID → match count
-	heatmap   map[string]int // MITRE technique → count
+	matched   map[string]int             // ruleID → cumulative match count
+	heatmap   map[string]int             // MITRE technique → count
+	feedback  map[string]*RuleFeedback   // ruleID → analyst-marked TP/FP
+	firesDay  map[string]map[string]int  // ruleID → "YYYY-MM-DD" → fires that day
 	lastLoad  time.Time
 	sigmaDir  string
 	sigmaLoad SigmaLoader
 }
 
+// RuleFeedback tracks analyst-supplied effectiveness signal. Analysts
+// mark alerts as true-positive or false-positive in the case workflow;
+// the feedback rolls up here so the rules view can show "fires-per-day
+// vs FP-rate" to operators tuning the rule pack.
+type RuleFeedback struct {
+	TP        int       `json:"tp"`
+	FP        int       `json:"fp"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// RuleEffectiveness is the per-rule scorecard returned to the operator UI.
+type RuleEffectiveness struct {
+	RuleID         string  `json:"ruleId"`
+	RuleName       string  `json:"ruleName"`
+	Source         string  `json:"source"`         // builtin / user / sigma / community:<sha>
+	TotalFires     int     `json:"totalFires"`
+	FiresLast24h   int     `json:"firesLast24h"`
+	FiresLast7Days int     `json:"firesLast7Days"`
+	TP             int     `json:"tp"`
+	FP             int     `json:"fp"`
+	FPRate         float64 `json:"fpRate"` // FP / (TP + FP); -1 if no feedback yet
+}
+
 func NewRulesService(log *slog.Logger, alerts *AlertService) *RulesService {
 	r := &RulesService{
-		log:     log,
-		alerts:  alerts,
-		matched: map[string]int{},
-		heatmap: map[string]int{},
+		log:      log,
+		alerts:   alerts,
+		matched:  map[string]int{},
+		heatmap:  map[string]int{},
+		feedback: map[string]*RuleFeedback{},
+		firesDay: map[string]map[string]int{},
 	}
 	r.rules = builtinRules()
 	r.lastLoad = time.Now().UTC()
@@ -90,6 +117,12 @@ func (r *RulesService) Evaluate(ctx context.Context, ev events.Event) {
 		for _, m := range rule.MITRE {
 			r.heatmap[m]++
 		}
+		// Per-day fire tracking — used by the effectiveness scorecard.
+		day := time.Now().UTC().Format("2006-01-02")
+		if r.firesDay[rule.ID] == nil {
+			r.firesDay[rule.ID] = map[string]int{}
+		}
+		r.firesDay[rule.ID][day]++
 		r.mu.Unlock()
 		alert := AlertFromEvent(ev, rule.ID, rule.Name, rule.Severity, rule.MITRE)
 		r.alerts.Raise(ctx, alert)
@@ -119,6 +152,72 @@ func (r *RulesService) Reload() (int, error) {
 	r.rules = all
 	r.lastLoad = time.Now().UTC()
 	return len(r.rules), nil
+}
+
+// MarkAlert records analyst feedback for a rule fire. label must be
+// "tp" (true positive) or "fp" (false positive); anything else is a
+// no-op. Per-rule counts feed the Effectiveness scorecard so the
+// operator can tell apart noisy rules from useful ones.
+func (r *RulesService) MarkAlert(ruleID, label string) {
+	if label != "tp" && label != "fp" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	fb := r.feedback[ruleID]
+	if fb == nil {
+		fb = &RuleFeedback{}
+		r.feedback[ruleID] = fb
+	}
+	if label == "tp" {
+		fb.TP++
+	} else {
+		fb.FP++
+	}
+	fb.UpdatedAt = time.Now().UTC()
+}
+
+// Effectiveness returns one row per rule with cumulative fires, recent
+// fires, analyst-marked TP/FP counts, and the running FP rate. -1 in
+// FPRate means no feedback yet (avoids dividing by zero).
+func (r *RulesService) Effectiveness() []RuleEffectiveness {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]RuleEffectiveness, 0, len(r.rules))
+	now := time.Now().UTC()
+	for _, rule := range r.rules {
+		row := RuleEffectiveness{
+			RuleID: rule.ID, RuleName: rule.Name, Source: rule.Source,
+			TotalFires: r.matched[rule.ID],
+		}
+		days := r.firesDay[rule.ID]
+		for d, n := range days {
+			ts, err := time.Parse("2006-01-02", d)
+			if err != nil {
+				continue
+			}
+			age := now.Sub(ts)
+			if age < 24*time.Hour {
+				row.FiresLast24h += n
+			}
+			if age < 7*24*time.Hour {
+				row.FiresLast7Days += n
+			}
+		}
+		if fb, ok := r.feedback[rule.ID]; ok {
+			row.TP = fb.TP
+			row.FP = fb.FP
+			if fb.TP+fb.FP > 0 {
+				row.FPRate = float64(fb.FP) / float64(fb.TP+fb.FP)
+			} else {
+				row.FPRate = -1
+			}
+		} else {
+			row.FPRate = -1
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 type HeatmapEntry struct {

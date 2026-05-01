@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -109,11 +110,30 @@ type HeartbeatOpts struct {
 }
 
 // LoadConfig reads & validates a config file; applies sane defaults for any
-// field the operator omitted.
+// field the operator omitted. Files ending in `.enc` are AES-256-GCM
+// encrypted with an Argon2id-derived key (see config_enc.go) — the
+// passphrase comes from OBLIVRA_AGENT_PASSPHRASE or
+// OBLIVRA_AGENT_PASSPHRASE_FILE.
 func LoadConfig(path string) (*Config, error) {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	var body []byte
+	if strings.HasSuffix(path, ".enc") {
+		passphrase, err := readPassphrase()
+		if err != nil {
+			return nil, err
+		}
+		if passphrase == nil {
+			return nil, fmt.Errorf("config %s is encrypted; set OBLIVRA_AGENT_PASSPHRASE or OBLIVRA_AGENT_PASSPHRASE_FILE", path)
+		}
+		body, err = loadEncryptedConfig(path, passphrase)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		body, err = os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var c Config
 	if err := yaml.Unmarshal(body, &c); err != nil {

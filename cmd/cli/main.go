@@ -75,6 +75,8 @@ Commands:
   intel                    Threat-intel indicators
   backup verify <path>     Offline integrity check on a backup directory
   backup diff <a> <b>      Diff two backup directories' audit chains
+  backup restore --dry-run <src> <dst>
+                           Explain what restoring src into dst would do
 
 Env: OBLIVRA_ADDR=http://localhost:8080  OBLIVRA_TOKEN=<api key>`)
 }

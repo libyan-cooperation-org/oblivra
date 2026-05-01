@@ -311,6 +311,49 @@ func New(opts Options) (*Stack, error) {
 			return audit.AnchorYesterday(ctx)
 		},
 	})
+	// Phase 45 — optional configurable compaction. Off by default.
+	// Operators set OBLIVRA_AUDIT_COMPACT_AFTER=8760h (365d) to opt in.
+	// Daily anchors and prior compaction summaries always survive; what
+	// gets dropped is the per-action detail older than the cutoff.
+	if v := os.Getenv("OBLIVRA_AUDIT_COMPACT_AFTER"); v != "" {
+		if window, err := time.ParseDuration(v); err == nil && window > 0 {
+			stack.scheduler.Add(scheduler.Job{
+				Name:     "audit.compaction",
+				Interval: 24 * time.Hour,
+				Run: func(ctx context.Context) error {
+					cutoff := time.Now().UTC().Add(-window)
+					_, err := audit.Compact(ctx, cutoff)
+					return err
+				},
+			})
+		} else {
+			opts.Logger.Warn("OBLIVRA_AUDIT_COMPACT_AFTER set but unparseable", "value", v)
+		}
+	}
+	// Phase 44 — process-restart anomaly. A healthy server boots once a day
+	// or so. Two `platform.start` entries within a one-hour window means
+	// the process is crash-looping or someone is repeatedly stopping it;
+	// either way, an operator should hear about it.
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "platform.restart-anomaly",
+		Interval: 30 * time.Minute,
+		Run: func(ctx context.Context) error {
+			recent := audit.RecentEntries("platform.start", time.Now().UTC().Add(-1*time.Hour))
+			if len(recent) < 2 {
+				return nil
+			}
+			alerts.Raise(ctx, services.Alert{
+				TenantID: "default",
+				RuleID:   "tamper-restart-anomaly",
+				RuleName: "platform restart anomaly",
+				Severity: services.AlertSeverityHigh,
+				Message: fmt.Sprintf("%d platform.start entries in the last hour — crash loop or repeated stop attempts",
+					len(recent)),
+				MITRE: []string{"T1562.001"},
+			})
+			return nil
+		},
+	})
 	// Phase 44 — missing-anchor watchdog. The hourly job above is idempotent,
 	// so the only ways its output can be missing are job failure or active
 	// sabotage. We treat both as critical and surface them as alerts so a

@@ -40,8 +40,12 @@ func NewClient(c *Config) (*Client, error) {
 		IdleConnTimeout:       90 * time.Second,
 		ResponseHeaderTimeout: c.Server.RequestTimeout,
 	}
+	resolved, err := resolveSRVURL(context.Background(), c.Server.URL)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
-		server:      strings.TrimRight(c.Server.URL, "/"),
+		server:      strings.TrimRight(resolved, "/"),
 		token:       c.Server.Token,
 		hc:          &http.Client{Transport: tr, Timeout: c.Server.RequestTimeout},
 		compression: c.Compression,
