@@ -77,7 +77,7 @@ It is a system designed to:
 
 **Frontend (Svelte 5 + Tailwind 4)**
 * Sidebar nav with grouped sections (Observe / Respond / Manage)
-* Views: Overview, SIEM (live tail via WebSocket + query bar + filter chips + ingest probe), Detection (rules + alerts + MITRE heatmap), Investigations (per-host triage + UEBA detail), Evidence (audit chain + sealed packages + log gaps), Fleet (agents + IOCs), Admin (storage tiering)
+* **13 views**: Overview, SIEM (live tail), Detection, Investigations, Cases (with legal-review state machine + downloadable evidence package), Reconstruction (sessions + state-at-T + cmdline + multi-protocol auth), Trust & Quality, Evidence, **Evidence Graph** (SVG cross-reference visualisation), Fleet, **Vault** (init/unlock/lock + secret CRUD), **Webhooks** (register + delivery log), Admin
 
 **CLI**
 * `oblivra-cli` — ping / stats / ingest / search / alerts / audit / fleet / rules / intel

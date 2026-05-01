@@ -10,6 +10,9 @@
   import Reconstruction from './lib/views/Reconstruction.svelte';
   import Trust from './lib/views/Trust.svelte';
   import Evidence from './lib/views/Evidence.svelte';
+  import Graph from './lib/views/Graph.svelte';
+  import Vault from './lib/views/Vault.svelte';
+  import Webhooks from './lib/views/Webhooks.svelte';
   import Fleet from './lib/views/Fleet.svelte';
   import Admin from './lib/views/Admin.svelte';
   import Placeholder from './lib/views/Placeholder.svelte';
@@ -53,6 +56,12 @@
         <Trust />
       {:else if active === 'evidence'}
         <Evidence />
+      {:else if active === 'graph'}
+        <Graph />
+      {:else if active === 'vault'}
+        <Vault />
+      {:else if active === 'webhooks'}
+        <Webhooks />
       {:else if active === 'fleet'}
         <Fleet />
       {:else if active === 'admin'}

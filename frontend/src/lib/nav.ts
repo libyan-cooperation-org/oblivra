@@ -6,8 +6,11 @@ export type NavId =
   | 'cases'
   | 'reconstruction'
   | 'trust'
+  | 'graph'
   | 'fleet'
   | 'evidence'
+  | 'vault'
+  | 'webhooks'
   | 'admin';
 
 export interface NavItem {
@@ -27,8 +30,11 @@ export const NAV: NavItem[] = [
   { id: 'reconstruction', label: 'Reconstruction', group: 'respond', icon: '⏮', hint: 'Sessions, state, cmdline, auth' },
   { id: 'trust',          label: 'Trust & Quality',group: 'respond', icon: '✓', hint: 'Provenance & tamper signals' },
   { id: 'evidence',       label: 'Evidence',       group: 'respond', icon: '⎘', hint: 'Audit chain & sealed packages' },
+  { id: 'graph',          label: 'Evidence Graph', group: 'respond', icon: '☍', hint: 'Cross-references' },
   { id: 'fleet',          label: 'Fleet',          group: 'manage',  icon: '⌬', hint: 'Agents & collectors' },
-  { id: 'admin',          label: 'Admin',          group: 'manage',  icon: '⚙', hint: 'Tenants & RBAC' },
+  { id: 'vault',          label: 'Vault',          group: 'manage',  icon: '🔒', hint: 'Encrypted secrets' },
+  { id: 'webhooks',       label: 'Webhooks',       group: 'manage',  icon: '↗', hint: 'Outbound alert delivery' },
+  { id: 'admin',          label: 'Admin',          group: 'manage',  icon: '⚙', hint: 'Tenants & storage' },
 ];
 
 export const GROUP_LABEL: Record<NavItem['group'], string> = {

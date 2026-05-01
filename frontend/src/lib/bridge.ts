@@ -500,3 +500,85 @@ export const caseLegalApprove = (id: string, reason: string) =>
   restPost<CaseSummary, { reason: string }>(`/api/v1/cases/${id}/legal/approve`, { reason });
 export const caseLegalReject = (id: string, reason: string) =>
   restPost<CaseSummary, { reason: string }>(`/api/v1/cases/${id}/legal/reject`, { reason });
+
+// ---- Round 15: graph + vault + webhooks + pivot ----
+
+export interface GraphEdge {
+  from: { kind: string; id: string };
+  to: { kind: string; id: string };
+  kind: string;
+  evidence?: string;
+  timestamp: string;
+}
+export interface GraphStats {
+  edges: number;
+  nodes: number;
+  byKind: Record<string, number>;
+}
+export const graphStats = () => rest<GraphStats>('/api/v1/graph/stats');
+export const graphSubgraph = (kind: string, id: string, depth = 2) =>
+  rest<GraphEdge[]>(`/api/v1/graph/subgraph?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}&depth=${depth}`);
+
+export interface VaultStatus {
+  exists: boolean;
+  unlocked: boolean;
+  names?: string[];
+}
+export const vaultStatus = () => rest<VaultStatus>('/api/v1/vault/status');
+export const vaultInit = (passphrase: string) =>
+  restPost<VaultStatus, { passphrase: string }>('/api/v1/vault/init', { passphrase });
+export const vaultUnlock = (passphrase: string) =>
+  restPost<VaultStatus, { passphrase: string }>('/api/v1/vault/unlock', { passphrase });
+export const vaultLock = () => restPost<VaultStatus, {}>('/api/v1/vault/lock', {});
+export const vaultSet = (name: string, value: string) =>
+  restPost<{}, { name: string; value: string }>('/api/v1/vault/secret', { name, value });
+export async function vaultDelete(name: string): Promise<void> {
+  const res = await fetch('/api/v1/vault/secret?name=' + encodeURIComponent(name), {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+}
+
+export interface Webhook {
+  id: string;
+  url: string;
+  minSeverity?: string;
+  includeRules?: string[];
+  excludeRules?: string[];
+  createdAt: string;
+  lastDelivered?: string;
+  disabled?: boolean;
+}
+export interface WebhookDelivery {
+  webhookId: string;
+  alertId: string;
+  status: number;
+  error?: string;
+  deliveredAt: string;
+}
+export const webhooksList = () => rest<Webhook[]>('/api/v1/webhooks');
+export const webhookRegister = (w: { url: string; secret?: string; minSeverity?: string }) =>
+  restPost<Webhook, typeof w>('/api/v1/webhooks', w);
+export async function webhookDelete(id: string): Promise<void> {
+  const res = await fetch('/api/v1/webhooks/' + id, { method: 'DELETE', credentials: 'same-origin' });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+}
+export const webhookDeliveries = () =>
+  rest<WebhookDelivery[]>('/api/v1/webhooks/deliveries?limit=50');
+
+export interface PivotEntry {
+  kind: string;
+  timestamp: string;
+  severity?: string;
+  title: string;
+  detail?: string;
+  refId?: string;
+}
+export const investigationsPivot = (host: string, atUnix?: number, deltaSec = 900) => {
+  const q = new URLSearchParams();
+  q.set('host', host);
+  if (atUnix) q.set('at', String(atUnix));
+  q.set('delta', String(deltaSec));
+  return rest<PivotEntry[]>(`/api/v1/investigations/pivot?${q}`);
+};
