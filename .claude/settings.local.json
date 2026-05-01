@@ -36,7 +36,11 @@
       "Bash(awk '{print $2}')",
       "Bash(./oblivra-agent.exe version *)",
       "Bash(./oblivra-agent.exe init *)",
-      "Bash(./oblivra-agent.exe status *)"
+      "Bash(./oblivra-agent.exe status *)",
+      "Bash(grep -E '\\\\.exe$')",
+      "Bash(git rm *)",
+      "Bash(sed -i 's|/var/log/auth.log|tmp/sample.log|; s|^ env: \"prod\"| env: \"test\"\\\\n - type: file\\\\n path: \"tmp/sample.log\"\\\\n sourceType: \"test\"|' tmp/agent.yml)",
+      "Bash(./oblivra-agent.exe test *)"
     ]
   }
 }

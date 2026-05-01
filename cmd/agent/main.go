@@ -59,10 +59,14 @@ func main() {
 		runInit(os.Args[2:])
 	case "run":
 		runForward(os.Args[2:])
+	case "test":
+		runTest(os.Args[2:])
 	case "status":
 		runStatus(os.Args[2:])
 	case "reload":
 		runReload(os.Args[2:])
+	case "service":
+		runService(os.Args[2:])
 	case "version", "-v", "--version":
 		fmt.Printf("oblivra-agent %s %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -80,8 +84,10 @@ func usage() {
 Usage:
   oblivra-agent init       Write a commented sample config to the default path
   oblivra-agent run        Start forwarding events to the platform
+  oblivra-agent test       Parse a sample of inputs and print what would be sent (no shipping)
   oblivra-agent status     Show tail positions + queue depth
   oblivra-agent reload     Re-read config (or signal a running agent via SIGHUP)
+  oblivra-agent service    Install / remove the agent as an OS service (systemd / Windows)
   oblivra-agent version    Print build version
 
 Common flags:
@@ -144,10 +150,47 @@ func runForward(args []string) {
 		os.Exit(1)
 	}
 
+	// Per-agent ed25519 keypair for at-the-edge signing. Operator copies the
+	// generated *.pub file into the platform's allow-list.
+	var signer *Signer
+	if cfg.SignEvents {
+		s, err := LoadOrCreateSigner(cfg.StateDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "signer:", err)
+			os.Exit(1)
+		}
+		signer = s
+		log.Printf("signing enabled — pubkey %s (in %s/agent.ed25519.pub)",
+			signer.FingerprintShort(), cfg.StateDir)
+	}
+
+	spill, err := NewSpillEncryption(cfg.SpillSecret, cfg.Hostname)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "spill encryption:", err)
+		os.Exit(1)
+	}
+	log.Printf("disk spill: %s (key fingerprint %s)",
+		map[bool]string{true: "encrypted", false: "plaintext"}[spill.enabled],
+		spill.SpillFingerprint())
+
 	client, err := NewClient(cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "client:", err)
 		os.Exit(1)
+	}
+
+	// Optional dual-egress clients — same payload, multiple destinations
+	// for federation / redundancy.
+	var extraClients []*Client
+	for _, alt := range cfg.DualEgress {
+		clone := *cfg
+		clone.Server = alt
+		c, err := NewClient(&clone)
+		if err != nil {
+			log.Printf("dualEgress %s: %v", alt.URL, err)
+			continue
+		}
+		extraClients = append(extraClients, c)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -181,11 +224,19 @@ func runForward(args []string) {
 	}
 
 	queue := make(chan string, 8192)
+	hiQueue := make(chan string, 1024)
+
+	var rules []LocalRule
+	if cfg.LocalRules {
+		rules = DefaultLocalRules()
+	}
 
 	// Spawn one tailer per input.
 	var wg sync.WaitGroup
 	for _, in := range cfg.Inputs {
-		t, err := NewTailer(cfg, in, queue, posStore)
+		t, err := NewTailer(cfg, in, TailerDeps{
+			Queue: queue, HiQueue: hiQueue, Signer: signer, Rules: rules,
+		}, posStore)
 		if err != nil {
 			log.Printf("input %q: %v", in.Label, err)
 			continue
@@ -225,7 +276,7 @@ func runForward(args []string) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runBatcher(ctx, cfg, client, queue)
+		runBatcher(ctx, cfg, client, extraClients, queue, hiQueue, spill)
 	}()
 
 	log.Printf("oblivra-agent %s started — %d inputs → %s",
@@ -234,26 +285,67 @@ func runForward(args []string) {
 	log.Printf("oblivra-agent: shutdown")
 }
 
-// runBatcher is the outbound side: drain queue, batch, post, spill+replay
-// on failure, respect MaxBytes disk-buffer cap.
-func runBatcher(ctx context.Context, cfg *Config, client *Client, queue <-chan string) {
+// runBatcher drains the queue, batches, posts, spills+replays on failure,
+// respects MaxBytes, fans out to dual-egress targets, and (when enabled)
+// adapts batch size to observed p99 latency.
+//
+// Priority queue (`hi`) is drained first so high-severity events ship
+// ahead of routine events under backpressure.
+func runBatcher(
+	ctx context.Context, cfg *Config,
+	primary *Client, extras []*Client,
+	queue, hi <-chan string,
+	spill *SpillEncryption,
+) {
 	var pending []string
 	timer := time.NewTimer(cfg.FlushEvery)
 	defer timer.Stop()
+
+	currentBatch := cfg.BatchSize
+	currentFlush := cfg.FlushEvery
 
 	send := func() {
 		if len(pending) == 0 {
 			return
 		}
 		ctx2, cancel := context.WithTimeout(ctx, cfg.Server.RequestTimeout)
-		defer cancel()
-		if err := client.PostBatch(ctx2, pending); err != nil {
-			spillToDisk(cfg, pending)
-			log.Printf("send failed (%d events spilled to disk): %v", len(pending), err)
+		start := time.Now()
+		err := primary.PostBatch(ctx2, pending)
+		elapsed := time.Since(start)
+		cancel()
+		if err != nil {
+			path, werr := spill.WriteSpill(cfg.Buffer.Dir, pending)
+			if werr != nil {
+				log.Printf("spill write failed: %v", werr)
+			} else {
+				log.Printf("send failed (%d events → %s): %v", len(pending), filepath.Base(path), err)
+				enforceBufferCap(cfg)
+			}
 		} else {
-			replaySpilled(ctx, cfg, client)
+			replaySpilled(ctx, cfg, primary, spill)
+			// Mirror to dual-egress targets — best-effort, errors logged only.
+			for _, c := range extras {
+				ec, can := context.WithTimeout(ctx, cfg.Server.RequestTimeout)
+				if err := c.PostBatch(ec, pending); err != nil {
+					log.Printf("dualEgress %s: %v", c.server, err)
+				}
+				can()
+			}
 		}
 		pending = pending[:0]
+
+		// Adaptive batching — if a send took >2× the flush interval, shrink
+		// the batch (reduces server-side queue depth). If consistently fast,
+		// grow the batch (better throughput).
+		if cfg.AdaptiveBatch {
+			switch {
+			case elapsed > currentFlush*2 && currentBatch > 25:
+				currentBatch = currentBatch * 3 / 4
+				log.Printf("adaptive: shrinking batch → %d (last send %s)", currentBatch, elapsed)
+			case elapsed < currentFlush/3 && currentBatch < 500:
+				currentBatch += 25
+			}
+		}
 	}
 
 	for {
@@ -261,37 +353,44 @@ func runBatcher(ctx context.Context, cfg *Config, client *Client, queue <-chan s
 		case <-ctx.Done():
 			send()
 			return
+		case ev := <-hi:
+			// Priority event — flush immediately to minimise time-to-server.
+			pending = append(pending, ev)
+			send()
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			timer.Reset(currentFlush)
 		case ev := <-queue:
 			pending = append(pending, ev)
-			if len(pending) >= cfg.BatchSize {
+			if len(pending) >= currentBatch {
 				send()
 				if !timer.Stop() {
-					<-timer.C
+					select {
+					case <-timer.C:
+					default:
+					}
 				}
-				timer.Reset(cfg.FlushEvery)
+				timer.Reset(currentFlush)
 			}
 		case <-timer.C:
 			send()
-			timer.Reset(cfg.FlushEvery)
+			timer.Reset(currentFlush)
 		}
 	}
 }
 
-// spillToDisk persists a batch under the buffer dir. Honors the MaxBytes
-// cap by deleting the oldest spill files first.
+// (spillToDisk replaced by SpillEncryption.WriteSpill — kept here as a
+// no-op stub so older imports compile if anyone re-introduces a caller.)
+//
+//nolint:unused
 func spillToDisk(cfg *Config, items []string) {
-	name := filepath.Join(cfg.Buffer.Dir, fmt.Sprintf("spill-%d.jsonl", time.Now().UnixNano()))
-	f, err := os.Create(name)
-	if err != nil {
-		log.Printf("spill: %v", err)
+	if cfg == nil || items == nil {
 		return
 	}
-	for _, it := range items {
-		fmt.Fprintln(f, it)
-	}
-	_ = f.Sync()
-	_ = f.Close()
-	enforceBufferCap(cfg)
 }
 
 func enforceBufferCap(cfg *Config) {
@@ -307,7 +406,7 @@ func enforceBufferCap(cfg *Config) {
 	var spills []fi
 	var total int64
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), "spill-") {
+		if e.IsDir() || !isSpillFile(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
@@ -320,7 +419,6 @@ func enforceBufferCap(cfg *Config) {
 	if total <= cfg.Buffer.MaxBytes {
 		return
 	}
-	// Sort oldest-first, delete until under cap.
 	for i := 0; i < len(spills)-1; i++ {
 		for j := i + 1; j < len(spills); j++ {
 			if spills[j].mod.Before(spills[i].mod) {
@@ -328,32 +426,44 @@ func enforceBufferCap(cfg *Config) {
 			}
 		}
 	}
+	dropped := 0
 	for _, s := range spills {
 		if total <= cfg.Buffer.MaxBytes {
 			break
 		}
 		if err := os.Remove(filepath.Join(cfg.Buffer.Dir, s.name)); err == nil {
 			total -= s.size
-			log.Printf("spill cap exceeded; dropped %s (%d bytes)", s.name, s.size)
+			dropped++
 		}
+	}
+	if dropped > 0 {
+		log.Printf("spill cap exceeded — evicted %d oldest spill files", dropped)
 	}
 }
 
-func replaySpilled(ctx context.Context, cfg *Config, client *Client) {
+func isSpillFile(name string) bool {
+	return strings.HasPrefix(name, "spill-") || strings.HasPrefix(name, "spill.enc-")
+}
+
+func replaySpilled(ctx context.Context, cfg *Config, client *Client, spill *SpillEncryption) {
 	entries, err := os.ReadDir(cfg.Buffer.Dir)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), "spill-") {
+		if e.IsDir() || !isSpillFile(e.Name()) {
 			continue
 		}
 		path := filepath.Join(cfg.Buffer.Dir, e.Name())
-		body, err := os.ReadFile(path)
+		lines, err := spill.ReadSpill(path)
 		if err != nil {
+			log.Printf("spill read %s: %v", e.Name(), err)
 			continue
 		}
-		lines := strings.Split(strings.TrimSpace(string(body)), "\n")
+		if len(lines) == 0 {
+			_ = os.Remove(path)
+			continue
+		}
 		ctx2, cancel := context.WithTimeout(ctx, cfg.Server.RequestTimeout)
 		err = client.PostBatch(ctx2, lines)
 		cancel()
@@ -362,6 +472,210 @@ func replaySpilled(ctx context.Context, cfg *Config, client *Client) {
 		}
 		_ = os.Remove(path)
 		log.Printf("replayed spill %s (%d events)", e.Name(), len(lines))
+	}
+}
+
+// ---- test ---------------------------------------------------------------
+
+// runTest parses N lines from a sample input and prints exactly what would
+// be sent — including which local rule fired. Use it before deploying to
+// validate regex extracts, multiline patterns, and tagging.
+func runTest(args []string) {
+	fs := flag.NewFlagSet("test", flag.ExitOnError)
+	configPath := fs.String("config", DefaultConfigPath(), "config file path")
+	inputLabel := fs.String("input", "", "filter to a specific input label (optional)")
+	count := fs.Int("count", 10, "max events to render per input")
+	verify := fs.Bool("verify-sig", false, "if signing is enabled, verify each signed event locally")
+	_ = fs.Parse(args)
+
+	cfg, err := LoadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "config:", err)
+		os.Exit(1)
+	}
+
+	var signer *Signer
+	if cfg.SignEvents {
+		s, err := LoadOrCreateSigner(cfg.StateDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "signer:", err)
+			os.Exit(1)
+		}
+		signer = s
+	}
+
+	rules := []LocalRule{}
+	if cfg.LocalRules {
+		rules = DefaultLocalRules()
+	}
+
+	queue := make(chan string, *count*4)
+	hi := make(chan string, *count*4)
+
+	posDir, _ := os.MkdirTemp("", "agent-test-")
+	defer os.RemoveAll(posDir)
+	pos, _ := NewPositionStore(posDir)
+
+	for _, in := range cfg.Inputs {
+		if *inputLabel != "" && in.Label != *inputLabel {
+			continue
+		}
+		// Force start-from-beginning for the test so we see real samples,
+		// not just the tail of an idle file.
+		in.StartFrom = "beginning"
+		t, err := NewTailer(cfg, in, TailerDeps{
+			Queue: queue, HiQueue: hi, Signer: signer, Rules: rules,
+		}, pos)
+		if err != nil {
+			log.Printf("input %q: %v", in.Label, err)
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		go t.Run(ctx)
+
+		seen := 0
+		fmt.Printf("\n=== input: %s (%s) ===\n", in.Label, in.Path)
+	loop:
+		for seen < *count {
+			select {
+			case ev := <-hi:
+				renderEvent(ev, signer, *verify, true)
+				seen++
+			case ev := <-queue:
+				renderEvent(ev, signer, *verify, false)
+				seen++
+			case <-ctx.Done():
+				break loop
+			}
+		}
+		cancel()
+	}
+}
+
+func renderEvent(raw string, signer *Signer, verify, hi bool) {
+	prefix := "  "
+	if hi {
+		prefix = "↑ "
+	}
+	fmt.Printf("%s%s\n", prefix, raw)
+	if signer != nil && verify {
+		if err := Verify(signer.PublicKeyB64(), []byte(raw)); err != nil {
+			fmt.Printf("    SIGNATURE INVALID: %v\n", err)
+		} else {
+			fmt.Printf("    signature ✓ (key %s)\n", signer.FingerprintShort())
+		}
+	}
+}
+
+// ---- service install ----------------------------------------------------
+
+func runService(args []string) {
+	if len(args) == 0 || args[0] == "help" {
+		fmt.Println(`oblivra-agent service — manage the agent as an OS service
+
+Subcommands:
+  install     Install systemd unit (Linux) or Windows service entry
+  uninstall   Remove the service
+  print       Print the unit/service definition without installing
+
+Linux:   systemd unit at /etc/systemd/system/oblivra-agent.service
+Windows: service registered via sc.exe`)
+		return
+	}
+	switch args[0] {
+	case "print":
+		printServiceUnit()
+	case "install":
+		installService()
+	case "uninstall":
+		uninstallService()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown service subcommand: %s\n", args[0])
+		os.Exit(2)
+	}
+}
+
+func printServiceUnit() {
+	exe, _ := os.Executable()
+	cfg := DefaultConfigPath()
+	switch runtime.GOOS {
+	case "linux":
+		fmt.Printf(`# /etc/systemd/system/oblivra-agent.service
+[Unit]
+Description=OBLIVRA log forwarder
+After=network.target
+
+[Service]
+Type=simple
+User=oblivra
+Group=oblivra
+ExecStart=%s run --config %s
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths=%s
+
+[Install]
+WantedBy=multi-user.target
+`, exe, cfg, defaultStateDir())
+	case "windows":
+		fmt.Printf(`REM Run as Administrator:
+sc.exe create OblivraAgent binPath= "\"%s\" run --config \"%s\"" start= auto
+sc.exe description OblivraAgent "OBLIVRA log forwarder"
+sc.exe start OblivraAgent
+`, exe, cfg)
+	default:
+		fmt.Println("Service install not supported on this OS — run oblivra-agent under your supervisor")
+	}
+}
+
+func installService() {
+	switch runtime.GOOS {
+	case "linux":
+		path := "/etc/systemd/system/oblivra-agent.service"
+		exe, _ := os.Executable()
+		body := fmt.Sprintf(`[Unit]
+Description=OBLIVRA log forwarder
+After=network.target
+
+[Service]
+Type=simple
+User=oblivra
+Group=oblivra
+ExecStart=%s run --config %s
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths=%s
+
+[Install]
+WantedBy=multi-user.target
+`, exe, DefaultConfigPath(), defaultStateDir())
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, "install:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Wrote %s\n", path)
+		fmt.Println("Run: systemctl daemon-reload && systemctl enable --now oblivra-agent")
+	default:
+		fmt.Println("Use 'oblivra-agent service print' to see the recipe for this OS, then install manually.")
+	}
+}
+
+func uninstallService() {
+	switch runtime.GOOS {
+	case "linux":
+		path := "/etc/systemd/system/oblivra-agent.service"
+		_ = os.Remove(path)
+		fmt.Println("Removed " + path + "; run: systemctl daemon-reload")
+	default:
+		fmt.Println("Use 'sc.exe delete OblivraAgent' on Windows; on others, remove the unit file you installed manually.")
 	}
 }
 

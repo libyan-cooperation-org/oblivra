@@ -26,16 +26,29 @@ type Tailer struct {
 	tags     []string
 	pos      *PositionStore
 	queue    chan<- string
+	hiQueue  chan<- string // optional priority queue for high-severity events
 	mlOpts   MultilineOpts
 
 	includeRE *regexp.Regexp
 	excludeRE *regexp.Regexp
+
+	signer *Signer
+	rules  []LocalRule
 }
 
-func NewTailer(c *Config, in Input, q chan<- string, p *PositionStore) (*Tailer, error) {
+// TailerDeps bundles the optional pieces (signer, priority queue, local rules).
+type TailerDeps struct {
+	Queue     chan<- string
+	HiQueue   chan<- string
+	Signer    *Signer
+	Rules     []LocalRule
+}
+
+func NewTailer(c *Config, in Input, deps TailerDeps, p *PositionStore) (*Tailer, error) {
 	t := &Tailer{
 		in: in, hostname: c.Hostname, tenant: c.Tenant, tags: c.Tags,
-		pos: p, queue: q,
+		pos: p, queue: deps.Queue, hiQueue: deps.HiQueue,
+		signer: deps.Signer, rules: deps.Rules,
 	}
 	if in.Multiline != nil {
 		t.mlOpts = *in.Multiline
@@ -225,6 +238,20 @@ func (t *Tailer) enqueue(source, raw string) {
 	if len(t.tags) > 0 {
 		fields["tags"] = strings.Join(t.tags, ",")
 	}
+	if t.signer != nil {
+		fields["agentKeyId"] = t.signer.FingerprintShort()
+	}
+
+	// Local pre-detection — events that match high-severity rules go to the
+	// priority queue so they ship first under backpressure.
+	score := 0
+	if len(t.rules) > 0 {
+		score = ScoreLine(raw, t.rules)
+		if score > 0 {
+			fields["localRuleSeverity"] = severityLabel(score)
+		}
+	}
+
 	doc := map[string]any{
 		"source":    "agent",
 		"tenantId":  t.tenant,
@@ -235,12 +262,39 @@ func (t *Tailer) enqueue(source, raw string) {
 		"fields":    fields,
 	}
 	b, _ := json.Marshal(doc)
+	out := string(b)
+
+	// Sign at the edge — appends agentSig + agentKeyId to the JSON.
+	if t.signer != nil {
+		signed, err := t.signer.SignEvent(out)
+		if err == nil {
+			out = signed
+		} else {
+			log.Printf("tailer sign: %v", err)
+		}
+	}
+
+	target := t.queue
+	if score >= 3 && t.hiQueue != nil {
+		target = t.hiQueue
+	}
 	select {
-	case t.queue <- string(b):
+	case target <- out:
 	default:
-		// Queue full — drop newest. Forwarding never blocks the tailer;
-		// disk-buffer cap upstream catches the spillover.
 		log.Printf("tailer queue full; dropping event from %s", source)
+	}
+}
+
+func severityLabel(s int) string {
+	switch s {
+	case 4:
+		return "critical"
+	case 3:
+		return "high"
+	case 2:
+		return "medium"
+	default:
+		return "low"
 	}
 }
 

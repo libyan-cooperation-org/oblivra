@@ -302,6 +302,11 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("DELETE /api/v1/vault/secret", s.vaultDelete)
 	}
 
+	// Universal forwarder compatibility (Phase 41).
+	s.mux.HandleFunc("POST /services/collector/event", s.hecHandler())
+	s.mux.HandleFunc("POST /services/collector", s.hecHandler())
+	s.mux.HandleFunc("POST /v1/logs", s.otlpLogsHandler())
+
 	if s.assets != nil {
 		s.mux.Handle("/", spaHandler(s.assets))
 	}

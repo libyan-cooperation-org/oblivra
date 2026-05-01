@@ -20,19 +20,25 @@ import (
 //
 // Override via --config FILE.
 type Config struct {
-	Server       Server         `yaml:"server"`
-	Hostname     string         `yaml:"hostname"`
-	Tenant       string         `yaml:"tenant"`
-	Tags         []string       `yaml:"tags"`
-	Inputs       []Input        `yaml:"inputs"`
-	Buffer       BufferOpts     `yaml:"buffer"`
-	Heartbeat    HeartbeatOpts  `yaml:"heartbeat"`
-	Compression  string         `yaml:"compression"`     // "gzip" or "" (none)
-	BatchSize    int            `yaml:"batchSize"`
-	FlushEvery   time.Duration  `yaml:"flushEvery"`
-	Multiline    MultilineOpts  `yaml:"multiline"`
-	StateDir     string         `yaml:"stateDir"`        // position files
-	LogLevel     string         `yaml:"logLevel"`
+	Server          Server         `yaml:"server"`
+	DualEgress      []Server       `yaml:"dualEgress"`      // optional — ship to N additional servers
+	Hostname        string         `yaml:"hostname"`
+	Tenant          string         `yaml:"tenant"`
+	Tags            []string       `yaml:"tags"`
+	Inputs          []Input        `yaml:"inputs"`
+	Buffer          BufferOpts     `yaml:"buffer"`
+	Heartbeat       HeartbeatOpts  `yaml:"heartbeat"`
+	Compression     string         `yaml:"compression"`     // "gzip" or "" (none)
+	BatchSize       int            `yaml:"batchSize"`
+	FlushEvery      time.Duration  `yaml:"flushEvery"`
+	Multiline       MultilineOpts  `yaml:"multiline"`
+	StateDir        string         `yaml:"stateDir"`        // position files + signing key
+	LogLevel        string         `yaml:"logLevel"`
+	SignEvents      bool           `yaml:"signEvents"`      // ed25519-sign every event at the edge
+	SpillSecret     string         `yaml:"spillSecret"`     // AES-256-GCM key for disk spill
+	SpillSecretFile string         `yaml:"spillSecretFile"` // alternative — read from file (mode 0600)
+	AdaptiveBatch   bool           `yaml:"adaptiveBatch"`   // auto-tune batch size against observed p99
+	LocalRules      bool           `yaml:"localRules"`      // run the local rule pack to prioritise high-sev events
 }
 
 type Server struct {
@@ -105,9 +111,15 @@ func LoadConfig(path string) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("tokenFile: %w", err)
 		}
-		c.Server.Token = string(tok)
-		// strip trailing whitespace introduced by editors
-		c.Server.Token = trimSpaceBoth(c.Server.Token)
+		c.Server.Token = trimSpaceBoth(string(tok))
+	}
+	// Spill secret may also live in a 0600-mode file.
+	if c.SpillSecret == "" && c.SpillSecretFile != "" {
+		secret, err := os.ReadFile(c.SpillSecretFile)
+		if err != nil {
+			return nil, fmt.Errorf("spillSecretFile: %w", err)
+		}
+		c.SpillSecret = trimSpaceBoth(string(secret))
 	}
 	return &c, nil
 }
