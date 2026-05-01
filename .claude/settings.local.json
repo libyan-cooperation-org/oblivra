@@ -40,7 +40,10 @@
       "Bash(grep -E '\\\\.exe$')",
       "Bash(git rm *)",
       "Bash(sed -i 's|/var/log/auth.log|tmp/sample.log|; s|^ env: \"prod\"| env: \"test\"\\\\n - type: file\\\\n path: \"tmp/sample.log\"\\\\n sourceType: \"test\"|' tmp/agent.yml)",
-      "Bash(./oblivra-agent.exe test *)"
+      "Bash(./oblivra-agent.exe test *)",
+      "Bash(/tmp/oblivra-cli.exe)",
+      "Bash(mkdir -p /tmp/bv-test)",
+      "Bash(/tmp/oblivra-cli.exe backup *)"
     ]
   }
 }
