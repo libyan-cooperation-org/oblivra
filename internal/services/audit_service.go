@@ -304,6 +304,22 @@ func (a *AuditService) AnchorYesterday(ctx context.Context) error {
 	return err
 }
 
+// LastAnchorAt returns the timestamp of the most recent
+// `audit.daily-anchor` entry. If no anchor has been written yet, the
+// second return is false. Used by the missing-anchor watchdog so
+// monitoring sees the gap as it opens up rather than after a forensic
+// review reveals it.
+func (a *AuditService) LastAnchorAt() (time.Time, bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	for i := len(a.entries) - 1; i >= 0; i-- {
+		if a.entries[i].Action == "audit.daily-anchor" {
+			return a.entries[i].Timestamp, true
+		}
+	}
+	return time.Time{}, false
+}
+
 // Close flushes and closes the journal file.
 func (a *AuditService) Close() error {
 	a.mu.Lock()

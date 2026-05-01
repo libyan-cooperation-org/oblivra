@@ -239,7 +239,7 @@ data that was already mutable.
 * [ ] Delete all unused services and bindings
 * [ ] Regenerate Wails bindings (clean state)
 * [ ] Remove orphan UI components and routes
-* [ ] Update `README.md`, `FEATURES.md`, `docs/operator/log-forensics.md`
+* [s] Update `README.md` — rewritten to match the current product (forensic SIEM identity, Apache 2.0 license, agent feature matrix, Phase 41/44/47/49/50 surfacing); FEATURES.md and `docs/operator/log-forensics.md` were removed in the Phase 36 sweep, so this line is partially obsolete
 * [ ] Validate schema migrations (Phase 36.x)
 * [s] **Replace synthetic parser tests with snapshot tests over real-world samples** — `internal/parsers/testdata/{rfc5424,rfc3164,cef,json}/*.log` files committed; `snapshot_test.go` walks the directory and confirms every line parses without falling back to "plain". Synthetic tests remain alongside as fast-path coverage; both run on every `go test ./...`.
 
@@ -371,7 +371,7 @@ restart-safe.
 * [s] **`status` subcommand** — prints tail positions, spill file count, server `/healthz` ping; `--json` for machine-readable output
 * [s] **Drop-on-overflow tailer queue** — backpressure never propagates to the file readers (events go to disk-spill, not into the kernel buffer)
 * [s] **Cross-platform reload story** — SIGHUP on Unix exits the process so the supervisor restarts with new config; on Windows operators restart the service
-* [ ] **Field extraction at agent** — regex `extract:` clauses that promote captured groups to top-level event fields *before* forwarding (saves bandwidth, reduces server-side load)
+* [s] **Field extraction at agent** — `extract:` is a list of named regexes per input; first match wins; named-capture groups become top-level event fields. Saves the platform a re-extraction pass and trims the wire payload. Implementation in `cmd/agent/tail.go` (compiled at NewTailer time). Adds `agentExtract: <ruleName>` so downstream queries can pivot on which rule populated the field.
 * [s] **`service install / uninstall` subcommand** — Windows SCM register / Linux systemd unit drop, both via `oblivra-agent service`
 * [ ] **Native winlog input** — Windows EventLog API binding (currently `winlog` type errors with "Windows-only")
 * [ ] **Encrypted local config** — passphrase-protected `agent.yml.enc`, decrypted on start (paranoia level for offline forwarders)
@@ -414,8 +414,8 @@ from Splunk UF, not parity items.
 
 * [s] **Counter-forensic Sigma rule pack** — `sigma/counter_forensic/` ships seven rules: auditd-rules-flushed, Windows-eventlog-cleared, timestomp, bash-history-purge, Defender-real-time-monitoring-disabled, shadow-copy-deletion, and OBLIVRA-agent-tampering. All map to MITRE T1070/T1562/T1490.
 * [s] **Agent-side echo of the same rules** — same patterns wired into `cmd/agent/predetect.go` so the events bypass FIFO and reach the platform under backpressure too. Critical-severity matches set `localRuleSeverity: critical` on the event.
-* [ ] **Self-disable detection** — alert when `systemctl stop oblivra` / `taskkill oblivra-server` patterns appear in the chain (an attacker trying to silence the platform itself)
-* [ ] **Missing daily-anchor detection** — alert when the hourly anchor job fails to write for >25h (operator inattention OR sabotage)
+* [s] **Self-disable detection** — `TamperService.Observe` now matches an attacker phrase-list (`systemctl stop oblivra*`, `sc.exe stop OblivraServer`, `taskkill /im oblivra-server.exe`, etc.) and raises a critical `tamper-self-disable-attempt` alert.
+* [s] **Missing daily-anchor detection** — `audit.anchor-watchdog` scheduler job runs hourly, calls `AuditService.LastAnchorAt()`, and raises a critical `tamper-missing-daily-anchor` alert when no anchor has been written for >25h. Both operator inattention and active sabotage land in monitoring within the hour.
 * [ ] **Process-restart anomaly** — `platform.start` entries occurring outside scheduled windows
 * [ ] **Audit chain skew** — chain root drift between cluster members (post-Phase 43)
 
@@ -439,7 +439,7 @@ external compliance tools (Drata, Vanta, Tugboat Logic) can consume.
 
 * [s] **`/debug/pprof/*`** — `internal/httpserver/pprof.go` exposes the standard pprof handlers (index / cmdline / profile / symbol / trace) only when the auth middleware is `Required()`, so the endpoints inherit the same bearer/mTLS gate as every other admin route. No env flag needed; gated by auth posture.
 * [ ] **Built-in flame graph** view — Svelte view that fetches `/debug/pprof/profile` and renders it without an external pprof server
-* [ ] **Go-runtime metrics on `/metrics`** — gc pause distribution, allocator stats, scheduler latency
+* [s] **Go-runtime metrics on `/metrics`** — `internal/httpserver/metrics.go` now reads from `runtime/metrics`: scheduler latency p99 (`/sched/latency:seconds`), GC pause p99 (`/gc/pauses:seconds`), heap free / objects / released bytes, cumulative allocs/frees, and the runtime goroutine count. Histograms collapse to p99 buckets so each Prometheus line is one scalar.
 
 ## Phase 48 — Detection Rule Library Sync
 
@@ -451,7 +451,7 @@ external compliance tools (Drata, Vanta, Tugboat Logic) can consume.
 ## Phase 49 — Backup Verification CLI
 
 * [s] **`oblivra-cli backup verify <path>`** — `cmd/cli/backup.go` runs offline against a restored backup directory: replays the audit Merkle chain (mirrors the server's startup verifier), checks any `*.parquet.sha256` sidecars, and confirms the vault file is parseable. Emits a JSON report; exit code 1 on any failure. Self-contained — does not depend on a running server, so it works on an air-gapped review box.
-* [ ] **`oblivra-cli backup diff <a> <b>`** — diff two backups for forensic comparison
+* [s] **`oblivra-cli backup diff <a> <b>`** — `cmd/cli/backup.go` streams both audit chains, finds the common-prefix length, and reports the divergence seq + reason if the chains disagree at any shared entry. Answers "did one of these backups silently diverge from the other?" — exit code 1 on divergence, 0 if one is a strict continuation of the other.
 * [ ] **`oblivra-cli restore --dry-run`** — explain what a restore would do without actually doing it
 
 ## Phase 50 — Documentation + License Hardening
@@ -474,7 +474,7 @@ trivially closeable by an operator-grade audit pass:
 * [ ] Delete all unused services and bindings — companion to the above
 * [ ] Regenerate Wails bindings (clean state)
 * [ ] Remove orphan UI components and routes
-* [ ] Update `README.md`, `FEATURES.md`, `docs/operator/log-forensics.md`
+* [s] Update `README.md` — rewritten to match the current product (forensic SIEM identity, Apache 2.0 license, agent feature matrix, Phase 41/44/47/49/50 surfacing); FEATURES.md and `docs/operator/log-forensics.md` were removed in the Phase 36 sweep, so this line is partially obsolete
 * [ ] Validate schema migrations (Phase 36.x)
 
 These are housekeeping tasks, not foundational work — they don't gate Beta-1
@@ -482,4 +482,9 @@ readiness, but they *should* close before a public release tag.
 
 ---
 
-**Last Updated**: 2026-04-30 — Phase 41 (HEC + OTLP) wired into routes; Phase 44 counter-forensic Sigma pack landed (7 rules + agent-side echoes); Phase 47 pprof gated behind auth; Phase 49 `backup verify` CLI; Phase 50 LICENSE + CONTRIBUTING + SECURITY in repo root. Phase 40.x section enumerates the five agent improvements that put it ahead of Splunk UF (per-event ed25519, encrypted spill, local pre-detection, test subcommand, adaptive batching, dual-egress).
+**Last Updated**: 2026-05-01 — second round on top of the Phase 41/44/47/49/50 batch:
+- Phase 40: `extract:` regex field promotion at the agent (per-input, named-capture → fields, `agentExtract` provenance tag)
+- Phase 44: self-disable + missing-anchor watchdogs (TamperService phrase-list + `audit.anchor-watchdog` scheduler job)
+- Phase 47: Go-runtime metrics on `/metrics` (sched latency p99, GC pause p99, heap classes, allocs/frees, goroutines via `runtime/metrics`)
+- Phase 49: `oblivra-cli backup diff <a> <b>` companion to `verify`
+- Hygiene: README rewritten to reflect the actual product (forensic SIEM identity, Apache 2.0, agent feature matrix vs UF, Phase 41/44/47/49/50 surfacing)

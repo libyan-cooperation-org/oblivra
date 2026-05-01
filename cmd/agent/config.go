@@ -72,6 +72,24 @@ type Input struct {
 	StartFrom   string            `yaml:"startFrom"`   // "tail" (default) | "beginning"
 	// winlog-specific:
 	Channel string `yaml:"channel"` // e.g. "Security", "System"
+
+	// Extract is a list of named regex patterns. The first regex that
+	// matches a line contributes its named-group captures to the
+	// outgoing event's `fields`. This lets the agent promote captured
+	// values (user, srcIP, status code, etc.) to top-level fields *at
+	// the edge*, so the platform doesn't have to re-extract them and
+	// the wire payload becomes cheaper. UF doesn't ship anything like
+	// this — it forwards raw lines and lets indexers do the work.
+	Extract []ExtractRule `yaml:"extract"`
+}
+
+// ExtractRule is a named regex run against each tailed line. Capture
+// groups become event fields. The whole rule fires only on the first
+// match — multiple rules cooperate by being listed in priority order
+// (most specific first).
+type ExtractRule struct {
+	Name  string `yaml:"name"`  // operator-friendly label, used in field-extract diagnostics
+	Regex string `yaml:"regex"` // Go regex with named (?P<name>...) groups; unnamed groups are ignored
 }
 
 type MultilineOpts struct {

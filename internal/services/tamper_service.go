@@ -50,6 +50,26 @@ var (
 	rxJournalCut  = regexp.MustCompile(`(?i)\b(systemd-journald|journalctl)\b.*\b(rotated|deleted|vacuum-time|vacuum-size)\b`)
 	rxClearLog    = regexp.MustCompile(`(?i)wevtutil\s+cl\b|Clear-EventLog|fsutil\s+usn\s+deletejournal`)
 	rxBigGap      = regexp.MustCompile(`(?i)logrotate.*completed`)
+
+	// Self-disable substrings — checked case-insensitively. An attacker
+	// silencing OBLIVRA itself before pivoting is a strictly red signal,
+	// because legitimate operator actions go through the audit chain.
+	selfDisableNeedles = []string{
+		"systemctl stop oblivra",
+		"systemctl disable oblivra",
+		"systemctl mask oblivra",
+		"pkill -9 oblivra",
+		"killall -9 oblivra",
+		"sc stop oblivraagent", "sc.exe stop oblivraagent",
+		"sc stop oblivraserver", "sc.exe stop oblivraserver",
+		"sc delete oblivraagent", "sc.exe delete oblivraagent",
+		"sc delete oblivraserver", "sc.exe delete oblivraserver",
+		"taskkill /im oblivra-agent.exe",
+		"taskkill /im oblivra-server.exe",
+		"stop-service oblivraagent",
+		"stop-service oblivraserver",
+		"rm -rf /var/lib/oblivra",
+	}
 )
 
 // Observe inspects each event for tampering markers.
@@ -90,6 +110,8 @@ func (s *TamperService) Observe(ctx context.Context, ev events.Event) {
 		add("journal-truncate", "systemd-journald rotation/vacuum executed", AlertSeverityMedium)
 	case rxClearLog.MatchString(src):
 		add("eventlog-clear", "Windows event log clear / USN journal delete observed", AlertSeverityHigh)
+	case containsAnyFold(src, selfDisableNeedles):
+		add("self-disable-attempt", "attempt to stop, mask, or remove the OBLIVRA agent or server itself", AlertSeverityCritical)
 	}
 
 	// Clock rollback: a fresh event whose timestamp is more than 5 minutes
@@ -120,6 +142,19 @@ func (s *TamperService) Observe(ctx context.Context, ev events.Event) {
 		s.mu.Unlock()
 	}
 	_ = strings.HasPrefix // keep strings imported even if rxes change later
+}
+
+// containsAnyFold returns true if any of `needles` appears in `haystack`,
+// case-insensitively. Cheap fallback for substring lists where a regex
+// would be overkill.
+func containsAnyFold(haystack string, needles []string) bool {
+	low := strings.ToLower(haystack)
+	for _, n := range needles {
+		if strings.Contains(low, n) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *TamperService) Findings(host string, limit int) []TamperFinding {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -31,9 +32,15 @@ type Tailer struct {
 
 	includeRE *regexp.Regexp
 	excludeRE *regexp.Regexp
+	extracts  []compiledExtract
 
 	signer *Signer
 	rules  []LocalRule
+}
+
+type compiledExtract struct {
+	name string
+	re   *regexp.Regexp
 }
 
 // TailerDeps bundles the optional pieces (signer, priority queue, local rules).
@@ -68,6 +75,13 @@ func NewTailer(c *Config, in Input, deps TailerDeps, p *PositionStore) (*Tailer,
 			return nil, err
 		}
 		t.excludeRE = re
+	}
+	for _, ex := range in.Extract {
+		re, err := regexp.Compile(ex.Regex)
+		if err != nil {
+			return nil, fmt.Errorf("extract %q: %w", ex.Name, err)
+		}
+		t.extracts = append(t.extracts, compiledExtract{name: ex.Name, re: re})
 	}
 	return t, nil
 }
@@ -240,6 +254,27 @@ func (t *Tailer) enqueue(source, raw string) {
 	}
 	if t.signer != nil {
 		fields["agentKeyId"] = t.signer.FingerprintShort()
+	}
+
+	// Edge-side regex extraction — first matching rule wins; named groups
+	// become event fields. Saves the platform a re-extraction pass and
+	// makes downstream OQL queries cheaper.
+	for _, ex := range t.extracts {
+		m := ex.re.FindStringSubmatch(raw)
+		if m == nil {
+			continue
+		}
+		names := ex.re.SubexpNames()
+		for i, val := range m {
+			if i == 0 || i >= len(names) || names[i] == "" {
+				continue
+			}
+			if _, exists := fields[names[i]]; !exists {
+				fields[names[i]] = val
+			}
+		}
+		fields["agentExtract"] = ex.name
+		break
 	}
 
 	// Local pre-detection — events that match high-severity rules go to the

@@ -74,6 +74,7 @@ Commands:
   rules                    Detection rules
   intel                    Threat-intel indicators
   backup verify <path>     Offline integrity check on a backup directory
+  backup diff <a> <b>      Diff two backup directories' audit chains
 
 Env: OBLIVRA_ADDR=http://localhost:8080  OBLIVRA_TOKEN=<api key>`)
 }

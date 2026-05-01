@@ -311,6 +311,34 @@ func New(opts Options) (*Stack, error) {
 			return audit.AnchorYesterday(ctx)
 		},
 	})
+	// Phase 44 — missing-anchor watchdog. The hourly job above is idempotent,
+	// so the only ways its output can be missing are job failure or active
+	// sabotage. We treat both as critical and surface them as alerts so a
+	// monitoring stack notices within an hour of the gap opening.
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "audit.anchor-watchdog",
+		Interval: 1 * time.Hour,
+		Run: func(ctx context.Context) error {
+			last, ok := audit.LastAnchorAt()
+			if !ok {
+				// Fresh install / no entries to anchor yet — not a finding.
+				return nil
+			}
+			if time.Since(last) <= 25*time.Hour {
+				return nil
+			}
+			alerts.Raise(ctx, services.Alert{
+				TenantID: "default",
+				RuleID:   "tamper-missing-daily-anchor",
+				RuleName: "audit daily-anchor missing",
+				Severity: services.AlertSeverityCritical,
+				Message: fmt.Sprintf("no audit.daily-anchor entry written for %s — investigate scheduler job and/or tamper",
+					time.Since(last).Round(time.Hour)),
+				MITRE: []string{"T1562.006"},
+			})
+			return nil
+		},
+	})
 	stack.scheduler.Start(context.Background())
 	stack.cancelFns = append(stack.cancelFns, stack.scheduler.Stop)
 

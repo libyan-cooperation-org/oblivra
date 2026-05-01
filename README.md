@@ -1,845 +1,361 @@
 <div align="center">
 
-<img src="frontend/public/logo.png" alt="OBLIVRA Logo" width="96" />
-
 # OBLIVRA
 
 **Sovereign Log-Driven Security Platform**
 
-*A self-hosted, air-gap-ready SIEM with embedded threat detection, UEBA, NDR, and compliance — running entirely on your hardware. **Bring your own SOAR. Bring your own DFIR. We're the place your logs go.***
+*A self-hosted, air-gap-ready forensic SIEM. Log-driven detection, time-frozen
+investigations, cryptographically verifiable evidence packages, single binary.*
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev)
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte)](https://svelte.dev)
 [![Wails](https://img.shields.io/badge/Wails-v3-red?logo=wails)](https://wails.io)
-[![License](https://img.shields.io/badge/License-Proprietary-lightgrey)](#license)
-[![Release](https://img.shields.io/badge/Version-1.4.0-blue)](#changelog)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)](#building-from-source)
 
----
-
-[Features](#features) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Building](#building-from-source) · [Configuration](#configuration) · [Detection Rules](#detection-rules) · [API](#api-reference) · [Deployment](#deployment) · [Contributing](#contributing)
+[Why](#why-oblivra) · [Quick Start](#quick-start) · [Agent](#agent) · [API](#api-surface) · [Building](#building-from-source) · [Backup verify](#backup-integrity-verification) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 </div>
 
 ---
 
-## Overview
+## What it is
 
-OBLIVRA is a **sovereign log-driven security platform** built for security engineers and SOC analysts who need professional-grade tooling without cloud dependencies, vendor lock-in, or per-seat licensing. It ships as a native desktop application (Wails v3 shell) and a headless REST server, both backed by the same Go engine.
+OBLIVRA is a **forensic SIEM** — a log-driven security platform optimised for
+the question *"can we prove what happened?"* rather than *"can we react in
+60 seconds?"*. It ships as one Go binary (Wails v3 desktop or headless server)
+plus a separate forwarder binary. No external dependencies. No SaaS calls.
 
-**What it does in one sentence:** ingest logs at 18k+ EPS, run Sigma & custom detection rules, correlate threats against MITRE ATT&CK, profile entity behaviour (UEBA), inspect network flows (NDR), store log-derived evidence in a signed chain-of-custody ledger, and enforce RBAC + multi-tenancy — all from a single binary on your own hardware.
+The core differentiators:
 
-**What it does NOT do** *(by design — Phase 36 broad scope cut)*: SOAR playbook execution, host network isolation, raw disk/memory forensic acquisition, AI chat, plugin-based extensibility. These are out-of-scope; pair OBLIVRA with a dedicated SOAR (Tines, Torq, XSOAR) and DFIR tool (Velociraptor, FTK, Volatility). Log-derived evidence still rides through OBLIVRA's RFC-3161 timestamped, Merkle-chained, vault-keyed evidence locker.
+- **Time-frozen investigations** — opening a case captures the audit-chain
+  root + receivedAt cutoff at that instant; every subsequent query goes
+  through that snapshot lens, so the evidence you ship is byte-identical
+  for the same case at the same audit-root.
+- **Cryptographically verifiable evidence** — events carry a content hash,
+  the audit log is SHA-256 Merkle-chained with optional HMAC root signature,
+  and a daily anchor caps each UTC day. The verifier ships as a separate
+  static binary an analyst can run on an air-gapped review box.
+- **Per-event ed25519 signing at the agent edge** — even an MITM that
+  decrypts TLS can't mutate events without invalidating the per-host
+  signature, because the signing key never leaves the host.
+- **Operator-grade audit trail** — every state-changing API call lands in
+  the same tamper-evident chain as the events it observes; analyst actions
+  *are* events.
 
-### Why OBLIVRA?
+## Why OBLIVRA?
 
 | Concern | How OBLIVRA addresses it |
 |---|---|
-| **Data sovereignty** | Everything runs on-device or on-prem. No telemetry. No SaaS callbacks. |
-| **Air-gap ready** | Offline threat intel, offline updates, local Sigma rule evaluation. |
-| **No per-seat cost** | Self-hosted. Bring your own hardware. |
-| **Zero runtime dependencies** | Single binary. BadgerDB + SQLite embedded. No Kafka, no Elasticsearch. |
-| **Audit-grade integrity** | Merkle-chained audit logs, HMAC-signed evidence, TPM-bound vault. |
+| **Data sovereignty** | Single binary, air-gap default. No SaaS callbacks. |
+| **Auditable state of record** | Merkle-chained audit log; daily anchor; offline verifier. |
+| **Forensic reconstruction** | Time-frozen cases; deterministic timeline; entity profiles; cross-protocol auth chains. |
+| **Multi-tenant isolation** | Per-tenant BadgerDB key prefix; per-tenant Bleve index. |
+| **Operator UX** | Hand-edited YAML config; CLI for everything; no in-app wizards required. |
+
+## What it explicitly is *not*
+
+- **Not a SOAR** — pair with Tines, Torq, n8n, or your own scripts. We emit
+  webhooks (HMAC-signed); we don't run playbooks.
+- **Not an EDR** — we ingest logs, including from EDR vendors. We don't
+  isolate hosts or kill processes.
+- **Not a copilot** — no LLM features. The audit chain is the story.
+- **Not a compliance certifier** — pair with Drata / Vanta / Tugboat. We
+  produce audit-grade evidence; they map it to control IDs.
 
 ---
 
-## Features
-
-> **Note (Phase 32 + Phase 36)**: The interactive shell/SSH/PTY/tunnels/SFTP subsystem and the SOAR/IR/AI/Plugin layer have been **removed**. The backend SSH library survives because non-terminal features depend on it (canary deployment via SCP, scheduled SSH key rotation), but the operator-facing terminal and remote-control surfaces are gone. OBLIVRA is now strictly a log-driven security platform.
-
-### 🛡️ Encrypted Vault
-
-- **AES-256-GCM** encryption with **Argon2id** key derivation
-- **OS keychain integration** — Windows DPAPI, macOS Keychain, Linux Secret Service
-- **FIDO2 / YubiKey** hardware MFA for vault unlock
-- **TPM PCR binding** — vault can be locked to the current hardware state
-- **Nuclear wipe** — multi-pass cryptographic erasure of vault and all secrets
-
-### 📡 Embedded SIEM — 18,000+ EPS
-
-- **Unified ingest** — Syslog (RFC5424/3164), JSON, CEF, LEEF, and raw lines
-- **Write-ahead log (WAL)** — zero data loss on crash or restart
-- **Hot store** — BadgerDB for sub-second event lookup
-- **Full-text index** — Bleve for field-level search, aggregations, and histograms
-- **Columnar archive** — Parquet for long-term forensic storage
-- **Live tail** — real-time event stream with <100 ms latency via WebSocket
-- **Multi-syntax query** — OQL (native), Sigma, KQL, SPL transpiler
-
-### 🔍 Detection Engine
-
-- **Sigma native** — load and execute community `.yml` Sigma rules directly; hot-reload from `sigma/` directory
-- **80+ built-in rules** covering the full MITRE ATT&CK matrix (Windows, Linux, Cloud AWS/Azure/GCP, network, OT)
-- **Rule types** — Threshold, Frequency, Sequence, Temporal, Correlation, and Graph-based rules
-- **MITRE ATT&CK heatmap** — live tactic/technique coverage visualization
-- **Fusion engine** — cross-host campaign builder correlating events into attack chains
-- **Counterfactual engine** — "what-if" detection replay for rule tuning
-
-### 🧠 Threat Intelligence
-
-- **STIX/TAXII client** — automated feed ingestion
-- **O(1) IOC matching** — IP, hash, domain, URL lookups against known-bad indicators
-- **Enrichment pipeline** — GeoIP, DNS PTR/ASN, asset mapping on every event
-- **SSRF-safe feed fetching** — private IP blocklist enforced at dial time
-
-### 🔬 Log-Derived Evidence
-
-- **Evidence locker** — HMAC-signed log-event captures with chain-of-custody tracking
-- **Merkle tree audit log** — tamper-evident, cryptographically immutable
-- **RFC 3161 timestamping** — third-party time-anchoring of evidence entries
-- **TPM signing** — evidence optionally signed by hardware TPM
-- **Temporal integrity** — detects clock drift and late-arriving event manipulation
-
-> Phase 36 scope cut — raw disk imaging and physical memory acquisition are no
-> longer in scope. Use a dedicated DFIR tool (Velociraptor, FTK, Volatility)
-> and import the resulting evidence files via the generic Collect API.
-
-### 📋 Audit Evidence (compliance-adjacent)
-
-- **Audit log evidence pack** — export timestamped, integrity-proven log evidence bundles
-  via `/api/v1/audit/packages` (Merkle hash + RFC-3161 timestamp + chain-of-custody manifest).
-- **GDPR crypto-wipe** — DoD-compliant selective data destruction (DSR workflow at `/api/v1/dsr`).
-- **Policy/control evaluation is delegated.** Phase 36.x removed the in-tree compliance YAML
-  packs (PCI-DSS / NIST 800-53 / ISO 27001 / GDPR / HIPAA / SOC2 Type II) along with the
-  PDF/HTML report generator. Pair OBLIVRA with a dedicated compliance tool (Drata, Vanta,
-  Tugboat Logic) and feed it the audit-evidence packs for attestation.
-
-### 🚨 Advanced Detection Modules
-
-- **UEBA engine** — Isolation Forest anomaly scoring + peer-group baselining
-- **Ransomware DETECTION** — entropy-based behavioural analysis (response-action layer removed in Phase 36; pair with an external SOAR for isolation/response)
-- **NDR** — NetFlow/IPFIX collector, DNS tunnel detection, lateral movement analysis
-- **eBPF agent** — Linux kernel instrumentation for processes, network, file events
-- **Fusion engine** — multi-stage attack chaining + campaign clustering across hosts
-- **Adversary simulation** — built-in emulation for detection coverage testing
-
-### 🏢 Enterprise Features
-
-- **Multi-tenancy** — per-tenant data isolation enforced at every query
-- **RBAC** — Admin / Analyst / ReadOnly / Agent roles with fine-grained permission constants
-- **OIDC / SAML 2.0** — federated identity with SCIM 2.0 provisioning
-- **TOTP MFA** — software MFA for local accounts
-- **HA clustering** — Hashicorp Raft consensus for multi-node state synchronization
-- **Storage tiering** — Hot (BadgerDB 0–30d) / Warm (Parquet 30–180d) / Cold (180d+ JSONL or S3) with automatic migration
-
-### 📊 Self-Observability
-
-- **Self-ingest** — OBLIVRA's agent collects platform health metrics (goroutines, heap, ingest EPS, detection rate) and feeds them directly into the SIEM pipeline. No external observability stack required.
-- **`/metrics` endpoint** — Prometheus-format scrape target if you want to point an existing observability stack (Prometheus, Datadog, New Relic) at OBLIVRA.
-- **Runtime attestation** — binary hash verification at `/debug/attestation`
-- **Diagnostics page** — `/monitoring` shows live service status, goroutine counts, GC pauses, and EPS
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     OBLIVRA Platform                        │
-│                                                             │
-│  ┌─────────────┐    ┌──────────────────────────────────┐   │
-│  │  Desktop UI │    │         Headless Server           │   │
-│  │  (Wails v3) │    │   REST API  ·  WebSocket Events   │   │
-│  │  Svelte 5   │    │   SCIM 2.0  ·  MCP Protocol       │   │
-│  └──────┬──────┘    └───────────────┬──────────────────┘   │
-│         │                           │                        │
-│         └──────────────┬────────────┘                       │
-│                        ▼                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                  Service Layer (Go)                   │   │
-│  │  Vault · SIEM · Detection · UEBA · NDR · Forensics    │   │
-│  │  ThreatIntel · Audit-Evidence · Identity · Cluster    │   │
-│  └──────┬──────────────────────────────────────┬───────┘   │
-│         │                                        │           │
-│  ┌──────▼──────┐                    ┌───────────▼────────┐ │
-│  │  Ingest &   │                    │   Auth & Vault      │ │
-│  │  Detection  │                    │   AES-256-GCM       │ │
-│  │  Engine     │                    │   Argon2id KDF      │ │
-│  │  18k+ EPS   │                    │   TPM / FIDO2       │ │
-│  └──────┬──────┘                    └────────────────────┘ │
-│         │                                                    │
-│  ┌──────▼──────────────────────────────────────────────┐   │
-│  │                  Storage Layer                        │   │
-│  │  BadgerDB (hot)  ·  Bleve (index)  ·  Parquet (cold) │   │
-│  │  SQLite/SQLCipher (meta)  ·  WAL (crash safety)      │   │
-│  └──────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-
-       ┌──────────┐        ┌──────────────┐
-       │  eBPF    │        │  Raft Cluster │
-       │  Agent   │◄──────►│  (HA Mode)    │
-       └──────────┘        └──────────────┘
-```
-
-### Deployment Modes
-
-| Mode | Description | Use Case |
-|---|---|---|
-| **Desktop (Wails)** | Native GUI app with embedded engine | Individual analyst workstation |
-| **Headless (REST)** | Go binary serving REST + WebSocket API | SOC server, docker-compose, HA cluster |
-| **Hybrid** | Desktop app connected to remote server | Remote analyst + central data |
-
-### Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend language | Go 1.25 |
-| Desktop shell | Wails v3 (WebView2 / WebKit) |
-| Frontend | Svelte 5 + TypeScript + Tailwind CSS 4 |
-| Hot storage | BadgerDB v4 |
-| Full-text index | Bleve v2 |
-| Metadata DB | SQLite / SQLCipher (encrypted) |
-| Columnar archive | Parquet (parquet-go) |
-| Consensus | Hashicorp Raft v1.7 |
-| Messaging | NATS (embedded) |
-| Crypto | AES-256-GCM, Argon2id, Ed25519, HMAC-SHA256 |
-| Observability | Self-ingest via OBLIVRA agent (`/metrics` Prometheus-format scrape target if needed) |
-
----
-
-## Quick Start
+## Quick start
 
 ### Prerequisites
 
-| Tool | Minimum Version | Install |
+| Tool | Minimum | Install |
 |---|---|---|
 | Go | 1.25 | [go.dev/dl](https://go.dev/dl/) |
-| Wails CLI | v3.0 | `go install github.com/wailsapp/wails/v3/cmd/wails@latest` |
-| Node.js / Bun | Node 20+ / Bun latest | [bun.sh](https://bun.sh) |
-| WebView2 | Any | Windows — usually pre-installed; [download if missing](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) |
+| Bun | 1.1+ | [bun.sh](https://bun.sh) |
+| Wails CLI (desktop only) | v3 alpha | `go install github.com/wailsapp/wails/v3/cmd/wails3@latest` |
 
-### 1. Clone & Install
+### Run the headless server
 
 ```bash
-git clone https://github.com/kingknull/oblivra.git
+git clone https://github.com/libyan-cooperation-org/oblivra.git
 cd oblivra
-go mod tidy
+go run ./cmd/server
+# → REST + WebSocket on http://localhost:8080
+```
+
+### Run the desktop shell (Wails)
+
+```bash
 cd frontend && bun install && cd ..
+wails3 dev
 ```
 
-### 2. Run in Development Mode
+### Send a test event
 
-```bash
-wails dev
-```
-
-This starts the Go backend and Vite dev server with hot-reload. The desktop window opens automatically.
-
-### 3. First Launch — Vault Setup
-
-1. The **Vault Gate** appears on first run.
-2. Click **Set up new vault** and choose a strong master passphrase.
-3. This passphrase encrypts all credentials and the database with AES-256-GCM + Argon2id. **There is no recovery mechanism** — store it in a password manager.
-4. On all subsequent launches, enter the passphrase to unlock.
-
-### 4. Add Your First Host
-
-1. Navigate to **Hosts** in the left rail.
-2. Click **+ New Host** (or `Ctrl/Cmd+N`).
-3. Enter hostname, port, username, and authentication method (password stored in vault, or SSH key).
-4. Click the host to open a terminal session.
-
-### 5. Start Log Ingestion
-
-**Syslog (UDP/TCP — default port 1514):**
-```bash
-# Point any log shipper at:
-<your-machine-ip>:1514
-
-# Quick test:
-echo '<34>1 2026-01-01T00:00:00Z web-01 sshd - - Failed password for root from 10.0.0.1 port 22 ssh2' | \
-  nc -u 127.0.0.1 1514
-```
-
-**REST API:**
 ```bash
 curl -X POST http://localhost:8080/api/v1/siem/ingest \
-  -H "Authorization: Bearer <your-api-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"host_id":"web-01","event_type":"failed_login","raw_log":"Failed password for root"}'
-```
-
-**eBPF Agent (Linux endpoints):**
-```bash
-./oblivra-agent --server <server-ip>:8443 --token <api-token>
-```
-
-### 6. Keyboard Shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl/Cmd + K` | Command palette |
-| `Ctrl/Cmd + N` | Add new host |
-| `Ctrl/Cmd + B` | Toggle sidebar |
-| `Ctrl/Cmd + ,` | Settings |
-| `Ctrl/Cmd + Shift + F` | Focus mode |
-| `Ctrl+Click` nav item | Open as floating panel |
-
----
-
-## Building from Source
-
-### Desktop Application
-
-```bash
-# Windows
-wails build
-# Output: build/bin/oblivrashell.exe
-
-# macOS
-wails build
-# Output: build/bin/oblivrashell
-
-# Linux
-wails build
-# Output: build/bin/oblivrashell
-```
-
-### Headless Server Only
-
-```bash
-go build -tags production -trimpath -ldflags "-w -s" -o oblivra-server ./cmd/server
-```
-
-### Agent Binary
-
-```bash
-go build -tags production -trimpath -ldflags "-w -s" -o oblivra-agent ./cmd/agent
-```
-
-### CLI Tool
-
-```bash
-go build -o oblivra-cli ./cmd/cli
-```
-
-### Docker
-
-```bash
-docker-compose up -d
-```
-
-This starts the headless server plus the full observability stack:
-
-| Service | Port | Description |
-|---|---|---|
-| OBLIVRA API | 8080 | REST + WebSocket (also exposes `/metrics` Prometheus scrape target) |
-| Raft cluster | 8443 | HA consensus + agent ingest |
-| Syslog | 1514 | UDP/TCP log ingestion |
-
-### Build Flags
-
-| Tag | Effect |
-|---|---|
-| `production` | Enables SQLCipher encryption, disables stub handlers, enforces TLS |
-| `sqlcipher` | Links against SQLCipher for encrypted SQLite |
-| `pure` | Uses pure-Go SQLite (no CGO required) |
-
----
-
-## Configuration
-
-### Data Directories
-
-| Platform | Path |
-|---|---|
-| Windows | `%LOCALAPPDATA%\sovereign-terminal\` |
-| macOS | `~/Library/Application Support/sovereign-terminal/` |
-| Linux | `~/.local/share/sovereign-terminal/` |
-
-```
-sovereign-terminal/
-├── data/
-│   ├── siem_hot.badger/    # Hot SIEM event store (BadgerDB)
-│   ├── wal/ingest.wal      # Write-ahead log — never delete manually
-│   ├── bleve.idx/          # Full-text search index
-│   ├── analytics.db        # SQLite — alerts, incidents, metadata
-│   ├── sigma/              # Drop .yml Sigma rules here — hot-reloaded
-│   └── rules/              # Native YAML detection rules
-├── plugins/                # Plugin directories (id/manifest.json + main.lua)
-├── oblivra.vault           # AES-256-GCM encrypted vault
-└── oblivra.log             # Application log
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `OBLIVRA_ENV` | `dev` | Set to `production` to enforce TLS, disable stubs, enable SQLCipher |
-| `OBLIVRA_PORT` | `8080` | REST API listen port |
-| `OBLIVRA_RAFT_PORT` | `8443` | Raft consensus + agent ingest port |
-| `OBLIVRA_SYSLOG_PORT` | `1514` | Syslog UDP/TCP listener port |
-| `OBLIVRA_API_KEYS` | — | Comma-separated list of API keys for headless mode |
-| `OBLIVRA_FLEET_SECRET` | — | Shared HMAC secret for agent authentication |
-
-### App Config (`config.json`)
-
-The application config is stored alongside the vault and supports the following keys (all settable via **Settings** UI):
-
-```json
-{
-  "font_family": "JetBrains Mono, Fira Code, monospace",
-  "font_size": 14,
-  "theme": "dark",
-  "auto_lock_timeout": 15,
-  "clipboard_clear": 30,
-  "log_sessions": true,
-  "keepalive_interval": 30,
-  "connection_timeout": 10,
-  "scrollback_lines": 10000
-}
-```
-
----
-
-## Detection Rules
-
-### Sigma Rules
-
-OBLIVRA natively executes Sigma rules. Drop any `.yml` file into the `sigma/` data directory — they are hot-reloaded without restart.
-
-```yaml
-# sigma/custom_rule.yml
-title: Suspicious PowerShell Download
-status: stable
-logsource:
-    product: windows
-    category: process_creation
-detection:
-    selection:
-        CommandLine|contains:
-            - 'DownloadString'
-            - 'Invoke-Expression'
-    condition: selection
-tags:
-    - attack.execution
-    - attack.t1059.001
-falsepositives:
-    - Legitimate admin tooling
-level: high
-```
-
-### Native YAML Rules
-
-For high-performance rules with OBLIVRA-specific capabilities:
-
-```yaml
-# data/rules/my_rule.yaml
-id: custom-bruteforce-001
-name: SSH Brute Force Detected
-type: threshold
-event_type: failed_login
-field: src_ip
-threshold: 10
-window: 60s
-severity: high
-mitre_attack: T1110
-response_actions:
-  - type: isolate_host
-    target: src_ip
-```
-
-### Rule Types
-
-| Type | Description |
-|---|---|
-| `threshold` | Fire when field count exceeds N within time window |
-| `frequency` | Fire on N distinct values of a field |
-| `sequence` | Ordered event chain with correlation window |
-| `temporal` | Time-based patterns (e.g., off-hours access) |
-| `correlation` | Cross-event field linkage |
-| `graph` | Multi-hop entity relationship rules |
-
-### Built-in Rule Coverage
-
-80+ built-in rules covering:
-
-- **Windows** — LSASS dump, Pass-the-Hash, Golden Ticket, DCSync, Shadow Copy deletion, PowerShell encoded commands, registry run keys, WMI lateral movement, LOLBins
-- **Linux** — SSH brute force, rootkit indicators, LD_PRELOAD hijack, kernel module load, Docker escape, SSH key injection, cron persistence
-- **Cloud** — AWS IAM escalation, S3 exfiltration, Azure impossible travel, GCP suspicious IAM
-- **Network** — DNS tunneling, C2 beaconing, SMB lateral movement, firewall sweep
-- **Ransomware** — Backup deletion, volume shadow removal, high-entropy file writes
-
----
-
-## API Reference
-
-The headless server exposes a REST API on port 8080. Full OpenAPI 3.0 spec: `docs/openapi.yaml`.
-
-### Authentication
-
-All endpoints require either:
-- `Authorization: Bearer <token>` header
-- `X-API-Key: <key>` header
-
-Exempt (no auth required): `/api/v1/auth/login`, `/api/v1/auth/oidc/*`, `/healthz`, `/readyz`
-
-### Core Endpoints
-
-```
-GET  /healthz                          # Liveness probe
-GET  /readyz                           # Readiness probe
-GET  /metrics                          # Prometheus metrics
-
-POST /api/v1/auth/login                # Local login
-GET  /api/v1/auth/oidc/login           # OIDC redirect
-GET  /api/v1/auth/oidc/callback        # OIDC callback
-GET  /api/v1/auth/me                   # Current user info
-
-GET  /api/v1/siem/search               # Search SIEM events
-POST /api/v1/siem/search               # Search with filters
-GET  /api/v1/alerts                    # List active alerts
-
-GET  /api/v1/mitre/heatmap             # ATT&CK coverage
-
-GET  /api/v1/threatintel/indicators    # List IOC indicators
-GET  /api/v1/threatintel/lookup?value= # Check single value
-GET  /api/v1/enrich?q=                 # Enrich IP/host
-
-GET  /api/v1/forensics/evidence        # List evidence items
-POST /api/v1/forensics/evidence/{id}/seal  # Seal evidence
-
-GET  /api/v1/audit/log                 # Audit trail
-POST /api/v1/audit/packages/generate   # Generate compliance package
-
-GET  /api/v1/agent/fleet               # Registered agents
-POST /api/v1/agent/register            # Register new agent
-POST /api/v1/agent/ingest              # Agent event ingest
-
-GET  /api/v1/ueba/profiles             # UEBA entity profiles
-GET  /api/v1/ueba/anomalies            # Current anomalies
-
-GET  /api/v1/graph/subgraph?node_id=   # Entity relationship graph
-
-GET  /api/v1/mcp/tools                 # MCP tool discovery
-POST /api/v1/mcp/execute               # Execute MCP tool
-POST /api/v1/mcp/approve               # Approve MCP action
-
-GET  /api/v1/dashboards                # List dashboards
-POST /api/v1/reports/generate          # Generate compliance report
-
-GET  /debug/attestation                # Binary integrity status (admin)
-```
-
-### WebSocket — Live Event Stream
-
-```
-GET /api/v1/events?token=<api-token>
-```
-
-Connect with any WebSocket client. All platform events are broadcast in real time:
-
-```json
-{
-  "type": "detection.alert",
-  "timestamp": "2026-04-19T12:00:00Z",
-  "payload": {
-    "rule_id": "windows-lsass-dump",
-    "severity": "critical",
-    "host": "dc01",
-    "mitre_attack": "T1003.001"
-  }
-}
-```
-
-### Example: SIEM Search
-
-```bash
-# Search for failed logins in last hour
-curl -s "http://localhost:8080/api/v1/siem/search?q=EventType:failed_login" \
-  -H "Authorization: Bearer $OBLIVRA_TOKEN" | jq .
-
-# POST with filters
-curl -s -X POST http://localhost:8080/api/v1/siem/search \
   -H "Authorization: Bearer $OBLIVRA_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query": "src_ip:10.0.0.0/8", "filters": {"limit": 500}}'
+  -d '{"hostId":"web-01","eventType":"failed_login","message":"Failed password for root from 10.0.0.1"}'
+```
+
+### Run the agent against your local server
+
+```bash
+go build -o oblivra-agent ./cmd/agent
+./oblivra-agent init > /etc/oblivra/agent.yml   # generates a commented sample
+$EDITOR /etc/oblivra/agent.yml                  # set server URL + token + inputs
+./oblivra-agent run --config /etc/oblivra/agent.yml
 ```
 
 ---
 
-## Deployment
+## Architecture (one screen)
 
-### Single Node (Docker Compose)
-
-```bash
-git clone https://github.com/kingknull/oblivra.git
-cd oblivra
-OBLIVRA_ENV=production \
-OBLIVRA_API_KEYS=your-strong-key-here \
-OBLIVRA_FLEET_SECRET=your-fleet-hmac-secret \
-docker-compose up -d
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         OBLIVRA Server                                │
+│                                                                       │
+│  Listeners → Ingest pipeline → Hot store (BadgerDB)                   │
+│   REST                          + Bleve full-text index               │
+│   Syslog UDP/TCP                + WAL (crash safety)                  │
+│   Splunk HEC                    + Periodic warm migration (Parquet)   │
+│   OTLP/HTTP logs                + Optional cold tier (S3-compat)      │
+│   Agent ingest (ed25519)                                              │
+│                                                                       │
+│  ↓ async fan-out                                                      │
+│  Rules · UEBA · Forensics · Lineage · Reconstruction · Trust ·        │
+│  Quality · Tamper · Audit                                             │
+│                                                                       │
+│  ↓                                                                    │
+│  Operator UI (Svelte 5 + Tailwind)                                    │
+│  Cases → Timeline → Hypotheses → Annotations → Evidence pack          │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-### High Availability Cluster (3 Nodes)
-
-```bash
-# Node 1 — bootstrap
-OBLIVRA_ENV=production \
-OBLIVRA_RAFT_ID=node1 \
-./oblivra-server
-
-# Node 2 — join
-OBLIVRA_ENV=production \
-OBLIVRA_RAFT_ID=node2 \
-OBLIVRA_RAFT_JOIN=node1:8443 \
-./oblivra-server
-
-# Node 3 — join
-OBLIVRA_ENV=production \
-OBLIVRA_RAFT_ID=node3 \
-OBLIVRA_RAFT_JOIN=node1:8443 \
-./oblivra-server
-```
-
-### TLS / Reverse Proxy (Recommended for Production)
-
-OBLIVRA generates a self-signed CA and localhost certificate on first start. For production:
-
-1. Place your signed certificates at `~/.oblivrashell/cert.pem` and `~/.oblivrashell/key.pem`.
-2. The server will automatically use TLS with TLS 1.3 minimum.
-3. Alternatively, place OBLIVRA behind Nginx/Traefik and handle TLS at the proxy:
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name oblivra.internal;
-    ssl_certificate     /etc/ssl/certs/oblivra.crt;
-    ssl_certificate_key /etc/ssl/private/oblivra.key;
-    ssl_protocols       TLSv1.3;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
-}
-```
-
-### Self-Observability
-
-OBLIVRA's agent ingests its own platform metrics (goroutines, heap,
-GC pauses, EPS, detection rate) directly into the SIEM pipeline.
-No external observability stack ships by default.
-
-If you already operate Prometheus / Datadog / New Relic, point your
-existing stack at `http://localhost:8080/metrics` — OBLIVRA exposes a
-Prometheus-format scrape target on the main API port.
-
-The in-app `/monitoring` page shows live diagnostics for operators
-who don't want to leave the OBLIVRA UI.
+The agent is a separate binary. It tails files, optionally extracts named
+fields with regex, signs each event with ed25519, batches with adaptive
+sizing, spills to encrypted disk under backpressure, and ships to one or
+more receivers via gzip-compressed TLS.
 
 ---
 
-## Agent Deployment
+## Agent
 
-The OBLIVRA agent provides kernel-level telemetry for Linux endpoints (eBPF) and process/network visibility for Windows/macOS.
+The forwarder is at `cmd/agent/`. It tries to be the "drop-in replacement
+for an operator who's used to Splunk Universal Forwarder" — terminal driven,
+config file first, restart safe — and adds five things UF doesn't do:
 
-```bash
-# Linux — with eBPF (requires root)
-sudo ./oblivra-agent \
-  --server oblivra-server:8443 \
-  --token <fleet-api-token> \
-  --collectors ebpf,process,network,file
-
-# macOS / Windows — without eBPF
-./oblivra-agent \
-  --server oblivra-server:8443 \
-  --token <fleet-api-token> \
-  --collectors process,network
-```
-
-The agent authenticates via HMAC-SHA256 signed requests. Generate fleet tokens from the **Fleet Dashboard** or via CLI:
-
-```bash
-./oblivra-cli agent token create --name "prod-web-01" --role agent
-```
-
----
-
-## Plugin Development
-
-Plugins are loaded from `~/.oblivrashell/plugins/<plugin-id>/`.
-
-### Manifest (`manifest.json`)
-
-```json
-{
-  "id": "my-enricher",
-  "name": "Custom IP Enricher",
-  "version": "1.0.0",
-  "main": "main.lua",
-  "timeout_sec": 30,
-  "permissions": [
-    "events.read",
-    "siem.write"
-  ]
-}
-```
-
-### Lua Plugin (`main.lua`)
-
-```lua
--- Called by OBLIVRA on every ingest event
-function on_event(event)
-  if event.event_type == "network_connection" then
-    oblivra.print("Processing: " .. event.src_ip)
-    -- Enrich, filter, or forward events
-  end
-end
-
--- Register a UI panel
-oblivra.ui.register_panel("my-panel", "My Enricher", "shield")
-```
-
-### WebAssembly Plugin
-
-Compile any language to WASM and place the `.wasm` file alongside `manifest.json`. The Wazero runtime provides sandboxed execution with the same permission model.
-
----
-
-## Compliance Packs
-
-OBLIVRA ships with pre-built compliance evaluation packs:
-
-| Pack | Standard | Controls |
+| Feature | UF | OBLIVRA agent |
 |---|---|---|
-| `pci_dss.yaml` | PCI-DSS v4.0 | Requirements 10, 11, 12 |
-| `nist_800_53.yaml` | NIST 800-53 Rev 5 | AC, AU, CA, CM, IA, IR, SI |
-| `soc2_type2.yaml` | SOC 2 Type II | CC6, CC7, CC8, CC9 |
-| `iso_27001.yaml` | ISO/IEC 27001:2022 | A.8, A.9, A.12, A.16 |
-| `hipaa.yaml` | HIPAA Security Rule | 164.312 |
-| `gdpr.yaml` | GDPR Articles 25, 32 | Access control, logging, breach detection |
+| Per-event signing | TLS-only | ed25519 per-event, key never leaves host |
+| Disk spill | plaintext | AES-256-GCM with Argon2id KDF |
+| Priority routing | FIFO | local Sigma subset → priority queue |
+| Dry-run config validation | partial | `agent test` opens every input + hits `/healthz` |
+| Batch sizing | static | adaptive against observed flush time |
+| Multi-egress | single | dual-egress fan-out (`secondaryServers:[]`) |
 
-Generate a signed compliance package for any framework:
+A minimal config:
+
+```yaml
+server:
+  url: "https://oblivra.internal"
+  tokenFile: "/etc/oblivra/agent.token"
+  tls:
+    caCertFile: "/etc/oblivra/ca.crt"
+
+hostname: "web-01"
+tenant: "prod"
+batchSize: 100
+flushEvery: 2s
+compression: gzip
+signEvents: true       # ed25519-sign every event
+adaptiveBatch: true
+localRules: true       # promote critical events to priority queue
+
+inputs:
+  - type: file
+    path: "/var/log/auth.log"
+    sourceType: "linux:auth"
+    extract:
+      - name: "sshd-fail"
+        regex: 'Failed password for (?P<user>\S+) from (?P<srcIP>\S+) port (?P<srcPort>\d+)'
+```
+
+Subcommands: `init` · `run` · `test` · `status` · `reload` · `service install` · `version`.
+
+---
+
+## Detection
+
+OBLIVRA loads Sigma rules natively. Drop any `.yml` into the `sigma/`
+directory under your data dir; the watcher hot-reloads. Counter-forensic
+rules ship under [sigma/counter_forensic/](sigma/counter_forensic) — auditd
+flushed, eventlog cleared, timestomp, history purge, Defender disable,
+shadow-copy delete, and OBLIVRA self-disable patterns.
+
+For agent-side prioritisation under backpressure, the same critical
+patterns live in [predetect.go](cmd/agent/predetect.go) so they bypass
+FIFO on their way out the wire.
+
+OQL is available for power users (`/api/v1/siem/oql`); regular search uses
+Bleve query strings (`/api/v1/siem/search`).
+
+---
+
+## API surface
+
+Full OpenAPI: [docs/openapi.yaml](docs/openapi.yaml). Highlights:
+
+```
+# Ingest
+POST /api/v1/siem/ingest                # single event
+POST /api/v1/siem/ingest/batch          # batch
+POST /api/v1/siem/ingest/raw            # raw log line, auto-parse
+POST /services/collector/event          # Splunk HEC (compat — Phase 41)
+POST /v1/logs                           # OTLP/HTTP JSON logs (compat — Phase 41)
+
+# Search + reconstruction
+GET  /api/v1/siem/search?q=...
+GET  /api/v1/siem/oql?q=...
+GET  /api/v1/investigations/timeline?host=...
+GET  /api/v1/investigations/pivot?host=&at=&delta=
+GET  /api/v1/reconstruction/{sessions,state,entities,cmdline,auth}
+
+# Cases
+POST /api/v1/cases
+GET  /api/v1/cases/{id}/timeline
+GET  /api/v1/cases/{id}/confidence
+GET  /api/v1/cases/{id}/report.html       # self-contained HTML evidence pack
+POST /api/v1/cases/{id}/legal/{submit,approve,reject}
+POST /api/v1/cases/{id}/seal
+
+# Audit
+GET  /api/v1/audit/log
+GET  /api/v1/audit/verify
+POST /api/v1/audit/packages/generate
+
+# Operator
+GET  /metrics                            # Prometheus exposition + Go-runtime metrics
+GET  /debug/pprof/*                      # auth-gated profiling (Phase 47)
+GET  /healthz · /readyz
+```
+
+Auth: `Authorization: Bearer <token>` or mTLS. Splunk HEC bridges
+`Authorization: Splunk <token>` to the same pipeline.
+
+---
+
+## Backup integrity verification
+
+`oblivra-cli backup verify <path>` runs offline against a restored data dir
+and confirms:
+
+- the audit Merkle chain replays cleanly entry-by-entry,
+- every `*.parquet` file with a `.sha256` sidecar matches its hash,
+- the vault file is parseable JSON.
+
+`oblivra-cli backup diff <a> <b>` compares two snapshots — common-prefix
+length, divergence point, both root hashes — answering "did one backup
+quietly diverge from the other?".
+
+Both subcommands emit JSON; exit code 1 on any failure, so they drop into
+CI / backup-validation cron without parsing.
+
+---
+
+## Building from source
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/audit/packages/generate \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"framework": "SOC2", "from": "2026-01-01", "to": "2026-03-31"}'
+# Headless server
+go build -tags production -trimpath -ldflags "-w -s" -o oblivra-server ./cmd/server
+
+# Agent
+go build -tags production -trimpath -ldflags "-w -s" -o oblivra-agent ./cmd/agent
+
+# CLI
+go build -o oblivra-cli ./cmd/cli
+
+# Verifier (separate binary; ships standalone to air-gapped reviewers)
+go build -o oblivra-verify ./cmd/verify
+
+# Smoke harness (43-endpoint go-live gate)
+go build -o oblivra-smoke ./cmd/smoke
+
+# Desktop (Wails v3)
+wails3 build
 ```
+
+Docker: `docker compose up -d` brings up the server with a Caddyfile-driven
+TLS reverse proxy on port 443. See [docs/operator/deployment.md](docs/operator/deployment.md).
 
 ---
 
-## Roadmap
+## Storage
 
-| Phase | Status | Capabilities |
-|---|---|---|
-| Phase 0–5 | ✅ Validated | Storage, Ingest (18k EPS burst / 10k EPS sustained), Alerts, ThreatIntel, MITRE, OQL |
-| Phase 6 | 🟡 Partial — self-validated | SSH/PTY, Vault, Terminal Grid, SFTP, FIDO2, Forensics, Compliance *(third-party compliance audit pending)* |
-| Phase 7 | ✅ Validated | Agent Framework (eBPF, FIM, WAL, gRPC) |
-| Phase 8–10 | ✅ Validated | SOAR, Ransomware Defense, UEBA, Case Management |
-| Phase 11–12 | ✅ Shipped | NDR, Multi-tenancy (per-tenant Bleve index + encryption), HA Cluster, LDAP/Okta connectors |
-| Phase 17–19 | ✅ Shipped | Sigma transpiler, OpenTelemetry, supply chain (SBOM + cosign + SLSA) |
-| Phase 20 | ✅ Shipped | OQL, SCIM, identity connectors, automated triage, report factory, dashboard studio |
-| Phase 21 | ✅ Shipped | Partitioned event pipeline (8 shards), WAL fsync window, enrichment LRU, rule route index |
-| Phase 22 | 🔨 Active | Productization: 22.1 chaos harness + soak regression ✅ · 22.2 multi-tenant isolation ✅ · 22.3 storage tiering 🔨 |
-| Phase 23 | ✅ Shipped | Terminal UX: SSH bookmarks, session restore, per-host history *(operator banner UI partial)* |
-| Phase 26 | 🔨 Partial | NATS JetStream log fabric ✅ · graph investigations ✅ · timeline reconstruction ✅ · M-of-N quorum hardware-binding 🔨 |
-| Phase 27 | Planned | BYOK/CMK, SCIM 2.0 deprovisioning, OQL piped analytics, temporal entity resolution, central DLP |
+| Tier | Backing | Retention | Mutability |
+|---|---|---|---|
+| Hot | BadgerDB v4, key prefix `tenant:{id}:event:{nanoTs}:{evId}` | per-tenant `HotMaxAge` | mutable |
+| Warm | Parquet files with v2 schema (carries content hash) | per-tenant `WarmMaxAge` | WORM-locked |
+| Cold (optional) | S3-compatible (no SDK; we sign SigV4 directly) | operator policy | WORM |
+
+Per-tenant retention is set via `PUT /api/v1/tenants/policies` and lives in
+`tenant_policies.json`. Cross-tier verification recomputes content hashes
+from the embedded Parquet column; reachable at `GET /api/v1/storage/verify-warm`.
 
 ---
 
-## Security
+## Self-observability
 
-### Reporting Vulnerabilities
+`/metrics` is the OBLIVRA Prometheus-format scrape target:
 
-**Please do not open public GitHub issues for security vulnerabilities.**
+- ingest counters: `oblivra_events_total`, `oblivra_events_eps`, `oblivra_hot_events`, `oblivra_wal_*`
+- alerts: `oblivra_alerts_total`
+- fleet: `oblivra_agents_registered`
+- runtime: `oblivra_runtime_sched_latency_p99_seconds`, `oblivra_runtime_gc_pause_p99_seconds`, heap classes, allocs/frees, goroutine count
 
-Contact: `security@[your-domain]`
-
-Include: description of the issue, steps to reproduce, impact assessment, and any suggested fix. We aim to respond within 48 hours and issue a patch within 14 days of confirmed receipt.
-
-### Security Model
-
-- **Vault** — AES-256-GCM with Argon2id KDF; master key never leaves process memory; zeroed on lock
-- **Transport** — TLS 1.3 minimum for all server connections; HMAC-SHA256 signed agent requests
-- **Multi-tenancy** — Structurally enforced: per-tenant BadgerDB keyspace (`tenant:{id}:events:...`), one Bleve index per tenant, per-tenant AES-256 keys derived via HMAC. Cross-tenant queries are physically impossible — there is no shared index to escape. Auth middleware plumbs the authenticated tenant via `database.WithTenant(ctx, ...)`; user input cannot influence the tenant scope.
-- **Plugins** — Lua and WASM sandboxes with explicit permission manifests; signed manifest verification before load
-- **Audit** — All admin actions written to a Merkle-chained, append-only audit log
-- **License-gated APIs** — Premium endpoints (SOAR, UEBA, NDR, Ransomware) check `licensing.Feature*` before executing. Destructive actions like `POST /api/v1/ransomware/isolate` reject without a valid feature claim regardless of caller (Wails or REST).
-- **Dependencies** — SBOM generated on every release (SPDX + CycloneDX); Grype, gosec, gitleaks, and govulncheck run on every PR (SARIF uploaded to GitHub Security tab)
-
-A full static code and security vulnerability audit report is available in [`docs/🔴 OBLIVRA — Deep Audit.md`](docs/) and the accompanying [`OBLIVRA_Security_Audit.docx`](docs/).
+For deeper investigation, `/debug/pprof/*` is wired in and gated behind the
+same auth middleware as every other admin route.
 
 ---
 
-## Contributing
+## Roadmap & status
 
-Contributions are welcome. Please read this section before opening a PR.
+The full development log lives in [task.md](task.md). At a glance:
 
-### Development Setup
-
-```bash
-# Clone and install dependencies
-git clone https://github.com/kingknull/oblivra.git
-cd oblivra
-go mod tidy
-cd frontend && bun install && cd ..
-
-# Run tests
-go test ./...
-
-# Run with race detector
-go test -race ./...
-
-# Run fuzz tests (1 minute)
-go test -fuzz=FuzzSigmaTranspile ./internal/detection/ -fuzztime=60s
-go test -fuzz=FuzzAutoparse ./internal/ingest/ -fuzztime=60s
-
-# Architecture boundary tests
-go test ./tests/
-
-# Check architecture rules
-go test ./internal/architecture/
-```
-
-### Code Style
-
-- Follow standard Go conventions (`gofmt`, `golangci-lint`)
-- New security-sensitive packages must include a `_test.go` with at least one fuzz target
-- All credential handling must use `vault.ZeroSlice` or `SecureBytes` — never `string` for secrets
-- New HTTP handlers must have: method check, RBAC check, body size limit, tenant scope enforcement
-- No `fmt.Sprintf` for SQL query construction — use prepared statements
-
-### Commit Convention
-
-```
-feat(detection): add Kerberoasting sequence rule
-fix(vault): zero canary on failed unlock attempt
-sec(api): enforce RBAC on /audit/packages endpoint
-docs(quickstart): add HA cluster bootstrap steps
-```
-
-### Pull Request Checklist
-
-- [ ] `go test ./...` passes with `-race`
-- [ ] New endpoints have RBAC checks
-- [ ] No hardcoded credentials or tokens
-- [ ] Sensitive fields tagged `json:"-"` in models
-- [ ] `go vet ./...` clean
-- [ ] Fuzz test added for any new parser or untrusted input handler
+- **Beta-1 hardening pass complete** — durable audit chain, time-frozen
+  cases, offline verifier, deployment guide, on-call runbook, security
+  review, full-surface smoke harness all marked `[x]`.
+- **Phase 40.x agent maturity** — ed25519 signing, encrypted spill, local
+  pre-detection, test/service subcommands, adaptive batching, dual-egress.
+- **Phase 41 UF compatibility** — Splunk HEC + OTLP/HTTP receivers wired.
+- **Phase 44 counter-forensic** — 7-rule Sigma pack + agent-side echoes +
+  self-disable / missing-anchor watchdogs.
+- **Phase 47 pprof + runtime metrics** — auth-gated profiling and GC /
+  scheduler latency on `/metrics`.
+- **Phase 49 backup tooling** — `verify` and `diff` subcommands.
+- **Phase 50 project hygiene** — Apache 2.0 LICENSE, CONTRIBUTING.md,
+  SECURITY.md.
 
 ---
 
 ## License
 
-OBLIVRA is proprietary software. All rights reserved.
+Apache License 2.0. See [LICENSE](LICENSE).
 
-See `LICENSE.txt` for full terms.
+## Security
 
----
+Please do not open public issues for security vulnerabilities. See
+[SECURITY.md](SECURITY.md) for the responsible-disclosure process.
 
-## Acknowledgements
+## Contributing
 
-OBLIVRA is built on the shoulders of excellent open-source projects:
-
-[BadgerDB](https://github.com/dgraph-io/badger) · [Bleve](https://github.com/blevesearch/bleve) · [Wails](https://wails.io) · [Svelte](https://svelte.dev) · [Hashicorp Raft](https://github.com/hashicorp/raft) · [Wazero](https://github.com/tetratelabs/wazero) · [Gopher-Lua](https://github.com/yuin/gopher-lua) · [go-oidc](https://github.com/coreos/go-oidc) · [crewjam/saml](https://github.com/crewjam/saml) · [xterm.js](https://xtermjs.org) · [Tailwind CSS](https://tailwindcss.com)
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+development quickstart, accepted change types, and coding standards.
 
 ---
 
 <div align="center">
-<sub>Built by KingKnull · Sovereign Security · 2026</sub>
+<sub>OBLIVRA — sovereign log-driven security platform · 2026</sub>
 </div>
