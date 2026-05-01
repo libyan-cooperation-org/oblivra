@@ -1,0 +1,23 @@
+title: Linux audit rules flushed (counter-forensic)
+id: cf-linux-auditctl-D
+description: |
+  `auditctl -D` removes every audit rule, blinding the host's auditd before
+  follow-on activity. Legitimate operators almost never run this on a live
+  box — they edit /etc/audit/rules.d and reload. Frequently the first move
+  by a hands-on attacker after privilege escalation.
+status: stable
+level: critical
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'auditctl -D'
+      - 'auditctl --delete-all'
+  condition: selection
+tags:
+  - attack.defense_evasion
+  - attack.t1562.006
+falsepositives:
+  - Initial host provisioning before rules.d is laid down

@@ -42,6 +42,27 @@ func DefaultLocalRules() []LocalRule {
 		{ID: "ssh-bruteforce", Severity: 3, AnyOf: []string{
 			"failed password", "authentication failure",
 		}},
+		{ID: "tamper-history", Severity: 3, AnyOf: []string{
+			"unset histfile", "histfile=/dev/null", "history -c",
+			"> ~/.bash_history", "> /root/.bash_history",
+			"rm -f ~/.bash_history", "rm -f /root/.bash_history",
+		}},
+		{ID: "tamper-defender", Severity: 4, AnyOf: []string{
+			"set-mppreference", "disablerealtimemonitoring",
+			"disablebehaviormonitoring",
+		}},
+		{ID: "tamper-agent", Severity: 4, AnyOf: []string{
+			"systemctl stop oblivra-agent", "systemctl mask oblivra-agent",
+			"sc.exe stop oblivraagent", "sc.exe delete oblivraagent",
+			"taskkill /im oblivra-agent.exe", "stop-service oblivraagent",
+		}},
+		{ID: "timestomp", Severity: 2, AnyOf: []string{
+			"touch -t ", "touch -r ", "touch --date",
+			".creationtime=", ".lastwritetime=", ".lastaccesstime=",
+		}},
+		{ID: "windows-eventlog-cleared", Severity: 4, AnyOf: []string{
+			"event id 1102", "event id 104", "the audit log was cleared",
+		}},
 	}
 }
 

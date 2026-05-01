@@ -1,0 +1,23 @@
+title: Windows event log cleared (counter-forensic)
+id: cf-windows-eventlog-cleared
+description: |
+  Windows logs event 1102 (Security log cleared) and 104 (System log
+  cleared) when an operator wipes a log. Always investigate — even on
+  legitimate maintenance, the signal is rare enough to warrant a quick
+  case open.
+status: stable
+level: high
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID:
+      - 1102
+      - 104
+  condition: selection
+tags:
+  - attack.defense_evasion
+  - attack.t1070.001
+falsepositives:
+  - Sysadmin initiated log rotation in non-prod

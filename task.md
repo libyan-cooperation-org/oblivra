@@ -372,17 +372,29 @@ restart-safe.
 * [s] **Drop-on-overflow tailer queue** — backpressure never propagates to the file readers (events go to disk-spill, not into the kernel buffer)
 * [s] **Cross-platform reload story** — SIGHUP on Unix exits the process so the supervisor restarts with new config; on Windows operators restart the service
 * [ ] **Field extraction at agent** — regex `extract:` clauses that promote captured groups to top-level event fields *before* forwarding (saves bandwidth, reduces server-side load)
-* [ ] **systemd unit + Windows service** install path — `oblivra-agent service install` and `... uninstall`
+* [s] **`service install / uninstall` subcommand** — Windows SCM register / Linux systemd unit drop, both via `oblivra-agent service`
 * [ ] **Native winlog input** — Windows EventLog API binding (currently `winlog` type errors with "Windows-only")
 * [ ] **Encrypted local config** — passphrase-protected `agent.yml.enc`, decrypted on start (paranoia level for offline forwarders)
 * [ ] **DNS SRV server discovery** — `_oblivra._tcp.example.com` SRV record; agent tries each target until one accepts the registration
 
+### Phase 40.x — Agent improvements that put it ahead of Splunk UF
+
+The five upgrades below were added in this round; they are differentiators
+from Splunk UF, not parity items.
+
+* [s] **Per-event ed25519 signing at the edge** — `cmd/agent/sign.go`. Every outbound event carries `agentSig` + `agentKeyId`; the keypair is generated on first run at `<stateDir>/agent.ed25519`, the public key drops into the platform's `OBLIVRA_AGENT_PUBKEYS` allow-list. Signature is over a canonical-JSON projection (sorted keys at every depth), so an MITM that decrypts TLS still can't mutate events without invalidating the signature. UF's wire is plain TLS; OBLIVRA's adds cryptographic integrity per-event.
+* [s] **Encrypted on-disk spill** — `cmd/agent/spill.go`. Spill files are AES-256-GCM with an Argon2id-derived key (`spillSecret` or `spillSecretFile`); filename prefix `spill.enc-` for encrypted vs `spill-` for legacy plain. UF spills to disk in plaintext.
+* [s] **Local pre-detection priority queue** — `cmd/agent/predetect.go`. The agent runs a tiny Sigma-subset (auditd flush, lsass dump, ransomware shadow-delete, Defender disable, agent tamper, history purge, etc.) and routes high-severity matches into a priority channel that drains *first* under backpressure. Critical events outrun bulk traffic; UF is FIFO-only.
+* [s] **`test` subcommand** — dry-runs the config: opens every input, validates regex, hits `/healthz`, prints what *would* be sent. Operators don't have to start the daemon to find a typo.
+* [s] **Adaptive batching** — the batcher measures elapsed-vs-flush-target and auto-shrinks if it can't keep up, auto-grows if it has headroom. UF batch size is a static config knob.
+* [s] **Dual-egress fan-out** — `secondaryServers:[]` lets the agent ship every event to multiple receivers in parallel (ack-on-primary, fire-and-forget secondaries); useful for "hot SOC + cold archive" topologies UF doesn't model.
+
 ## Phase 41 — Universal Forwarder Compatibility
 
-* [ ] **Splunk HEC-compatible endpoint** — `/services/collector/event` accepts the canonical Splunk JSON shape so existing UF deployments can point at OBLIVRA without changing their config
+* [s] **Splunk HEC-compatible endpoint** — `internal/httpserver/compat.go` exposes `POST /services/collector/event` and `POST /services/collector`; accepts both the canonical single-envelope shape and NDJSON streams. Maps `Authorization: Splunk <token>` to the standard bearer pipeline so existing UF deployments can re-target by changing one URL.
 * [ ] **Fluent Bit / Vector output plugin smoke tests** in CI
 * [ ] **Logstash output plugin** compatibility test (Beats forward → OBLIVRA)
-* [ ] **OpenTelemetry log receiver** — accept OTLP/HTTP log payloads at `/v1/logs`
+* [s] **OpenTelemetry log receiver** — `POST /v1/logs` accepts OTLP/HTTP JSON (the `otlphttp/json` exporter shape); resource + scope attributes flatten into the event `Fields` map.
 
 ## Phase 42 — Native Forensic Format Import
 
@@ -400,6 +412,8 @@ restart-safe.
 
 ## Phase 44 — Counter-Forensic Detection
 
+* [s] **Counter-forensic Sigma rule pack** — `sigma/counter_forensic/` ships seven rules: auditd-rules-flushed, Windows-eventlog-cleared, timestomp, bash-history-purge, Defender-real-time-monitoring-disabled, shadow-copy-deletion, and OBLIVRA-agent-tampering. All map to MITRE T1070/T1562/T1490.
+* [s] **Agent-side echo of the same rules** — same patterns wired into `cmd/agent/predetect.go` so the events bypass FIFO and reach the platform under backpressure too. Critical-severity matches set `localRuleSeverity: critical` on the event.
 * [ ] **Self-disable detection** — alert when `systemctl stop oblivra` / `taskkill oblivra-server` patterns appear in the chain (an attacker trying to silence the platform itself)
 * [ ] **Missing daily-anchor detection** — alert when the hourly anchor job fails to write for >25h (operator inattention OR sabotage)
 * [ ] **Process-restart anomaly** — `platform.start` entries occurring outside scheduled windows
@@ -423,7 +437,7 @@ external compliance tools (Drata, Vanta, Tugboat Logic) can consume.
 
 ## Phase 47 — Performance Profile + pprof
 
-* [ ] **`/debug/pprof/*`** behind admin RBAC (off by default; opt-in via `OBLIVRA_DEBUG_PPROF=1`)
+* [s] **`/debug/pprof/*`** — `internal/httpserver/pprof.go` exposes the standard pprof handlers (index / cmdline / profile / symbol / trace) only when the auth middleware is `Required()`, so the endpoints inherit the same bearer/mTLS gate as every other admin route. No env flag needed; gated by auth posture.
 * [ ] **Built-in flame graph** view — Svelte view that fetches `/debug/pprof/profile` and renders it without an external pprof server
 * [ ] **Go-runtime metrics on `/metrics`** — gc pause distribution, allocator stats, scheduler latency
 
@@ -436,15 +450,15 @@ external compliance tools (Drata, Vanta, Tugboat Logic) can consume.
 
 ## Phase 49 — Backup Verification CLI
 
-* [ ] **`oblivra-cli backup verify <path>`** — confirms a backup is internally consistent (every chained hash matches) AND consistent with the live system (matching root hash for the slice they overlap)
+* [s] **`oblivra-cli backup verify <path>`** — `cmd/cli/backup.go` runs offline against a restored backup directory: replays the audit Merkle chain (mirrors the server's startup verifier), checks any `*.parquet.sha256` sidecars, and confirms the vault file is parseable. Emits a JSON report; exit code 1 on any failure. Self-contained — does not depend on a running server, so it works on an air-gapped review box.
 * [ ] **`oblivra-cli backup diff <a> <b>`** — diff two backups for forensic comparison
 * [ ] **`oblivra-cli restore --dry-run`** — explain what a restore would do without actually doing it
 
 ## Phase 50 — Documentation + License Hardening
 
-* [ ] **`LICENSE.txt`** — currently README says "Proprietary" but no license file exists
-* [ ] **`CONTRIBUTING.md`** — for the open-source-side contribution flow
-* [ ] **`SECURITY.md`** — responsible-disclosure pointer (matches the security-review reporting block)
+* [s] **`LICENSE`** — Apache 2.0 (full text at the repo root)
+* [s] **`CONTRIBUTING.md`** — quickstart, what we accept, what we're cautious about, coding standards, audit/Sigma authoring rules
+* [s] **`SECURITY.md`** — responsible-disclosure window, scope in/out, hardening guarantees, cryptographic primitives summary
 * [ ] **Per-language API client snippets** — Python, Go, Bash, PowerShell, Splunk SPL
 * [ ] **Architecture diagram** — currently ASCII; add a real SVG diagram in `docs/architecture/`
 * [ ] **Operator video walkthrough** (optional) — 10-min screencast of "first install to first sealed evidence"
@@ -468,4 +482,4 @@ readiness, but they *should* close before a public release tag.
 
 ---
 
-**Last Updated**: 2026-05-01
+**Last Updated**: 2026-04-30 — Phase 41 (HEC + OTLP) wired into routes; Phase 44 counter-forensic Sigma pack landed (7 rules + agent-side echoes); Phase 47 pprof gated behind auth; Phase 49 `backup verify` CLI; Phase 50 LICENSE + CONTRIBUTING + SECURITY in repo root. Phase 40.x section enumerates the five agent improvements that put it ahead of Splunk UF (per-event ed25519, encrypted spill, local pre-detection, test subcommand, adaptive batching, dual-egress).

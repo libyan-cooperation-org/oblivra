@@ -1,0 +1,28 @@
+title: Shadow copy deletion (counter-forensic)
+id: cf-shadow-copy-delete
+description: |
+  Wiping volume shadow copies is the canonical pre-ransomware step on
+  Windows — it removes the operator's quickest recovery path. `vssadmin
+  delete shadows`, `wmic shadowcopy delete`, and `wbadmin delete catalog`
+  are the three usual phrasings.
+status: stable
+level: critical
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'vssadmin delete shadows'
+      - 'vssadmin.exe delete shadows'
+      - 'wmic shadowcopy delete'
+      - 'wbadmin delete catalog'
+      - 'wbadmin delete systemstatebackup'
+      - 'bcdedit /set {default} recoveryenabled No'
+      - 'bcdedit /set {default} bootstatuspolicy ignoreallfailures'
+  condition: selection
+tags:
+  - attack.impact
+  - attack.t1490
+falsepositives:
+  - Backup tooling running its retention policy (verify against scheduled jobs)

@@ -1,0 +1,31 @@
+title: Likely timestamp tampering (counter-forensic)
+id: cf-timestomp
+description: |
+  Adversaries set file timestamps to past values to hide their tools
+  inside long-stale directories. The most common signatures are `touch
+  -t`, `touch -r`, or PowerShell SetCreationTime / SetLastWriteTime.
+  Worth a closer look when seen on /tmp, /var/tmp, %TEMP%, or in user
+  profile directories.
+status: stable
+level: medium
+logsource:
+  category: process_creation
+detection:
+  unix:
+    CommandLine|contains:
+      - 'touch -t '
+      - 'touch -r '
+      - 'touch --date'
+  windows:
+    CommandLine|contains:
+      - '.CreationTime='
+      - '.LastWriteTime='
+      - '.LastAccessTime='
+      - 'SetCreationTime'
+      - 'SetLastWriteTime'
+  condition: 1 of them
+tags:
+  - attack.defense_evasion
+  - attack.t1070.006
+falsepositives:
+  - Build pipelines that normalise timestamps for reproducibility

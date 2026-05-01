@@ -1,0 +1,30 @@
+title: Windows Defender real-time monitoring disabled (counter-forensic)
+id: cf-disable-defender
+description: |
+  PowerShell `Set-MpPreference -DisableRealtimeMonitoring $true` (or the
+  equivalent registry write) turns off Defender's on-access scanner. Real
+  operators do this only inside a maintenance window with change control
+  — anywhere else it's a bright red flag.
+status: stable
+level: critical
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_ps:
+    CommandLine|contains:
+      - 'Set-MpPreference'
+      - 'DisableRealtimeMonitoring'
+      - 'DisableBehaviorMonitoring'
+      - 'DisableIntrusionPreventionSystem'
+      - 'DisableScriptScanning'
+  selection_reg:
+    CommandLine|contains:
+      - 'reg add'
+      - 'Microsoft\\Windows Defender\\Real-Time Protection'
+  condition: 1 of selection_*
+tags:
+  - attack.defense_evasion
+  - attack.t1562.001
+falsepositives:
+  - Approved AV migration scripts

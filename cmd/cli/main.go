@@ -50,6 +50,8 @@ func main() {
 		do("GET", "/api/v1/detection/rules", nil)
 	case "intel":
 		do("GET", "/api/v1/threatintel/indicators", nil)
+	case "backup":
+		backupCmd(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
@@ -71,6 +73,7 @@ Commands:
   fleet                    Registered agents
   rules                    Detection rules
   intel                    Threat-intel indicators
+  backup verify <path>     Offline integrity check on a backup directory
 
 Env: OBLIVRA_ADDR=http://localhost:8080  OBLIVRA_TOKEN=<api key>`)
 }
