@@ -342,4 +342,130 @@ That is the product.
 
 ---
 
-**Last Updated**: 2026-04-30
+# 🛣 Post-Beta Roadmap (new phases)
+
+Beta-1 is feature-complete. The phases below are deliberately *post*-Beta —
+each is a coherent slice of work that sharpens the platform without breaking
+the existing surface. They are listed by priority, not chronology.
+
+## Phase 40 — Agent Maturity (Splunk Universal Forwarder parity)
+
+The agent has been substantially rebuilt to match what an operator would
+expect from a Splunk UF — terminal-driven, config-file-first, multi-input,
+restart-safe.
+
+* [s] **YAML config file** at `/etc/oblivra/agent.yml` (Linux/macOS) or `%PROGRAMDATA%\oblivra\agent.yml` (Windows). Override with `--config FILE` or `OBLIVRA_AGENT_CONFIG`.
+* [s] **`oblivra-agent init`** — writes a fully-commented sample config so operators don't guess at field names
+* [s] **`oblivra-agent run|status|reload|version`** subcommands
+* [s] **Multiple typed inputs per agent** — `file`, `stdin`, `winlog` (placeholder), `syslog-udp` — each with its own label, `sourceType`, host override, fields, and include/exclude regex
+* [s] **Multiline event stitching** — per-input or default `startPattern`/`maxLines`/`timeout`; cached compiled regex
+* [s] **Position tracking** — `<stateDir>/positions.json` records offset+size per file; restart resumes; log-rotate detection (size shrunk → re-tail from 0); atomic-rename writes
+* [s] **Token from file** — `tokenFile: /path` so secrets aren't in YAML committed to source control
+* [s] **mTLS** — `clientCertFile` + `clientKeyFile`
+* [s] **Server cert pinning** — `pinnedSha256` (base64 SHA-256 of server pubkey) for air-gap deployments
+* [s] **CA cert override** — `caCertFile` so the agent doesn't trust the OS truststore
+* [s] **gzip compression** on the wire — `compression: "gzip"` adds `Content-Encoding: gzip`
+* [s] **On-disk spill+replay** with hard cap (`buffer.maxBytes`, default 1 GiB) — oldest spills evicted when over cap
+* [s] **Heartbeat** — periodic `agent.heartbeat` event so the Fleet view shows live agents
+* [s] **Self-registration** — first-run `POST /api/v1/agent/register` returns the agent ID
+* [s] **`status` subcommand** — prints tail positions, spill file count, server `/healthz` ping; `--json` for machine-readable output
+* [s] **Drop-on-overflow tailer queue** — backpressure never propagates to the file readers (events go to disk-spill, not into the kernel buffer)
+* [s] **Cross-platform reload story** — SIGHUP on Unix exits the process so the supervisor restarts with new config; on Windows operators restart the service
+* [ ] **Field extraction at agent** — regex `extract:` clauses that promote captured groups to top-level event fields *before* forwarding (saves bandwidth, reduces server-side load)
+* [ ] **systemd unit + Windows service** install path — `oblivra-agent service install` and `... uninstall`
+* [ ] **Native winlog input** — Windows EventLog API binding (currently `winlog` type errors with "Windows-only")
+* [ ] **Encrypted local config** — passphrase-protected `agent.yml.enc`, decrypted on start (paranoia level for offline forwarders)
+* [ ] **DNS SRV server discovery** — `_oblivra._tcp.example.com` SRV record; agent tries each target until one accepts the registration
+
+## Phase 41 — Universal Forwarder Compatibility
+
+* [ ] **Splunk HEC-compatible endpoint** — `/services/collector/event` accepts the canonical Splunk JSON shape so existing UF deployments can point at OBLIVRA without changing their config
+* [ ] **Fluent Bit / Vector output plugin smoke tests** in CI
+* [ ] **Logstash output plugin** compatibility test (Beats forward → OBLIVRA)
+* [ ] **OpenTelemetry log receiver** — accept OTLP/HTTP log payloads at `/v1/logs`
+
+## Phase 42 — Native Forensic Format Import
+
+* [ ] **PCAP reader** — pure-Go libpcap-free implementation; produces synthetic `network` events
+* [ ] **EVTX reader** — Windows Event Log binary format directly, no MS dependency
+* [ ] **auditd binary log reader** — Linux audit subsystem files
+* [ ] **journald cursor file reader** — reads systemd journal binary format
+* [ ] **Packet-derived flows** — pcap → NetFlow-shape records via the reader
+
+## Phase 43 — Federated Search
+
+* [ ] **Multi-instance query proxy** — admin marks N OBLIVRA instances as a federation; queries fan out, results merge with provenance per instance
+* [ ] **Federated audit chain** — each member instance signs its own slice; the federation root is a Merkle root of the per-instance roots
+* [ ] **Read-only federation member** — for cold-archive instances (queries pass through, no ingest)
+
+## Phase 44 — Counter-Forensic Detection
+
+* [ ] **Self-disable detection** — alert when `systemctl stop oblivra` / `taskkill oblivra-server` patterns appear in the chain (an attacker trying to silence the platform itself)
+* [ ] **Missing daily-anchor detection** — alert when the hourly anchor job fails to write for >25h (operator inattention OR sabotage)
+* [ ] **Process-restart anomaly** — `platform.start` entries occurring outside scheduled windows
+* [ ] **Audit chain skew** — chain root drift between cluster members (post-Phase 43)
+
+## Phase 45 — Audit Compaction
+
+* [ ] **Sparse audit log** — older entries pruned, daily Merkle roots preserved; analyst can still verify "this evidence existed by day N" without holding every entry
+* [ ] **Configurable retention** — `audit.compactAfter: 365d` per tenant
+* [ ] **Pre-compaction signed snapshot** — signed export of the full chain *before* compaction so a backup retains the granular history
+
+## Phase 46 — Compliance Attestation Adapters
+
+Phase 36 explicitly cut PDF/HTML compliance report generation. This phase
+provides the *machine-readable* counterpart — read-only adapters that
+external compliance tools (Drata, Vanta, Tugboat Logic) can consume.
+
+* [ ] **JSON-LD evidence feed per framework** — `/api/v1/compliance/feed/{framework}` returns audit-grade evidence keyed to control IDs
+* [ ] **Adapter manifest** — per-framework (PCI-DSS / SOC2 / NIST 800-53 / ISO 27001 / GDPR / HIPAA) mapping documented in `docs/compliance/`
+* [ ] **Evidence freshness tracking** — feed includes `lastSeenAt` per control so the compliance tool knows what's stale
+
+## Phase 47 — Performance Profile + pprof
+
+* [ ] **`/debug/pprof/*`** behind admin RBAC (off by default; opt-in via `OBLIVRA_DEBUG_PPROF=1`)
+* [ ] **Built-in flame graph** view — Svelte view that fetches `/debug/pprof/profile` and renders it without an external pprof server
+* [ ] **Go-runtime metrics on `/metrics`** — gc pause distribution, allocator stats, scheduler latency
+
+## Phase 48 — Detection Rule Library Sync
+
+* [ ] **Periodic pull from a community Sigma repo** — config: `sigma.upstream: https://github.com/SigmaHQ/sigma`; pull cadence configurable
+* [ ] **Signed bundle verification** — rule packs must be Sigstore-signed (or an operator-supplied public key) before activation
+* [ ] **Per-rule provenance** — UI shows whether a rule is `builtin`, `user:<filename>`, or `community:<commit-sha>`
+* [ ] **Rule effectiveness scoring** — fires-per-day vs false-positive-rate; analyst marks alerts as TP/FP and the rule view shows the running ratio
+
+## Phase 49 — Backup Verification CLI
+
+* [ ] **`oblivra-cli backup verify <path>`** — confirms a backup is internally consistent (every chained hash matches) AND consistent with the live system (matching root hash for the slice they overlap)
+* [ ] **`oblivra-cli backup diff <a> <b>`** — diff two backups for forensic comparison
+* [ ] **`oblivra-cli restore --dry-run`** — explain what a restore would do without actually doing it
+
+## Phase 50 — Documentation + License Hardening
+
+* [ ] **`LICENSE.txt`** — currently README says "Proprietary" but no license file exists
+* [ ] **`CONTRIBUTING.md`** — for the open-source-side contribution flow
+* [ ] **`SECURITY.md`** — responsible-disclosure pointer (matches the security-review reporting block)
+* [ ] **Per-language API client snippets** — Python, Go, Bash, PowerShell, Splunk SPL
+* [ ] **Architecture diagram** — currently ASCII; add a real SVG diagram in `docs/architecture/`
+* [ ] **Operator video walkthrough** (optional) — 10-min screencast of "first install to first sealed evidence"
+
+---
+
+# 🔁 What's still genuinely open in pre-Beta-1 work
+
+These six items remain `[ ]` — all in the "Immediate Hygiene" section, all
+trivially closeable by an operator-grade audit pass:
+
+* [ ] Remove residual response-action logic (Phase 36 sweep) — final dead-code purge
+* [ ] Delete all unused services and bindings — companion to the above
+* [ ] Regenerate Wails bindings (clean state)
+* [ ] Remove orphan UI components and routes
+* [ ] Update `README.md`, `FEATURES.md`, `docs/operator/log-forensics.md`
+* [ ] Validate schema migrations (Phase 36.x)
+
+These are housekeeping tasks, not foundational work — they don't gate Beta-1
+readiness, but they *should* close before a public release tag.
+
+---
+
+**Last Updated**: 2026-05-01
