@@ -154,6 +154,15 @@ tasks:
       - go run ./tools/ensure-dir {{.BIN_DIR}}
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-smoke ./cmd/smoke
 
+  installer:windows:
+    desc: Build the Windows installer (NSIS) — produces build/windows/installer/OBLIVRA-Setup-<version>.exe
+    deps: [windows:build, server:build, agent:build, cli:build, verify:build, migrate:build, smoke:build, soak:build]
+    vars:
+      VERSION: '{{.VERSION | default "0.1.0-beta1"}}'
+    cmds:
+      - 'echo "Compiling NSIS installer for v{{.VERSION}}..."'
+      - 'makensis -DVERSION={{.VERSION}} build/windows/installer/oblivra.nsi'
+
   ci:
     desc: Run the full CI gauntlet — fmt, vet, tests, frontend build
     cmds:
