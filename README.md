@@ -9,9 +9,8 @@ investigations, cryptographically verifiable evidence packages, single binary.*
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev)
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?logo=svelte)](https://svelte.dev)
-[![Wails](https://img.shields.io/badge/Wails-v3-red?logo=wails)](https://wails.io)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)](#building-from-source)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-informational)](#building-from-source)
 
 [Why](#why-oblivra) · [Quick Start](#quick-start) · [Agent](#agent) · [API](#api-surface) · [Building](#building-from-source) · [Backup verify](#backup-integrity-verification) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
@@ -23,8 +22,10 @@ investigations, cryptographically verifiable evidence packages, single binary.*
 
 OBLIVRA is a **forensic SIEM** — a log-driven security platform optimised for
 the question *"can we prove what happened?"* rather than *"can we react in
-60 seconds?"*. It ships as one Go binary (Wails v3 desktop or headless server)
+60 seconds?"*. It ships as one server binary serving a browser-based UI,
 plus a separate forwarder binary. No external dependencies. No SaaS calls.
+Web-only by design — deploy on a server behind a VPN and reach the UI from
+your laptop.
 
 The core differentiators:
 
@@ -72,24 +73,29 @@ The core differentiators:
 | Tool | Minimum | Install |
 |---|---|---|
 | Go | 1.25 | [go.dev/dl](https://go.dev/dl/) |
-| Bun | 1.1+ | [bun.sh](https://bun.sh) |
-| Wails CLI (desktop only) | v3 alpha | `go install github.com/wailsapp/wails/v3/cmd/wails3@latest` |
+| Bun (or npm) | 1.1+ | [bun.sh](https://bun.sh) — only needed if you build the frontend yourself |
 
-### Run the headless server
+### Run from source
 
 ```bash
 git clone https://github.com/libyan-cooperation-org/oblivra.git
 cd oblivra
+cd frontend && bun install && bun run build && cd ..   # build the embedded UI
 go run ./cmd/server
-# → REST + WebSocket on http://localhost:8080
+# → REST + WebSocket + UI on http://localhost:8080
 ```
 
-### Run the desktop shell (Wails)
+### Run from a release tarball (Linux server, recommended for VPN deployment)
 
 ```bash
-cd frontend && bun install && cd ..
-wails3 dev
+tar xzf oblivra-server-<version>-linux-amd64.tar.gz
+cd oblivra-server-<version>-linux-amd64
+sudo ./install.sh
+sudoedit /etc/oblivra/oblivra.env       # set OBLIVRA_API_KEYS + OBLIVRA_AUDIT_KEY
+sudo systemctl enable --now oblivra
 ```
+
+Open `http://<host>:8080/` in a browser on the same VPN.
 
 ### Send a test event
 

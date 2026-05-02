@@ -1,13 +1,15 @@
 ; OBLIVRA Windows Installer (NSIS)
 ; ==================================
 ; Builds OBLIVRA-Setup-vX.Y.Z.exe — a single-file installer that drops:
-;   - Desktop app:    oblivra.exe (Wails v3)
-;   - Headless server: oblivra-server.exe
+;   - Headless server: oblivra-server.exe (web UI on http://localhost:8080)
 ;   - Forwarder:       oblivra-agent.exe
 ;   - CLI:             oblivra-cli.exe
 ;   - Verifier:        oblivra-verify.exe
 ;   - Smoke / soak:    oblivra-smoke.exe, oblivra-soak.exe
 ;   - Migrate:         oblivra-migrate.exe
+;
+; OBLIVRA is web-only — the Wails desktop shell was retired. Operators
+; reach the UI via browser at the address oblivra-server.exe binds to.
 ;
 ; Build with:
 ;   makensis /DVERSION=0.1.0-beta1 build/windows/installer/oblivra.nsi
@@ -21,7 +23,7 @@
 !define APP_NAME      "OBLIVRA"
 !define APP_PUBLISHER "OBLIVRA Contributors"
 !define APP_URL       "https://github.com/libyan-cooperation-org/oblivra"
-!define APP_EXE       "oblivra.exe"
+!define APP_EXE       "oblivra-server.exe"
 !define UNINST_KEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
 Name           "${APP_NAME} ${VERSION}"
@@ -69,10 +71,9 @@ VIAddVersionKey "LegalCopyright"  "Apache License 2.0 — see LICENSE"
 
 ; ---- Install -------------------------------------------------------------
 
-Section "OBLIVRA Desktop + Server" SecCore
+Section "OBLIVRA Server + tools" SecCore
   SectionIn RO
   SetOutPath "$INSTDIR"
-  File "..\..\bin\oblivra.exe"
   File "..\..\bin\oblivra-server.exe"
   File "..\..\bin\oblivra-cli.exe"
   File "..\..\bin\oblivra-verify.exe"
@@ -110,14 +111,14 @@ SectionEnd
 
 Section "Start menu shortcuts" SecStartMenu
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"          "$INSTDIR\${APP_EXE}"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Headless server.lnk"     "$INSTDIR\oblivra-server.exe"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME} server.lnk"    "$INSTDIR\oblivra-server.exe"
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}\Open web UI.lnk"           "http://localhost:8080/"
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
 SectionEnd
 
 ; ---- Section descriptions ------------------------------------------------
 
-LangString DESC_SecCore      ${LANG_ENGLISH} "Desktop app, headless server, CLI, offline verifier, smoke/soak harnesses (required)."
+LangString DESC_SecCore      ${LANG_ENGLISH} "Headless server (web UI), CLI, offline verifier, smoke/soak harnesses (required)."
 LangString DESC_SecAgent     ${LANG_ENGLISH} "oblivra-agent log forwarder. Install on every host that ships logs."
 LangString DESC_SecStartMenu ${LANG_ENGLISH} "Start menu shortcuts for the desktop app and headless server."
 
@@ -130,7 +131,6 @@ LangString DESC_SecStartMenu ${LANG_ENGLISH} "Start menu shortcuts for the deskt
 ; ---- Uninstall -----------------------------------------------------------
 
 Section "Uninstall"
-  Delete "$INSTDIR\oblivra.exe"
   Delete "$INSTDIR\oblivra-server.exe"
   Delete "$INSTDIR\oblivra-agent.exe"
   Delete "$INSTDIR\oblivra-cli.exe"
@@ -146,8 +146,8 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\sigma"
   RMDir "$INSTDIR"
 
-  Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
-  Delete "$SMPROGRAMS\${APP_NAME}\Headless server.lnk"
+  Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME} server.lnk"
+  Delete "$SMPROGRAMS\${APP_NAME}\Open web UI.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"
 

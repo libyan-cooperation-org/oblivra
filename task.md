@@ -34,10 +34,10 @@ It is a system designed to:
 ## Snapshot of what's built (auto-updated each working session)
 
 **Foundation**
-* Wails v3 desktop shell + headless `cmd/server` sharing one Svelte 5 + Tailwind 4 frontend
+* Web-only — `cmd/server` serves the Svelte 5 + Tailwind 4 frontend over HTTP. Deploy on a server (typically behind a VPN); operators reach the UI from a browser.
 * BadgerDB hot store, line-delimited JSON WAL with fsync, Bleve per-tenant full-text indices, Parquet warm tier with hot eviction
 * Event bus with bounded fan-out, async processors (rules / UEBA / forensics / lineage / IOC enrichment)
-* Cross-platform Taskfile (`windows:build` / `darwin:build` / `linux:build`) so `wails3 build` works on every platform
+* Single-target Taskfile — `task build` produces the headless server; `task installer:windows` bundles a Windows NSIS installer; `task release:linux` cross-compiles a Linux server tarball
 
 **Cryptographic identity (foundational integrity §2)**
 * Every event sealed with sha256 content hash over a canonicalised view (sorted fields, RFC3339Nano timestamps); `VerifyHash()` returns false on any post-ingest mutation
@@ -238,7 +238,7 @@ data that was already mutable.
 
 * [d] Remove residual response-action logic — Phase 36 cut SOAR / IR / response-actions wholesale; the dead-code sweep ran in `7ed1330 refactor: remove obsolete pages and services` and the follow-up `35e1b23 feat: remove SimulationPanel and related simulation features`. There is no surviving response-action surface in the current source tree; this hygiene line is a stale relic of the broader Phase 36 effort.
 * [d] Delete all unused services and bindings — closed alongside the response-action sweep above (`bd42b4d feat: remove deprecated imports and endpoints related to the shell subsystem and playbooks`).
-* [d] Regenerate Wails bindings (clean state) — done as part of the desktop-shell rebuild; `wails3 dev` regenerates bindings on every run, so any drift is corrected on the next operator/dev launch.
+* [s] Regenerate Wails bindings (clean state) — moot. The Wails desktop shell was retired; OBLIVRA is now web-only. The frontend talks to the headless server via REST/WebSocket only, so there are no bindings to regenerate.
 * [d] Remove orphan UI components and routes — closed by the same Phase 36 commits referenced above; the surviving Svelte routes match the current backend service list.
 * [s] Update `README.md` — rewritten to match the current product (forensic SIEM identity, Apache 2.0 license, agent feature matrix, Phase 41/44/47/49/50 surfacing). FEATURES.md and `docs/operator/log-forensics.md` were removed in the Phase 36 sweep, so the original line is obsolete.
 * [s] Validate schema migrations (Phase 36.x) — `internal/migrate` test pack now covers: no-op upgrade for current-version events, file-level no-op (no `.pre-migrate` left behind), planning from current is empty, future-version events are no-ops, and the upgrade-chain pattern (test temporarily injects an upgrader to verify the chain-walker behaves correctly). The framework is idle today (SchemaVersion=1, no upgraders) but ready to test the upgrade path the moment one lands.
@@ -490,7 +490,17 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-01 — third round, closing every remaining open item:
+**Last Updated**: 2026-05-02 — fourth round, web-only conversion:
+- Wails v3 desktop shell removed entirely. `main.go` deleted; `wailsapp/wails/v3` and `wailsapp/go-webview2` dropped from go.mod / go.sum
+- Frontend's `bridge.ts` no longer branches on `window.wails` — every call goes through `fetch()` against `/api/v1/...`
+- StatusBar's "desktop / web" surface indicator removed (always web now)
+- Windows installer (`build/windows/installer/oblivra.nsi`) ships only the headless server binaries; start-menu shortcut points at `oblivra-server.exe` plus a `Open web UI` link to `http://localhost:8080/`
+- Taskfile dropped `windows:build` / `darwin:build` / `linux:build` Wails-canonical targets; `task build` produces the headless server
+- README rewritten to lead with the server-on-VPN deployment story; install path is the Linux tarball produced by `task release:linux`
+
+---
+
+**2026-05-01** — third round, closing every remaining open item:
 - Phase 40: encrypted local config (`agent.yml.enc` AES-256-GCM + Argon2id) and DNS SRV server discovery (`srv://_oblivra._tcp.example.com`)
 - Phase 42: auditd text-format reader (`internal/parsers/auditd.go`); binary readers explicitly deferred
 - Phase 44: process-restart anomaly watchdog (2+ `platform.start` in 1h → high-severity alert)

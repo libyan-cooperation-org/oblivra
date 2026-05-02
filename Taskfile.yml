@@ -3,13 +3,12 @@ version: '3'
 # OBLIVRA build commands. Install Task: https://taskfile.dev/installation/
 # Run `task --list` to see all targets.
 #
-# `wails3 build` looks up the task named for the current platform — windows:build /
-# darwin:build / linux:build — so those need to exist. The generic `build` target
-# dispatches to the right one.
+# OBLIVRA is web-only — `task build` produces the headless server. The
+# Wails desktop shell was retired in favour of running the server behind
+# a VPN and reaching the UI via browser.
 
 vars:
   BIN_DIR: ./build/bin
-  APP_NAME: oblivra
   LDFLAGS: '-w -s'
 
 tasks:
@@ -18,42 +17,21 @@ tasks:
     cmds:
       - task --list
 
-  # ---- Wails-canonical entry points ---------------------------------------
+  # ---- Top-level entry points -------------------------------------------
 
   dev:
-    desc: Wails3 dev shell (hot-reload) — invoked by `wails3 dev`
+    desc: Run the server locally with a live frontend rebuild step
     cmds:
       - task: frontend:install
       - task: build:frontend:dev
-      - go run -tags dev .
+      - go run ./cmd/server
 
   build:
-    desc: Build the desktop binary for the current OS — invoked by `wails3 build`
+    desc: Build the headless server with the embedded frontend
     cmds:
-      - task: '{{OS}}:build'
+      - task: server:build
 
-  windows:build:
-    desc: Build Wails desktop binary for Windows
-    deps: [build:frontend]
-    cmds:
-      - go run ./tools/ensure-dir {{.BIN_DIR}}
-      - go build -tags production -trimpath -ldflags "-H windowsgui {{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}}.exe .
-
-  darwin:build:
-    desc: Build Wails desktop binary for macOS
-    deps: [build:frontend]
-    cmds:
-      - go run ./tools/ensure-dir {{.BIN_DIR}}
-      - go build -tags production -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}} .
-
-  linux:build:
-    desc: Build Wails desktop binary for Linux
-    deps: [build:frontend]
-    cmds:
-      - go run ./tools/ensure-dir {{.BIN_DIR}}
-      - go build -tags production -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}} .
-
-  # ---- Frontend ------------------------------------------------------------
+  # ---- Frontend ---------------------------------------------------------
 
   build:frontend:
     desc: Build production Svelte bundle into webassets/dist
@@ -81,18 +59,13 @@ tasks:
     cmds:
       - npm run dev
 
-  frontend:build:
-    desc: Alias for build:frontend
-    cmds:
-      - task: build:frontend
-
   frontend:check:
     desc: Type-check Svelte components
     dir: frontend
     cmds:
       - npm run check
 
-  # ---- Server / CLI / Agent -----------------------------------------------
+  # ---- Server / CLI / Agent ---------------------------------------------
 
   server:run:
     desc: Run headless REST server (browser UI at http://localhost:8080)
@@ -132,7 +105,7 @@ tasks:
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-migrate ./cmd/migrate
 
   tools:build:
-    desc: Build all CLI tools (server + cli + agent + verify + migrate + soak + smoke)
+    desc: Build every binary (server + cli + agent + verify + migrate + soak + smoke)
     cmds:
       - task: server:build
       - task: cli:build
@@ -156,7 +129,7 @@ tasks:
 
   installer:windows:
     desc: Build the Windows installer (NSIS) — produces build/windows/installer/OBLIVRA-Setup-<version>.exe
-    deps: [windows:build, server:build, agent:build, cli:build, verify:build, migrate:build, smoke:build, soak:build]
+    deps: [server:build, agent:build, cli:build, verify:build, migrate:build, smoke:build, soak:build]
     vars:
       VERSION: '{{.VERSION | default "0.1.0-beta1"}}'
     cmds:
@@ -201,7 +174,7 @@ tasks:
       - go test ./...
       - task: build:frontend
 
-  # ---- Quality ------------------------------------------------------------
+  # ---- Quality ----------------------------------------------------------
 
   test:
     desc: Run Go tests
