@@ -4,6 +4,7 @@
   import StatusBar from './lib/components/StatusBar.svelte';
   import Overview from './lib/views/Overview.svelte';
   import Siem from './lib/views/Siem.svelte';
+  import Categories from './lib/views/Categories.svelte';
   import Detection from './lib/views/Detection.svelte';
   import Investigations from './lib/views/Investigations.svelte';
   import Cases from './lib/views/Cases.svelte';
@@ -13,6 +14,7 @@
   import Graph from './lib/views/Graph.svelte';
   import Vault from './lib/views/Vault.svelte';
   import Webhooks from './lib/views/Webhooks.svelte';
+  import Notifications from './lib/views/Notifications.svelte';
   import Fleet from './lib/views/Fleet.svelte';
   import Admin from './lib/views/Admin.svelte';
   import Placeholder from './lib/views/Placeholder.svelte';
@@ -44,6 +46,8 @@
         <Overview />
       {:else if active === 'siem'}
         <Siem />
+      {:else if active === 'categories'}
+        <Categories />
       {:else if active === 'detection'}
         <Detection />
       {:else if active === 'investigations'}
@@ -62,6 +66,8 @@
         <Vault />
       {:else if active === 'webhooks'}
         <Webhooks />
+      {:else if active === 'notifications'}
+        <Notifications />
       {:else if active === 'fleet'}
         <Fleet />
       {:else if active === 'admin'}

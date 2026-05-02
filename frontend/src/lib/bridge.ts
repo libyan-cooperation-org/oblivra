@@ -266,10 +266,23 @@ export interface Agent {
   registered: string;
   lastSeen: string;
   events: number;
+  // Rich state from heartbeat (populated by agent v0.1+).
+  pubkeyB64?: string;
+  pubkeyFingerprint?: string;
+  inputCount?: number;
+  spillFiles?: number;
+  spillBytes?: number;
+  queueDepth?: number;
+  droppedEvents?: number;
+  batchSize?: number;
 }
 
 export async function fleetList(): Promise<Agent[]> {
   return rest('/api/v1/agent/fleet');
+}
+
+export async function agentGet(id: string): Promise<Agent> {
+  return rest<Agent>(`/api/v1/agent/fleet/${encodeURIComponent(id)}`);
 }
 
 // ---- UEBA ----
@@ -541,6 +554,51 @@ export interface PivotEntry {
   detail?: string;
   refId?: string;
 }
+// ---- Categories (sourceType breakdown) ----
+
+export interface CategoryStat {
+  sourceType: string;
+  count: number;
+  lastSeen: string;
+  topHosts: { host: string; count: number }[];
+}
+
+export const categoriesList = () =>
+  rest<CategoryStat[]>('/api/v1/categories');
+
+// ---- Email / notification channels ----
+
+export interface NotificationChannel {
+  id: string;
+  kind: 'email' | 'webhook';
+  name: string;
+  // email-only
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpFrom?: string;
+  smtpTo?: string;
+  smtpUsername?: string;
+  // webhook fields are already covered by Webhook type above
+  minSeverity?: string;
+  createdAt: string;
+  lastDelivered?: string;
+  lastError?: string;
+  disabled?: boolean;
+}
+
+export const notificationsList = () => rest<NotificationChannel[]>('/api/v1/notifications');
+export const notificationsAdd = (n: Partial<NotificationChannel> & { kind: string; name: string }) =>
+  restPost<NotificationChannel, typeof n>('/api/v1/notifications', n);
+export const notificationsTest = (id: string) =>
+  restPost<{ delivered: boolean; error?: string }, {}>(`/api/v1/notifications/${id}/test`, {});
+export async function notificationsDelete(id: string): Promise<void> {
+  const res = await fetch('/api/v1/notifications/' + id, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+}
+
 export const investigationsPivot = (host: string, atUnix?: number, deltaSec = 900) => {
   const q = new URLSearchParams();
   q.set('host', host);

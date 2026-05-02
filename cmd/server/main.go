@@ -90,6 +90,8 @@ func main() {
 		Report:         stack.Report,
 		Tamper:         stack.Tamper,
 		Webhooks:       stack.Webhooks,
+		Categories:     stack.Categories,
+		Notifications:  stack.Notifications,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,

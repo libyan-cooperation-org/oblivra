@@ -40,6 +40,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -210,14 +211,28 @@ func runForward(args []string) {
 		}()
 	}
 
-	// Register with the server (best-effort; don't block on registration).
+	// Register with the server (best-effort). Sets agentID atomically so
+	// the heartbeat goroutine can pick it up once registration completes.
+	var agentID atomic.Pointer[string]
 	go func() {
 		regCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		if id, err := client.RegisterAgent(regCtx, cfg.Hostname, runtime.GOOS, runtime.GOARCH, version, cfg.Tags); err != nil {
+		req := RegisterRequest{
+			Hostname: cfg.Hostname,
+			OS:       runtime.GOOS,
+			Arch:     runtime.GOARCH,
+			Version:  version,
+			Tags:     cfg.Tags,
+		}
+		if signer != nil {
+			req.PubKeyB64 = signer.PublicKeyB64()
+			req.PubKeyFingerprint = signer.FingerprintShort()
+		}
+		if id, err := client.RegisterAgent(regCtx, req); err != nil {
 			log.Printf("register: %v", err)
 		} else {
 			log.Printf("registered as %s", id)
+			agentID.Store(&id)
 		}
 	}()
 
@@ -253,7 +268,9 @@ func runForward(args []string) {
 		}(t)
 	}
 
-	// Heartbeat goroutine (optional).
+	// Heartbeat goroutine (optional). Reports rich self-state so the
+	// fleet detail panel can show signing-key fingerprint, spill bytes,
+	// queue depth, dropped count, etc.
 	if cfg.Heartbeat.Enabled {
 		wg.Add(1)
 		go func() {
@@ -265,8 +282,27 @@ func runForward(args []string) {
 				case <-ctx.Done():
 					return
 				case <-tick.C:
+					idPtr := agentID.Load()
+					if idPtr == nil {
+						// registration hasn't completed yet — skip
+						continue
+					}
+					stats := HeartbeatStats{
+						AgentID:       *idPtr,
+						Version:       version,
+						InputCount:    len(cfg.Inputs),
+						QueueDepth:    len(queue),
+						DroppedEvents: droppedEvents.Load(),
+						BatchSize:     cfg.BatchSize,
+					}
+					if signer != nil {
+						stats.PubKeyFingerprint = signer.FingerprintShort()
+					}
+					files, bytes := scanSpillDir(cfg.Buffer.Dir)
+					stats.SpillFiles = files
+					stats.SpillBytes = bytes
 					ctx2, cancel := context.WithTimeout(ctx, cfg.Server.RequestTimeout)
-					if err := client.Heartbeat(ctx2, cfg.Hostname, ""); err != nil {
+					if err := client.Heartbeat(ctx2, stats); err != nil {
 						log.Printf("heartbeat: %v", err)
 					}
 					cancel()
@@ -384,6 +420,30 @@ func runBatcher(
 			timer.Reset(currentFlush)
 		}
 	}
+}
+
+// scanSpillDir returns (file count, total bytes) for the current
+// disk-spill backlog. Called every heartbeat — cheap directory walk.
+// Returns (0, 0) if the buffer dir doesn't exist yet.
+func scanSpillDir(dir string) (int, int64) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, 0
+	}
+	var n int
+	var total int64
+	for _, e := range entries {
+		if e.IsDir() || !isSpillFile(e.Name()) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		n++
+		total += info.Size()
+	}
+	return n, total
 }
 
 func enforceBufferCap(cfg *Config) {

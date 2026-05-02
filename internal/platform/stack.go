@@ -48,11 +48,13 @@ type Stack struct {
 	TenantPolicy   *services.TenantPolicyService
 	Trust          *services.TrustService
 	Quality        *services.QualityService
+	Categories     *services.CategoriesService
 	Graph          *services.EvidenceGraphService
 	Import         *services.ImportService
 	Report         *services.ReportService
 	Tamper         *services.TamperService
 	Webhooks       *services.WebhookService
+	Notifications  *services.NotificationService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -201,6 +203,8 @@ func New(opts Options) (*Stack, error) {
 	reportSvc := services.NewReportService(opts.Logger, investigations, audit)
 	tamperSvc := services.NewTamperService(opts.Logger, alerts)
 	webhookSvc := services.NewWebhookService(opts.Logger, audit)
+	categoriesSvc := services.NewCategoriesService()
+	notificationSvc := services.NewNotificationService(opts.Logger, audit)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -223,11 +227,13 @@ func New(opts Options) (*Stack, error) {
 		TenantPolicy:   tenantPolicy,
 		Trust:          trustSvc,
 		Quality:        qualitySvc,
+		Categories:     categoriesSvc,
 		Graph:          graphSvc,
 		Import:         importSvc,
 		Report:         reportSvc,
 		Tamper:         tamperSvc,
 		Webhooks:       webhookSvc,
+		Notifications:  notificationSvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -299,6 +305,7 @@ func New(opts Options) (*Stack, error) {
 			ch := alerts.Subscribe(ctx, 256)
 			for a := range ch {
 				webhookSvc.Deliver(ctx, a)
+				notificationSvc.Notify(ctx, a)
 			}
 		}()
 	}
@@ -435,6 +442,7 @@ func (s *Stack) startProcessors(parent context.Context) {
 		func(ctx context.Context, ev events.Event) { s.Reconstruction.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Trust.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Quality.Observe(ctx, ev) },
+		func(ctx context.Context, ev events.Event) { s.Categories.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Tamper.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) {
 			// IOC enrichment — match every text field against the IOC table.

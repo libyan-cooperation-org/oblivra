@@ -490,7 +490,17 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — sixth round, Sigma loader fix + journald input:
+**Last Updated**: 2026-05-02 — seventh round, agent dashboard + log categories + email alerts:
+- Rich agent heartbeat — `POST /api/v1/agent/heartbeat` accepts a self-report (pubkey fingerprint, version, input count, queue depth, spill files+bytes, dropped events, batch size). FleetService now stores those fields per agent. Agent's main loop posts every 30s and updates a tracked `droppedEvents` counter when the tailer drops under backpressure
+- Fleet dashboard rewritten — clickable agent list with health badges (healthy / lagging / silent / dropping), per-agent detail panel showing all heartbeat fields, copy-pubkey button (with the value to seed `OBLIVRA_AGENT_PUBKEYS`), 5 aggregate tiles (healthy/lagging/silent/spill backlog/dropped events). Per-agent fetch via `GET /api/v1/agent/fleet/{id}`
+- New CategoriesService aggregates events by sourceType — count, lastSeen, top-5 hosts per category. Wired into the platform's processor fan-out so it costs one map lookup per event. New `Categories` view in the sidebar shows a per-category bar chart with drill-through host chips. New endpoint: `GET /api/v1/categories`
+- New NotificationService delivers alerts via email (SMTP w/ STARTTLS + plain auth) alongside the existing webhooks. Per-(channel, ruleID) throttle of 1/5min so a noisy rule can't pager-storm the inbox. Test endpoint sends a synthetic alert for verification. Endpoints: `GET/POST /api/v1/notifications`, `POST /api/v1/notifications/{id}/test`, `DELETE /api/v1/notifications/{id}`
+- New `Notifications` view in the sidebar — add/test/delete email + webhook channels through the UI; surfaces last-delivered + last-error per channel
+- Bridge.ts: new `Agent` fields, `agentGet`, `categoriesList`, `notificationsList/Add/Test/Delete`. Nav has `categories` and `notifications`. App.svelte routes both
+
+---
+
+**2026-05-02** — sixth round, Sigma loader fix + journald input:
 - Bug fix: the Phase 44 counter-forensic Sigma rules were silently failing to load. The loader only accepted `condition: selection`, but four of seven counter-forensic rules use standard Sigma syntax `1 of selection_*` / `1 of them`. Numeric values (`EventID: [1102, 104]`) were silently dropped because the flatten code only handled string values. Loader now supports all three condition shapes plus int/int64/float64/bool selection values. Verified: 9 sigma-source rules now load (7 counter-forensic + 2 sample), up from 3 before. 4 new tests cover `1 of pattern`, `1 of them`, numeric values, and the still-unsupported AND/all-of-them cases
 - New input type: `journald` (Linux only). Tails `journalctl --follow --output=json` in a subprocess and synthesises an RFC-3164-shape line per record so the existing server-side syslog parser handles host/unit/PID extraction natively. Cursor is checkpointed atomically every 100 records to `<stateDir>/journald.cursor` for crash-safe resume. Optional config: `units`, `matches`, `priority`, `sinceBoot`. 5 unit tests cover sshd record parsing, missing-MESSAGE drop, fallback to SYSLOG_IDENTIFIER, and the strip-flag helper
 - The `winlog` `[d]` entry remains deferred — winlog still needs a Windows-only EventLog API binding; journald covers the Linux side

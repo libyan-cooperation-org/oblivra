@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -320,9 +321,16 @@ func (t *Tailer) enqueue(source, raw string) {
 	select {
 	case target <- out:
 	default:
+		droppedEvents.Add(1)
 		log.Printf("tailer queue full; dropping event from %s", source)
 	}
 }
+
+// droppedEvents counts events the tailer had to drop because both the
+// primary and high-severity queues were full. Surfaced in the
+// heartbeat so the operator can spot agents that need a bigger queue
+// or a faster downstream.
+var droppedEvents atomic.Int64
 
 func severityLabel(s int) string {
 	switch s {

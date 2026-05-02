@@ -50,6 +50,8 @@ type Server struct {
 	report         *services.ReportService
 	tamper         *services.TamperService
 	webhooks       *services.WebhookService
+	categories     *services.CategoriesService
+	notifications  *services.NotificationService
 	oidc           *OIDCHandler
 	bus    *events.Bus
 	auth   *AuthMiddleware
@@ -82,6 +84,8 @@ type Deps struct {
 	Report         *services.ReportService
 	Tamper         *services.TamperService
 	Webhooks       *services.WebhookService
+	Categories     *services.CategoriesService
+	Notifications  *services.NotificationService
 	OIDC           *OIDCHandler
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
@@ -115,6 +119,8 @@ func New(log *slog.Logger, deps Deps) *Server {
 		report:         deps.Report,
 		tamper:         deps.Tamper,
 		webhooks:       deps.Webhooks,
+		categories:     deps.Categories,
+		notifications:  deps.Notifications,
 		oidc:           deps.OIDC,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
@@ -184,7 +190,9 @@ func (s *Server) routes() {
 	// Fleet.
 	if s.fleet != nil {
 		s.mux.HandleFunc("GET /api/v1/agent/fleet", s.fleetList)
+		s.mux.HandleFunc("GET /api/v1/agent/fleet/{id}", s.fleetGet)
 		s.mux.HandleFunc("POST /api/v1/agent/register", s.fleetRegister)
+		s.mux.HandleFunc("POST /api/v1/agent/heartbeat", s.fleetHeartbeat)
 		s.mux.HandleFunc("POST /api/v1/agent/ingest", s.fleetIngest)
 	}
 	// UEBA.
@@ -313,6 +321,19 @@ func (s *Server) routes() {
 	// Phase 46 — Compliance attestation feed (read-only).
 	if s.audit != nil {
 		s.mux.HandleFunc("GET /api/v1/compliance/feed/{framework}", s.complianceFeedHandler())
+	}
+
+	// Categories — sourceType breakdown for the operator UI.
+	if s.categories != nil {
+		s.mux.HandleFunc("GET /api/v1/categories", s.categoriesList)
+	}
+
+	// Notifications — email + webhook channels with throttling.
+	if s.notifications != nil {
+		s.mux.HandleFunc("GET /api/v1/notifications", s.notificationsList)
+		s.mux.HandleFunc("POST /api/v1/notifications", s.notificationsAdd)
+		s.mux.HandleFunc("POST /api/v1/notifications/{id}/test", s.notificationsTest)
+		s.mux.HandleFunc("DELETE /api/v1/notifications/{id}", s.notificationsDelete)
 	}
 
 	// Phase 47 — pprof, behind the standard auth middleware.
@@ -661,6 +682,39 @@ func (s *Server) fleetRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, agent)
+}
+
+// fleetGet returns the full record for a single agent — drives the
+// fleet detail panel in the operator UI.
+func (s *Server) fleetGet(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing agent id")
+		return
+	}
+	a, ok := s.fleet.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such agent")
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+// fleetHeartbeat records a rich self-report from an agent (pubkey
+// fingerprint, spill bytes, queue depth, dropped count, etc.). Cheap
+// to call; agents send this every 30s by default. Updates LastSeen so
+// the existing "healthy in last 5m" tile picks it up too.
+func (s *Server) fleetHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var stats services.HeartbeatStats
+	if err := readJSON(r, &stats); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.fleet.Heartbeat(stats); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"agentId": stats.AgentID, "ackAt": time.Now().UTC().Format(time.RFC3339)})
 }
 
 func (s *Server) fleetIngest(w http.ResponseWriter, r *http.Request) {
@@ -1492,4 +1546,56 @@ func security(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// ---- Categories ---------------------------------------------------------
+
+func (s *Server) categoriesList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.categories.List())
+}
+
+// ---- Notifications ------------------------------------------------------
+
+func (s *Server) notificationsList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.notifications.List())
+}
+
+func (s *Server) notificationsAdd(w http.ResponseWriter, r *http.Request) {
+	var c services.NotificationChannel
+	if err := readJSON(r, &c); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := s.notifications.Register(r.Context(), c)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
+func (s *Server) notificationsTest(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	if err := s.notifications.Test(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"delivered": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"delivered": true})
+}
+
+func (s *Server) notificationsDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	if err := s.notifications.Delete(r.Context(), id); err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

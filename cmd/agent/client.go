@@ -175,19 +175,30 @@ func (c *Client) PostBatch(ctx context.Context, items []string) error {
 	return nil
 }
 
+// RegisterRequest is what we send to /api/v1/agent/register. Keeping
+// it as a struct (rather than a map literal) so adding a field is one
+// line and the server's HeartbeatStats / Agent JSON tags drift in lockstep.
+type RegisterRequest struct {
+	Hostname          string   `json:"hostname"`
+	OS                string   `json:"os"`
+	Arch              string   `json:"arch"`
+	Version           string   `json:"version"`
+	Tags              []string `json:"tags,omitempty"`
+	PubKeyB64         string   `json:"pubkeyB64,omitempty"`
+	PubKeyFingerprint string   `json:"pubkeyFingerprint,omitempty"`
+}
+
 // RegisterAgent calls /api/v1/agent/register on first start. Returns the
 // agent ID issued by the server. Operators can pre-provision the ID and
 // skip registration by setting it in the position-store metadata file.
-func (c *Client) RegisterAgent(ctx context.Context, hostname, osName, archName, version string, tags []string) (string, error) {
-	body, _ := json.Marshal(map[string]any{
-		"hostname": hostname, "os": osName, "arch": archName, "version": version, "tags": tags,
-	})
-	req, _ := http.NewRequestWithContext(ctx, "POST", c.server+"/api/v1/agent/register", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
+func (c *Client) RegisterAgent(ctx context.Context, reg RegisterRequest) (string, error) {
+	body, _ := json.Marshal(reg)
+	httpReq, _ := http.NewRequestWithContext(ctx, "POST", c.server+"/api/v1/agent/register", bytes.NewReader(body))
+	httpReq.Header.Set("Content-Type", "application/json")
 	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+		httpReq.Header.Set("Authorization", "Bearer "+c.token)
 	}
-	resp, err := c.hc.Do(req)
+	resp, err := c.hc.Do(httpReq)
 	if err != nil {
 		return "", err
 	}
@@ -203,19 +214,27 @@ func (c *Client) RegisterAgent(ctx context.Context, hostname, osName, archName, 
 	return doc.ID, nil
 }
 
-// Heartbeat pings the platform with a marker event. The fleet view shows
-// "last seen" based on these.
-func (c *Client) Heartbeat(ctx context.Context, hostname, agentID string) error {
-	ev := map[string]any{
-		"source":    "agent",
-		"hostId":    hostname,
-		"eventType": "agent.heartbeat",
-		"severity":  "debug",
-		"message":   "heartbeat",
-		"fields":    map[string]string{"agentId": agentID},
-	}
-	body, _ := json.Marshal(ev)
-	req, _ := http.NewRequestWithContext(ctx, "POST", c.server+"/api/v1/siem/ingest", bytes.NewReader(body))
+// HeartbeatStats is the rich self-report we POST to
+// /api/v1/agent/heartbeat. Mirrors services.HeartbeatStats; defined
+// here so the agent stays independent of the server's package layout.
+type HeartbeatStats struct {
+	AgentID           string `json:"agentId"`
+	Version           string `json:"version,omitempty"`
+	PubKeyFingerprint string `json:"pubkeyFingerprint,omitempty"`
+	InputCount        int    `json:"inputCount,omitempty"`
+	SpillFiles        int    `json:"spillFiles,omitempty"`
+	SpillBytes        int64  `json:"spillBytes,omitempty"`
+	QueueDepth        int    `json:"queueDepth,omitempty"`
+	DroppedEvents     int64  `json:"droppedEvents,omitempty"`
+	BatchSize         int    `json:"batchSize,omitempty"`
+}
+
+// Heartbeat posts rich self-state to the platform so the fleet detail
+// panel can show signing-key fingerprints, spill bytes, queue depth,
+// and dropped-event counts. Cheap to call on a 30s cadence.
+func (c *Client) Heartbeat(ctx context.Context, stats HeartbeatStats) error {
+	body, _ := json.Marshal(stats)
+	req, _ := http.NewRequestWithContext(ctx, "POST", c.server+"/api/v1/agent/heartbeat", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)

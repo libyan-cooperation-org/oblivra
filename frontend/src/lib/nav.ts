@@ -1,6 +1,7 @@
 export type NavId =
   | 'overview'
   | 'siem'
+  | 'categories'
   | 'detection'
   | 'investigations'
   | 'cases'
@@ -11,6 +12,7 @@ export type NavId =
   | 'evidence'
   | 'vault'
   | 'webhooks'
+  | 'notifications'
   | 'admin';
 
 export interface NavItem {
@@ -24,6 +26,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { id: 'overview',       label: 'Overview',       group: 'siem',    icon: '◎', hint: 'Platform health' },
   { id: 'siem',           label: 'SIEM',           group: 'siem',    icon: '⌗', hint: 'Search & live tail' },
+  { id: 'categories',     label: 'Categories',     group: 'siem',    icon: '⊞', hint: 'Log breakdown by sourceType' },
   { id: 'detection',      label: 'Detection',      group: 'siem',    icon: '◈', hint: 'Sigma + native rules' },
   { id: 'investigations', label: 'Investigations', group: 'respond', icon: '⌕', hint: 'Per-host triage' },
   { id: 'cases',          label: 'Cases',          group: 'respond', icon: '⎙', hint: 'Frozen-snapshot investigations' },
@@ -34,6 +37,7 @@ export const NAV: NavItem[] = [
   { id: 'fleet',          label: 'Fleet',          group: 'manage',  icon: '⌬', hint: 'Agents & collectors' },
   { id: 'vault',          label: 'Vault',          group: 'manage',  icon: '🔒', hint: 'Encrypted secrets' },
   { id: 'webhooks',       label: 'Webhooks',       group: 'manage',  icon: '↗', hint: 'Outbound alert delivery' },
+  { id: 'notifications',  label: 'Notifications',  group: 'manage',  icon: '✉', hint: 'Email + webhook channels' },
   { id: 'admin',          label: 'Admin',          group: 'manage',  icon: '⚙', hint: 'Tenants & storage' },
 ];
 
