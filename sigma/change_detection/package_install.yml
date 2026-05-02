@@ -1,0 +1,33 @@
+title: OS package install / upgrade / removal
+id: cd-package-install
+description: |
+  apt / dnf / yum / apk / pkg invocations. Out-of-band installs
+  (outside a deploy window) are worth a closer look — both for
+  forgotten supply-chain modifications and the more boring "someone
+  yanked a dependency".
+status: stable
+level: low
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'apt-get install'
+      - 'apt install'
+      - 'apt-get remove'
+      - 'apt remove'
+      - 'apt-get upgrade'
+      - 'dnf install'
+      - 'dnf remove'
+      - 'dnf upgrade'
+      - 'yum install'
+      - 'yum remove'
+      - 'apk add'
+      - 'apk del'
+      - 'pkg install'
+      - 'pkg delete'
+  condition: selection
+tags:
+  - oblivra.change-detection
+falsepositives:
+  - Patch maintenance windows

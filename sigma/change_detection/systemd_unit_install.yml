@@ -1,0 +1,26 @@
+title: systemd unit installed or modified
+id: cd-systemd-unit-install
+description: |
+  systemd-tmpfiles, systemctl daemon-reload, or write to a unit file
+  under /etc/systemd/system/ — installs or modifies a service. Pair
+  with deploy-window expectations to flag out-of-band changes.
+status: stable
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'systemctl daemon-reload'
+      - 'systemctl enable '
+      - 'systemctl mask '
+      - 'systemctl unmask '
+      - '/etc/systemd/system/'
+      - 'systemd-tmpfiles --create'
+  condition: selection
+tags:
+  - attack.t1543.002
+  - oblivra.change-detection
+falsepositives:
+  - Routine deploys / package upgrades

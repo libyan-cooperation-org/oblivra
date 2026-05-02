@@ -54,6 +54,7 @@ type Stack struct {
 	Import         *services.ImportService
 	Report         *services.ReportService
 	Tamper         *services.TamperService
+	Anomaly        *services.AnomalyService
 	Webhooks       *services.WebhookService
 	Notifications  *services.NotificationService
 	SavedSearches  *services.SavedSearchService
@@ -199,6 +200,7 @@ func New(opts Options) (*Stack, error) {
 	importSvc := services.NewImportService(opts.Logger, pipeline)
 	reportSvc := services.NewReportService(opts.Logger, investigations, audit)
 	tamperSvc := services.NewTamperService(opts.Logger, alerts)
+	anomalySvc := services.NewAnomalyService(opts.Logger, alerts)
 	webhookSvc := services.NewWebhookService(opts.Logger, audit)
 	categoriesSvc := services.NewCategoriesService()
 	serviceHealthSvc := services.NewServiceHealthService(categoriesSvc, qualitySvc)
@@ -232,6 +234,7 @@ func New(opts Options) (*Stack, error) {
 		Import:         importSvc,
 		Report:         reportSvc,
 		Tamper:         tamperSvc,
+		Anomaly:        anomalySvc,
 		Webhooks:       webhookSvc,
 		Notifications:  notificationSvc,
 		SavedSearches:  savedSearchSvc,
@@ -484,6 +487,7 @@ func (s *Stack) startProcessors(parent context.Context) {
 		func(ctx context.Context, ev events.Event) { s.Quality.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Categories.Observe(ctx, ev) },
 		func(ctx context.Context, ev events.Event) { s.Tamper.Observe(ctx, ev) },
+		func(ctx context.Context, ev events.Event) { s.Anomaly.Observe(ctx, ev) },
 		func(_ context.Context, ev events.Event) {
 			// IOC enrichment — match every text field against the IOC table.
 			candidates := []string{ev.HostID, ev.Message, ev.Raw}

@@ -1,0 +1,26 @@
+title: Terraform / Ansible / Pulumi run
+id: cd-iac-run
+description: |
+  Infrastructure-as-code commands hitting prod. The value here is
+  the timestamp + actor — correlate with subsequent alert volume to
+  see if a change broke something.
+status: stable
+level: low
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'terraform apply'
+      - 'terraform destroy'
+      - 'terraform import'
+      - 'ansible-playbook'
+      - 'ansible-pull'
+      - 'pulumi up'
+      - 'pulumi destroy'
+  condition: selection
+tags:
+  - oblivra.change-detection
+  - oblivra.deploy
+falsepositives:
+  - Scheduled IaC runs from CI

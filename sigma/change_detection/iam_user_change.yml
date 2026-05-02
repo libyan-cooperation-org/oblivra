@@ -1,0 +1,36 @@
+title: IAM user / group / role change
+id: cd-iam-change
+description: |
+  Local user/group changes (Linux + Windows) plus AWS IAM CLI
+  invocations. Persistence overlap with T1136 (Create Account) but
+  90% of the time these are routine ops — surface as "change" and
+  let the analyst correlate with deploy windows.
+status: stable
+level: medium
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'useradd '
+      - 'usermod '
+      - 'userdel '
+      - 'groupadd '
+      - 'groupmod '
+      - 'groupdel '
+      - 'net user /add'
+      - 'net user /delete'
+      - 'net localgroup'
+      - 'aws iam create-user'
+      - 'aws iam delete-user'
+      - 'aws iam create-role'
+      - 'aws iam attach-role-policy'
+      - 'aws iam attach-user-policy'
+      - 'aws iam create-access-key'
+  condition: selection
+tags:
+  - attack.t1136
+  - attack.t1098
+  - oblivra.change-detection
+falsepositives:
+  - Provisioning automations (tag the actor)

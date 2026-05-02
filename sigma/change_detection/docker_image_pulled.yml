@@ -1,0 +1,26 @@
+title: Container image pulled or run
+id: cd-container-image
+description: |
+  docker / podman / containerd / nerdctl pulls or runs. New image
+  hash = new code on the host; surface it next to whatever broke
+  shortly after.
+status: stable
+level: low
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'docker pull '
+      - 'docker run '
+      - 'podman pull '
+      - 'podman run '
+      - 'nerdctl pull '
+      - 'nerdctl run '
+      - 'crictl pull '
+  condition: selection
+tags:
+  - oblivra.change-detection
+  - oblivra.deploy
+falsepositives:
+  - CI build agents constantly pulling images

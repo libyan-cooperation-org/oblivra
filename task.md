@@ -490,7 +490,62 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — eighth round, removed DetectFlow / Kafka integration:
+**Last Updated**: 2026-05-02 — Phases 51-58 batch (elite features + observability + anomaly detection):
+
+## Phase 51 — Stateful detection
+* [x] **Threshold rules** — `RuleType: threshold` fires when N matching events occur within Window, scoped by GroupBy. Re-arm gate prevents pager-storm runs.
+* [x] **Frequency rules** — `RuleType: frequency` counts distinct DistinctOf values (default `srcIP`) inside the bucket, fires at threshold. Right tool for rotating-IP brute force.
+* [x] **Sequence rules** — `RuleType: sequence` matches an ordered list of substrings within Window — "failed password followed by accepted publickey" classic.
+* [x] **`NotContain` negative gate** — substring blocklist on rules; suppresses known-good without a separate suppression rule.
+* [x] 5 unit tests (Nth-hit, per-host buckets, distinct cardinality, in-order sequence, NotContain gate).
+
+## Phase 52 — Sigma loader expansion (1 → 86% community-corpus support)
+* [x] **`<term> and not <term>`** — selection-and-not-exclude is the most-used Sigma compound condition. Translates to AnyContain (positive union) + NotContain (negative union).
+* [x] **`keywords` block** — top-level list of substrings, no field map. Common in web-attack rules.
+* [x] **`all of <pattern>`** / **`all of them`** — every matched block's tokens must appear → mapped to `AllContain`.
+* [x] **Numeric values** — `EventID: [1102, 104]` etc. now stringify properly (was silently dropped before).
+* [x] Integer / int64 / float64 / bool selection values supported.
+* [x] **86% load rate** validated against the SigmaHQ public corpus subset (617/718 rules).
+
+## Phase 53 — Alert lifecycle
+* [x] **States**: open → ack → assigned → resolved (back-compat with "closed").
+* [x] **Lifecycle metadata**: AcknowledgedBy/At, AssignedTo/At, ResolvedBy/At, Verdict, Notes.
+* [x] **Endpoints**: `POST /api/v1/alerts/{id}/{ack,assign,resolve,reopen}`, `GET /api/v1/alerts/{id}`.
+* [x] Each transition lands in the audit chain with the actor name.
+* [x] **Verdict feedback loop** — `true-positive` / `false-positive` resolution auto-feeds `RulesService.MarkAlert` so analyst triage drives rule tuning without a separate workflow.
+* [x] **Detection.svelte UI** — state-filter chips, per-row triage panel with Assign / Resolve / Reopen.
+
+## Phase 54 — Saved searches + scheduled queries
+* [x] **`SavedSearchService`** — persistent name+query, optional schedule (interval ≥5min; 0 = manual), optional alerting (raise alert when hit count meets threshold).
+* [x] Bleve and OQL both supported.
+* [x] **`saved-search.tick`** scheduler job runs queued searches via existing search path.
+* [x] **Endpoints**: `GET/POST /api/v1/saved-searches`, `POST /{id}/run`, `DELETE /{id}`.
+* [x] **SavedSearches.svelte view** with add-form + list with run/delete + last-run telemetry.
+
+## Phase 55 — Event detail + CSV/NDJSON export
+* [x] **`GET /api/v1/siem/events/{id}`** — returns the event plus up to 50 related events on the same host within ±60s.
+* [x] **Siem.svelte** rows now clickable; opens inline detail panel with full field map, raw vs parsed message, related events with one-click pivot.
+* [x] **`?format=csv` / `?format=ndjson`** on `/api/v1/siem/search` — auditor-grade exports with stable column set + JSON `fields` column for nothing-lost guarantees.
+
+## Phase 56 — MITRE ATT&CK matrix view + Process lineage graph
+* [x] **`frontend/src/lib/mitre.ts`** — static enterprise tactic→technique map curated to the IDs OBLIVRA's rule packs emit. Air-gap-friendly (no fetch to attack.mitre.org).
+* [x] **Mitre.svelte view** — 12-tactic horizontally-scrollable grid; each technique is a 5-bucket coverage chip (0 / 1-2 / 3-9 / 10-49 / 50+ fires); hover shows recent matching alerts.
+* [x] **Lineage.svelte view** — pure-functional tidy-tree layout for process forests. Suspicious cmdlines (LOLBins / encoded PowerShell / shadow-delete) flagged with red border. Hover detail card.
+
+## Phase 57 — Observability surface (Prometheus remote_write + service health + log-to-metric)
+* [x] **`POST /api/v1/metrics/remote_write`** — Snappy + protobuf decoder for Prometheus remote_write. Each Sample becomes one Event with `eventType: metric:<name>`, lands in WAL → hot store → audit chain. Hand-rolled minimal protobuf decoder (no `prometheus/prometheus` tree).
+* [x] **`ServiceHealthService`** — auto-rolled from `CategoriesService` + `QualityService`; per-sourceType status (healthy / degraded / silent / unknown) with hosts, lifetime events, unparsed-rate, gap density, avg ingest delay.
+* [x] **`GET /api/v1/services/health`** + **Services.svelte view**.
+* [x] **Log-to-metric extraction** — `EmitMetric: true` on a saved search pushes a metric event into the pipeline every scheduled run. Closes the loop with Prometheus remote_write — operators ingest external metrics AND derive metrics from log patterns, with the same audit-grade backing store.
+
+## Phase 58 — Sigma adoption + anomaly detection + change tracking
+* [x] **`oblivra-cli sigma import [--apply] [-v] <src> <dst>`** — audits a Sigma rule directory and (with `--apply`) copies just the loadable rules into `<dst>`, preserving relative paths. Verified: SigmaHQ subset 240/267 (89.9%) and emerging-threats 377/451 (83.6%) load cleanly.
+* [x] **Change-detection Sigma pack** — 7 rules under `sigma/change_detection/`: systemd unit install, crontab modify, kubectl apply, Terraform/Ansible/Pulumi runs, container image pulled, OS package install, IAM user/role change. All carry `oblivra.change-detection` tag for cross-cutting filter.
+* [x] **`AnomalyService`** — new-pattern detection. Tokenises every event message into a stable template (replace numbers, IPs, UUIDs, paths, timestamps, quoted strings with placeholders); fingerprints per `(sourceType, severity, template)`. First sighting after warmup = `anomaly:new-pattern` alert. Three gates: 30-min warmup avoids fresh-deployment storms, min-source-volume (50) avoids new-source false positives, severity gate (≥warn) avoids debug noise. Cap at 100k fingerprints with oldest eviction. **5 tests** cover template normalisation, stable-across-instances, first-sighting alert, warmup silence, volume gate, severity gate.
+
+---
+
+**2026-05-02** — eighth round, removed DetectFlow / Kafka integration:
 - `internal/listeners/kafka.go` + `kafka_test.go` deleted
 - `docs/integrations/detectflow.md` deleted (and the now-empty `docs/integrations/` dir)
 - `KafkaConfigFromEnv` call + Kafka listener startup stripped from `cmd/server/main.go` and `internal/platform/stack.go`

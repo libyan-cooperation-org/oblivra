@@ -1,0 +1,28 @@
+title: kubectl apply / delete observed
+id: cd-kubectl-apply
+description: |
+  Kubernetes resource changes via kubectl apply / delete / patch.
+  Useful for correlating cluster behaviour shifts with the deploy
+  that caused them — pair with the post-deploy alert window.
+status: stable
+level: low
+logsource:
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'kubectl apply '
+      - 'kubectl delete '
+      - 'kubectl patch '
+      - 'kubectl rollout '
+      - 'kubectl scale '
+      - 'helm install '
+      - 'helm upgrade '
+      - 'helm rollback '
+      - 'helm uninstall '
+  condition: selection
+tags:
+  - oblivra.change-detection
+  - oblivra.deploy
+falsepositives:
+  - Continuous-deploy systems (use the actor field to allowlist)

@@ -1,0 +1,27 @@
+title: crontab modified
+id: cd-crontab-modified
+description: |
+  Direct crontab edits land here. Persistence techniques and routine
+  ops both look identical at the syscall level — the value of this
+  rule is the change-tracking, not a verdict.
+status: stable
+level: medium
+logsource:
+  product: linux
+  category: process_creation
+detection:
+  selection:
+    CommandLine|contains:
+      - 'crontab -e'
+      - 'crontab -r'
+      - 'crontab -u '
+      - '/etc/cron.d/'
+      - '/etc/cron.daily/'
+      - '/etc/cron.hourly/'
+      - '/var/spool/cron/'
+  condition: selection
+tags:
+  - attack.t1053.003
+  - oblivra.change-detection
+falsepositives:
+  - Routine cron management by ops
