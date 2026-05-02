@@ -29,8 +29,12 @@ type Webhook struct {
 	IncludeRules  []string      `json:"includeRules,omitempty"`  // empty = all rules
 	ExcludeRules  []string      `json:"excludeRules,omitempty"`
 	CreatedAt     time.Time     `json:"createdAt"`
-	LastDelivered time.Time     `json:"lastDelivered,omitempty"`
-	Disabled      bool          `json:"disabled,omitempty"`
+	// LastDelivered is a pointer so the JSON omits the field entirely
+	// when the webhook has never fired — `time.Time,omitempty` doesn't
+	// elide the zero value, which marshals as "0001-01-01T00:00:00Z"
+	// and lets the UI render an obviously-wrong "1/1/0001" timestamp.
+	LastDelivered *time.Time `json:"lastDelivered,omitempty"`
+	Disabled      bool       `json:"disabled,omitempty"`
 }
 
 type WebhookDelivery struct {
@@ -193,7 +197,8 @@ func (s *WebhookService) deliverOne(ctx context.Context, h *Webhook, a Alert) {
 		s.recent = s.recent[len(s.recent)-500:]
 	}
 	if delivery.Error == "" {
-		h.LastDelivered = delivery.DeliveredAt
+		ts := delivery.DeliveredAt
+		h.LastDelivered = &ts
 	}
 	s.mu.Unlock()
 }

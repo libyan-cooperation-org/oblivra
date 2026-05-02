@@ -16,19 +16,29 @@
   let gaps = $state<LogGap[]>([]);
   let audit = $state<AuditEntry[]>([]);
   let verify = $state<VerifyResult | null>(null);
+  let loadError = $state<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight = 0;
 
   async function refresh() {
-    const [i, g, a, v] = await Promise.all([
-      forensicsList(),
-      forensicsGaps(),
-      auditLog(50),
-      auditVerify(),
-    ]);
-    items = i;
-    gaps = g;
-    audit = a;
-    verify = v;
+    const seq = ++inFlight;
+    try {
+      const [i, g, a, v] = await Promise.all([
+        forensicsList(),
+        forensicsGaps(),
+        auditLog(50),
+        auditVerify(),
+      ]);
+      if (seq !== inFlight) return;
+      items = i;
+      gaps = g;
+      audit = a;
+      verify = v;
+      loadError = null;
+    } catch (err) {
+      if (seq !== inFlight) return;
+      loadError = (err as Error).message;
+    }
   }
 
   onMount(() => {
@@ -56,6 +66,10 @@
       hint="sha256 + hmac"
     />
   </section>
+
+  {#if loadError}
+    <p class="text-xs text-signal-error">Failed to load: {loadError}</p>
+  {/if}
 
   <section class="rounded-xl border border-night-700 bg-night-900/70">
     <div class="border-b border-night-700 px-4 py-3 text-sm font-semibold tracking-wide text-slate-100">

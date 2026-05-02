@@ -511,6 +511,8 @@ export interface Webhook {
   includeRules?: string[];
   excludeRules?: string[];
   createdAt: string;
+  // Server elides this field entirely when the webhook has never fired,
+  // so undefined === "never delivered" and the UI must guard accordingly.
   lastDelivered?: string;
   disabled?: boolean;
 }

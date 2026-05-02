@@ -5,12 +5,22 @@
 
   let agents = $state<Agent[]>([]);
   let iocs = $state<Indicator[]>([]);
+  let loadError = $state<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight = 0;
 
   async function refresh() {
-    const [a, i] = await Promise.all([fleetList(), intelList()]);
-    agents = a;
-    iocs = i;
+    const seq = ++inFlight;
+    try {
+      const [a, i] = await Promise.all([fleetList(), intelList()]);
+      if (seq !== inFlight) return;
+      agents = a;
+      iocs = i;
+      loadError = null;
+    } catch (err) {
+      if (seq !== inFlight) return;
+      loadError = (err as Error).message;
+    }
   }
 
   onMount(() => {
@@ -40,6 +50,10 @@
       value={agents.reduce((s, a) => s + (a.events ?? 0), 0)}
     />
   </section>
+
+  {#if loadError}
+    <p class="text-xs text-signal-error">Failed to load: {loadError}</p>
+  {/if}
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
     <section class="rounded-xl border border-night-700 bg-night-900/70">

@@ -11,14 +11,30 @@
   let snap = $state<ProcessSnapshot | null>(null);
   let cmds = $state<CmdLine[]>([]);
   let chains = $state<AuthChain[]>([]);
+  let loadError = $state<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight = 0;
 
   async function refresh() {
+    const seq = ++inFlight;
     try {
       const [s, c, m] = await Promise.all([reconSessions(host), reconCmdSus(), reconAuthMulti()]);
+      if (seq !== inFlight) return;
       sessions = s; cmds = c; chains = m;
-      if (host) snap = await reconStateAt(host);
-    } catch {}
+      // Process snapshot only meaningful with a host filter — clear it
+      // when the user clears the filter so the panel doesn't show stale
+      // process trees from a previously-selected host.
+      if (host) {
+        snap = await reconStateAt(host);
+        if (seq !== inFlight) return;
+      } else {
+        snap = null;
+      }
+      loadError = null;
+    } catch (err) {
+      if (seq !== inFlight) return;
+      loadError = (err as Error).message;
+    }
   }
 
   onMount(() => {
@@ -42,11 +58,15 @@
   </header>
 
   <section class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <Tile label="Sessions tracked" value={sessions.length} />
-    <Tile label="Suspicious cmdlines" value={cmds.length} />
-    <Tile label="Multi-protocol logins" value={chains.length} hint="lateral-movement signal" />
+    <Tile label="Sessions tracked" value={sessions.length} hint={host ? `filtered: ${host}` : 'all hosts'} />
+    <Tile label="Suspicious cmdlines" value={cmds.length} hint="all hosts" />
+    <Tile label="Multi-protocol logins" value={chains.length} hint="all hosts · lateral-movement signal" />
     <Tile label="Processes running" value={snap?.running.length ?? '—'} hint={host || 'pick a host'} />
   </section>
+
+  {#if loadError}
+    <p class="text-xs text-signal-error">Failed to load: {loadError}</p>
+  {/if}
 
   <section class="rounded-xl border border-night-700 bg-night-900/70">
     <div class="border-b border-night-700 px-4 py-3 text-sm font-semibold tracking-wide">Sessions</div>

@@ -5,12 +5,22 @@
 
   let alerts = $state<Alert[]>([]);
   let profiles = $state<UebaProfile[]>([]);
+  let loadError = $state<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight = 0;
 
   async function refresh() {
-    const [a, p] = await Promise.all([listAlerts(100), uebaProfiles()]);
-    alerts = a;
-    profiles = p;
+    const seq = ++inFlight;
+    try {
+      const [a, p] = await Promise.all([listAlerts(100), uebaProfiles()]);
+      if (seq !== inFlight) return; // a newer request already won
+      alerts = a;
+      profiles = p;
+      loadError = null;
+    } catch (err) {
+      if (seq !== inFlight) return;
+      loadError = (err as Error).message;
+    }
   }
 
   onMount(() => {
@@ -52,6 +62,17 @@
   const selectedAlerts = $derived(byHost.find((h) => h.host === selectedHost)?.list ?? []);
   const selectedProfile = $derived(profiles.find((p) => p.entity === selectedHost) ?? null);
 
+  // Top-spike tile: only meaningful when a real anomaly fired. Without a
+  // threshold the tile would name a host every time UEBA had any profile,
+  // implying an anomaly that didn't happen. z >= 2 matches our internal
+  // alerting threshold; below that we show '—'.
+  const topSpike = $derived.by(() => {
+    const sorted = [...profiles].sort((a, b) => b.lastSpike - a.lastSpike);
+    const top = sorted[0];
+    if (!top || top.lastSpike < 2) return null;
+    return top;
+  });
+
   const sev: Record<string, string> = {
     low: 'bg-night-700 text-night-200',
     medium: 'bg-signal-info/20 text-signal-info',
@@ -72,10 +93,14 @@
     <Tile label="UEBA profiles" value={profiles.length} />
     <Tile
       label="Top spike (z-score)"
-      value={profiles[0] ? profiles[0].lastSpike.toFixed(2) : '—'}
-      hint={profiles[0]?.entity ?? 'no spikes'}
+      value={topSpike ? topSpike.lastSpike.toFixed(2) : '—'}
+      hint={topSpike ? topSpike.entity : 'no spikes ≥ 2σ'}
     />
   </section>
+
+  {#if loadError}
+    <p class="text-xs text-signal-error">Failed to load: {loadError}</p>
+  {/if}
 
   <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
     <section class="rounded-xl border border-night-700 bg-night-900/70">
