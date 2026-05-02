@@ -637,6 +637,8 @@ export interface SavedSearch {
   intervalMinutes?: number;
   alertOnAtLeast?: number;
   severity?: 'low' | 'medium' | 'high' | 'critical';
+  emitMetric?: boolean;
+  metricName?: string;
   lastRunAt?: string;
   lastHitCount?: number;
   lastError?: string;

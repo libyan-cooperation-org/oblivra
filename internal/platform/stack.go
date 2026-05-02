@@ -344,6 +344,30 @@ func New(opts Options) (*Stack, error) {
 			opts.Logger.Warn("OBLIVRA_AUDIT_COMPACT_AFTER set but unparseable", "value", v)
 		}
 	}
+	// Saved searches — wire log-to-metric emitter so EmitMetric: true
+	// pushes a metric event into the pipeline (same shape as a
+	// Prometheus remote_write sample) every scheduled run.
+	savedSearchSvc.AttachMetricEmitter(func(ctx context.Context, name string, value float64, labels map[string]string) {
+		ev := &events.Event{
+			Source:    events.SourceREST,
+			EventType: "metric:" + name,
+			TenantID:  "default",
+			Severity:  events.SeverityInfo,
+			Message:   fmt.Sprintf("%s = %g (saved-search counter)", name, value),
+			Timestamp: time.Now().UTC(),
+			Fields: map[string]string{
+				"__name__": name,
+				"value":    fmt.Sprintf("%g", value),
+			},
+		}
+		for k, v := range labels {
+			ev.Fields[k] = v
+		}
+		ev.Provenance.IngestPath = "saved-search-counter"
+		ev.Provenance.Format = "metric"
+		_ = pipeline.Submit(ctx, ev)
+	})
+
 	// Saved searches — wire the runner now that siem is constructed.
 	savedSearchSvc.AttachRunner(func(ctx context.Context, q services.SavedSearch) (int, error) {
 		req := services.SearchRequest{

@@ -19,6 +19,8 @@
   let interval = $state(0);
   let alertAt = $state(0);
   let severity = $state<'low' | 'medium' | 'high' | 'critical'>('high');
+  let emitMetric = $state(false);
+  let metricName = $state('');
   let formError = $state<string | null>(null);
   let runResult = $state<Record<string, string>>({});
 
@@ -50,8 +52,11 @@
         intervalMinutes: interval || undefined,
         alertOnAtLeast: alertAt || undefined,
         severity: alertAt > 0 ? severity : undefined,
+        emitMetric: emitMetric || undefined,
+        metricName: emitMetric && metricName ? metricName : undefined,
       });
       name = ''; query = ''; interval = 0; alertAt = 0;
+      emitMetric = false; metricName = '';
       await refresh();
     } catch (err) {
       formError = (err as Error).message;
@@ -145,6 +150,17 @@
           <option value="critical">critical</option>
         </select>
       </label>
+      <label class="text-xs flex items-center gap-2 mt-3 sm:col-span-2 lg:col-span-3">
+        <input type="checkbox" bind:checked={emitMetric} class="h-3 w-3" />
+        <span class="text-night-200">Emit a metric</span>
+        <span class="text-night-400 text-[11px]">— pushes <code class="rounded bg-night-800 px-1">metric:&lt;name&gt;</code> event with hit count every run, queryable like any log</span>
+      </label>
+      {#if emitMetric}
+        <label class="text-xs lg:col-span-3">
+          <div class="text-night-300 mb-1">Metric name <span class="text-night-400">(default: saved_search_&lt;id&gt;_hits)</span></div>
+          <input bind:value={metricName} placeholder="e.g. ssh_bruteforce_attempts_total" class="w-full font-mono rounded-md border border-night-600 bg-night-800/70 px-3 py-1.5 text-xs text-slate-100" />
+        </label>
+      {/if}
     </div>
     {#if formError}<p class="mt-3 text-xs text-signal-error">{formError}</p>{/if}
     <div class="mt-4 flex items-center gap-3">
@@ -170,6 +186,11 @@
               {/if}
               {#if (s.alertOnAtLeast ?? 0) > 0}
                 <span class="text-night-300">· alert ≥ {s.alertOnAtLeast} ({s.severity ?? 'high'})</span>
+              {/if}
+              {#if s.emitMetric}
+                <span class="rounded bg-accent-500/15 text-accent-300 px-1.5 py-0.5 text-[10px]">
+                  → {s.metricName || `saved_search_${s.id}_hits`}
+                </span>
               {/if}
               <span class="ml-auto text-night-300">last: {relTime(s.lastRunAt)}{s.lastHitCount !== undefined ? ` · ${s.lastHitCount} hits` : ''}</span>
               <button class="rounded-md border border-night-600 bg-night-800/70 px-2 py-0.5 text-[10px] text-slate-100 hover:bg-night-700" onclick={() => run(s.id)}>run</button>

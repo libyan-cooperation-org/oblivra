@@ -18,29 +18,41 @@ import (
 // Designed to be cheap: queries against the existing search path; no
 // new storage layer. Persisted to <dataDir>/saved_searches.json.
 type SavedSearch struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Query           string    `json:"query"`              // Bleve query string (OQL also accepted via QueryKind)
-	QueryKind       string    `json:"queryKind"`          // "bleve" (default) | "oql"
-	TenantID        string    `json:"tenantId,omitempty"` // optional scope
-	CreatedAt       time.Time `json:"createdAt"`
-	CreatedBy       string    `json:"createdBy,omitempty"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Query     string    `json:"query"`              // Bleve query string (OQL also accepted via QueryKind)
+	QueryKind string    `json:"queryKind"`          // "bleve" (default) | "oql"
+	TenantID  string    `json:"tenantId,omitempty"` // optional scope
+	CreatedAt time.Time `json:"createdAt"`
+	CreatedBy string    `json:"createdBy,omitempty"`
 
 	// Scheduling — IntervalMinutes=0 means "manual only".
 	IntervalMinutes int    `json:"intervalMinutes,omitempty"`
 	AlertOnAtLeast  int    `json:"alertOnAtLeast,omitempty"` // raise alert if hit count >=
 	Severity        string `json:"severity,omitempty"`       // alert severity (default high)
 
+	// Log-to-metric — when EmitMetric is true, every scheduled run also
+	// pushes a metric event into the pipeline named MetricName (or
+	// "saved_search_<id>_hits" if blank). Lets operators turn any log
+	// pattern into a queryable counter / time series — the same trick
+	// Splunk's stats command does, but native to OBLIVRA.
+	EmitMetric bool   `json:"emitMetric,omitempty"`
+	MetricName string `json:"metricName,omitempty"`
+
 	// Last-run telemetry — overwritten by each scheduled run.
-	LastRunAt     *time.Time `json:"lastRunAt,omitempty"`
-	LastHitCount  int        `json:"lastHitCount,omitempty"`
-	LastError     string     `json:"lastError,omitempty"`
+	LastRunAt    *time.Time `json:"lastRunAt,omitempty"`
+	LastHitCount int        `json:"lastHitCount,omitempty"`
+	LastError    string     `json:"lastError,omitempty"`
 }
 
 // SavedSearchRunner is the abstraction the scheduler uses to actually
 // execute a saved search. We accept any function so the wiring stays
 // out of internal/services — platform.New plugs in SiemService.Search.
 type SavedSearchRunner func(ctx context.Context, q SavedSearch) (hits int, err error)
+
+// MetricEmitter is the abstraction the scheduler uses to push a
+// derived metric event into the pipeline. Plugged in by platform.New.
+type MetricEmitter func(ctx context.Context, name string, value float64, labels map[string]string)
 
 type SavedSearchService struct {
 	log    *slog.Logger
@@ -49,6 +61,7 @@ type SavedSearchService struct {
 	mu      sync.RWMutex
 	saved   map[string]*SavedSearch
 	runner  SavedSearchRunner
+	emit    MetricEmitter
 }
 
 func NewSavedSearchService(log *slog.Logger, alerts *AlertService) *SavedSearchService {
@@ -62,6 +75,15 @@ func (s *SavedSearchService) ServiceName() string { return "SavedSearchService" 
 func (s *SavedSearchService) AttachRunner(r SavedSearchRunner) {
 	s.mu.Lock()
 	s.runner = r
+	s.mu.Unlock()
+}
+
+// AttachMetricEmitter plugs in the function that pushes a metric event
+// into the pipeline when EmitMetric is true on a saved search. Optional
+// — without it, EmitMetric is a no-op.
+func (s *SavedSearchService) AttachMetricEmitter(e MetricEmitter) {
+	s.mu.Lock()
+	s.emit = e
 	s.mu.Unlock()
 }
 
@@ -146,6 +168,30 @@ func (s *SavedSearchService) Run(ctx context.Context, id string) (int, error) {
 		q.LastError = ""
 	}
 	s.mu.Unlock()
+
+	// Log-to-metric emission: every successful run produces one metric
+	// event named after the saved search. Operators can then graph the
+	// hit-count time series in Grafana (via the platform's /metrics
+	// scrape) or query it directly via search.
+	if err == nil && q.EmitMetric {
+		s.mu.RLock()
+		emit := s.emit
+		s.mu.RUnlock()
+		if emit != nil {
+			name := q.MetricName
+			if name == "" {
+				name = "saved_search_" + q.ID + "_hits"
+			}
+			labels := map[string]string{
+				"savedSearchId":   q.ID,
+				"savedSearchName": q.Name,
+			}
+			if q.TenantID != "" {
+				labels["tenantId"] = q.TenantID
+			}
+			emit(ctx, name, float64(hits), labels)
+		}
+	}
 
 	// If alerting is configured and the hit count meets the threshold,
 	// raise an alert (which fans out to webhooks + email channels via
