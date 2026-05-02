@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -27,6 +29,7 @@ type Tailer struct {
 	tenant   string
 	tags     []string
 	stateDir string
+	redact   bool
 	pos      *PositionStore
 	queue    chan<- string
 	hiQueue  chan<- string // optional priority queue for high-severity events
@@ -57,6 +60,7 @@ func NewTailer(c *Config, in Input, deps TailerDeps, p *PositionStore) (*Tailer,
 	t := &Tailer{
 		in: in, hostname: c.Hostname, tenant: c.Tenant, tags: c.Tags,
 		stateDir: c.StateDir,
+		redact:   c.Redact,
 		pos:      p, queue: deps.Queue, hiQueue: deps.HiQueue,
 		signer: deps.Signer, rules: deps.Rules,
 	}
@@ -116,11 +120,110 @@ func (t *Tailer) runFile(ctx context.Context) error {
 		// Glob returns no error when nothing matches — fall back to literal.
 		candidates = []string{t.in.Path}
 	}
+
+	// Day-zero backfill: when StartFrom == "beginning", also scoop up
+	// the rotated archive set (auth.log.1, auth.log.2.gz, …) — we only
+	// do this on the first run, then drop down to live tailing.
+	if t.in.StartFrom == "beginning" {
+		archives := discoverRotatedArchives(t.in.Path)
+		// Read archives oldest-first so the resulting event stream is
+		// chronological. Archives are read once then forgotten — they
+		// don't move, so we don't need a tail loop.
+		for _, a := range archives {
+			if ctx.Err() != nil {
+				return nil
+			}
+			t.replayArchive(ctx, a)
+		}
+	}
+
 	for _, path := range candidates {
 		go t.runOneFile(ctx, path)
 	}
 	<-ctx.Done()
 	return nil
+}
+
+// discoverRotatedArchives finds older copies of the live file: the
+// .1 / .2 / .gz / .bz2 / .zst variants logrotate produces. Returned
+// list is sorted oldest-first so the replay event stream is in time
+// order. Best-effort — no error on missing archives.
+func discoverRotatedArchives(livePath string) []string {
+	dir, base := filepath.Split(livePath)
+	if dir == "" {
+		dir = "."
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var matches []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if name == base {
+			continue // the live file is handled by the tailer loop
+		}
+		// Match: <base>.<N>, <base>.<N>.gz, <base>.<N>.bz2, <base>.<N>.zst
+		// Also: <base>.gz / .bz2 / .zst (single-archive rotation).
+		// We accept anything that starts with base + "."
+		if !strings.HasPrefix(name, base+".") {
+			continue
+		}
+		matches = append(matches, filepath.Join(dir, name))
+	}
+	// Sort by mtime ascending so older content is replayed first.
+	type withTime struct {
+		path string
+		mod  time.Time
+	}
+	withTimes := make([]withTime, 0, len(matches))
+	for _, m := range matches {
+		st, err := os.Stat(m)
+		if err != nil {
+			continue
+		}
+		withTimes = append(withTimes, withTime{m, st.ModTime()})
+	}
+	sort.Slice(withTimes, func(i, j int) bool { return withTimes[i].mod.Before(withTimes[j].mod) })
+	out := make([]string, len(withTimes))
+	for i, w := range withTimes {
+		out[i] = w.path
+	}
+	return out
+}
+
+// replayArchive reads a (possibly compressed) rotated log file once
+// through the standard feed() pipeline. Compression: .gz only — bz2
+// and zst would need extra deps; an operator who needs them can
+// gunzip first or extend this function.
+func (t *Tailer) replayArchive(ctx context.Context, path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("backfill open %s: %v", path, err)
+		return
+	}
+	defer f.Close()
+
+	var r io.Reader = f
+	if strings.HasSuffix(path, ".gz") {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			log.Printf("backfill gunzip %s: %v", path, err)
+			return
+		}
+		defer gz.Close()
+		r = gz
+	} else if strings.HasSuffix(path, ".bz2") || strings.HasSuffix(path, ".zst") {
+		log.Printf("backfill skip %s: %s archives unsupported (operator: decompress first)",
+			path, strings.TrimPrefix(filepath.Ext(path), "."))
+		return
+	}
+
+	log.Printf("backfill: replaying %s", path)
+	t.feed(ctx, bufio.NewReader(r), path)
 }
 
 func (t *Tailer) runOneFile(ctx context.Context, path string) {
@@ -244,9 +347,26 @@ func (t *Tailer) enqueue(source, raw string) {
 	if t.excludeRE != nil && t.excludeRE.MatchString(raw) {
 		return
 	}
+
+	// Edge DLP — apply BEFORE rule scoring, sigma matching, signing,
+	// or wire egress. Conservative: if a known canary survives the
+	// regex pass (e.g. an unusual private-key PEM block format) we
+	// drop the line entirely rather than risk a leak.
+	var dlpHits []string
+	if t.redact {
+		raw, dlpHits = redactLine(raw)
+		if stillHasSecrets(raw) {
+			droppedEvents.Add(1)
+			log.Printf("dlp drop: leaked-canary-detected from %s; line redacted to nothing", source)
+			return
+		}
+	}
 	fields := map[string]string{
 		"agentSource": source,
 		"agentInput":  t.in.Label,
+	}
+	if len(dlpHits) > 0 {
+		fields["agentRedacted"] = strings.Join(dlpHits, ",")
 	}
 	for k, v := range t.in.Fields {
 		fields[k] = v

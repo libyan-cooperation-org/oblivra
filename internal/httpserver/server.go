@@ -19,8 +19,6 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/kingknull/oblivra/internal/events"
-	"github.com/kingknull/oblivra/internal/ingest"
-	"github.com/kingknull/oblivra/internal/listeners"
 	"github.com/kingknull/oblivra/internal/parsers"
 	"github.com/kingknull/oblivra/internal/services"
 )
@@ -57,7 +55,6 @@ type Server struct {
 	serviceHealth  *services.ServiceHealthService
 	notifications  *services.NotificationService
 	savedSearches  *services.SavedSearchService
-	pipeline       *ingest.Pipeline
 	oidc           *OIDCHandler
 	bus    *events.Bus
 	auth   *AuthMiddleware
@@ -94,7 +91,6 @@ type Deps struct {
 	ServiceHealth  *services.ServiceHealthService
 	Notifications  *services.NotificationService
 	SavedSearches  *services.SavedSearchService
-	Pipeline       *ingest.Pipeline
 	OIDC           *OIDCHandler
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
@@ -132,7 +128,6 @@ func New(log *slog.Logger, deps Deps) *Server {
 		serviceHealth:  deps.ServiceHealth,
 		notifications:  deps.Notifications,
 		savedSearches:  deps.SavedSearches,
-		pipeline:       deps.Pipeline,
 		oidc:           deps.OIDC,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
@@ -330,18 +325,11 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("DELETE /api/v1/vault/secret", s.vaultDelete)
 	}
 
-	// Universal forwarder compatibility (Phase 41).
-	s.mux.HandleFunc("POST /services/collector/event", s.hecHandler())
-	s.mux.HandleFunc("POST /services/collector", s.hecHandler())
-	s.mux.HandleFunc("POST /v1/logs", s.otlpLogsHandler())
-
-	// Prometheus remote_write — observability metrics ingest. Each
-	// sample becomes a metric: event in the audit chain, so dashboards
-	// and forensic timelines reference the same tamper-evident store.
-	if s.pipeline != nil {
-		s.mux.HandleFunc("POST /api/v1/metrics/remote_write",
-			listeners.PromRemoteWriteHandler(s.log, s.pipeline, "default"))
-	}
+	// Single ingest surface: only the OBLIVRA agent's own REST and
+	// agent-ingest paths are accepted. Third-party wire formats
+	// (Splunk HEC, OTLP/HTTP, Prometheus remote_write) were removed
+	// to shrink the attack boundary; operators wanting Prometheus
+	// metrics shape configure the agent's `metrics:` input.
 
 	// Phase 46 — Compliance attestation feed (read-only).
 	if s.audit != nil {

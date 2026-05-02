@@ -490,7 +490,25 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — Phases 51-58 batch (elite features + observability + anomaly detection):
+**Last Updated**: 2026-05-02 — Phases 59-60 batch (security tightening + elite agent):
+
+## Phase 59 — Single ingest surface + endpoint security audit
+* [x] **Removed third-party wire-compat ingest** — Splunk HEC (`/services/collector*`), OTLP/HTTP (`/v1/logs`), and Prometheus remote_write (`/api/v1/metrics/remote_write`) deleted along with their handlers, listeners, and dependencies. Single ingest surface = smaller attack boundary. Operators wanting metrics push them through the agent's REST + ed25519-signed path.
+* [x] **Endpoint security audit** — every route reviewed; new RBAC entries for notifications (admin), saved-searches (rules:read), agent heartbeat (fleet:write), categories/services-health/compliance (read), event-detail (siem:read), all alert-lifecycle paths covered.
+* [x] **Auth exemption list narrowed** — only `/healthz`, `/readyz`, `/metrics`, `/api/v1/auth/login`, and OIDC redirect/callback bypass auth. Everything else under `/api/` requires bearer token / mTLS / OIDC subject.
+* [x] **Soak harness — credibility-grade reports** — `cmd/soak` writes JSON + markdown with `--require-eps` / `--max-error-rate` / `--max-p99` gates. Bug fix in tick math (was overshooting by `batch×`). Runner scripts `scripts/run-soak.{sh,ps1}` clean-boot, archive under `docs/operator/soak-results/<UTC>.{json,md}`. `task soak:run EPS=… DURATION=… HARDWARE=…`.
+
+## Phase 60 — Elite agent (tamper-evident + day-zero + edge DLP + setup wizard + last-gasp)
+* [x] **Tamper-evident config** — `config_integrity.go`. First run hashes the resolved Config (secrets zeroed) → fingerprint file. Subsequent starts compare; mismatch refuses to run unless `--acknowledge-config-change` or `OBLIVRA_AGENT_ACKNOWLEDGE_CONFIG_CHANGE=1`. Tripwire for silent edits.
+* [x] **Day-zero historical backfill** — file tailer with `startFrom: beginning` now also reads sibling rotated archives (`.1`, `.2`, `.gz`) oldest-first through the same `feed()` pipeline. Gzip via stdlib `compress/gzip`. journald already supports `--no-tail` for full systemd history.
+* [x] **Edge DLP redaction** — `cmd/agent/dlp.go`. Patterns mask credit cards, AWS access keys, AWS secret kvs, GitHub PATs, JWTs, password=… kvs, Authorization Bearer, US SSNs, PEM private-key blocks. `agentRedacted` field tracks which patterns fired. `stillHasSecrets` canary drops the line if a known leak fragment survives. Toggled via `redact: true`.
+* [x] **Interactive setup wizard** — `oblivra-agent setup`. Prompts server URL (incl. `srv://`), tokenFile, hostname, tenant; offers existing well-known log paths (`/var/log/auth.log`, syslog, audit, web/db); picks secure defaults (signing/redact/local-rules/heartbeat all on); writes a labelled config; locks the fingerprint immediately.
+* [x] **Local status HTTP endpoint** — `cmd/agent/local_status.go`. Loopback-only (default `127.0.0.1:18021`; rejects non-loopback). `GET /status` returns full self-state (uptime, queues, dropped, spill, pubkey fingerprint, every config flag). `localStatusAddr: "off"` disables.
+* [x] **Last-gasp signed event** — on SIGTERM/SIGINT/SIGHUP, push one final ed25519-signed `agent.shutdown` event into the priority queue before draining. An attacker who SIGKILLs the agent still leaves a signed exit marker; combined with Phase 44's missing-anchor watchdog, silent-kill attempts surface within an hour.
+
+---
+
+**2026-05-02** — Phases 51-58 batch (elite features + observability + anomaly detection):
 
 ## Phase 51 — Stateful detection
 * [x] **Threshold rules** — `RuleType: threshold` fires when N matching events occur within Window, scoped by GroupBy. Re-arm gate prevents pager-storm runs.

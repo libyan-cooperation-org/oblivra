@@ -36,10 +36,12 @@ type Config struct {
 	StateDir        string         `yaml:"stateDir"`        // position files + signing key
 	LogLevel        string         `yaml:"logLevel"`
 	SignEvents      bool           `yaml:"signEvents"`      // ed25519-sign every event at the edge
+	Redact          bool           `yaml:"redact"`          // apply edge DLP (cards, AWS keys, JWT, password=…) before shipping
 	SpillSecret     string         `yaml:"spillSecret"`     // AES-256-GCM key for disk spill
 	SpillSecretFile string         `yaml:"spillSecretFile"` // alternative — read from file (mode 0600)
 	AdaptiveBatch   bool           `yaml:"adaptiveBatch"`   // auto-tune batch size against observed p99
 	LocalRules      bool           `yaml:"localRules"`      // run the local rule pack to prioritise high-sev events
+	LocalStatusAddr string         `yaml:"localStatusAddr"` // loopback-only HTTP status endpoint; "" → 127.0.0.1:18021, "off" disables
 }
 
 type Server struct {

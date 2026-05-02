@@ -29,11 +29,13 @@ var pathPerm = []struct {
 	{"/api/v1/siem/ingest", "POST", rbac.PermSiemIngest},
 	{"/api/v1/siem/search", "GET", rbac.PermSiemRead},
 	{"/api/v1/siem/stats", "GET", rbac.PermSiemRead},
+	{"/api/v1/siem/events", "GET", rbac.PermSiemRead}, // event detail page
 	{"/api/v1/events", "GET", rbac.PermSiemRead},
 
-	{"/api/v1/alerts", "GET", rbac.PermAlertsRead},
+	{"/api/v1/alerts", "", rbac.PermAlertsRead}, // GET list, POST {id}/ack/assign/resolve/reopen
 	{"/api/v1/detection/rules", "GET", rbac.PermRulesRead},
 	{"/api/v1/detection/rules/reload", "POST", rbac.PermRulesWrite},
+	{"/api/v1/detection/rules/effectiveness", "GET", rbac.PermRulesRead},
 	{"/api/v1/mitre/heatmap", "GET", rbac.PermAlertsRead},
 
 	{"/api/v1/threatintel/lookup", "GET", rbac.PermIntelRead},
@@ -46,19 +48,34 @@ var pathPerm = []struct {
 
 	{"/api/v1/agent/fleet", "GET", rbac.PermFleetRead},
 	{"/api/v1/agent/register", "POST", rbac.PermFleetWrite},
+	{"/api/v1/agent/heartbeat", "POST", rbac.PermFleetWrite},
 	{"/api/v1/agent/ingest", "POST", rbac.PermSiemIngest},
 
 	{"/api/v1/storage/promote", "POST", rbac.PermAdminAll},
+
+	// Phase 51-58 surfaces.
+	{"/api/v1/categories", "GET", rbac.PermSiemRead},
+	{"/api/v1/services/health", "GET", rbac.PermSiemRead},
+	{"/api/v1/saved-searches", "", rbac.PermRulesRead},
+	{"/api/v1/notifications", "", rbac.PermAdminAll},
+	{"/api/v1/compliance/feed", "GET", rbac.PermAuditRead},
 }
 
 func NewAuth(commaSeparatedKeys string) *AuthMiddleware {
 	a := &AuthMiddleware{
 		subjects: map[string]rbac.Subject{},
 		exempt: map[string]struct{}{
-			"/healthz":           {},
-			"/readyz":            {},
-			"/metrics":           {},
-			"/api/v1/auth/login": {},
+			"/healthz":                      {},
+			"/readyz":                       {},
+			"/metrics":                      {},
+			// /metrics is intentionally allowlisted so a Prometheus
+			// scraper can hit it without an auth token. It exposes only
+			// the platform's own runtime + ingest counters, no event
+			// data. If the operator wants /metrics behind auth too,
+			// they front the server with a reverse proxy.
+			"/api/v1/auth/login":            {},
+			"/api/v1/auth/oidc/login":       {},
+			"/api/v1/auth/oidc/callback":    {},
 		},
 	}
 	for _, raw := range strings.Split(commaSeparatedKeys, ",") {
@@ -109,6 +126,9 @@ func (a *AuthMiddleware) Wrap(next http.Handler) http.Handler {
 	})
 }
 
+// isProtected returns true if the path requires auth. Everything under
+// /api/ is gated. Static assets and the health/readiness/metrics
+// endpoints are exempt by allowlist (see exempt map).
 func isProtected(path string) bool {
 	return strings.HasPrefix(path, "/api/")
 }

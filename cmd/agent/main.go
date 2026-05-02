@@ -58,6 +58,8 @@ func main() {
 	switch cmd {
 	case "init":
 		runInit(os.Args[2:])
+	case "setup":
+		runSetup(os.Args[2:])
 	case "run":
 		runForward(os.Args[2:])
 	case "test":
@@ -86,6 +88,8 @@ func usage() {
 
 Usage:
   oblivra-agent init       Write a commented sample config to the default path
+  oblivra-agent setup      Interactive first-run wizard (asks server URL + log paths,
+                           writes a tested config, locks the tamper fingerprint)
   oblivra-agent run        Start forwarding events to the platform
   oblivra-agent test       Parse a sample of inputs and print what would be sent (no shipping)
   oblivra-agent status     Show tail positions + queue depth
@@ -137,6 +141,8 @@ func runForward(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	configPath := fs.String("config", DefaultConfigPath(), "config file path")
 	pipeMode := fs.Bool("pipe", false, "ignore inputs in config and read stdin instead")
+	ackChange := fs.Bool("acknowledge-config-change", false,
+		"accept that agent.yml has changed since last run (re-baselines the tamper-evident fingerprint)")
 	_ = fs.Parse(args)
 
 	cfg, err := LoadConfig(*configPath)
@@ -146,6 +152,14 @@ func runForward(args []string) {
 	}
 	if *pipeMode {
 		cfg.Inputs = []Input{{Type: "stdin", Label: "pipe", HostID: cfg.Hostname}}
+	}
+
+	// Tamper tripwire — refuse to start if the resolved config has
+	// drifted from the previous run, unless explicitly acknowledged.
+	ack := *ackChange || os.Getenv("OBLIVRA_AGENT_ACKNOWLEDGE_CONFIG_CHANGE") == "1"
+	if err := VerifyConfigIntegrity(cfg, ack); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	posStore, err := NewPositionStore(cfg.StateDir)
@@ -244,6 +258,26 @@ func runForward(args []string) {
 	queue := make(chan string, 8192)
 	hiQueue := make(chan string, 1024)
 
+	// Last-gasp event: when the signal-context fires, push one final
+	// ed25519-signed "i'm being terminated" event into the priority
+	// queue so an attacker who SIGKILLs the agent can't avoid leaving
+	// a signed footprint in the audit chain at exit time. Best-effort
+	// — if both queues are full we drop, since shutdown is already
+	// happening for some reason.
+	go func() {
+		<-ctx.Done()
+		lastGaspMarker.Store(true)
+		ev := buildLastGaspEvent(cfg, signer)
+		select {
+		case hiQueue <- ev:
+		default:
+			select {
+			case queue <- ev:
+			default:
+			}
+		}
+	}()
+
 	var rules []LocalRule
 	if cfg.LocalRules {
 		rules = DefaultLocalRules()
@@ -309,6 +343,14 @@ func runForward(args []string) {
 				}
 			}
 		}()
+	}
+
+	// Local status HTTP endpoint — loopback-only by hard constraint.
+	// Lets `oblivra-agent status` query a running agent without ssh.
+	if status, err := startLocalStatus(ctx, cfg, signer, queue, hiQueue); err != nil {
+		log.Printf("local-status: %v", err)
+	} else if status != nil {
+		log.Printf("local-status listening on %s", status.srv.Addr)
 	}
 
 	// Forwarder goroutine.
