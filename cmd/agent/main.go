@@ -72,6 +72,8 @@ func main() {
 		runService(os.Args[2:])
 	case "encrypt-config":
 		runEncryptConfig(os.Args[2:])
+	case "password":
+		runPasswordCmd(os.Args[2:])
 	case "version", "-v", "--version":
 		fmt.Printf("oblivra-agent %s %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -697,6 +699,7 @@ func runEncryptConfig(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: oblivra-agent encrypt-config <plain.yml> <out.enc>")
 		os.Exit(2)
 	}
+	requireAdminPassword(defaultStateDir(), "seal a config file")
 	plain, err := os.ReadFile(args[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "read input:", err)
@@ -895,6 +898,7 @@ func runReload(_ []string) {
 		fmt.Fprintln(os.Stderr, "reload not supported on Windows; use service restart")
 		os.Exit(1)
 	}
+	requireAdminPassword(defaultStateDir(), "reload the agent")
 	// On Unix we look for the agent's PID file; absent that, tell the user
 	// to send SIGHUP themselves. Keeping this simple — if you have the PID,
 	// `kill -HUP` is the documented mechanism.

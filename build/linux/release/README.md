@@ -33,6 +33,44 @@ curl -s http://127.0.0.1:8080/healthz
 
 That's it. The web UI is at `http://<host>:8080/` once the service is up.
 
+### Custom install paths (Splunk-UF style)
+
+Every path is overridable by env var when you run `install.sh` so an
+operator can drop OBLIVRA wherever their layout requires:
+
+```bash
+sudo INSTALL_DIR=/opt/security/oblivra \
+     DATA_DIR=/srv/oblivra \
+     ETC_DIR=/etc/security/oblivra \
+     USER=secops \
+     GROUP=secops \
+     SERVICE_NAME=oblivra-prod \
+     ./install.sh
+```
+
+The systemd unit is generated from these values, so a custom prefix
+ends up wired correctly through `User=`, `WorkingDirectory=`,
+`EnvironmentFile=`, and `ReadWritePaths=`. Re-running with the same
+vars upgrades in place.
+
+### Agent admin password
+
+If you want Splunk-UF-style local lockdown on the agent
+(prevents silent re-runs of `setup` / `reload` / `encrypt-config`,
+gates the loopback `/status` endpoint), the setup wizard prompts for
+one. Or set / rotate later:
+
+```bash
+oblivra-agent password set
+oblivra-agent password test    # exit 0 = match
+oblivra-agent password clear   # remove (requires current password)
+```
+
+The hash is Argon2id (m=64MiB, t=3, p=4) stored in
+`<stateDir>/agent.password.json` mode 0600. Non-interactive flows
+read from `OBLIVRA_AGENT_ADMIN_PASSWORD` or
+`OBLIVRA_AGENT_ADMIN_PASSWORD_FILE`.
+
 ## Behind a VPN
 
 Set `OBLIVRA_ADDR=0.0.0.0:8080` in `/etc/oblivra/oblivra.env` so VPN

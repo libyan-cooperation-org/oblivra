@@ -41,6 +41,10 @@ func runSetup(args []string) {
 			fmt.Println("aborted.")
 			return
 		}
+		// If a previous setup locked an admin password, demand it
+		// before allowing reconfiguration. Stops a coworker who can
+		// ssh to the box from silently re-running setup.
+		requireAdminPassword(defaultStateDir(), "re-run setup")
 	}
 
 	in := bufio.NewReader(os.Stdin)
@@ -75,6 +79,21 @@ func runSetup(args []string) {
 	fmt.Println()
 	startBeginning := askYN("Backfill from day zero (read all rotated/gzipped logs on first run)", true)
 
+	// Splunk-UF-style admin password — gates sensitive subcommands and
+	// the loopback /status endpoint. Leaving it blank means everyone
+	// on the host can rerun setup / read agent state.
+	fmt.Println()
+	fmt.Println("Local admin password (gates `setup`, `reload`, `encrypt-config`,")
+	fmt.Println("and the loopback /status endpoint). Leave blank to skip.")
+	adminPassword := promptSecret(in, "Admin password (≥8 chars, blank to skip)")
+	if adminPassword != "" {
+		confirm := promptSecret(in, "Confirm password")
+		if confirm != adminPassword {
+			fmt.Fprintln(os.Stderr, "  passwords don't match — aborting.")
+			os.Exit(1)
+		}
+	}
+
 	cfg := buildSetupConfig(setupAnswers{
 		ConfigPath:    out,
 		ServerURL:     serverURL,
@@ -98,6 +117,19 @@ func runSetup(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("\n✓ wrote %s (mode 0600)\n", out)
+
+	// Persist the admin password (Argon2id hashed) into the state dir
+	// so the password gates work on the next run. We use the same
+	// state-dir as the position store / fingerprint file.
+	if adminPassword != "" {
+		// Best-effort discover stateDir — defaults to the YAML default.
+		stateDir := defaultStateDir()
+		if err := SetAdminPassword(stateDir, adminPassword); err != nil {
+			fmt.Fprintln(os.Stderr, "  warning: failed to write admin password hash:", err)
+		} else {
+			fmt.Printf("✓ admin password hashed (Argon2id) → %s\n", passwordPath(stateDir))
+		}
+	}
 	fmt.Println()
 	fmt.Printf("Next steps:\n")
 	fmt.Printf("  1. echo 'YOUR_TOKEN' | sudo tee %s && sudo chmod 0600 %s\n", tokenFile, tokenFile)
@@ -164,6 +196,23 @@ func askYN(label string, def bool) bool {
 
 func promptCSV(r *bufio.Reader, label, def string) string {
 	return prompt(r, label, def)
+}
+
+// promptSecret reads a line from stdin without echoing — best effort.
+// On a non-TTY (or on platforms where term.ReadPassword can't reach
+// the controlling terminal), we fall back to plain ReadString and
+// warn. The downstream Argon2id hash is what protects the secret on
+// disk; this is just to keep it off the local screen during setup.
+func promptSecret(r *bufio.Reader, label string) string {
+	fmt.Printf("%s: ", label)
+	if v, ok := readSecretNoEcho(); ok {
+		fmt.Println()
+		return v
+	}
+	// fallback (echoes — explain so the operator knows)
+	fmt.Print(" [echo not suppressed]: ")
+	line, _ := r.ReadString('\n')
+	return strings.TrimSpace(strings.TrimRight(line, "\r\n"))
 }
 
 func pickPaths(all []string, picks string) []string {

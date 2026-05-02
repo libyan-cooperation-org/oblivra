@@ -490,7 +490,19 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — Phases 59-60 batch (security tightening + elite agent):
+**Last Updated**: 2026-05-02 — Phase 61 (Splunk-UF parity: admin password + custom install paths):
+
+## Phase 61 — Splunk-UF parity
+* [x] **Admin password (Argon2id)** — `cmd/agent/password.go`. Stored as Argon2id hash (m=64MiB, t=3, p=4) at `<stateDir>/agent.password.json` mode 0600. Setup wizard prompts for it; gates `setup` rotation, `reload`, `encrypt-config`, and the loopback `/status` endpoint. Non-interactive sources: `OBLIVRA_AGENT_ADMIN_PASSWORD` env or `OBLIVRA_AGENT_ADMIN_PASSWORD_FILE`.
+* [x] **`oblivra-agent password {set|clear|test}`** — rotation / clearing / CI-friendly test subcommand. `set` rotates (requires current); `clear` removes (requires current); `test` reads from env/stdin and exits 0 on match.
+* [x] **Local status endpoint requires `X-Admin-Password` header** when a password is configured. Loopback bind + password-gated header = double-bottom defence.
+* [x] **No-echo password prompts** via `golang.org/x/term`. Falls back to plain stdin with explicit warning when not on a TTY.
+* [x] **Configurable install / data / config dirs** — `build/linux/release/install.sh` accepts `INSTALL_DIR`, `ETC_DIR`, `DATA_DIR`, `USER`, `GROUP`, `SERVICE_NAME`, `UNIT_PATH`, `ADD_SYMLINKS` env vars. systemd unit is generated from these so a custom prefix flows through `User=` / `WorkingDirectory=` / `EnvironmentFile=` / `ReadWritePaths=`. Re-running with the same vars upgrades in place. `uninstall.sh` honours the same vars.
+* [x] **Release README** documents both — Splunk-UF-style install variation example + agent password lifecycle.
+
+---
+
+**2026-05-02** — Phases 59-60 batch (security tightening + elite agent):
 
 ## Phase 59 — Single ingest surface + endpoint security audit
 * [x] **Removed third-party wire-compat ingest** — Splunk HEC (`/services/collector*`), OTLP/HTTP (`/v1/logs`), and Prometheus remote_write (`/api/v1/metrics/remote_write`) deleted along with their handlers, listeners, and dependencies. Single ingest surface = smaller attack boundary. Operators wanting metrics push them through the agent's REST + ed25519-signed path.

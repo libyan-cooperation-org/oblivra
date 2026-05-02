@@ -81,7 +81,32 @@ func startLocalStatus(ctx context.Context, cfg *Config, signer *Signer, queue, h
 	return s, nil
 }
 
-func (s *localStatusServer) handleStatus(w http.ResponseWriter, _ *http.Request) {
+// requireLocalAuth gates a status request when an admin password is
+// configured. The header `X-Admin-Password: <plaintext>` is the
+// canonical channel; the request is loopback-only by socket bind so
+// the credential never traverses an untrusted hop.
+func (s *localStatusServer) requireLocalAuth(w http.ResponseWriter, r *http.Request) bool {
+	if !HasAdminPassword(s.cfg.StateDir) {
+		return true
+	}
+	pw := r.Header.Get("X-Admin-Password")
+	if pw == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintln(w, `{"error":"X-Admin-Password header required"}`)
+		return false
+	}
+	if err := VerifyAdminPassword(s.cfg.StateDir, pw); err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintln(w, `{"error":"invalid admin password"}`)
+		return false
+	}
+	return true
+}
+
+func (s *localStatusServer) handleStatus(w http.ResponseWriter, r *http.Request) {
+	if !s.requireLocalAuth(w, r) {
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	files, bytesOnDisk := scanSpillDir(s.cfg.Buffer.Dir)
 	resp := map[string]any{
