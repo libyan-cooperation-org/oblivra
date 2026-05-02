@@ -84,6 +84,7 @@ func main() {
 		Categories:     stack.Categories,
 		Notifications:  stack.Notifications,
 		SavedSearches:  stack.SavedSearches,
+		Pipeline:       stack.Pipeline,
 		Bus:            stack.Bus,
 		Auth:   auth,
 		Assets: sub,

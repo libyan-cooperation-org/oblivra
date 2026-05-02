@@ -19,6 +19,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/kingknull/oblivra/internal/events"
+	"github.com/kingknull/oblivra/internal/ingest"
+	"github.com/kingknull/oblivra/internal/listeners"
 	"github.com/kingknull/oblivra/internal/parsers"
 	"github.com/kingknull/oblivra/internal/services"
 )
@@ -54,6 +56,7 @@ type Server struct {
 	categories     *services.CategoriesService
 	notifications  *services.NotificationService
 	savedSearches  *services.SavedSearchService
+	pipeline       *ingest.Pipeline
 	oidc           *OIDCHandler
 	bus    *events.Bus
 	auth   *AuthMiddleware
@@ -89,6 +92,7 @@ type Deps struct {
 	Categories     *services.CategoriesService
 	Notifications  *services.NotificationService
 	SavedSearches  *services.SavedSearchService
+	Pipeline       *ingest.Pipeline
 	OIDC           *OIDCHandler
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
@@ -125,6 +129,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		categories:     deps.Categories,
 		notifications:  deps.Notifications,
 		savedSearches:  deps.SavedSearches,
+		pipeline:       deps.Pipeline,
 		oidc:           deps.OIDC,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
@@ -326,6 +331,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /services/collector/event", s.hecHandler())
 	s.mux.HandleFunc("POST /services/collector", s.hecHandler())
 	s.mux.HandleFunc("POST /v1/logs", s.otlpLogsHandler())
+
+	// Prometheus remote_write — observability metrics ingest. Each
+	// sample becomes a metric: event in the audit chain, so dashboards
+	// and forensic timelines reference the same tamper-evident store.
+	if s.pipeline != nil {
+		s.mux.HandleFunc("POST /api/v1/metrics/remote_write",
+			listeners.PromRemoteWriteHandler(s.log, s.pipeline, "default"))
+	}
 
 	// Phase 46 — Compliance attestation feed (read-only).
 	if s.audit != nil {

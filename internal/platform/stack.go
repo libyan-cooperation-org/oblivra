@@ -60,7 +60,8 @@ type Stack struct {
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
 
-	pipeline *ingest.Pipeline
+	Pipeline *ingest.Pipeline
+	pipeline *ingest.Pipeline // alias kept for legacy callers
 	hot      *hot.Store
 	wal      *wal.WAL
 	search   *search.Index
@@ -232,6 +233,7 @@ func New(opts Options) (*Stack, error) {
 		Notifications:  notificationSvc,
 		SavedSearches:  savedSearchSvc,
 		Bus:            bus,
+		Pipeline: pipeline,
 		pipeline: pipeline,
 		hot:      store,
 		wal:      w,
