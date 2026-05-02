@@ -61,8 +61,8 @@ type TLSOpts struct {
 }
 
 type Input struct {
-	Type        string            `yaml:"type"`        // "file" | "stdin" | "winlog" | "syslog-udp"
-	Path        string            `yaml:"path"`        // file path or glob
+	Type        string            `yaml:"type"`        // "file" | "stdin" | "winlog" | "syslog-udp" | "journald"
+	Path        string            `yaml:"path"`        // file path/glob (file), listen addr (syslog-udp), cursor file (journald)
 	Label       string            `yaml:"label"`       // e.g. "auth.log"
 	SourceType  string            `yaml:"sourceType"`  // freeform: "linux:auth", "iis:access"
 	HostID      string            `yaml:"hostId"`      // override per-input
@@ -73,6 +73,14 @@ type Input struct {
 	StartFrom   string            `yaml:"startFrom"`   // "tail" (default) | "beginning"
 	// winlog-specific:
 	Channel string `yaml:"channel"` // e.g. "Security", "System"
+
+	// journald-specific (Linux only). All optional — `type: journald`
+	// alone tails the entire journal from "now" with a cursor checkpoint
+	// at <stateDir>/journald.cursor.
+	JournaldUnits     []string `yaml:"units"`     // map → journalctl --unit
+	JournaldMatches   []string `yaml:"matches"`   // raw `_FIELD=value` matches passed verbatim
+	JournaldPriority  string   `yaml:"priority"`  // emerg|alert|crit|err|warning|notice|info|debug
+	JournaldSinceBoot bool     `yaml:"sinceBoot"` // --boot
 
 	// Extract is a list of named regex patterns. The first regex that
 	// matches a line contributes its named-group captures to the
@@ -246,6 +254,15 @@ inputs:
   # stdin — handy for "tail -F | oblivra-agent run --pipe"
   # - type: stdin
   #   sourceType: "manual:stdin"
+
+  # systemd-journal (Linux only). Tails journalctl --follow --output=json
+  # in a subprocess; cursor is checkpointed to <stateDir>/journald.cursor
+  # so a restart resumes exactly where the previous run left off.
+  # - type: journald
+  #   sourceType: "linux:journal"
+  #   units: ["sshd.service", "nginx.service"]   # optional --unit filter
+  #   priority: "warning"                          # optional --priority
+  #   sinceBoot: false                             # true = --boot
 `, hostname, defaultStateDir())
 }
 
@@ -345,8 +362,12 @@ func (c *Config) validate() error {
 			if in.Path == "" {
 				return fmt.Errorf("inputs[%d]: syslog-udp input needs path (e.g. ':1515')", i)
 			}
+		case "journald":
+			if runtime.GOOS != "linux" {
+				return fmt.Errorf("inputs[%d]: journald requires Linux", i)
+			}
 		default:
-			return fmt.Errorf("inputs[%d]: unknown type %q (file|stdin|winlog|syslog-udp)", i, in.Type)
+			return fmt.Errorf("inputs[%d]: unknown type %q (file|stdin|winlog|syslog-udp|journald)", i, in.Type)
 		}
 	}
 	return nil

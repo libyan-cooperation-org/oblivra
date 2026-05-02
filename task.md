@@ -490,7 +490,14 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — fifth round, DetectFlow / Kafka integration:
+**Last Updated**: 2026-05-02 — sixth round, Sigma loader fix + journald input:
+- Bug fix: the Phase 44 counter-forensic Sigma rules were silently failing to load. The loader only accepted `condition: selection`, but four of seven counter-forensic rules use standard Sigma syntax `1 of selection_*` / `1 of them`. Numeric values (`EventID: [1102, 104]`) were silently dropped because the flatten code only handled string values. Loader now supports all three condition shapes plus int/int64/float64/bool selection values. Verified: 9 sigma-source rules now load (7 counter-forensic + 2 sample), up from 3 before. 4 new tests cover `1 of pattern`, `1 of them`, numeric values, and the still-unsupported AND/all-of-them cases
+- New input type: `journald` (Linux only). Tails `journalctl --follow --output=json` in a subprocess and synthesises an RFC-3164-shape line per record so the existing server-side syslog parser handles host/unit/PID extraction natively. Cursor is checkpointed atomically every 100 records to `<stateDir>/journald.cursor` for crash-safe resume. Optional config: `units`, `matches`, `priority`, `sinceBoot`. 5 unit tests cover sshd record parsing, missing-MESSAGE drop, fallback to SYSLOG_IDENTIFIER, and the strip-flag helper
+- The `winlog` `[d]` entry remains deferred — winlog still needs a Windows-only EventLog API binding; journald covers the Linux side
+
+---
+
+**2026-05-02** — fifth round, DetectFlow / Kafka integration:
 - New listener `internal/listeners/kafka.go` — opt-in via `OBLIVRA_KAFKA_BROKERS` + `OBLIVRA_KAFKA_TOPICS`. One consumer goroutine per topic; auto-commits offsets after the WAL write fsyncs (at-least-once)
 - Auth modes: PLAINTEXT, SSL/mTLS, SASL/PLAIN, SASL/SCRAM-SHA-256, SASL/SCRAM-SHA-512
 - Kafka record headers surface as event fields prefixed `kafka:` — DetectFlow's `rule.id` / `rule.severity` / `rule.tags` become first-class OQL targets

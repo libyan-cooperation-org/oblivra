@@ -3,13 +3,19 @@
 //
 // Supported subset:
 //   - top-level: title, id, description, level, status, tags, falsepositives
-//   - detection: a single named selection map + condition: selection
-//   - selection values: string, []string, contains/endswith/startswith modifiers
-//   - logsource.product / logsource.category as event-type hints
+//   - detection: any number of named selection-style blocks (selection,
+//     selection_*, anything that resolves to a map of field → values)
+//   - condition: "selection" (single block), "1 of selection_*" (glob over
+//     blocks whose name starts with selection_), or "1 of them" (any
+//     block). All three are unioned into the rule's AnyContain set since
+//     OBLIVRA's matcher is substring-based.
+//   - selection values: string, number, bool; flat or list. Field
+//     modifiers (contains/startswith/endswith) collapse to substring match.
+//   - logsource.product / logsource.category as event-type hints.
 //
-// Anything more elaborate (OR/AND of multiple selections, near-by, count-by,
-// timeframe modifiers, regex modifiers) is rejected with a clear error so the
-// loader never silently mis-evaluates a rule.
+// Anything more elaborate (AND of selections, count-by, near-by, regex
+// modifiers, etc.) is rejected with a clear error so the loader never
+// silently mis-evaluates a rule.
 package sigma
 
 import (
@@ -17,6 +23,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -97,19 +105,34 @@ func Parse(raw []byte, originName string) (services.Rule, error) {
 	}
 
 	cond, _ := doc.Detection["condition"].(string)
-	if cond == "" || strings.ContainsAny(cond, " ") && cond != "selection" {
-		// Only "selection" (single-block) is supported in this loader.
-		return services.Rule{}, fmt.Errorf("unsupported condition %q (only 'selection' is implemented)", cond)
+	cond = strings.TrimSpace(cond)
+	if cond == "" {
+		return services.Rule{}, errors.New("missing condition")
 	}
 
-	sel, ok := doc.Detection["selection"].(map[string]interface{})
-	if !ok {
-		return services.Rule{}, errors.New("missing or non-map selection")
-	}
-
-	any, fields, err := flattenSelection(sel)
+	blocks, err := selectBlocks(doc.Detection, cond)
 	if err != nil {
 		return services.Rule{}, err
+	}
+
+	var allAny []string
+	fieldSet := map[string]struct{}{}
+	var fields []string
+	for _, blk := range blocks {
+		any, blkFields, err := flattenSelection(blk)
+		if err != nil {
+			return services.Rule{}, err
+		}
+		allAny = append(allAny, any...)
+		for _, f := range blkFields {
+			if _, dup := fieldSet[f]; !dup {
+				fieldSet[f] = struct{}{}
+				fields = append(fields, f)
+			}
+		}
+	}
+	if len(allAny) == 0 {
+		return services.Rule{}, errors.New("empty selection (no matchable values)")
 	}
 
 	return services.Rule{
@@ -117,19 +140,105 @@ func Parse(raw []byte, originName string) (services.Rule, error) {
 		Name:       doc.Title,
 		Severity:   levelToSeverity(doc.Level),
 		Fields:     fields,
-		AnyContain: any,
+		AnyContain: allAny,
 		MITRE:      mitreFromTags(doc.Tags),
 		Source:     "sigma",
 	}, nil
 }
 
+// selectBlocks resolves a Sigma `condition` expression into the set of
+// detection blocks whose values should be unioned. We support three
+// shapes that together cover the bulk of community rules:
+//
+//   - "selection"        single block named `selection`
+//   - "1 of <pattern>"   any block whose name matches the glob pattern
+//                        (e.g. "1 of selection_*" expands to selection_*)
+//   - "1 of them"        union of every non-condition block
+//
+// More complex AND/OR/NOT expressions deliberately error out — a rule
+// that requires "selection AND not exclude" can't be honestly evaluated
+// by our substring matcher, so we surface the limitation rather than
+// pretending to support it.
+func selectBlocks(detection map[string]interface{}, cond string) ([]map[string]interface{}, error) {
+	if cond == "selection" {
+		blk, ok := detection["selection"].(map[string]interface{})
+		if !ok {
+			return nil, errors.New("missing or non-map selection")
+		}
+		return []map[string]interface{}{blk}, nil
+	}
+
+	// "1 of them" — union every non-condition block.
+	if cond == "1 of them" {
+		var out []map[string]interface{}
+		for k, v := range detection {
+			if k == "condition" {
+				continue
+			}
+			if blk, ok := v.(map[string]interface{}); ok {
+				out = append(out, blk)
+			}
+		}
+		if len(out) == 0 {
+			return nil, errors.New("`1 of them` but no detection blocks defined")
+		}
+		return out, nil
+	}
+
+	// "1 of <pattern>" — glob-match block names against pattern.
+	if strings.HasPrefix(cond, "1 of ") {
+		pattern := strings.TrimPrefix(cond, "1 of ")
+		re, err := globToRegex(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("condition pattern %q: %w", pattern, err)
+		}
+		var out []map[string]interface{}
+		for k, v := range detection {
+			if k == "condition" || !re.MatchString(k) {
+				continue
+			}
+			if blk, ok := v.(map[string]interface{}); ok {
+				out = append(out, blk)
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("`%s` matched no blocks", cond)
+		}
+		return out, nil
+	}
+
+	return nil, fmt.Errorf("unsupported condition %q (supported: 'selection', '1 of <pattern>', '1 of them')", cond)
+}
+
+// globToRegex converts a Sigma block-name glob (with `*` wildcard) to an
+// anchored regex. We escape every other regex metacharacter so a pattern
+// like `selection.with-dot_*` doesn't accidentally match more than the
+// author intended.
+func globToRegex(pattern string) (*regexp.Regexp, error) {
+	var b strings.Builder
+	b.WriteString("^")
+	for _, r := range pattern {
+		switch r {
+		case '*':
+			b.WriteString(".*")
+		case '.', '+', '?', '(', ')', '[', ']', '{', '}', '|', '\\', '$', '^':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteString("$")
+	return regexp.Compile(b.String())
+}
+
 // flattenSelection turns a Sigma selection map into a flat AnyContain set.
 // Modifiers (contains, startswith, endswith) all collapse to substring match,
-// which is what AnyContain already does.
+// which is what AnyContain already does. Numeric and boolean values are
+// stringified so e.g. `EventID: [1102, 104]` produces ["1102", "104"].
 func flattenSelection(sel map[string]interface{}) (anyContain, fields []string, err error) {
 	seenFields := map[string]struct{}{}
 	for key, val := range sel {
-		// "FieldName|contains" → field=FieldName
 		field := key
 		if idx := strings.IndexByte(key, '|'); idx >= 0 {
 			field = key[:idx]
@@ -143,10 +252,46 @@ func flattenSelection(sel map[string]interface{}) (anyContain, fields []string, 
 		switch v := val.(type) {
 		case string:
 			anyContain = append(anyContain, v)
+		case int:
+			anyContain = append(anyContain, strconv.Itoa(v))
+		case int64:
+			anyContain = append(anyContain, strconv.FormatInt(v, 10))
+		case float64:
+			// YAML numbers can land as float64 — emit as int form when
+			// it has no fractional part (EventID 1102 should stringify
+			// to "1102", not "1102.000000").
+			if v == float64(int64(v)) {
+				anyContain = append(anyContain, strconv.FormatInt(int64(v), 10))
+			} else {
+				anyContain = append(anyContain, strconv.FormatFloat(v, 'g', -1, 64))
+			}
+		case bool:
+			if v {
+				anyContain = append(anyContain, "true")
+			} else {
+				anyContain = append(anyContain, "false")
+			}
 		case []interface{}:
 			for _, item := range v {
-				if s, ok := item.(string); ok {
+				switch s := item.(type) {
+				case string:
 					anyContain = append(anyContain, s)
+				case int:
+					anyContain = append(anyContain, strconv.Itoa(s))
+				case int64:
+					anyContain = append(anyContain, strconv.FormatInt(s, 10))
+				case float64:
+					if s == float64(int64(s)) {
+						anyContain = append(anyContain, strconv.FormatInt(int64(s), 10))
+					} else {
+						anyContain = append(anyContain, strconv.FormatFloat(s, 'g', -1, 64))
+					}
+				case bool:
+					if s {
+						anyContain = append(anyContain, "true")
+					} else {
+						anyContain = append(anyContain, "false")
+					}
 				}
 			}
 		case nil:

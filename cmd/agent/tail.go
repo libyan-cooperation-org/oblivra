@@ -25,6 +25,7 @@ type Tailer struct {
 	hostname string
 	tenant   string
 	tags     []string
+	stateDir string
 	pos      *PositionStore
 	queue    chan<- string
 	hiQueue  chan<- string // optional priority queue for high-severity events
@@ -54,7 +55,8 @@ type TailerDeps struct {
 func NewTailer(c *Config, in Input, deps TailerDeps, p *PositionStore) (*Tailer, error) {
 	t := &Tailer{
 		in: in, hostname: c.Hostname, tenant: c.Tenant, tags: c.Tags,
-		pos: p, queue: deps.Queue, hiQueue: deps.HiQueue,
+		stateDir: c.StateDir,
+		pos:      p, queue: deps.Queue, hiQueue: deps.HiQueue,
 		signer: deps.Signer, rules: deps.Rules,
 	}
 	if in.Multiline != nil {
@@ -92,6 +94,8 @@ func (t *Tailer) Run(ctx context.Context) error {
 		return t.runFile(ctx)
 	case "stdin":
 		return t.runStdin(ctx)
+	case "journald":
+		return t.runJournald(ctx)
 	default:
 		return errors.New("unsupported input type: " + t.in.Type)
 	}
