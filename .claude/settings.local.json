@@ -50,7 +50,18 @@
       "Bash(build/bin/oblivra-cli.exe)",
       "Bash(build/bin/oblivra-verify.exe)",
       "Bash(tar -czf oblivra-server-0.1.0-beta1-linux-amd64.tar.gz oblivra-server-0.1.0-beta1-linux-amd64/)",
-      "Bash(tar -tzf oblivra-server-0.1.0-beta1-linux-amd64.tar.gz)"
+      "Bash(tar -tzf oblivra-server-0.1.0-beta1-linux-amd64.tar.gz)",
+      "Bash(grep -n \"func scanSpill\\\\|func enforceBufferCap\\\\|spill\\\\\\\\.Read\" cmd/agent/main.go)",
+      "Bash(go run *)",
+      "Bash(/tmp/oblivra-cli.exe sigma *)",
+      "Bash(bash scripts/run-soak.sh 200 10s \"smoke test from dev box\")",
+      "Bash(/tmp/oblivra-agent.exe password *)",
+      "Bash(mktemp -d)",
+      "Bash(OBLIVRA_AGENT_ADMIN_PASSWORD=\"testpw1234\" /tmp/oblivra-agent.exe password test)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(go list *)",
+      "Read(//c/Users/Maverick/go/pkg/mod/github.com/digitorus/timestamp@v0.0.0-20250524132541-c45532741eea/**)",
+      "Read(//c/Users/Maverick/**)"
     ]
   }
 }
