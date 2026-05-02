@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -475,11 +476,19 @@ func (s *Server) liveTail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "event bus not available")
 		return
 	}
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// Allow browser clients on different origins (dev preview at :5173, etc.).
-		// Same-origin will still be the default in production.
-		InsecureSkipVerify: true, //nolint:staticcheck // dev convenience; lock down in prod
-	})
+	// Origin allow-list: same-origin always works; OBLIVRA_WS_ORIGINS is a
+	// comma-separated list of additional patterns (e.g. "localhost:5173"
+	// for the Vite dev server). Without that env, only same-origin
+	// requests are accepted — closes a cross-origin WebSocket CSRF surface.
+	opts := &websocket.AcceptOptions{}
+	if extra := os.Getenv("OBLIVRA_WS_ORIGINS"); extra != "" {
+		for _, p := range strings.Split(extra, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				opts.OriginPatterns = append(opts.OriginPatterns, p)
+			}
+		}
+	}
+	conn, err := websocket.Accept(w, r, opts)
 	if err != nil {
 		s.log.Warn("ws accept", "err", err)
 		return

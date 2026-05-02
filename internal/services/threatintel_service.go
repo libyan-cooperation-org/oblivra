@@ -40,16 +40,7 @@ type ThreatIntelService struct {
 }
 
 func NewThreatIntelService(log *slog.Logger) *ThreatIntelService {
-	t := &ThreatIntelService{log: log, by: map[string]Indicator{}}
-	// Seed a handful of well-known testing IOCs so the UI is never empty.
-	for _, ind := range []Indicator{
-		{Value: "198.51.100.7", Type: IndicatorIP, Source: "rfc5737-test", Severity: AlertSeverityLow},
-		{Value: "malicious.example.com", Type: IndicatorDomain, Source: "demo", Severity: AlertSeverityMedium},
-		{Value: "44d88612fea8a8f36de82e1278abb02f", Type: IndicatorHash, Source: "eicar", Severity: AlertSeverityHigh, Tags: []string{"eicar"}},
-	} {
-		t.Add(ind)
-	}
-	return t
+	return &ThreatIntelService{log: log, by: map[string]Indicator{}}
 }
 
 func (t *ThreatIntelService) ServiceName() string { return "ThreatIntelService" }

@@ -386,16 +386,6 @@ func runBatcher(
 	}
 }
 
-// (spillToDisk replaced by SpillEncryption.WriteSpill — kept here as a
-// no-op stub so older imports compile if anyone re-introduces a caller.)
-//
-//nolint:unused
-func spillToDisk(cfg *Config, items []string) {
-	if cfg == nil || items == nil {
-		return
-	}
-}
-
 func enforceBufferCap(cfg *Config) {
 	entries, err := os.ReadDir(cfg.Buffer.Dir)
 	if err != nil {

@@ -369,10 +369,5 @@ func builtinRules() []Rule {
 			[]string{"T1098"}, []string{"AttachUserPolicy", "PutUserPolicy", "CreateAccessKey"}),
 		mk("builtin-azure-impossible-travel", "Azure impossible travel", AlertSeverityHigh,
 			[]string{"T1078.004"}, []string{"signInLogs anomaly impossibleTravel"}),
-
-		// Threat-intel cross-check (catches obvious indicator strings; the
-		// async fan-out also handles the structured matcher).
-		mk("builtin-ioc-match", "Threat-intel indicator matched in event", AlertSeverityHigh,
-			[]string{"T1071"}, []string{"198.51.100.7", "malicious.example.com"}),
 	}
 }
