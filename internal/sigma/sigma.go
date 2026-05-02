@@ -110,29 +110,25 @@ func Parse(raw []byte, originName string) (services.Rule, error) {
 		return services.Rule{}, errors.New("missing condition")
 	}
 
-	blocks, err := selectBlocks(doc.Detection, cond)
+	pos, neg, err := resolveCondition(doc.Detection, cond)
 	if err != nil {
 		return services.Rule{}, err
 	}
 
-	var allAny []string
-	fieldSet := map[string]struct{}{}
-	var fields []string
-	for _, blk := range blocks {
-		any, blkFields, err := flattenSelection(blk)
-		if err != nil {
-			return services.Rule{}, err
-		}
-		allAny = append(allAny, any...)
-		for _, f := range blkFields {
-			if _, dup := fieldSet[f]; !dup {
-				fieldSet[f] = struct{}{}
-				fields = append(fields, f)
-			}
-		}
+	allAny, fields, err := unionSelections(pos)
+	if err != nil {
+		return services.Rule{}, err
 	}
 	if len(allAny) == 0 {
 		return services.Rule{}, errors.New("empty selection (no matchable values)")
+	}
+
+	var allNot []string
+	if len(neg) > 0 {
+		notValues, _, err := unionSelections(neg)
+		if err == nil {
+			allNot = notValues
+		}
 	}
 
 	return services.Rule{
@@ -141,10 +137,105 @@ func Parse(raw []byte, originName string) (services.Rule, error) {
 		Severity:   levelToSeverity(doc.Level),
 		Fields:     fields,
 		AnyContain: allAny,
+		NotContain: allNot,
 		MITRE:      mitreFromTags(doc.Tags),
 		Source:     "sigma",
 	}, nil
 }
+
+// unionSelections flattens a list of detection blocks into a single
+// AnyContain set + a deduped Fields list. Used for both the positive
+// and negative sides of a "selection and not exclude" condition.
+func unionSelections(blocks []map[string]interface{}) (anyContain, fields []string, err error) {
+	fieldSet := map[string]struct{}{}
+	for _, blk := range blocks {
+		any, blkFields, err := flattenSelection(blk)
+		if err != nil {
+			return nil, nil, err
+		}
+		anyContain = append(anyContain, any...)
+		for _, f := range blkFields {
+			if _, dup := fieldSet[f]; !dup {
+				fieldSet[f] = struct{}{}
+				fields = append(fields, f)
+			}
+		}
+	}
+	return anyContain, fields, nil
+}
+
+// resolveCondition parses the Sigma `condition` expression into positive
+// and negative block sets. Supported shapes:
+//
+//   - <term>                            positive only
+//   - <term> and not <term>             positive + negative
+//   - <term> and <term>                 → positive (BUT we reject this:
+//                                          our substring matcher can't
+//                                          honestly evaluate AND between
+//                                          two arbitrary blocks)
+//
+// where <term> is one of:
+//   - selection
+//   - <name>            (e.g. "exclude", "selection_a")
+//   - 1 of them
+//   - 1 of <pattern>
+//
+// Anything more elaborate (`or`, `count(...) > N`, `near`, parens) is
+// rejected with a clear error so we don't pretend to support it.
+func resolveCondition(detection map[string]interface{}, cond string) (positive, negative []map[string]interface{}, err error) {
+	cond = strings.TrimSpace(cond)
+	// Detect "<lhs> and not <rhs>" first since it's the common shape.
+	if idx := strings.Index(cond, " and not "); idx > 0 {
+		lhs := strings.TrimSpace(cond[:idx])
+		rhs := strings.TrimSpace(cond[idx+len(" and not "):])
+		pos, err := termBlocks(detection, lhs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("lhs %q: %w", lhs, err)
+		}
+		neg, err := termBlocks(detection, rhs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("not-rhs %q: %w", rhs, err)
+		}
+		return pos, neg, nil
+	}
+	// Reject `and` without `not` — substring matcher can't AND two
+	// independent blocks honestly.
+	if strings.Contains(cond, " and ") {
+		return nil, nil, fmt.Errorf("unsupported condition %q (AND between blocks needs the matcher to evaluate both; use `selection and not exclude` instead)", cond)
+	}
+	// Reject `or` between blocks — `1 of them` covers the common case.
+	if strings.Contains(cond, " or ") {
+		return nil, nil, fmt.Errorf("unsupported condition %q (use `1 of them` or `1 of <pattern>` for OR)", cond)
+	}
+	pos, err := termBlocks(detection, cond)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pos, nil, nil
+}
+
+// termBlocks resolves a single term (a leaf in the condition AST).
+func termBlocks(detection map[string]interface{}, term string) ([]map[string]interface{}, error) {
+	term = strings.TrimSpace(term)
+	if term == "" {
+		return nil, errors.New("empty term")
+	}
+	if blocks, err := selectBlocks(detection, term); err == nil {
+		return blocks, nil
+	} else if !errors.Is(err, errLeafNotMatched) {
+		return nil, err
+	}
+	// Plain block name, e.g. "exclude" or "selection_a".
+	if blk, ok := detection[term].(map[string]interface{}); ok {
+		return []map[string]interface{}{blk}, nil
+	}
+	return nil, fmt.Errorf("term %q: no such block", term)
+}
+
+// errLeafNotMatched is returned by selectBlocks when the term isn't one
+// it recognises — distinguishes "syntactically wrong" from "this is a
+// plain block name, try the lookup".
+var errLeafNotMatched = errors.New("not a recognised term")
 
 // selectBlocks resolves a Sigma `condition` expression into the set of
 // detection blocks whose values should be unioned. We support three
@@ -207,7 +298,9 @@ func selectBlocks(detection map[string]interface{}, cond string) ([]map[string]i
 		return out, nil
 	}
 
-	return nil, fmt.Errorf("unsupported condition %q (supported: 'selection', '1 of <pattern>', '1 of them')", cond)
+	// Caller (termBlocks) wants to know that we don't recognise this
+	// shape so it can try a plain-block lookup. This isn't a hard error.
+	return nil, errLeafNotMatched
 }
 
 // globToRegex converts a Sigma block-name glob (with `*` wildcard) to an

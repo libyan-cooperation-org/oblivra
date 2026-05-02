@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -14,6 +15,19 @@ import (
 // every contains-token in any of the AnyOf groups must appear in at least one
 // of the configured fields. This is enough for ~80% of common detections and
 // keeps the engine boringly fast.
+// RuleType picks the matcher used for a Rule. "match" is the default
+// substring evaluator (AnyContain / AllContain). The other three are
+// stateful — they consume a stream of matching events and only fire
+// when the configured shape is observed.
+type RuleType string
+
+const (
+	RuleTypeMatch     RuleType = ""          // single-event substring match (default)
+	RuleTypeThreshold RuleType = "threshold" // fire when count(matches) >= Threshold within Window
+	RuleTypeFrequency RuleType = "frequency" // fire when count(distinct GroupBy values) >= Threshold within Window
+	RuleTypeSequence  RuleType = "sequence"  // fire when Sequence[] of substrings observed in order within Window
+)
+
 type Rule struct {
 	ID         string        `json:"id"`
 	Name       string        `json:"name"`
@@ -21,10 +35,25 @@ type Rule struct {
 	Fields     []string      `json:"fields"`               // event fields to match against
 	AnyContain []string      `json:"anyContain,omitempty"` // OR — match if any token appears
 	AllContain []string      `json:"allContain,omitempty"` // AND — every token must appear
+	NotContain []string      `json:"notContain,omitempty"` // negative gate — drop event if any token appears
 	EventType  string        `json:"eventType,omitempty"`  // optional eventType filter
 	MITRE      []string      `json:"mitre,omitempty"`
 	Source     string        `json:"source,omitempty"`     // "builtin" | "user" | "sigma"
 	Disabled   bool          `json:"disabled,omitempty"`
+
+	// Stateful fields (Type != "match"). All ignored when Type is empty.
+	Type      RuleType      `json:"type,omitempty"`
+	Threshold int           `json:"threshold,omitempty"`
+	Window    time.Duration `json:"window,omitempty"`
+	// GroupBy is the bucket dimension — events with the same value are
+	// counted in the same window. Defaults to "hostId" so threshold/
+	// frequency rules are scoped per host.
+	GroupBy string `json:"groupBy,omitempty"`
+	// DistinctOf is the cardinality field for frequency rules — counts
+	// the number of unique values within the bucket window. Defaults
+	// to "srcIP". Ignored for threshold and sequence rules.
+	DistinctOf string   `json:"distinctOf,omitempty"`
+	Sequence   []string `json:"sequence,omitempty"` // ordered substring list for RuleTypeSequence
 }
 
 // SigmaLoader is the dependency injection seam for loading external Sigma
@@ -45,6 +74,22 @@ type RulesService struct {
 	lastLoad  time.Time
 	sigmaDir  string
 	sigmaLoad SigmaLoader
+
+	// Stateful evaluators. One bucket per (ruleID, groupKey), holding a
+	// rolling window of timestamps + (for sequence rules) the next-needed
+	// step index. We GC stale buckets every Evaluate call so the maps
+	// can't grow unbounded on transient host names.
+	stateMu sync.Mutex
+	state   map[string]map[string]*ruleBucket // ruleID → groupKey → bucket
+}
+
+// ruleBucket tracks one (rule, groupKey) pair's recent activity.
+type ruleBucket struct {
+	hits        []time.Time         // for threshold
+	distinctVal map[string]time.Time // for frequency: distinct value → most-recent ts
+	seqIdx      int                  // for sequence: which step we're waiting on next
+	seqStarted  time.Time            // when the current sequence run began
+	lastFired   time.Time            // re-arm gate so we don't fire every event
 }
 
 // RuleFeedback tracks analyst-supplied effectiveness signal. Analysts
@@ -78,6 +123,7 @@ func NewRulesService(log *slog.Logger, alerts *AlertService) *RulesService {
 		heatmap:  map[string]int{},
 		feedback: map[string]*RuleFeedback{},
 		firesDay: map[string]map[string]int{},
+		state:    map[string]map[string]*ruleBucket{},
 	}
 	r.rules = builtinRules()
 	r.lastLoad = time.Now().UTC()
@@ -109,21 +155,22 @@ func (r *RulesService) Evaluate(ctx context.Context, ev events.Event) {
 		if rule.EventType != "" && rule.EventType != ev.EventType {
 			continue
 		}
+		// Stateful evaluators get their own dispatch — they observe
+		// every matching event but only fire when the configured shape
+		// is satisfied (N hits in window / distinct count / sequence).
+		if rule.Type != RuleTypeMatch {
+			if r.evaluateStateful(ctx, rule, ev) {
+				r.recordFire(rule)
+				alert := AlertFromEvent(ev, rule.ID, rule.Name, rule.Severity, rule.MITRE)
+				alert.Message = stateMessageFor(rule, alert.Message)
+				r.alerts.Raise(ctx, alert)
+			}
+			continue
+		}
 		if !matchRule(rule, ev) {
 			continue
 		}
-		r.mu.Lock()
-		r.matched[rule.ID]++
-		for _, m := range rule.MITRE {
-			r.heatmap[m]++
-		}
-		// Per-day fire tracking — used by the effectiveness scorecard.
-		day := time.Now().UTC().Format("2006-01-02")
-		if r.firesDay[rule.ID] == nil {
-			r.firesDay[rule.ID] = map[string]int{}
-		}
-		r.firesDay[rule.ID][day]++
-		r.mu.Unlock()
+		r.recordFire(rule)
 		alert := AlertFromEvent(ev, rule.ID, rule.Name, rule.Severity, rule.MITRE)
 		r.alerts.Raise(ctx, alert)
 	}
@@ -258,7 +305,199 @@ func matchRule(rule Rule, ev events.Event) bool {
 			return false
 		}
 	}
+	// Negative gate — drop events that contain any "not" token. Lets
+	// rule authors carve out known-good patterns (e.g. "fail" but not
+	// "test failed during deploy") without writing a separate Sigma file.
+	if len(rule.NotContain) > 0 {
+		for _, t := range rule.NotContain {
+			if strings.Contains(target, strings.ToLower(t)) {
+				return false
+			}
+		}
+	}
 	return true
+}
+
+// recordFire updates per-rule + per-MITRE counters and the per-day
+// fires map. Called from both the substring evaluator and the stateful
+// evaluator on each fire.
+func (r *RulesService) recordFire(rule Rule) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.matched[rule.ID]++
+	for _, m := range rule.MITRE {
+		r.heatmap[m]++
+	}
+	day := time.Now().UTC().Format("2006-01-02")
+	if r.firesDay[rule.ID] == nil {
+		r.firesDay[rule.ID] = map[string]int{}
+	}
+	r.firesDay[rule.ID][day]++
+}
+
+// evaluateStateful runs the threshold/frequency/sequence evaluators.
+// The substring matcher (matchRule) gates whether the event is even a
+// candidate; only candidates feed the bucket. Returns true if the
+// configured shape was just satisfied — meaning the caller should
+// raise an alert.
+//
+// Re-arm: after a fire, the bucket goes silent until the window
+// elapses. Otherwise a "5 fails in 60s" rule would scream on every
+// subsequent fail until the burst ends.
+func (r *RulesService) evaluateStateful(_ context.Context, rule Rule, ev events.Event) bool {
+	if !matchRule(rule, ev) {
+		return false
+	}
+	window := rule.Window
+	if window <= 0 {
+		window = 60 * time.Second
+	}
+	threshold := rule.Threshold
+	if threshold <= 0 {
+		threshold = 5
+	}
+	groupBy := rule.GroupBy
+	if groupBy == "" {
+		groupBy = "hostId"
+	}
+	groupKey := groupKeyFor(ev, groupBy)
+	now := time.Now().UTC()
+
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	if r.state[rule.ID] == nil {
+		r.state[rule.ID] = map[string]*ruleBucket{}
+	}
+	bkt := r.state[rule.ID][groupKey]
+	if bkt == nil {
+		bkt = &ruleBucket{distinctVal: map[string]time.Time{}}
+		r.state[rule.ID][groupKey] = bkt
+	}
+
+	// Re-arm gate: if we fired recently, stay silent until the window
+	// passes. This deliberately suppresses runs of identical alerts.
+	if !bkt.lastFired.IsZero() && now.Sub(bkt.lastFired) < window {
+		// Still update bucket so a new burst after the gate fires.
+		switch rule.Type {
+		case RuleTypeThreshold:
+			bkt.hits = appendWithin(bkt.hits, now, window)
+		case RuleTypeFrequency:
+			bkt.distinctVal[distinctValueFor(ev, rule)] = now
+		}
+		return false
+	}
+
+	switch rule.Type {
+	case RuleTypeThreshold:
+		bkt.hits = appendWithin(bkt.hits, now, window)
+		if len(bkt.hits) >= threshold {
+			bkt.lastFired = now
+			bkt.hits = bkt.hits[:0]
+			return true
+		}
+	case RuleTypeFrequency:
+		val := distinctValueFor(ev, rule)
+		if val == "" {
+			return false
+		}
+		bkt.distinctVal[val] = now
+		// Prune stale.
+		for k, ts := range bkt.distinctVal {
+			if now.Sub(ts) > window {
+				delete(bkt.distinctVal, k)
+			}
+		}
+		if len(bkt.distinctVal) >= threshold {
+			bkt.lastFired = now
+			bkt.distinctVal = map[string]time.Time{}
+			return true
+		}
+	case RuleTypeSequence:
+		if len(rule.Sequence) == 0 {
+			return false
+		}
+		target := strings.ToLower(buildTarget(rule.Fields, ev))
+		needle := strings.ToLower(rule.Sequence[bkt.seqIdx])
+		if !strings.Contains(target, needle) {
+			return false
+		}
+		// Re-anchor on first step.
+		if bkt.seqIdx == 0 {
+			bkt.seqStarted = now
+		}
+		// Out-of-window — restart from step 0 (and re-evaluate this event
+		// as the first step, since it matched).
+		if now.Sub(bkt.seqStarted) > window && bkt.seqIdx > 0 {
+			bkt.seqIdx = 0
+			bkt.seqStarted = now
+			// Re-check against step 0.
+			if !strings.Contains(target, strings.ToLower(rule.Sequence[0])) {
+				return false
+			}
+		}
+		bkt.seqIdx++
+		if bkt.seqIdx >= len(rule.Sequence) {
+			bkt.lastFired = now
+			bkt.seqIdx = 0
+			return true
+		}
+	}
+	return false
+}
+
+// appendWithin trims hits older than `window` then appends `now`.
+func appendWithin(hits []time.Time, now time.Time, window time.Duration) []time.Time {
+	cutoff := now.Add(-window)
+	for len(hits) > 0 && hits[0].Before(cutoff) {
+		hits = hits[1:]
+	}
+	return append(hits, now)
+}
+
+// groupKeyFor picks the bucket key. Unknown field → empty group (one
+// global bucket for the rule), which is fine for "fleet-wide" rules.
+func groupKeyFor(ev events.Event, field string) string {
+	switch field {
+	case "hostId":
+		return ev.HostID
+	case "tenantId":
+		return ev.TenantID
+	case "eventType":
+		return ev.EventType
+	case "":
+		return ""
+	default:
+		if ev.Fields != nil {
+			return ev.Fields[field]
+		}
+		return ""
+	}
+}
+
+// distinctValueFor pulls the value used for "frequency" cardinality
+// counting. Uses Rule.DistinctOf, falling back to "srcIP" — the usual
+// answer to "N distinct sources tried…".
+func distinctValueFor(ev events.Event, rule Rule) string {
+	field := rule.DistinctOf
+	if field == "" {
+		field = "srcIP"
+	}
+	if v := groupKeyFor(ev, field); v != "" {
+		return v
+	}
+	return ""
+}
+
+func stateMessageFor(rule Rule, fallback string) string {
+	switch rule.Type {
+	case RuleTypeThreshold:
+		return fmt.Sprintf("threshold rule %s fired: %d matches in %s", rule.ID, rule.Threshold, rule.Window)
+	case RuleTypeFrequency:
+		return fmt.Sprintf("frequency rule %s fired: %d distinct values in %s", rule.ID, rule.Threshold, rule.Window)
+	case RuleTypeSequence:
+		return fmt.Sprintf("sequence rule %s fired: %d-step pattern observed within %s", rule.ID, len(rule.Sequence), rule.Window)
+	}
+	return fallback
 }
 
 func buildTarget(fields []string, ev events.Event) string {

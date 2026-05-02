@@ -159,14 +159,75 @@ detection:
 	}
 }
 
-// AND, OR, NOT and other unsupported expressions still error out.
+// AND, OR, count-by, near, etc still error out (substring matcher
+// can't honestly evaluate them).
 func TestParseStillRejectsUnsupportedExprs(t *testing.T) {
-	cases := []string{"selection and not exclude", "all of them", "selection | count() > 5"}
+	cases := []string{"all of them", "selection | count() > 5", "selection or other", "selection and other"}
 	for _, c := range cases {
-		raw := []byte("title: x\ndetection:\n  selection:\n    a: 1\n  condition: " + c + "\n")
+		raw := []byte("title: x\ndetection:\n  selection:\n    a: 1\n  other:\n    b: 2\n  condition: " + c + "\n")
 		if _, err := Parse(raw, "x.yml"); err == nil {
 			t.Errorf("expected error for %q", c)
 		}
+	}
+}
+
+// "selection and not exclude" — common Sigma shape. We translate it
+// into AnyContain (positive union) + NotContain (negative union).
+func TestParseAndNot(t *testing.T) {
+	raw := []byte(`
+title: Suspicious PowerShell minus dev fixtures
+id: cf-ps-minus-dev
+level: high
+detection:
+    selection:
+        CommandLine|contains:
+            - 'DownloadString'
+            - 'Invoke-Expression'
+    exclude:
+        CommandLine|contains:
+            - 'jenkins-fixture'
+            - 'staging-canary'
+    condition: selection and not exclude
+`)
+	rule, err := Parse(raw, "ps.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(rule.AnyContain, "DownloadString") {
+		t.Errorf("missing positive token: %v", rule.AnyContain)
+	}
+	if !contains(rule.NotContain, "jenkins-fixture") {
+		t.Errorf("missing negative token: %v", rule.NotContain)
+	}
+	if !contains(rule.NotContain, "staging-canary") {
+		t.Errorf("missing second negative token: %v", rule.NotContain)
+	}
+}
+
+// "1 of selection_* and not exclude" — combination of glob OR + negative.
+func TestParseOneOfPatternAndNot(t *testing.T) {
+	raw := []byte(`
+title: Multi-method LSASS dump minus benign tools
+id: cf-lsass-multi-minus
+level: critical
+detection:
+    selection_proc:
+        CommandLine|contains: 'lsass.exe'
+    selection_dll:
+        CommandLine|contains: 'comsvcs.dll'
+    exclude:
+        CommandLine|contains: 'procdumpsvc'
+    condition: 1 of selection_* and not exclude
+`)
+	rule, err := Parse(raw, "lsass.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(rule.AnyContain, "lsass.exe") || !contains(rule.AnyContain, "comsvcs.dll") {
+		t.Errorf("positive set incomplete: %v", rule.AnyContain)
+	}
+	if !contains(rule.NotContain, "procdumpsvc") {
+		t.Errorf("negative not picked up: %v", rule.NotContain)
 	}
 }
 

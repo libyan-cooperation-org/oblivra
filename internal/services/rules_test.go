@@ -87,3 +87,150 @@ func contains(xs []string, want string) bool {
 type testWriter struct{}
 
 func (testWriter) Write(p []byte) (int, error) { return len(p), nil }
+
+// Threshold rule fires only after N matching events in the window,
+// not on the first one. Re-arm gate suppresses runs.
+func TestThresholdRule_FiresOnNthHit(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(testWriter{}, nil))
+	alerts := NewAlertService(logger)
+	rules := NewRulesService(logger, alerts)
+	rules.rules = []Rule{{
+		ID: "test-threshold", Name: "Threshold test", Severity: AlertSeverityHigh,
+		Type: RuleTypeThreshold, Threshold: 3, Window: 60_000_000_000, // 60s
+		GroupBy: "hostId",
+		Fields: []string{"message"}, AnyContain: []string{"failed login"},
+	}}
+
+	ev := events.Event{HostID: "web-01", Message: "user x failed login"}
+
+	// First two: no alert.
+	rules.Evaluate(context.Background(), ev)
+	rules.Evaluate(context.Background(), ev)
+	if got := len(alerts.Recent(10)); got != 0 {
+		t.Errorf("threshold should not fire before N hits, got %d alerts", got)
+	}
+	// Third: fire.
+	rules.Evaluate(context.Background(), ev)
+	if got := alerts.Recent(10); len(got) != 1 {
+		t.Fatalf("expected 1 alert after threshold reached, got %d", len(got))
+	}
+	// Fourth (within re-arm gate): silent.
+	rules.Evaluate(context.Background(), ev)
+	if got := len(alerts.Recent(10)); got != 1 {
+		t.Errorf("re-arm gate should suppress; got %d alerts", got)
+	}
+}
+
+// Threshold rule per-host: hits on different hosts should NOT collapse
+// into a single bucket — each gets its own count.
+func TestThresholdRule_PerHostBuckets(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(testWriter{}, nil))
+	alerts := NewAlertService(logger)
+	rules := NewRulesService(logger, alerts)
+	rules.rules = []Rule{{
+		ID: "test-threshold-host", Name: "Per-host", Severity: AlertSeverityMedium,
+		Type: RuleTypeThreshold, Threshold: 3, Window: 60_000_000_000,
+		GroupBy: "hostId",
+		Fields: []string{"message"}, AnyContain: []string{"x"},
+	}}
+
+	for i := 0; i < 2; i++ {
+		rules.Evaluate(context.Background(), events.Event{HostID: "a", Message: "x"})
+		rules.Evaluate(context.Background(), events.Event{HostID: "b", Message: "x"})
+	}
+	// Each host has 2 hits — neither at threshold.
+	if got := len(alerts.Recent(10)); got != 0 {
+		t.Fatalf("no host should have hit threshold yet, got %d", got)
+	}
+	// Push host a to 3.
+	rules.Evaluate(context.Background(), events.Event{HostID: "a", Message: "x"})
+	if got := len(alerts.Recent(10)); got != 1 {
+		t.Errorf("expected one fire for host a, got %d", got)
+	}
+}
+
+// Frequency rule: fires when N distinct values seen, not N total events.
+func TestFrequencyRule_DistinctCardinality(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(testWriter{}, nil))
+	alerts := NewAlertService(logger)
+	rules := NewRulesService(logger, alerts)
+	rules.rules = []Rule{{
+		ID: "test-freq", Name: "Frequency", Severity: AlertSeverityHigh,
+		Type: RuleTypeFrequency, Threshold: 3, Window: 60_000_000_000,
+		GroupBy:    "hostId", // bucket: per host
+		DistinctOf: "srcIP",  // cardinality: distinct source IPs
+		Fields:     []string{"message"}, AnyContain: []string{"login"},
+	}}
+
+	mk := func(srcIP string) events.Event {
+		return events.Event{HostID: "h", Message: "login attempt", Fields: map[string]string{"srcIP": srcIP}}
+	}
+
+	// 5 events from same IP → 1 distinct → no fire.
+	for i := 0; i < 5; i++ {
+		rules.Evaluate(context.Background(), mk("1.2.3.4"))
+	}
+	if got := len(alerts.Recent(10)); got != 0 {
+		t.Errorf("same IP repeated should not fire frequency rule, got %d", got)
+	}
+	// 3rd distinct IP → fire.
+	rules.Evaluate(context.Background(), mk("1.2.3.5"))
+	rules.Evaluate(context.Background(), mk("1.2.3.6"))
+	if got := alerts.Recent(10); len(got) != 1 {
+		t.Errorf("expected 1 fire after 3 distinct IPs, got %d", len(got))
+	}
+}
+
+// Sequence rule: fires only when steps observed in order within window.
+func TestSequenceRule_InOrderOnly(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(testWriter{}, nil))
+	alerts := NewAlertService(logger)
+	rules := NewRulesService(logger, alerts)
+	rules.rules = []Rule{{
+		ID: "test-seq", Name: "Sequence", Severity: AlertSeverityCritical,
+		Type: RuleTypeSequence, Window: 60_000_000_000,
+		Sequence: []string{"failed password", "accepted publickey"},
+		GroupBy:  "hostId",
+		Fields:   []string{"message"}, AnyContain: []string{"sshd"},
+	}}
+
+	// Out of order — accepted first, no match for step 0.
+	rules.Evaluate(context.Background(), events.Event{HostID: "h", Message: "sshd accepted publickey for x"})
+	if got := len(alerts.Recent(10)); got != 0 {
+		t.Errorf("step-0 mismatch should not fire, got %d", got)
+	}
+	// Step 0.
+	rules.Evaluate(context.Background(), events.Event{HostID: "h", Message: "sshd failed password for x"})
+	if got := len(alerts.Recent(10)); got != 0 {
+		t.Errorf("partial sequence should not fire, got %d", got)
+	}
+	// Step 1 — fire.
+	rules.Evaluate(context.Background(), events.Event{HostID: "h", Message: "sshd accepted publickey for x"})
+	if got := alerts.Recent(10); len(got) != 1 {
+		t.Errorf("expected 1 fire after sequence completes, got %d", len(got))
+	}
+}
+
+// NotContain — negative gate that suppresses an otherwise-matching event.
+func TestNotContainGate(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(testWriter{}, nil))
+	alerts := NewAlertService(logger)
+	rules := NewRulesService(logger, alerts)
+	rules.rules = []Rule{{
+		ID: "test-not", Name: "Suppression", Severity: AlertSeverityMedium,
+		Fields: []string{"message"},
+		AnyContain: []string{"login"},
+		NotContain: []string{"during deploy"},
+	}}
+
+	// "login" matches, but "during deploy" suppresses.
+	rules.Evaluate(context.Background(), events.Event{HostID: "h", Message: "test login during deploy"})
+	if got := len(alerts.Recent(10)); got != 0 {
+		t.Errorf("NotContain should have suppressed; got %d alerts", got)
+	}
+	// "login" only — fires.
+	rules.Evaluate(context.Background(), events.Event{HostID: "h", Message: "user x login ok"})
+	if got := len(alerts.Recent(10)); got != 1 {
+		t.Errorf("expected 1 fire when NotContain doesn't match; got %d", got)
+	}
+}
