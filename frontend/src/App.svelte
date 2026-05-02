@@ -7,6 +7,8 @@
   import Categories from './lib/views/Categories.svelte';
   import SavedSearches from './lib/views/SavedSearches.svelte';
   import Detection from './lib/views/Detection.svelte';
+  import Mitre from './lib/views/Mitre.svelte';
+  import Lineage from './lib/views/Lineage.svelte';
   import Investigations from './lib/views/Investigations.svelte';
   import Cases from './lib/views/Cases.svelte';
   import Reconstruction from './lib/views/Reconstruction.svelte';
@@ -53,12 +55,16 @@
         <SavedSearches />
       {:else if active === 'detection'}
         <Detection />
+      {:else if active === 'mitre'}
+        <Mitre />
       {:else if active === 'investigations'}
         <Investigations />
       {:else if active === 'cases'}
         <Cases />
       {:else if active === 'reconstruction'}
         <Reconstruction />
+      {:else if active === 'lineage'}
+        <Lineage />
       {:else if active === 'trust'}
         <Trust />
       {:else if active === 'evidence'}

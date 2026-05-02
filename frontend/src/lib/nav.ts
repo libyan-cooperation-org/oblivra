@@ -4,9 +4,11 @@ export type NavId =
   | 'categories'
   | 'saved-searches'
   | 'detection'
+  | 'mitre'
   | 'investigations'
   | 'cases'
   | 'reconstruction'
+  | 'lineage'
   | 'trust'
   | 'graph'
   | 'fleet'
@@ -30,9 +32,11 @@ export const NAV: NavItem[] = [
   { id: 'categories',     label: 'Categories',     group: 'siem',    icon: '⊞', hint: 'Log breakdown by sourceType' },
   { id: 'saved-searches', label: 'Saved searches', group: 'siem',    icon: '★', hint: 'Reusable queries · scheduled checks' },
   { id: 'detection',      label: 'Detection',      group: 'siem',    icon: '◈', hint: 'Sigma + native rules' },
+  { id: 'mitre',          label: 'MITRE ATT&CK',    group: 'siem',    icon: '⊟', hint: 'Detection coverage matrix' },
   { id: 'investigations', label: 'Investigations', group: 'respond', icon: '⌕', hint: 'Per-host triage' },
   { id: 'cases',          label: 'Cases',          group: 'respond', icon: '⎙', hint: 'Frozen-snapshot investigations' },
   { id: 'reconstruction', label: 'Reconstruction', group: 'respond', icon: '⏮', hint: 'Sessions, state, cmdline, auth' },
+  { id: 'lineage',        label: 'Process lineage', group: 'respond', icon: '⛓', hint: 'Parent/child execution graph' },
   { id: 'trust',          label: 'Trust & Quality',group: 'respond', icon: '✓', hint: 'Provenance & tamper signals' },
   { id: 'evidence',       label: 'Evidence',       group: 'respond', icon: '⎘', hint: 'Audit chain & sealed packages' },
   { id: 'graph',          label: 'Evidence Graph', group: 'respond', icon: '☍', hint: 'Cross-references' },

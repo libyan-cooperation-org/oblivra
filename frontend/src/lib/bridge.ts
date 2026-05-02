@@ -584,6 +584,28 @@ export interface PivotEntry {
   detail?: string;
   refId?: string;
 }
+// ---- Process lineage ----
+
+export interface LineageNode {
+  hostId: string;
+  pid: number;
+  ppid: number;
+  name?: string;
+  command?: string;
+  firstSeen: string;
+  lastSeen: string;
+  events: number;
+}
+
+export interface LineageTree {
+  hostId: string;
+  nodes: LineageNode[];
+}
+
+export const lineageHosts = () => rest<string[]>('/api/v1/forensics/lineage');
+export const lineageTree = (host: string) =>
+  rest<LineageTree>(`/api/v1/forensics/lineage/tree?host=${encodeURIComponent(host)}`);
+
 // ---- Saved searches ----
 
 export interface SavedSearch {
