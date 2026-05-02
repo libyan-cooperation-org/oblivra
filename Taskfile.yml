@@ -121,6 +121,16 @@ tasks:
       - go run ./tools/ensure-dir {{.BIN_DIR}}
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o {{.BIN_DIR}}/oblivra-soak ./cmd/soak
 
+  soak:run:
+    desc: Boot a clean server, run sustained-load soak, archive a credibility-grade markdown report
+    vars:
+      EPS: '{{.EPS | default "1000"}}'
+      DURATION: '{{.DURATION | default "60s"}}'
+      HARDWARE: '{{.HARDWARE | default ""}}'
+    cmds:
+      - 'echo "Running soak: {{.EPS}} EPS for {{.DURATION}} on {{.HARDWARE}}"'
+      - bash scripts/run-soak.sh "{{.EPS}}" "{{.DURATION}}" "{{.HARDWARE}}"
+
   smoke:build:
     desc: Build oblivra-smoke
     cmds:

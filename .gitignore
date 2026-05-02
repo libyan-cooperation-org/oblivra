@@ -72,3 +72,8 @@ agent.ed25519*
 *.bak
 *.backup
 *.pre-migrate
+
+# Soak run artefacts
+/docs/operator/soak-results/*.json
+/docs/operator/soak-results/*.md
+/docs/operator/soak-results-latest.md
