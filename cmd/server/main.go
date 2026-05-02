@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/kingknull/oblivra/internal/httpserver"
+	"github.com/kingknull/oblivra/internal/listeners"
 	"github.com/kingknull/oblivra/internal/platform"
 	"github.com/kingknull/oblivra/webassets"
 )
@@ -31,10 +33,17 @@ func main() {
 		netflowAddr = ":2055"
 	}
 
+	kafkaCfg, err := listeners.KafkaConfigFromEnv()
+	if err != nil {
+		logger.Error("kafka config", "err", err)
+		os.Exit(1)
+	}
+
 	stack, err := platform.New(platform.Options{
 		Logger:         logger,
 		SyslogAddr:     syslogAddr,
 		NetFlowAddr:    netflowAddr,
+		Kafka:          kafkaCfg,
 		StartListeners: true,
 	})
 	if err != nil {
@@ -99,7 +108,13 @@ func main() {
 	defer stop()
 
 	go func() {
-		logger.Info("oblivra-server listening", "addr", addr, "syslog", syslogAddr)
+		kafkaTopics := ""
+		if kafkaCfg != nil {
+			kafkaTopics = strings.Join(kafkaCfg.Topics, ",")
+		}
+		logger.Info("oblivra-server listening",
+			"addr", addr, "syslog", syslogAddr, "netflow", netflowAddr,
+			"kafka", kafkaTopics)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("server failed", "err", err)
 			stop()

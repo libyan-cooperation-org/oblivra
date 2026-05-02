@@ -56,6 +56,7 @@ type Stack struct {
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
+	Kafka   *listeners.Kafka
 
 	pipeline *ingest.Pipeline
 	hot      *hot.Store
@@ -74,6 +75,11 @@ type Options struct {
 	InMemory       bool
 	SyslogAddr     string // "" disables; ":1514" enables
 	NetFlowAddr    string // "" disables; ":2055" enables
+	// Kafka — opt-in pre-SIEM streaming source. nil disables; populated
+	// from OBLIVRA_KAFKA_* env vars in cmd/server. Useful for the
+	// DetectFlow integration where rule matches happen in-flight on
+	// Kafka and OBLIVRA reads the enriched stream.
+	Kafka          *listeners.KafkaConfig
 	StartListeners bool
 }
 
@@ -258,6 +264,22 @@ func New(opts Options) (*Stack, error) {
 			}
 		}()
 		stack.NetFlow = nf
+	}
+	if opts.Kafka != nil && opts.StartListeners {
+		k, err := listeners.NewKafka(opts.Logger, pipeline, *opts.Kafka, "default")
+		if err != nil {
+			return nil, fmt.Errorf("kafka listener: %w", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		stack.cancelFns = append(stack.cancelFns, cancel)
+		stack.wg.Add(1)
+		go func() {
+			defer stack.wg.Done()
+			if err := k.Start(ctx); err != nil {
+				opts.Logger.Error("kafka listener stopped", "err", err)
+			}
+		}()
+		stack.Kafka = k
 	}
 
 	// Audit our own startup so the chain has a root.

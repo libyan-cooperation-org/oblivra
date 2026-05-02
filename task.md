@@ -490,7 +490,17 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — fourth round, web-only conversion:
+**Last Updated**: 2026-05-02 — fifth round, DetectFlow / Kafka integration:
+- New listener `internal/listeners/kafka.go` — opt-in via `OBLIVRA_KAFKA_BROKERS` + `OBLIVRA_KAFKA_TOPICS`. One consumer goroutine per topic; auto-commits offsets after the WAL write fsyncs (at-least-once)
+- Auth modes: PLAINTEXT, SSL/mTLS, SASL/PLAIN, SASL/SCRAM-SHA-256, SASL/SCRAM-SHA-512
+- Kafka record headers surface as event fields prefixed `kafka:` — DetectFlow's `rule.id` / `rule.severity` / `rule.tags` become first-class OQL targets
+- Records auto-detect format via `parsers.FormatAuto` (JSON / RFC5424 / RFC3164 / CEF / auditd); plain-text payloads still produce events with `eventType: kafka:<topic>` so nothing is silently dropped
+- `docs/integrations/detectflow.md` — full integration doc covering pipeline shape, env vars, SCRAM+TLS production example, search examples, ops runbook, license boundary (EUPL → wire-only → Apache 2.0)
+- 7 unit tests covering env-var parsing + record-to-event conversion (JSON / plain fallback / empty skip / Kafka metadata fields / header surfacing / timestamp inheritance)
+
+---
+
+**2026-05-02** — fourth round, web-only conversion:
 - Wails v3 desktop shell removed entirely. `main.go` deleted; `wailsapp/wails/v3` and `wailsapp/go-webview2` dropped from go.mod / go.sum
 - Frontend's `bridge.ts` no longer branches on `window.wails` — every call goes through `fetch()` against `/api/v1/...`
 - StatusBar's "desktop / web" surface indicator removed (always web now)
