@@ -584,6 +584,24 @@ export interface PivotEntry {
   detail?: string;
   refId?: string;
 }
+// ---- Service health ----
+
+export interface ServiceHealthRow {
+  sourceType: string;
+  status: 'healthy' | 'degraded' | 'silent' | 'unknown' | string;
+  hosts: number;
+  events24h: number;
+  events1h: number;
+  lastSeen: string;
+  unparsedRate: number;
+  gapsObserved: number;
+  avgDelayMs: number;
+  topHosts?: string[];
+}
+
+export const serviceHealthList = () =>
+  rest<ServiceHealthRow[]>('/api/v1/services/health');
+
 // ---- Process lineage ----
 
 export interface LineageNode {

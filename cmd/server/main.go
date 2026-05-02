@@ -82,6 +82,7 @@ func main() {
 		Tamper:         stack.Tamper,
 		Webhooks:       stack.Webhooks,
 		Categories:     stack.Categories,
+		ServiceHealth:  stack.ServiceHealth,
 		Notifications:  stack.Notifications,
 		SavedSearches:  stack.SavedSearches,
 		Pipeline:       stack.Pipeline,

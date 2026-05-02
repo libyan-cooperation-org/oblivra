@@ -54,6 +54,7 @@ type Server struct {
 	tamper         *services.TamperService
 	webhooks       *services.WebhookService
 	categories     *services.CategoriesService
+	serviceHealth  *services.ServiceHealthService
 	notifications  *services.NotificationService
 	savedSearches  *services.SavedSearchService
 	pipeline       *ingest.Pipeline
@@ -90,6 +91,7 @@ type Deps struct {
 	Tamper         *services.TamperService
 	Webhooks       *services.WebhookService
 	Categories     *services.CategoriesService
+	ServiceHealth  *services.ServiceHealthService
 	Notifications  *services.NotificationService
 	SavedSearches  *services.SavedSearchService
 	Pipeline       *ingest.Pipeline
@@ -127,6 +129,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		tamper:         deps.Tamper,
 		webhooks:       deps.Webhooks,
 		categories:     deps.Categories,
+		serviceHealth:  deps.ServiceHealth,
 		notifications:  deps.Notifications,
 		savedSearches:  deps.SavedSearches,
 		pipeline:       deps.Pipeline,
@@ -348,6 +351,11 @@ func (s *Server) routes() {
 	// Categories — sourceType breakdown for the operator UI.
 	if s.categories != nil {
 		s.mux.HandleFunc("GET /api/v1/categories", s.categoriesList)
+	}
+
+	// Service health — joined CategoriesService + QualityService rollup.
+	if s.serviceHealth != nil {
+		s.mux.HandleFunc("GET /api/v1/services/health", s.serviceHealthList)
 	}
 
 	// Notifications — email + webhook channels with throttling.
@@ -1828,6 +1836,10 @@ func security(next http.Handler) http.Handler {
 
 func (s *Server) categoriesList(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.categories.List())
+}
+
+func (s *Server) serviceHealthList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.serviceHealth.List())
 }
 
 // ---- Notifications ------------------------------------------------------

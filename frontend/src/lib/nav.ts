@@ -1,6 +1,7 @@
 export type NavId =
   | 'overview'
   | 'siem'
+  | 'services'
   | 'categories'
   | 'saved-searches'
   | 'detection'
@@ -29,6 +30,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { id: 'overview',       label: 'Overview',       group: 'siem',    icon: '◎', hint: 'Platform health' },
   { id: 'siem',           label: 'SIEM',           group: 'siem',    icon: '⌗', hint: 'Search & live tail' },
+  { id: 'services',       label: 'Services',       group: 'siem',    icon: '◊', hint: 'Per-service health rollup' },
   { id: 'categories',     label: 'Categories',     group: 'siem',    icon: '⊞', hint: 'Log breakdown by sourceType' },
   { id: 'saved-searches', label: 'Saved searches', group: 'siem',    icon: '★', hint: 'Reusable queries · scheduled checks' },
   { id: 'detection',      label: 'Detection',      group: 'siem',    icon: '◈', hint: 'Sigma + native rules' },

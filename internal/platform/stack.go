@@ -49,6 +49,7 @@ type Stack struct {
 	Trust          *services.TrustService
 	Quality        *services.QualityService
 	Categories     *services.CategoriesService
+	ServiceHealth  *services.ServiceHealthService
 	Graph          *services.EvidenceGraphService
 	Import         *services.ImportService
 	Report         *services.ReportService
@@ -200,6 +201,7 @@ func New(opts Options) (*Stack, error) {
 	tamperSvc := services.NewTamperService(opts.Logger, alerts)
 	webhookSvc := services.NewWebhookService(opts.Logger, audit)
 	categoriesSvc := services.NewCategoriesService()
+	serviceHealthSvc := services.NewServiceHealthService(categoriesSvc, qualitySvc)
 	notificationSvc := services.NewNotificationService(opts.Logger, audit)
 	savedSearchSvc := services.NewSavedSearchService(opts.Logger, alerts)
 
@@ -225,6 +227,7 @@ func New(opts Options) (*Stack, error) {
 		Trust:          trustSvc,
 		Quality:        qualitySvc,
 		Categories:     categoriesSvc,
+		ServiceHealth:  serviceHealthSvc,
 		Graph:          graphSvc,
 		Import:         importSvc,
 		Report:         reportSvc,
