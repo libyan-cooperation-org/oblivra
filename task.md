@@ -490,7 +490,17 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-**Last Updated**: 2026-05-02 — seventh round, agent dashboard + log categories + email alerts:
+**Last Updated**: 2026-05-02 — eighth round, removed DetectFlow / Kafka integration:
+- `internal/listeners/kafka.go` + `kafka_test.go` deleted
+- `docs/integrations/detectflow.md` deleted (and the now-empty `docs/integrations/` dir)
+- `KafkaConfigFromEnv` call + Kafka listener startup stripped from `cmd/server/main.go` and `internal/platform/stack.go`
+- `Stack.Kafka` field removed; `Options.Kafka` field removed
+- `go.mod` / `go.sum`: dropped `segmentio/kafka-go`, `segmentio/kafka-go/sasl/scram`, `xdg-go/scram`, `xdg-go/stringprep`, `xdg-go/pbkdf2` via `go mod tidy`
+- Reason: not in scope. Pre-SIEM streaming detection layer was an architectural commitment that didn't fit the deployment story (single-server-behind-VPN). The Splunk HEC + OTLP/HTTP compatibility endpoints (Phase 41) remain — any DetectFlow-style pipeline that wants to forward to OBLIVRA can use those instead
+
+---
+
+**2026-05-02** — seventh round, agent dashboard + log categories + email alerts:
 - Rich agent heartbeat — `POST /api/v1/agent/heartbeat` accepts a self-report (pubkey fingerprint, version, input count, queue depth, spill files+bytes, dropped events, batch size). FleetService now stores those fields per agent. Agent's main loop posts every 30s and updates a tracked `droppedEvents` counter when the tailer drops under backpressure
 - Fleet dashboard rewritten — clickable agent list with health badges (healthy / lagging / silent / dropping), per-agent detail panel showing all heartbeat fields, copy-pubkey button (with the value to seed `OBLIVRA_AGENT_PUBKEYS`), 5 aggregate tiles (healthy/lagging/silent/spill backlog/dropped events). Per-agent fetch via `GET /api/v1/agent/fleet/{id}`
 - New CategoriesService aggregates events by sourceType — count, lastSeen, top-5 hosts per category. Wired into the platform's processor fan-out so it costs one map lookup per event. New `Categories` view in the sidebar shows a per-category bar chart with drill-through host chips. New endpoint: `GET /api/v1/categories`
