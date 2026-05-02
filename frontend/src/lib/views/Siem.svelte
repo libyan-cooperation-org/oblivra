@@ -5,7 +5,10 @@
     siemSearch,
     siemStats,
     liveTail,
+    eventGet,
+    siemSearchExportUrl,
     type OblivraEvent,
+    type EventDetail,
     type IngestStats,
     type Severity,
     type SearchResponse,
@@ -17,6 +20,20 @@
   let result = $state<SearchResponse | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
+
+  // Event detail drill-through.
+  let selected = $state<EventDetail | null>(null);
+  let detailError = $state<string | null>(null);
+
+  async function open(id: string) {
+    detailError = null;
+    selected = null;
+    try {
+      selected = await eventGet(id);
+    } catch (err) {
+      detailError = (err as Error).message;
+    }
+  }
 
   // Query state
   let query = $state('');
@@ -323,9 +340,15 @@
   <section class="rounded-xl border border-night-700 bg-night-900/70">
     <div class="flex items-center justify-between border-b border-night-700 px-4 py-3">
       <h3 class="text-sm font-semibold tracking-wide text-slate-100">Recent events</h3>
-      <span class="text-[11px] text-night-300">
-        {result?.events.length ?? 0} shown · newest first
-      </span>
+      <div class="flex items-center gap-2 text-[11px] text-night-300">
+        <span>{result?.events.length ?? 0} shown · newest first</span>
+        {#if (result?.events.length ?? 0) > 0}
+          <a class="rounded-md border border-night-600 bg-night-800/70 px-2 py-0.5 text-slate-100 hover:bg-night-700"
+             href={siemSearchExportUrl({ query, limit, newestFirst: true }, 'csv')} download>CSV</a>
+          <a class="rounded-md border border-night-600 bg-night-800/70 px-2 py-0.5 text-slate-100 hover:bg-night-700"
+             href={siemSearchExportUrl({ query, limit, newestFirst: true }, 'ndjson')} download>NDJSON</a>
+        {/if}
+      </div>
     </div>
     {#if !result || result.events.length === 0}
       <div class="px-4 py-12 text-center text-sm text-night-300">
@@ -334,18 +357,90 @@
     {:else}
       <ul class="divide-y divide-night-700/70 font-mono text-xs">
         {#each result.events as ev (ev.id)}
-          <li class="flex items-start gap-3 px-4 py-2 hover:bg-night-700/30">
-            <span class="text-night-300">{new Date(ev.timestamp).toLocaleTimeString()}</span>
-            <span class={sevColor[(ev.severity ?? 'info') as Severity]}>
-              {(ev.severity ?? 'info').toUpperCase().padEnd(8)}
-            </span>
-            <span class="text-night-200">{ev.hostId ?? '—'}</span>
-            <span class="text-night-400">·</span>
-            <span class="text-night-300">{ev.eventType ?? ev.source}</span>
-            <span class="flex-1 truncate text-slate-100">{ev.message}</span>
+          <li>
+            <button
+              type="button"
+              class="flex w-full items-start gap-3 px-4 py-2 text-left hover:bg-night-700/30"
+              onclick={() => open(ev.id)}
+            >
+              <span class="text-night-300">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+              <span class={sevColor[(ev.severity ?? 'info') as Severity]}>
+                {(ev.severity ?? 'info').toUpperCase().padEnd(8)}
+              </span>
+              <span class="text-night-200">{ev.hostId ?? '—'}</span>
+              <span class="text-night-400">·</span>
+              <span class="text-night-300">{ev.eventType ?? ev.source}</span>
+              <span class="flex-1 truncate text-slate-100">{ev.message}</span>
+            </button>
           </li>
         {/each}
       </ul>
     {/if}
   </section>
+
+  {#if selected || detailError}
+    <section class="rounded-xl border border-accent-500/40 bg-night-900/70">
+      <div class="flex items-center justify-between border-b border-night-700 px-4 py-3">
+        <h3 class="text-sm font-semibold tracking-wide text-slate-100">Event detail</h3>
+        <button class="rounded-md border border-night-600 bg-night-800/70 px-2 py-0.5 text-[11px] text-slate-100 hover:bg-night-700"
+                onclick={() => { selected = null; detailError = null; }}>close</button>
+      </div>
+      {#if detailError}
+        <div class="px-4 py-3 text-xs text-signal-error">{detailError}</div>
+      {:else if selected}
+        {@const ev = selected.event}
+        <div class="grid gap-4 p-4 text-xs sm:grid-cols-2">
+          <div><div class="text-night-300">ID</div><div class="font-mono text-slate-100 break-all">{ev.id}</div></div>
+          <div><div class="text-night-300">Timestamp</div><div class="font-mono text-slate-100">{new Date(ev.timestamp).toISOString()}</div></div>
+          <div><div class="text-night-300">Received</div><div class="font-mono text-slate-100">{new Date(ev.receivedAt).toISOString()}</div></div>
+          <div><div class="text-night-300">Source</div><div class="font-mono text-slate-100">{ev.source}</div></div>
+          <div><div class="text-night-300">Host</div><div class="font-mono text-slate-100">{ev.hostId ?? '—'}</div></div>
+          <div><div class="text-night-300">Event type</div><div class="font-mono text-slate-100">{ev.eventType ?? '—'}</div></div>
+          <div><div class="text-night-300">Severity</div><div class="font-mono text-slate-100">{ev.severity ?? '—'}</div></div>
+          <div><div class="text-night-300">Tenant</div><div class="font-mono text-slate-100">{ev.tenantId}</div></div>
+        </div>
+        <div class="border-t border-night-700 px-4 py-3 text-xs">
+          <div class="text-night-300 mb-1">Message</div>
+          <div class="font-mono text-slate-100 whitespace-pre-wrap break-words">{ev.message}</div>
+          {#if ev.raw && ev.raw !== ev.message}
+            <div class="text-night-300 mb-1 mt-3">Raw</div>
+            <div class="font-mono text-night-300 whitespace-pre-wrap break-words">{ev.raw}</div>
+          {/if}
+        </div>
+        {#if ev.fields && Object.keys(ev.fields).length > 0}
+          <div class="border-t border-night-700 px-4 py-3 text-xs">
+            <div class="text-night-300 mb-1.5">Fields ({Object.keys(ev.fields).length})</div>
+            <div class="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+              {#each Object.entries(ev.fields) as [k, v]}
+                <div class="flex gap-2 truncate">
+                  <span class="text-night-300">{k}:</span>
+                  <span class="text-slate-100 truncate">{v}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+        <div class="border-t border-night-700 px-4 py-3 text-xs">
+          <div class="text-night-300 mb-1.5">
+            Related — same host within ±60s ({selected.related.length})
+          </div>
+          {#if selected.related.length === 0}
+            <div class="text-night-400">No nearby events on this host.</div>
+          {:else}
+            <ul class="divide-y divide-night-700/70 font-mono">
+              {#each selected.related as r (r.id)}
+                <li class="flex items-start gap-3 py-1">
+                  <span class="text-night-300 w-20">{new Date(r.timestamp).toLocaleTimeString()}</span>
+                  <span class="text-night-200 w-20 truncate">{r.eventType ?? r.source}</span>
+                  <span class="flex-1 truncate text-slate-100">{r.message}</span>
+                  <button class="rounded-md border border-night-600 bg-night-800/70 px-1.5 py-0.5 text-[10px] text-slate-100 hover:bg-night-700"
+                          onclick={() => open(r.id)}>open</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
 </div>

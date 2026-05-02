@@ -55,6 +55,7 @@ type Stack struct {
 	Tamper         *services.TamperService
 	Webhooks       *services.WebhookService
 	Notifications  *services.NotificationService
+	SavedSearches  *services.SavedSearchService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -199,6 +200,7 @@ func New(opts Options) (*Stack, error) {
 	webhookSvc := services.NewWebhookService(opts.Logger, audit)
 	categoriesSvc := services.NewCategoriesService()
 	notificationSvc := services.NewNotificationService(opts.Logger, audit)
+	savedSearchSvc := services.NewSavedSearchService(opts.Logger, alerts)
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -228,6 +230,7 @@ func New(opts Options) (*Stack, error) {
 		Tamper:         tamperSvc,
 		Webhooks:       webhookSvc,
 		Notifications:  notificationSvc,
+		SavedSearches:  savedSearchSvc,
 		Bus:            bus,
 		pipeline: pipeline,
 		hot:      store,
@@ -336,6 +339,37 @@ func New(opts Options) (*Stack, error) {
 			opts.Logger.Warn("OBLIVRA_AUDIT_COMPACT_AFTER set but unparseable", "value", v)
 		}
 	}
+	// Saved searches — wire the runner now that siem is constructed.
+	savedSearchSvc.AttachRunner(func(ctx context.Context, q services.SavedSearch) (int, error) {
+		req := services.SearchRequest{
+			TenantID:    q.TenantID,
+			Query:       q.Query,
+			Limit:       1000, // cap so a runaway saved search can't DoS the index
+			NewestFirst: true,
+		}
+		var (
+			res services.SearchResponse
+			err error
+		)
+		if q.QueryKind == "oql" {
+			res, err = siem.SearchOQL(ctx, q.Query, q.TenantID, 0, 0)
+		} else {
+			res, err = siem.Search(ctx, req)
+		}
+		if err != nil {
+			return 0, err
+		}
+		return res.Total, nil
+	})
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "saved-search.tick",
+		Interval: 1 * time.Minute,
+		Run: func(ctx context.Context) error {
+			savedSearchSvc.Tick(ctx)
+			return nil
+		},
+	})
+
 	// Phase 44 — process-restart anomaly. A healthy server boots once a day
 	// or so. Two `platform.start` entries within a one-hour window means
 	// the process is crash-looping or someone is repeatedly stopping it;

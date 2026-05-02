@@ -20,18 +20,37 @@ const (
 	AlertSeverityCritical AlertSeverity = "critical"
 )
 
+// AlertState walks the operator workflow:
+//   open       — fresh, no analyst has touched it
+//   ack        — analyst saw it; not yet investigated
+//   assigned   — analyst owns it (AssignedTo set)
+//   resolved   — analyst closed it with a verdict
+//
+// Backwards-compat: "closed" is treated as a synonym for "resolved" so
+// older alerts keep parsing.
 type Alert struct {
-	ID          string        `json:"id"`
-	TenantID    string        `json:"tenantId"`
-	RuleID      string        `json:"ruleId"`
-	RuleName    string        `json:"ruleName"`
-	Severity    AlertSeverity `json:"severity"`
-	HostID      string        `json:"hostId,omitempty"`
-	Message     string        `json:"message"`
-	MITRE       []string      `json:"mitre,omitempty"`
-	Triggered   time.Time     `json:"triggered"`
-	EventIDs    []string      `json:"eventIds"`
-	State       string        `json:"state"` // open|ack|closed
+	ID        string        `json:"id"`
+	TenantID  string        `json:"tenantId"`
+	RuleID    string        `json:"ruleId"`
+	RuleName  string        `json:"ruleName"`
+	Severity  AlertSeverity `json:"severity"`
+	HostID    string        `json:"hostId,omitempty"`
+	Message   string        `json:"message"`
+	MITRE     []string      `json:"mitre,omitempty"`
+	Triggered time.Time     `json:"triggered"`
+	EventIDs  []string      `json:"eventIds"`
+	State     string        `json:"state"` // open | ack | assigned | resolved
+
+	// Lifecycle metadata (added Phase 51).
+	AcknowledgedBy string     `json:"acknowledgedBy,omitempty"`
+	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
+	AssignedTo     string     `json:"assignedTo,omitempty"`
+	AssignedAt     *time.Time `json:"assignedAt,omitempty"`
+	ResolvedBy     string     `json:"resolvedBy,omitempty"`
+	ResolvedAt     *time.Time `json:"resolvedAt,omitempty"`
+	// Verdict ∈ {true-positive, false-positive, benign-true-positive, duplicate, ""}.
+	Verdict string `json:"verdict,omitempty"`
+	Notes   string `json:"notes,omitempty"`
 }
 
 // AlertService is an in-memory alerts buffer. Phase 5+ will back it with SQLite.
@@ -127,17 +146,104 @@ func (s *AlertService) Count() int {
 	return len(s.all)
 }
 
-// Ack flips an alert to acknowledged.
-func (s *AlertService) Ack(id string) bool {
+// Ack records that an analyst has seen the alert. Idempotent: re-acking
+// an already-ack'd alert is a no-op (does not overwrite the original
+// AcknowledgedBy).
+func (s *AlertService) Ack(id, actor string) (Alert, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range s.all {
-		if s.all[i].ID == id {
+		if s.all[i].ID != id {
+			continue
+		}
+		if s.all[i].State == "open" || s.all[i].State == "" {
+			now := time.Now().UTC()
 			s.all[i].State = "ack"
-			return true
+			s.all[i].AcknowledgedBy = actor
+			s.all[i].AcknowledgedAt = &now
+		}
+		return s.all[i], true
+	}
+	return Alert{}, false
+}
+
+// Assign hands the alert to a specific analyst — implies ack if not yet
+// acknowledged. Re-assign overwrites AssignedTo + AssignedAt so the
+// "current owner" is unambiguous.
+func (s *AlertService) Assign(id, actor, assignee string) (Alert, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.all {
+		if s.all[i].ID != id {
+			continue
+		}
+		now := time.Now().UTC()
+		if s.all[i].AcknowledgedAt == nil {
+			s.all[i].AcknowledgedBy = actor
+			s.all[i].AcknowledgedAt = &now
+		}
+		s.all[i].State = "assigned"
+		s.all[i].AssignedTo = assignee
+		s.all[i].AssignedAt = &now
+		return s.all[i], true
+	}
+	return Alert{}, false
+}
+
+// Resolve closes the alert with a verdict + optional analyst notes.
+// Verdict is free-form but we encourage the four canonical values
+// (true-positive / false-positive / benign-true-positive / duplicate)
+// so the rule effectiveness stats stay comparable.
+func (s *AlertService) Resolve(id, actor, verdict, notes string) (Alert, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.all {
+		if s.all[i].ID != id {
+			continue
+		}
+		now := time.Now().UTC()
+		s.all[i].State = "resolved"
+		s.all[i].ResolvedBy = actor
+		s.all[i].ResolvedAt = &now
+		s.all[i].Verdict = verdict
+		if notes != "" {
+			s.all[i].Notes = notes
+		}
+		return s.all[i], true
+	}
+	return Alert{}, false
+}
+
+// Reopen flips a resolved alert back to open. Useful when a verdict
+// turns out to be wrong (e.g. "false positive" later traced to a real
+// compromise that was missed).
+func (s *AlertService) Reopen(id, actor string) (Alert, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.all {
+		if s.all[i].ID != id {
+			continue
+		}
+		s.all[i].State = "open"
+		s.all[i].ResolvedAt = nil
+		s.all[i].ResolvedBy = ""
+		s.all[i].Verdict = ""
+		_ = actor
+		return s.all[i], true
+	}
+	return Alert{}, false
+}
+
+// Get returns one alert by ID. Drives the per-alert detail page.
+func (s *AlertService) Get(id string) (Alert, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := range s.all {
+		if s.all[i].ID == id {
+			return s.all[i], true
 		}
 	}
-	return false
+	return Alert{}, false
 }
 
 // AlertFromEvent is a convenience constructor used by the rules engine.

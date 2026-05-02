@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -52,6 +53,7 @@ type Server struct {
 	webhooks       *services.WebhookService
 	categories     *services.CategoriesService
 	notifications  *services.NotificationService
+	savedSearches  *services.SavedSearchService
 	oidc           *OIDCHandler
 	bus    *events.Bus
 	auth   *AuthMiddleware
@@ -86,6 +88,7 @@ type Deps struct {
 	Webhooks       *services.WebhookService
 	Categories     *services.CategoriesService
 	Notifications  *services.NotificationService
+	SavedSearches  *services.SavedSearchService
 	OIDC           *OIDCHandler
 	Bus    *events.Bus
 	Auth   *AuthMiddleware
@@ -121,6 +124,7 @@ func New(log *slog.Logger, deps Deps) *Server {
 		webhooks:       deps.Webhooks,
 		categories:     deps.Categories,
 		notifications:  deps.Notifications,
+		savedSearches:  deps.SavedSearches,
 		oidc:           deps.OIDC,
 		bus:    deps.Bus,
 		auth:   deps.Auth,
@@ -166,6 +170,11 @@ func (s *Server) routes() {
 	// Alerts.
 	if s.alerts != nil {
 		s.mux.HandleFunc("GET /api/v1/alerts", s.listAlerts)
+		s.mux.HandleFunc("GET /api/v1/alerts/{id}", s.getAlert)
+		s.mux.HandleFunc("POST /api/v1/alerts/{id}/ack", s.alertAck)
+		s.mux.HandleFunc("POST /api/v1/alerts/{id}/assign", s.alertAssign)
+		s.mux.HandleFunc("POST /api/v1/alerts/{id}/resolve", s.alertResolve)
+		s.mux.HandleFunc("POST /api/v1/alerts/{id}/reopen", s.alertReopen)
 	}
 	// Threat intel.
 	if s.intel != nil {
@@ -336,6 +345,17 @@ func (s *Server) routes() {
 		s.mux.HandleFunc("DELETE /api/v1/notifications/{id}", s.notificationsDelete)
 	}
 
+	// Saved searches — operator-managed, optionally scheduled queries.
+	if s.savedSearches != nil {
+		s.mux.HandleFunc("GET /api/v1/saved-searches", s.savedSearchesList)
+		s.mux.HandleFunc("POST /api/v1/saved-searches", s.savedSearchesSave)
+		s.mux.HandleFunc("POST /api/v1/saved-searches/{id}/run", s.savedSearchesRun)
+		s.mux.HandleFunc("DELETE /api/v1/saved-searches/{id}", s.savedSearchesDelete)
+	}
+
+	// Event detail — drill-through from search results.
+	s.mux.HandleFunc("GET /api/v1/siem/events/{id}", s.eventDetail)
+
 	// Phase 47 — pprof, behind the standard auth middleware.
 	if s.auth != nil && s.auth.Required() {
 		registerPprof(s.mux)
@@ -461,7 +481,147 @@ func (s *Server) siemSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, resp)
+	switch q.Get("format") {
+	case "csv":
+		writeEventsCSV(w, resp.Events)
+	case "ndjson":
+		writeEventsNDJSON(w, resp.Events)
+	default:
+		writeJSON(w, http.StatusOK, resp)
+	}
+}
+
+// writeEventsCSV streams a search result set as CSV. Columns are the
+// stable subset analysts ask for first; everything else lands in a
+// `fields` JSON column so nothing is lost in the export.
+func writeEventsCSV(w http.ResponseWriter, evs []events.Event) {
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="oblivra-events.csv"`)
+	cw := csv.NewWriter(w)
+	defer cw.Flush()
+	_ = cw.Write([]string{"id", "timestamp", "tenantId", "hostId", "source", "eventType", "severity", "message", "fields"})
+	for _, e := range evs {
+		var fbuf string
+		if len(e.Fields) > 0 {
+			b, _ := json.Marshal(e.Fields)
+			fbuf = string(b)
+		}
+		_ = cw.Write([]string{
+			e.ID,
+			e.Timestamp.UTC().Format(time.RFC3339Nano),
+			e.TenantID,
+			e.HostID,
+			string(e.Source),
+			e.EventType,
+			string(e.Severity),
+			e.Message,
+			fbuf,
+		})
+	}
+}
+
+// writeEventsNDJSON streams events as newline-delimited JSON — the
+// shape downstream tools (jq, ndjson loaders, log shippers) prefer.
+func writeEventsNDJSON(w http.ResponseWriter, evs []events.Event) {
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="oblivra-events.ndjson"`)
+	enc := json.NewEncoder(w)
+	for _, e := range evs {
+		_ = enc.Encode(e)
+	}
+}
+
+// eventDetail returns one event's full record. Drives the per-event
+// drill-down in the SIEM view. Searches the hot store via Search()
+// with a hash-id filter — slower than a direct lookup but keeps the
+// SiemService surface simple.
+func (s *Server) eventDetail(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	// Pull a wide-enough recent slice and filter by ID. The hot store
+	// keeps O(seconds) of events; for older events the analyst would
+	// need to query the warm tier (a roadmap item).
+	res, err := s.siem.Search(r.Context(), services.SearchRequest{Limit: 5000, NewestFirst: true})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, e := range res.Events {
+		if e.ID == id {
+			// Surface related-events context: same host within ±60s.
+			related := []events.Event{}
+			lo := e.Timestamp.Add(-60 * time.Second)
+			hi := e.Timestamp.Add(60 * time.Second)
+			for _, other := range res.Events {
+				if other.ID == id {
+					continue
+				}
+				if other.HostID != e.HostID {
+					continue
+				}
+				if other.Timestamp.Before(lo) || other.Timestamp.After(hi) {
+					continue
+				}
+				related = append(related, other)
+				if len(related) >= 50 {
+					break
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"event":   e,
+				"related": related,
+			})
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "event not found in hot store; try the warm-tier verifier")
+}
+
+// ---- Saved searches ----
+
+func (s *Server) savedSearchesList(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.savedSearches.List())
+}
+
+func (s *Server) savedSearchesSave(w http.ResponseWriter, r *http.Request) {
+	var q services.SavedSearch
+	if err := readJSON(r, &q); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	q.CreatedBy = alertActor(r)
+	out, err := s.savedSearches.Save(q)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.audit != nil {
+		s.audit.Append(r.Context(), alertActor(r), "saved-search.save", "default",
+			map[string]string{"id": out.ID, "name": out.Name})
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
+func (s *Server) savedSearchesRun(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	hits, err := s.savedSearches.Run(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "hits": hits})
+}
+
+func (s *Server) savedSearchesDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.savedSearches.Delete(id); err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) siemStats(w http.ResponseWriter, _ *http.Request) {
@@ -556,6 +716,109 @@ func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, s.alerts.Recent(limit))
+}
+
+// getAlert returns a single alert; drives the per-alert detail page.
+func (s *Server) getAlert(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	a, ok := s.alerts.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such alert")
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+// alertActor pulls the authenticated subject out of the request
+// context (set by the auth middleware). Falls back to "operator" so a
+// no-auth dev server still records something useful.
+func alertActor(r *http.Request) string {
+	actor, _ := actorOf(r.Context())
+	if actor == "" {
+		return "operator"
+	}
+	return actor
+}
+
+func (s *Server) alertAck(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.alerts.Ack(r.PathValue("id"), alertActor(r))
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such alert")
+		return
+	}
+	if s.audit != nil {
+		s.audit.Append(r.Context(), alertActor(r), "alert.ack", a.TenantID,
+			map[string]string{"id": a.ID, "rule": a.RuleID})
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+func (s *Server) alertAssign(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Assignee string `json:"assignee"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.Assignee == "" {
+		writeError(w, http.StatusBadRequest, "assignee required")
+		return
+	}
+	a, ok := s.alerts.Assign(r.PathValue("id"), alertActor(r), body.Assignee)
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such alert")
+		return
+	}
+	if s.audit != nil {
+		s.audit.Append(r.Context(), alertActor(r), "alert.assign", a.TenantID,
+			map[string]string{"id": a.ID, "assignee": body.Assignee})
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+func (s *Server) alertResolve(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Verdict string `json:"verdict"`
+		Notes   string `json:"notes"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	a, ok := s.alerts.Resolve(r.PathValue("id"), alertActor(r), body.Verdict, body.Notes)
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such alert")
+		return
+	}
+	// Map verdict → rule effectiveness feedback so the rules.MarkAlert
+	// scorecard tracks operator triage automatically.
+	if s.rules != nil {
+		switch body.Verdict {
+		case "true-positive", "benign-true-positive":
+			s.rules.MarkAlert(a.RuleID, "tp")
+		case "false-positive":
+			s.rules.MarkAlert(a.RuleID, "fp")
+		}
+	}
+	if s.audit != nil {
+		s.audit.Append(r.Context(), alertActor(r), "alert.resolve", a.TenantID,
+			map[string]string{"id": a.ID, "verdict": body.Verdict})
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+func (s *Server) alertReopen(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.alerts.Reopen(r.PathValue("id"), alertActor(r))
+	if !ok {
+		writeError(w, http.StatusNotFound, "no such alert")
+		return
+	}
+	if s.audit != nil {
+		s.audit.Append(r.Context(), alertActor(r), "alert.reopen", a.TenantID,
+			map[string]string{"id": a.ID})
+	}
+	writeJSON(w, http.StatusOK, a)
 }
 
 // ---- Threat intel ----

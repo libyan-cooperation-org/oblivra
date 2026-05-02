@@ -5,6 +5,7 @@
   import Overview from './lib/views/Overview.svelte';
   import Siem from './lib/views/Siem.svelte';
   import Categories from './lib/views/Categories.svelte';
+  import SavedSearches from './lib/views/SavedSearches.svelte';
   import Detection from './lib/views/Detection.svelte';
   import Investigations from './lib/views/Investigations.svelte';
   import Cases from './lib/views/Cases.svelte';
@@ -48,6 +49,8 @@
         <Siem />
       {:else if active === 'categories'}
         <Categories />
+      {:else if active === 'saved-searches'}
+        <SavedSearches />
       {:else if active === 'detection'}
         <Detection />
       {:else if active === 'investigations'}

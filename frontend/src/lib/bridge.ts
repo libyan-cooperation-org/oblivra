@@ -155,6 +155,9 @@ export function liveTail(
 
 // ---- Alerts ----
 
+export type AlertState = 'open' | 'ack' | 'assigned' | 'resolved';
+export type AlertVerdict = 'true-positive' | 'false-positive' | 'benign-true-positive' | 'duplicate' | '';
+
 export interface Alert {
   id: string;
   tenantId: string;
@@ -166,12 +169,39 @@ export interface Alert {
   mitre?: string[];
   triggered: string;
   eventIds: string[];
-  state: string;
+  state: AlertState | string;
+  // Lifecycle metadata.
+  acknowledgedBy?: string;
+  acknowledgedAt?: string;
+  assignedTo?: string;
+  assignedAt?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  verdict?: AlertVerdict;
+  notes?: string;
 }
 
 export async function listAlerts(limit = 100): Promise<Alert[]> {
   return rest<Alert[]>(`/api/v1/alerts?limit=${limit}`);
 }
+
+export const alertGet = (id: string) =>
+  rest<Alert>(`/api/v1/alerts/${encodeURIComponent(id)}`);
+
+export const alertAck = (id: string) =>
+  restPost<Alert, {}>(`/api/v1/alerts/${encodeURIComponent(id)}/ack`, {});
+
+export const alertAssign = (id: string, assignee: string) =>
+  restPost<Alert, { assignee: string }>(`/api/v1/alerts/${encodeURIComponent(id)}/assign`, { assignee });
+
+export const alertResolve = (id: string, verdict: AlertVerdict, notes?: string) =>
+  restPost<Alert, { verdict: AlertVerdict; notes?: string }>(
+    `/api/v1/alerts/${encodeURIComponent(id)}/resolve`,
+    { verdict, notes },
+  );
+
+export const alertReopen = (id: string) =>
+  restPost<Alert, {}>(`/api/v1/alerts/${encodeURIComponent(id)}/reopen`, {});
 
 // ---- Threat intel ----
 
@@ -554,6 +584,60 @@ export interface PivotEntry {
   detail?: string;
   refId?: string;
 }
+// ---- Saved searches ----
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+  queryKind?: 'bleve' | 'oql' | string;
+  tenantId?: string;
+  createdAt: string;
+  createdBy?: string;
+  intervalMinutes?: number;
+  alertOnAtLeast?: number;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  lastRunAt?: string;
+  lastHitCount?: number;
+  lastError?: string;
+}
+
+export const savedSearchesList = () => rest<SavedSearch[]>('/api/v1/saved-searches');
+export const savedSearchesSave = (q: Partial<SavedSearch> & { name: string; query: string }) =>
+  restPost<SavedSearch, typeof q>('/api/v1/saved-searches', q);
+export const savedSearchesRun = (id: string) =>
+  restPost<{ id: string; hits: number }, {}>(`/api/v1/saved-searches/${encodeURIComponent(id)}/run`, {});
+export async function savedSearchesDelete(id: string): Promise<void> {
+  const res = await fetch('/api/v1/saved-searches/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+}
+
+// ---- Event detail ----
+
+export interface EventDetail {
+  event: OblivraEvent;
+  related: OblivraEvent[];
+}
+
+export const eventGet = (id: string) =>
+  rest<EventDetail>(`/api/v1/siem/events/${encodeURIComponent(id)}`);
+
+// Build a download URL for the current search query in the requested format.
+export function siemSearchExportUrl(opts: SearchOptions, format: 'csv' | 'ndjson'): string {
+  const params = new URLSearchParams();
+  if (opts.query) params.set('q', opts.query);
+  if (opts.fromUnix) params.set('from', String(opts.fromUnix));
+  if (opts.toUnix) params.set('to', String(opts.toUnix));
+  if (opts.limit) params.set('limit', String(opts.limit));
+  if (opts.newestFirst) params.set('newestFirst', 'true');
+  if (opts.tenantId) params.set('tenant', opts.tenantId);
+  params.set('format', format);
+  return `/api/v1/siem/search?${params}`;
+}
+
 // ---- Categories (sourceType breakdown) ----
 
 export interface CategoryStat {
