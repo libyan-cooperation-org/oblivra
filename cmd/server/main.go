@@ -50,6 +50,7 @@ func main() {
 	}
 
 	auth := httpserver.NewAuth(os.Getenv("OBLIVRA_API_KEYS"))
+	auth.AttachAudit(stack.Audit) // every deny lands a signed audit entry
 	if auth.Required() {
 		logger.Info("API auth required")
 	} else {

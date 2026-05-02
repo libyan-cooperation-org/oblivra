@@ -11,6 +11,7 @@
     type VerifyResult,
   } from '../bridge';
   import Tile from '../components/Tile.svelte';
+  import { copy } from '../clipboard';
 
   let items = $state<EvidenceItem[]>([]);
   let gaps = $state<LogGap[]>([]);
@@ -60,11 +61,19 @@
     <Tile label="Audit entries" value={verify?.entries ?? 0} hint={verify?.ok ? 'chain intact' : 'BROKEN'} />
     <Tile label="Sealed evidence" value={items.length} />
     <Tile label="Log gaps detected" value={gaps.length} />
-    <Tile
-      label="Root hash"
-      value={verify?.rootHash ? verify.rootHash.slice(0, 8) + '…' : '—'}
-      hint="sha256 + hmac"
-    />
+    <button
+      type="button"
+      onclick={() => verify?.rootHash && copy(verify.rootHash, 'Root hash copied')}
+      class="text-left transition hover:opacity-80"
+      title="Click to copy full root hash"
+      disabled={!verify?.rootHash}
+    >
+      <Tile
+        label="Root hash"
+        value={verify?.rootHash ? verify.rootHash.slice(0, 8) + '…' : '—'}
+        hint="sha256 + hmac · click to copy"
+      />
+    </button>
   </section>
 
   {#if loadError}
@@ -86,7 +95,14 @@
             <span class="text-night-200">{e.actor}</span>
             <span class="text-night-400">·</span>
             <span class="text-slate-100">{e.action}</span>
-            <span class="ml-auto truncate text-night-300">{e.hash.slice(0, 12)}…</span>
+            <button
+              type="button"
+              onclick={() => copy(e.hash, 'Hash copied')}
+              class="ml-auto truncate rounded px-1 text-night-300 transition hover:bg-night-700/60 hover:text-white"
+              title="Click to copy full hash"
+            >
+              {e.hash.slice(0, 12)}…
+            </button>
           </li>
         {/each}
       </ul>

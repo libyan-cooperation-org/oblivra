@@ -304,6 +304,88 @@ func (a *AuditService) AnchorYesterday(ctx context.Context) error {
 	return err
 }
 
+// tsaStamper is the narrow interface AuditService needs to attach
+// RFC 3161 tokens to anchors. We accept this interface (rather than
+// importing TSAService directly) so tests can swap in a fake stamper
+// without spinning up real TSA infrastructure.
+type tsaStamper interface {
+	IsEnabled() bool
+	TimestampDailyAnchor(ctx context.Context, day, dailyRootHex string) (path string, ts time.Time, hashHex string, err error)
+}
+
+// TimestampPendingAnchors walks the chain newest-first and, for every
+// `audit.daily-anchor` entry that doesn't yet have a paired
+// `audit.tsa-token` follow-up, requests a TSA token and writes the
+// follow-up entry into the chain.
+//
+// Idempotent — already-stamped anchors are skipped. Bounded — only
+// stamps the most recent 30 anchors per call so a fresh TSA wiring on
+// a long-running install doesn't make a giant burst of TSA calls.
+//
+// Soft-fail: every TSA error is logged but does not abort the loop.
+// Future ticks will retry whatever didn't take.
+func (a *AuditService) TimestampPendingAnchors(ctx context.Context, stamper tsaStamper) error {
+	if stamper == nil || !stamper.IsEnabled() {
+		return nil
+	}
+
+	// Snapshot anchors and which days are already stamped, under a
+	// read lock so the chain isn't moving while we plan the work.
+	type anchor struct {
+		day  string
+		root string
+	}
+	var pending []anchor
+	stamped := map[string]bool{}
+
+	a.mu.RLock()
+	for i := len(a.entries) - 1; i >= 0; i-- {
+		e := a.entries[i]
+		if e.Action == "audit.tsa-token" {
+			if d := e.Detail["day"]; d != "" {
+				stamped[d] = true
+			}
+		}
+	}
+	for i := len(a.entries) - 1; i >= 0; i-- {
+		e := a.entries[i]
+		if e.Action != "audit.daily-anchor" {
+			continue
+		}
+		day := e.Detail["day"]
+		if day == "" || stamped[day] {
+			continue
+		}
+		root := e.Detail["root"]
+		if root == "" {
+			continue
+		}
+		pending = append(pending, anchor{day: day, root: root})
+		if len(pending) >= 30 {
+			break
+		}
+	}
+	a.mu.RUnlock()
+
+	for _, p := range pending {
+		path, ts, hashHex, err := stamper.TimestampDailyAnchor(ctx, p.day, p.root)
+		if err != nil {
+			a.log.Warn("tsa: stamp failed", "day", p.day, "err", err)
+			continue
+		}
+		a.Append(ctx, "system", "audit.tsa-token", "default", map[string]string{
+			"day":         p.day,
+			"root":        p.root,
+			"hashedRoot":  hashHex,
+			"tsaTime":     ts.Format(time.RFC3339Nano),
+			"tokenPath":   path,
+			"description": "RFC 3161 timestamp acquired for daily anchor",
+		})
+		a.log.Info("audit tsa-token", "day", p.day, "tsaTime", ts.Format(time.RFC3339), "path", path)
+	}
+	return nil
+}
+
 // LastAnchorAt returns the timestamp of the most recent
 // `audit.daily-anchor` entry. If no anchor has been written yet, the
 // second return is false. Used by the missing-anchor watchdog so

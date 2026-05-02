@@ -58,6 +58,7 @@ type Stack struct {
 	Webhooks       *services.WebhookService
 	Notifications  *services.NotificationService
 	SavedSearches  *services.SavedSearchService
+	TSA            *services.TSAService
 	Bus            *events.Bus
 	Syslog  *listeners.SyslogUDP
 	NetFlow *listeners.NetFlowV5
@@ -206,6 +207,11 @@ func New(opts Options) (*Stack, error) {
 	serviceHealthSvc := services.NewServiceHealthService(categoriesSvc, qualitySvc)
 	notificationSvc := services.NewNotificationService(opts.Logger, audit)
 	savedSearchSvc := services.NewSavedSearchService(opts.Logger, alerts)
+	// RFC 3161 external timestamping. Disabled by default; enabled by
+	// setting OBLIVRA_TSA_URLS to a comma-separated list of TSA HTTP
+	// endpoints. The service no-ops cleanly when unset, so existing
+	// anchors keep their HMAC-only signature.
+	tsaSvc := services.NewTSAService(opts.Logger, dir, services.TSAOptions{})
 
 	stack := &Stack{
 		Log:      opts.Logger,
@@ -237,6 +243,7 @@ func New(opts Options) (*Stack, error) {
 		Anomaly:        anomalySvc,
 		Webhooks:       webhookSvc,
 		Notifications:  notificationSvc,
+		TSA:            tsaSvc,
 		SavedSearches:  savedSearchSvc,
 		Bus:            bus,
 		Pipeline: pipeline,
@@ -326,6 +333,21 @@ func New(opts Options) (*Stack, error) {
 		Interval: 1 * time.Hour, // fires hourly; AnchorYesterday is idempotent
 		Run: func(ctx context.Context) error {
 			return audit.AnchorYesterday(ctx)
+		},
+	})
+	// RFC 3161 timestamping job — runs hourly, finds the most recent
+	// daily-anchor entry that's missing its tsa-token sibling, and
+	// requests one. Idempotent: anchors that already have a token are
+	// skipped. Soft-fail: TSA outages just leave the chain untimestamped
+	// (we'll retry next tick).
+	stack.scheduler.Add(scheduler.Job{
+		Name:     "audit.tsa-stamp",
+		Interval: 1 * time.Hour,
+		Run: func(ctx context.Context) error {
+			if !tsaSvc.IsEnabled() {
+				return nil
+			}
+			return audit.TimestampPendingAnchors(ctx, tsaSvc)
 		},
 	})
 	// Phase 45 — optional configurable compaction. Off by default.

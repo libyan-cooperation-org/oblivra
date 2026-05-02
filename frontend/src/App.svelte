@@ -2,6 +2,9 @@
   import Sidebar from './lib/components/Sidebar.svelte';
   import TopBar from './lib/components/TopBar.svelte';
   import StatusBar from './lib/components/StatusBar.svelte';
+  import CommandPalette from './lib/components/CommandPalette.svelte';
+  import ShortcutsOverlay from './lib/components/ShortcutsOverlay.svelte';
+  import ToastStack from './lib/components/ToastStack.svelte';
   import Overview from './lib/views/Overview.svelte';
   import Siem from './lib/views/Siem.svelte';
   import Categories from './lib/views/Categories.svelte';
@@ -26,15 +29,65 @@
 
   let active = $state<NavId>('overview');
   let sidebarOpen = $state(true);
+  let paletteOpen = $state(false);
+  let shortcutsOpen = $state(false);
 
   const current = $derived(NAV.find((n) => n.id === active)!);
 
   function handleKey(e: KeyboardEvent) {
+    // Ignore shortcuts while user is typing in inputs/textareas/contenteditable —
+    // except Ctrl/Cmd+K which we want to override globally.
+    const target = e.target as HTMLElement | null;
+    const isTyping = !!target && (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    );
+
+    // Ctrl/Cmd+K — command palette
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      paletteOpen = !paletteOpen;
+      return;
+    }
+    // Ctrl/Cmd+B — toggle sidebar
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
       e.preventDefault();
       sidebarOpen = !sidebarOpen;
+      return;
+    }
+    // ? — keyboard shortcuts
+    if (!isTyping && e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      shortcutsOpen = !shortcutsOpen;
+      return;
+    }
+    // Esc — close any modal
+    if (e.key === 'Escape') {
+      if (paletteOpen) { paletteOpen = false; e.preventDefault(); return; }
+      if (shortcutsOpen) { shortcutsOpen = false; e.preventDefault(); return; }
+    }
+    // / — focus the global search (currently in TopBar)
+    if (!isTyping && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const search = document.querySelector<HTMLInputElement>('header input[type="search"]');
+      if (search) {
+        e.preventDefault();
+        search.focus();
+        search.select();
+      }
     }
   }
+
+  // Listen for the dispatched custom event from the command palette so
+  // "Show keyboard shortcuts" works even though the palette doesn't
+  // hold a reference to App's state directly. Registered manually
+  // because Svelte's <svelte:window> binding doesn't carry a type for
+  // arbitrary CustomEvent names.
+  $effect(() => {
+    const handler = () => { shortcutsOpen = true; };
+    window.addEventListener('oblivra:shortcuts', handler);
+    return () => window.removeEventListener('oblivra:shortcuts', handler);
+  });
 </script>
 
 <svelte:window on:keydown={handleKey} />
@@ -91,4 +144,8 @@
 
     <StatusBar />
   </div>
+
+  <CommandPalette bind:open={paletteOpen} bind:active />
+  <ShortcutsOverlay bind:open={shortcutsOpen} />
+  <ToastStack />
 </div>

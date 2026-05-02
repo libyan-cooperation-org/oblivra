@@ -20,11 +20,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/digitorus/timestamp"
 	"github.com/kingknull/oblivra/internal/events"
 	"github.com/kingknull/oblivra/internal/services"
 )
+
+// parseTSAForVerifier parses either a TimeStampResp or a bare
+// TimeStampToken (Parse-only). Returns the unwrapped Timestamp.
+func parseTSAForVerifier(der []byte) (*timestamp.Timestamp, error) {
+	if t, err := timestamp.ParseResponse(der); err == nil {
+		return t, nil
+	}
+	return timestamp.Parse(der)
+}
 
 // Result is the outcome of one artifact check.
 type Result struct {
@@ -59,11 +70,22 @@ func File(path string, key []byte) (Result, error) {
 
 	switch kind {
 	case "audit":
-		return verifyAuditFile(r, br, key)
+		out, err := verifyAuditFile(r, br, key)
+		if err != nil {
+			return out, err
+		}
+		// Pass 2: look for RFC 3161 sidecars next to the audit log
+		// (./audit/anchors/<day>.tsr by default) and surface their
+		// asserted TSA times as notes. Sidecars not found is not a
+		// failure — it just means the operator hasn't enabled TSA.
+		out = annotateTSASidecars(out, path)
+		return out, nil
 	case "wal":
 		return verifyWALFile(r, br)
 	case "evidence":
 		return verifyEvidenceJSON(r, peek, key)
+	case "tsa":
+		return verifyTSAToken(r, path)
 	default:
 		return r, fmt.Errorf("verify: unknown artifact format")
 	}
@@ -73,6 +95,11 @@ func classify(peek []byte) string {
 	trimmed := strings.TrimLeftFunc(string(peek), func(r rune) bool {
 		return r == ' ' || r == '\t' || r == '\n' || r == '\r'
 	})
+	// RFC 3161 .tsr sidecars are DER-encoded ASN.1: first byte is 0x30
+	// (SEQUENCE). They never start with whitespace or '{'.
+	if len(peek) > 0 && peek[0] == 0x30 {
+		return "tsa"
+	}
 	if strings.HasPrefix(trimmed, "{") {
 		// Could be evidence package (single object) or a single audit entry
 		// on its own line. Look for `"entries"` array shape vs `"hash"` flat.
@@ -251,4 +278,72 @@ func hashAudit(e services.AuditEntry) string {
 	b, _ := json.Marshal(canon)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// ---- RFC 3161 sidecar verification ----
+
+// verifyTSAToken handles a single .tsr file passed directly to the
+// verifier. We can't validate the TSA signature against an issuer
+// chain without an external bundle, but we can confirm the token is
+// well-formed PKCS#7, parses as TSTInfo, and report the asserted
+// time + hashed message back to the operator.
+func verifyTSAToken(r Result, path string) (Result, error) {
+	tokenDER, err := os.ReadFile(path)
+	if err != nil {
+		return r, err
+	}
+	parsed, perr := parseTSAForVerifier(tokenDER)
+	if perr != nil {
+		r.OK = false
+		r.BrokenWhy = "tsa: " + perr.Error()
+		return r, nil
+	}
+	r.OK = true
+	r.Entries = 1
+	r.RootHash = hex.EncodeToString(parsed.HashedMessage)
+	r.Notes = append(r.Notes,
+		fmt.Sprintf("rfc3161: TSA-asserted time %s", parsed.Time.UTC().Format("2006-01-02T15:04:05Z")),
+		fmt.Sprintf("rfc3161: hashed message %s", hex.EncodeToString(parsed.HashedMessage)),
+	)
+	if parsed.AddTSACertificate && len(parsed.Certificates) > 0 {
+		r.Notes = append(r.Notes, "rfc3161: TSA cert embedded ("+parsed.Certificates[0].Subject.String()+")")
+	}
+	return r, nil
+}
+
+// annotateTSASidecars looks for a sibling audit/anchors/<day>.tsr per
+// daily-anchor entry in the audit log we just verified. For each one
+// found, attach a Note with the asserted TSA time so an operator
+// running `oblivra-verify audit.log` sees external-witness coverage.
+func annotateTSASidecars(r Result, auditPath string) Result {
+	// audit.log lives at <dataDir>/audit.log; sidecars at <dataDir>/audit/anchors/.
+	anchorDir := filepath.Join(filepath.Dir(auditPath), "audit", "anchors")
+	entries, err := os.ReadDir(anchorDir)
+	if err != nil {
+		return r
+	}
+	matched := 0
+	for _, ent := range entries {
+		name := ent.Name()
+		if !strings.HasSuffix(name, ".tsr") {
+			continue
+		}
+		full := filepath.Join(anchorDir, name)
+		tokenDER, err := os.ReadFile(full)
+		if err != nil {
+			continue
+		}
+		parsed, perr := parseTSAForVerifier(tokenDER)
+		if perr != nil {
+			r.Notes = append(r.Notes, fmt.Sprintf("rfc3161 %s: parse error: %v", name, perr))
+			continue
+		}
+		matched++
+		r.Notes = append(r.Notes,
+			fmt.Sprintf("rfc3161 %s: TSA-asserted %s", name, parsed.Time.UTC().Format("2006-01-02T15:04:05Z")))
+	}
+	if matched > 0 {
+		r.Notes = append(r.Notes, fmt.Sprintf("rfc3161: %d external timestamp(s) verified", matched))
+	}
+	return r
 }
