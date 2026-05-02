@@ -163,6 +163,36 @@ tasks:
       - 'echo "Compiling NSIS installer for v{{.VERSION}}..."'
       - 'makensis -DVERSION={{.VERSION}} build/windows/installer/oblivra.nsi'
 
+  release:linux:
+    desc: Build the Linux server release tarball — produces build/linux/oblivra-server-<version>-linux-amd64.tar.gz
+    deps: [build:frontend]
+    vars:
+      VERSION: '{{.VERSION | default "0.1.0-beta1"}}'
+      STAGE: 'build/linux/oblivra-server-{{.VERSION | default "0.1.0-beta1"}}-linux-amd64'
+    env:
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: 0
+    cmds:
+      - go run ./tools/ensure-dir build/linux/dist
+      - go build -trimpath -ldflags "-w -s -X main.version=v{{.VERSION}}" -o build/linux/dist/oblivra-server  ./cmd/server
+      - go build -trimpath -ldflags "-w -s -X main.version=v{{.VERSION}}" -o build/linux/dist/oblivra-cli     ./cmd/cli
+      - go build -trimpath -ldflags "-w -s -X main.version=v{{.VERSION}}" -o build/linux/dist/oblivra-verify  ./cmd/verify
+      - go build -trimpath -ldflags "-w -s -X main.version=v{{.VERSION}}" -o build/linux/dist/oblivra-agent   ./cmd/agent
+      - go build -trimpath -ldflags "-w -s -X main.version=v{{.VERSION}}" -o build/linux/dist/oblivra-migrate ./cmd/migrate
+      - go build -trimpath -ldflags "-w -s -X main.version=v{{.VERSION}}" -o build/linux/dist/oblivra-smoke   ./cmd/smoke
+      - rm -rf "{{.STAGE}}"
+      - mkdir -p "{{.STAGE}}"
+      - cp build/linux/dist/* "{{.STAGE}}/"
+      - cp build/linux/release/install.sh build/linux/release/uninstall.sh "{{.STAGE}}/"
+      - cp build/linux/release/oblivra.service build/linux/release/oblivra.env.example "{{.STAGE}}/"
+      - cp build/linux/release/Caddyfile.example build/linux/release/README.md "{{.STAGE}}/"
+      - cp -r sigma "{{.STAGE}}/"
+      - cp LICENSE SECURITY.md "{{.STAGE}}/"
+      - chmod +x "{{.STAGE}}/install.sh" "{{.STAGE}}/uninstall.sh" "{{.STAGE}}"/oblivra-*
+      - tar -C build/linux -czf "build/linux/oblivra-server-{{.VERSION}}-linux-amd64.tar.gz" "oblivra-server-{{.VERSION}}-linux-amd64/"
+      - 'echo "✓ build/linux/oblivra-server-{{.VERSION}}-linux-amd64.tar.gz"'
+
   ci:
     desc: Run the full CI gauntlet — fmt, vet, tests, frontend build
     cmds:

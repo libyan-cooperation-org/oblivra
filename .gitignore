@@ -9,6 +9,10 @@
 /oblivra-soak
 /oblivra-smoke
 /build/bin/
+/build/linux/dist/
+/build/linux/oblivra-server-*-linux-amd64/
+/build/linux/oblivra-server-*-linux-amd64.tar.gz
+/build/windows/installer/OBLIVRA-Setup-*.exe
 /dist/
 
 # Frontend / Node

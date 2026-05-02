@@ -1,0 +1,41 @@
+[Unit]
+Description=OBLIVRA — sovereign log-driven security platform
+Documentation=https://github.com/libyan-cooperation-org/oblivra
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oblivra
+Group=oblivra
+WorkingDirectory=/opt/oblivra
+EnvironmentFile=/etc/oblivra/oblivra.env
+ExecStart=/opt/oblivra/oblivra-server
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+
+# Resource & sandboxing — keep the daemon contained.
+LimitNOFILE=65536
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+# Audit chain, WAL, parquet warm tier, vault — all live here.
+ReadWritePaths=/var/lib/oblivra
+
+[Install]
+WantedBy=multi-user.target

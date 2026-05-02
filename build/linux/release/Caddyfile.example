@@ -1,0 +1,60 @@
+# Drop in front of OBLIVRA when:
+#   - you're not on a VPN, or
+#   - you want HTTP/2 + automatic Let's Encrypt + a single TLS termination
+#     point on the public-facing host.
+#
+# Behind a VPN this is OPTIONAL — the VPN already terminates TLS.
+#
+# Usage:
+#   1. Install Caddy (https://caddyserver.com/docs/install).
+#   2. Copy this file to /etc/caddy/Caddyfile.
+#   3. Replace `oblivra.example.internal` with your actual hostname.
+#   4. systemctl enable --now caddy
+#
+# Caddy auto-provisions Let's Encrypt for public hostnames. For an
+# internal-only hostname, set up your own internal CA or use the
+# `tls internal` directive (Caddy ships a self-signed CA suitable for
+# VPN-only scenarios).
+
+oblivra.example.internal {
+    # tls internal     # uncomment for VPN-only deployments
+
+    # WebSocket support — live tail uses /api/v1/events
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade    websocket
+    }
+
+    # The agent ingest endpoint accepts much larger bodies than the
+    # default 10 MB Caddy limit. Bump it for the ingest paths.
+    request_body /api/v1/siem/ingest/* {
+        max_size 50MB
+    }
+    request_body /services/collector/* {
+        max_size 50MB
+    }
+    request_body /v1/logs {
+        max_size 50MB
+    }
+
+    reverse_proxy 127.0.0.1:8080 {
+        flush_interval -1
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+    }
+
+    # Strict transport security — only meaningful for public TLS.
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header Referrer-Policy "no-referrer"
+
+    log {
+        output file /var/log/caddy/oblivra.log {
+            roll_size 100MB
+            roll_keep 7
+        }
+        format json
+    }
+}
