@@ -52,6 +52,8 @@ func main() {
 		do("GET", "/api/v1/threatintel/indicators", nil)
 	case "backup":
 		backupCmd(os.Args[2:])
+	case "sigma":
+		sigmaCmd(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
@@ -77,6 +79,8 @@ Commands:
   backup diff <a> <b>      Diff two backup directories' audit chains
   backup restore --dry-run <src> <dst>
                            Explain what restoring src into dst would do
+  sigma import <src> <dst> [--apply]
+                           Audit a Sigma rule directory; copy loadable rules to dst
 
 Env: OBLIVRA_ADDR=http://localhost:8080  OBLIVRA_TOKEN=<api key>`)
 }
