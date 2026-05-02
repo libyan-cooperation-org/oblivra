@@ -1,14 +1,8 @@
-// Single bridge used by every Svelte component.
-// Routes calls to Wails bindings when running inside the desktop shell, or to
-// the REST API when running in a browser (served by cmd/server).
-
-declare global {
-  interface Window {
-    wails?: {
-      Call: (service: string, method: string, ...args: unknown[]) => Promise<unknown>;
-    };
-  }
-}
+// REST client used by every Svelte component.
+//
+// The frontend talks to the headless server's REST API. Both the Wails
+// desktop shell (when wired up) and the headless cmd/server expose the
+// same /api/v1 surface, so a single fetch-based client covers both.
 
 export interface SystemInfo {
   version: string;
@@ -25,25 +19,28 @@ export interface Health {
   timestamp: string;
 }
 
-const inWails = () => typeof window !== 'undefined' && !!window.wails;
-
 async function rest<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin' });
   if (!res.ok) throw new Error(`${path}: ${res.status} ${res.statusText}`);
   return (await res.json()) as T;
 }
 
+async function restPost<T, B>(path: string, body: B): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error(`${path}: ${res.status} ${res.statusText}`);
+  return (await res.json()) as T;
+}
+
 export async function getSystemInfo(): Promise<SystemInfo> {
-  if (inWails()) {
-    return (await window.wails!.Call('SystemService', 'Info')) as SystemInfo;
-  }
   return rest<SystemInfo>('/api/v1/system/info');
 }
 
 export async function ping(): Promise<Health> {
-  if (inWails()) {
-    return (await window.wails!.Call('SystemService', 'Ping')) as Health;
-  }
   return rest<Health>('/api/v1/system/ping');
 }
 
@@ -89,35 +86,11 @@ export interface SearchResponse {
   mode: 'chrono' | 'fulltext';
 }
 
-async function restPost<T, B>(path: string, body: B): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    credentials: 'same-origin',
-  });
-  if (!res.ok) throw new Error(`${path}: ${res.status} ${res.statusText}`);
-  return (await res.json()) as T;
-}
-
 export async function siemIngest(ev: Partial<OblivraEvent>): Promise<OblivraEvent> {
-  if (inWails()) {
-    return (await window.wails!.Call('SiemService', 'Ingest', ev)) as OblivraEvent;
-  }
   return restPost<OblivraEvent, Partial<OblivraEvent>>('/api/v1/siem/ingest', ev);
 }
 
 export async function siemSearch(opts: SearchOptions = {}): Promise<SearchResponse> {
-  if (inWails()) {
-    return (await window.wails!.Call('SiemService', 'Search', {
-      tenantId: opts.tenantId ?? '',
-      query: opts.query ?? '',
-      fromUnix: opts.fromUnix ?? 0,
-      toUnix: opts.toUnix ?? 0,
-      limit: opts.limit ?? 0,
-      newestFirst: opts.newestFirst ?? true,
-    })) as SearchResponse;
-  }
   const params = new URLSearchParams();
   if (opts.query) params.set('q', opts.query);
   if (opts.fromUnix) params.set('from', String(opts.fromUnix));
@@ -129,9 +102,6 @@ export async function siemSearch(opts: SearchOptions = {}): Promise<SearchRespon
 }
 
 export async function siemStats(): Promise<IngestStats> {
-  if (inWails()) {
-    return (await window.wails!.Call('SiemService', 'Stats')) as IngestStats;
-  }
   return rest<IngestStats>('/api/v1/siem/stats');
 }
 
@@ -141,16 +111,10 @@ export interface LiveTailHandle {
   close: () => void;
 }
 
-/** Subscribe to /api/v1/events. Browser surface only — desktop Wails uses
- *  the polling path until we wire a Wails event channel. */
 export function liveTail(
   onEvent: (ev: OblivraEvent) => void,
   onError?: (err: Error) => void,
 ): LiveTailHandle {
-  if (inWails()) {
-    // No WS in Wails yet — fall back to a no-op handle. Siem view will keep polling.
-    return { close: () => {} };
-  }
   const url =
     (location.protocol === 'https:' ? 'wss://' : 'ws://') +
     location.host +
@@ -374,7 +338,7 @@ export async function storagePromote(): Promise<{ moved: number }> {
   return restPost('/api/v1/storage/promote', {});
 }
 
-// ---- Reconstruction / cases / trust / quality (round 12 surface) ----
+// ---- Reconstruction / cases / trust / quality ----
 
 export interface Session {
   id: string;
@@ -501,7 +465,7 @@ export const caseLegalApprove = (id: string, reason: string) =>
 export const caseLegalReject = (id: string, reason: string) =>
   restPost<CaseSummary, { reason: string }>(`/api/v1/cases/${id}/legal/reject`, { reason });
 
-// ---- Round 15: graph + vault + webhooks + pivot ----
+// ---- Graph / Vault / Webhooks / Pivot ----
 
 export interface GraphEdge {
   from: { kind: string; id: string };

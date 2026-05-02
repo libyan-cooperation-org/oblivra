@@ -3,7 +3,6 @@
   import { ping, type Health } from '../bridge';
 
   let health = $state<Health | null>(null);
-  let surface = $state<'desktop' | 'web'>(typeof window !== 'undefined' && window.wails ? 'desktop' : 'web');
   let timer: ReturnType<typeof setInterval> | null = null;
 
   async function tick() {
@@ -35,8 +34,6 @@
       ></span>
       {health?.status ?? 'connecting'}
     </span>
-    <span class="text-night-400">·</span>
-    <span>Surface: <span class="text-night-200">{surface}</span></span>
   </div>
 
   <div class="flex items-center gap-3 font-mono">

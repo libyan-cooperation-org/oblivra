@@ -43,7 +43,14 @@
       "Bash(./oblivra-agent.exe test *)",
       "Bash(/tmp/oblivra-cli.exe)",
       "Bash(mkdir -p /tmp/bv-test)",
-      "Bash(/tmp/oblivra-cli.exe backup *)"
+      "Bash(/tmp/oblivra-cli.exe backup *)",
+      "Bash(where makensis *)",
+      "Bash(\"/c/Program Files \\(x86\\)/NSIS/Bin/makensis.exe\" //DVERSION=0.1.0-beta1 oblivra.nsi)",
+      "Bash(build/bin/oblivra-agent.exe version *)",
+      "Bash(build/bin/oblivra-cli.exe)",
+      "Bash(build/bin/oblivra-verify.exe)",
+      "Bash(tar -czf oblivra-server-0.1.0-beta1-linux-amd64.tar.gz oblivra-server-0.1.0-beta1-linux-amd64/)",
+      "Bash(tar -tzf oblivra-server-0.1.0-beta1-linux-amd64.tar.gz)"
     ]
   }
 }
