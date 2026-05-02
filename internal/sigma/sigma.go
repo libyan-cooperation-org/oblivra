@@ -110,37 +110,58 @@ func Parse(raw []byte, originName string) (services.Rule, error) {
 		return services.Rule{}, errors.New("missing condition")
 	}
 
-	pos, neg, err := resolveCondition(doc.Detection, cond)
+	res, err := resolveCondition(doc.Detection, cond)
 	if err != nil {
 		return services.Rule{}, err
 	}
 
-	allAny, fields, err := unionSelections(pos)
-	if err != nil {
-		return services.Rule{}, err
-	}
-	if len(allAny) == 0 {
-		return services.Rule{}, errors.New("empty selection (no matchable values)")
+	rule := services.Rule{
+		ID:       id,
+		Name:     doc.Title,
+		Severity: levelToSeverity(doc.Level),
+		MITRE:    mitreFromTags(doc.Tags),
+		Source:   "sigma",
 	}
 
-	var allNot []string
-	if len(neg) > 0 {
-		notValues, _, err := unionSelections(neg)
-		if err == nil {
-			allNot = notValues
+	// `keywords` shape: list of substrings, no field filter.
+	if len(res.keywords) > 0 {
+		var any []string
+		for _, item := range res.keywords {
+			if s, ok := item.(string); ok {
+				any = append(any, s)
+			}
+		}
+		if len(any) == 0 {
+			return services.Rule{}, errors.New("empty keywords list")
+		}
+		rule.AnyContain = any
+		rule.Fields = []string{"message", "raw"}
+	} else {
+		// Standard map-block shape. Union positive and negative sides.
+		allAny, fields, err := unionSelections(res.positive)
+		if err != nil {
+			return services.Rule{}, err
+		}
+		if len(allAny) == 0 {
+			return services.Rule{}, errors.New("empty selection (no matchable values)")
+		}
+		rule.Fields = fields
+		// `all of <pattern>` → every value must appear (AllContain)
+		// All other shapes → any value appears (AnyContain)
+		if res.matchAll {
+			rule.AllContain = allAny
+		} else {
+			rule.AnyContain = allAny
 		}
 	}
 
-	return services.Rule{
-		ID:         id,
-		Name:       doc.Title,
-		Severity:   levelToSeverity(doc.Level),
-		Fields:     fields,
-		AnyContain: allAny,
-		NotContain: allNot,
-		MITRE:      mitreFromTags(doc.Tags),
-		Source:     "sigma",
-	}, nil
+	if len(res.negative) > 0 {
+		if notValues, _, err := unionSelections(res.negative); err == nil {
+			rule.NotContain = notValues
+		}
+	}
+
+	return rule, nil
 }
 
 // unionSelections flattens a list of detection blocks into a single
@@ -164,54 +185,136 @@ func unionSelections(blocks []map[string]interface{}) (anyContain, fields []stri
 	return anyContain, fields, nil
 }
 
-// resolveCondition parses the Sigma `condition` expression into positive
-// and negative block sets. Supported shapes:
+// conditionResult is what resolveCondition hands back. The matchAll
+// flag flips the rule's positive token set into AllContain (every
+// token must appear) instead of AnyContain (any one is enough). Used
+// by the `all of <pattern>` shape.
+type conditionResult struct {
+	positive  []map[string]interface{}
+	negative  []map[string]interface{}
+	keywords  []interface{} // raw list values from a top-level `keywords` block
+	matchAll  bool
+}
+
+// resolveCondition parses the Sigma `condition` expression. Supported:
 //
-//   - <term>                            positive only
-//   - <term> and not <term>             positive + negative
-//   - <term> and <term>                 → positive (BUT we reject this:
-//                                          our substring matcher can't
-//                                          honestly evaluate AND between
-//                                          two arbitrary blocks)
+//   - <term>                       positive only
+//   - <term> and not <term>        positive + negative
+//   - <term> and <term2>           rejected (matcher can't honestly AND)
+//   - all of <pattern>             every matched block; values use AllContain
+//   - all of them                  every block; values use AllContain
+//   - keywords                     list-shaped block → AnyContain
 //
 // where <term> is one of:
 //   - selection
-//   - <name>            (e.g. "exclude", "selection_a")
+//   - <name>            (e.g. "exclude", "selection_a", "keywords")
 //   - 1 of them
 //   - 1 of <pattern>
 //
-// Anything more elaborate (`or`, `count(...) > N`, `near`, parens) is
-// rejected with a clear error so we don't pretend to support it.
-func resolveCondition(detection map[string]interface{}, cond string) (positive, negative []map[string]interface{}, err error) {
+// `or` between blocks, parens, count()/near()/etc are rejected.
+func resolveCondition(detection map[string]interface{}, cond string) (conditionResult, error) {
 	cond = strings.TrimSpace(cond)
-	// Detect "<lhs> and not <rhs>" first since it's the common shape.
+
+	// "<lhs> and not <rhs>" — common shape; check first.
 	if idx := strings.Index(cond, " and not "); idx > 0 {
 		lhs := strings.TrimSpace(cond[:idx])
 		rhs := strings.TrimSpace(cond[idx+len(" and not "):])
-		pos, err := termBlocks(detection, lhs)
+		res, err := resolveCondition(detection, lhs)
 		if err != nil {
-			return nil, nil, fmt.Errorf("lhs %q: %w", lhs, err)
+			return res, fmt.Errorf("lhs %q: %w", lhs, err)
 		}
-		neg, err := termBlocks(detection, rhs)
+		neg, err := termBlocksLoose(detection, rhs)
 		if err != nil {
-			return nil, nil, fmt.Errorf("not-rhs %q: %w", rhs, err)
+			return res, fmt.Errorf("not-rhs %q: %w", rhs, err)
 		}
-		return pos, neg, nil
+		res.negative = neg
+		return res, nil
 	}
-	// Reject `and` without `not` — substring matcher can't AND two
-	// independent blocks honestly.
+
+	// `keywords` is a special case — Sigma allows a top-level list
+	// instead of a map. The condition is just "keywords".
+	if cond == "keywords" {
+		if raw, ok := detection["keywords"]; ok {
+			if list, isList := raw.([]interface{}); isList {
+				return conditionResult{keywords: list}, nil
+			}
+			// keywords-as-map → fall through to map handling below.
+		}
+	}
+
+	// `all of them` / `all of <pattern>` — every matched block's tokens
+	// must appear (AllContain semantics). We support this for the
+	// 1-field-per-block shape that's by far the common case in Sigma.
+	if strings.HasPrefix(cond, "all of ") {
+		pattern := strings.TrimPrefix(cond, "all of ")
+		blocks, err := globMatchedBlocks(detection, pattern)
+		if err != nil {
+			return conditionResult{}, fmt.Errorf("`%s`: %w", cond, err)
+		}
+		return conditionResult{positive: blocks, matchAll: true}, nil
+	}
+
 	if strings.Contains(cond, " and ") {
-		return nil, nil, fmt.Errorf("unsupported condition %q (AND between blocks needs the matcher to evaluate both; use `selection and not exclude` instead)", cond)
+		return conditionResult{}, fmt.Errorf("unsupported condition %q (AND between blocks needs the matcher to evaluate both; use `selection and not exclude` instead)", cond)
 	}
-	// Reject `or` between blocks — `1 of them` covers the common case.
 	if strings.Contains(cond, " or ") {
-		return nil, nil, fmt.Errorf("unsupported condition %q (use `1 of them` or `1 of <pattern>` for OR)", cond)
+		return conditionResult{}, fmt.Errorf("unsupported condition %q (use `1 of them` or `1 of <pattern>` for OR)", cond)
 	}
-	pos, err := termBlocks(detection, cond)
+
+	pos, err := termBlocksLoose(detection, cond)
 	if err != nil {
-		return nil, nil, err
+		return conditionResult{}, err
 	}
-	return pos, nil, nil
+	return conditionResult{positive: pos}, nil
+}
+
+// termBlocksLoose is like termBlocks but also handles a top-level
+// `keywords` list when referenced bare. Used as a leaf resolver.
+func termBlocksLoose(detection map[string]interface{}, term string) ([]map[string]interface{}, error) {
+	term = strings.TrimSpace(term)
+	if blocks, err := termBlocks(detection, term); err == nil {
+		return blocks, nil
+	} else if !strings.Contains(err.Error(), "no such block") {
+		return nil, err
+	}
+	return nil, fmt.Errorf("term %q: no such block", term)
+}
+
+// globMatchedBlocks returns every detection block whose name matches
+// the glob pattern. Used by `all of <pattern>` and `1 of <pattern>`.
+func globMatchedBlocks(detection map[string]interface{}, pattern string) ([]map[string]interface{}, error) {
+	if pattern == "them" {
+		var out []map[string]interface{}
+		for k, v := range detection {
+			if k == "condition" {
+				continue
+			}
+			if blk, ok := v.(map[string]interface{}); ok {
+				out = append(out, blk)
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("no detection blocks defined")
+		}
+		return out, nil
+	}
+	re, err := globToRegex(pattern)
+	if err != nil {
+		return nil, err
+	}
+	var out []map[string]interface{}
+	for k, v := range detection {
+		if k == "condition" || !re.MatchString(k) {
+			continue
+		}
+		if blk, ok := v.(map[string]interface{}); ok {
+			out = append(out, blk)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("matched no blocks")
+	}
+	return out, nil
 }
 
 // termBlocks resolves a single term (a leaf in the condition AST).

@@ -159,15 +159,86 @@ detection:
 	}
 }
 
-// AND, OR, count-by, near, etc still error out (substring matcher
-// can't honestly evaluate them).
+// `count(...)` / `near(...)` / OR / AND-without-NOT still error out
+// (substring matcher can't honestly evaluate them).
 func TestParseStillRejectsUnsupportedExprs(t *testing.T) {
-	cases := []string{"all of them", "selection | count() > 5", "selection or other", "selection and other"}
+	cases := []string{"selection | count() > 5", "selection or other", "selection and other"}
 	for _, c := range cases {
 		raw := []byte("title: x\ndetection:\n  selection:\n    a: 1\n  other:\n    b: 2\n  condition: " + c + "\n")
 		if _, err := Parse(raw, "x.yml"); err == nil {
 			t.Errorf("expected error for %q", c)
 		}
+	}
+}
+
+// `keywords` — top-level list, no field map. Common in web-attack rules.
+func TestParseKeywordsList(t *testing.T) {
+	raw := []byte(`
+title: Java RCE attempt
+id: cf-java-rce
+level: high
+detection:
+    keywords:
+        - 'Runtime.getRuntime'
+        - 'ProcessBuilder'
+        - 'java.lang.Runtime'
+    condition: keywords
+`)
+	rule, err := Parse(raw, "java-rce.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(rule.AnyContain, "Runtime.getRuntime") {
+		t.Errorf("missing keyword: %v", rule.AnyContain)
+	}
+	if !contains(rule.Fields, "message") {
+		t.Errorf("default field set should be message+raw: %v", rule.Fields)
+	}
+}
+
+// `all of selection_*` — AND across blocks, expressed via AllContain.
+func TestParseAllOfPattern(t *testing.T) {
+	raw := []byte(`
+title: Multi-condition
+id: t-allof
+level: high
+detection:
+    selection_a:
+        CommandLine|contains: 'lsass'
+    selection_b:
+        CommandLine|contains: 'minidump'
+    condition: all of selection_*
+`)
+	rule, err := Parse(raw, "allof.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both tokens must appear → AllContain, not AnyContain.
+	if len(rule.AllContain) == 0 {
+		t.Fatalf("expected AllContain populated, got AnyContain=%v AllContain=%v", rule.AnyContain, rule.AllContain)
+	}
+	if !contains(rule.AllContain, "lsass") || !contains(rule.AllContain, "minidump") {
+		t.Errorf("AllContain incomplete: %v", rule.AllContain)
+	}
+}
+
+// `all of them` — AND across every block.
+func TestParseAllOfThem(t *testing.T) {
+	raw := []byte(`
+title: All-of-them
+detection:
+    a:
+        CommandLine|contains: 'foo'
+    b:
+        CommandLine|contains: 'bar'
+    condition: all of them
+`)
+	rule, err := Parse(raw, "x.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(rule.AllContain, "foo") || !contains(rule.AllContain, "bar") {
+		t.Errorf("AllContain incomplete: %v", rule.AllContain)
 	}
 }
 
