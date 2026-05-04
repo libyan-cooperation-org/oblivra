@@ -49,3 +49,9 @@ func (s *SystemService) Info() SystemInfo {
 func (s *SystemService) Ping() Health {
 	return Health{Status: "ok", Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}
 }
+
+// OsInstallDate returns the approximate date the OS was installed.
+// Implementation is in os_install_windows.go and os_install_other.go.
+func (s *SystemService) OsInstallDate() time.Time {
+	return osInstallDate()
+}

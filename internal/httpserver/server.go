@@ -160,6 +160,7 @@ func (s *Server) routes() {
 	// System.
 	s.mux.HandleFunc("GET /api/v1/system/info", s.systemInfo)
 	s.mux.HandleFunc("GET /api/v1/system/ping", s.systemPing)
+	s.mux.HandleFunc("GET /api/v1/system/osinstall", s.systemOsInstall)
 
 	// SIEM.
 	s.mux.HandleFunc("POST /api/v1/siem/ingest", s.siemIngest)
@@ -381,6 +382,14 @@ func (s *Server) systemInfo(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) systemPing(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.system.Ping())
+}
+
+// systemOsInstall returns the date the OS was installed (Windows: registry
+// InstallDate; Linux/macOS: best-effort from filesystem metadata).
+// Drives the "Since OS install" time-range preset in the SIEM panel.
+func (s *Server) systemOsInstall(w http.ResponseWriter, _ *http.Request) {
+	t := s.system.OsInstallDate()
+	writeJSON(w, http.StatusOK, map[string]string{"installedAt": t.UTC().Format(time.RFC3339)})
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {

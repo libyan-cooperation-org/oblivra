@@ -11,19 +11,10 @@ import (
 	"time"
 )
 
-// `oblivra-agent setup` is the interactive first-run wizard. Prompts
-// for the bare minimum (server URL, agent token, hostname), offers
-// well-known log paths to enable, writes the config, and runs the
-// existing `test` flow as a sanity check.
-//
-// Designed for a tamper-resistant first install: the operator runs it
-// once at provision time, the resulting fingerprint is locked in (see
-// config_integrity.go), and any later config edit requires explicit
-// acknowledgement.
-//
-// Doesn't touch the network at write time — the test stage at the end
-// is what verifies connectivity. That keeps `setup` usable in
-// air-gapped provisioning where the platform isn't reachable yet.
+// `oblivra-agent setup` — interactive first-run wizard.
+// Prompts for server URL, token file path, hostname, and which log sources
+// to enable. Writes the config, locks the tamper fingerprint, and explains
+// the next steps.
 func runSetup(args []string) {
 	out := DefaultConfigPath()
 	if len(args) > 0 && args[0] != "" {
@@ -41,50 +32,44 @@ func runSetup(args []string) {
 			fmt.Println("aborted.")
 			return
 		}
-		// If a previous setup locked an admin password, demand it
-		// before allowing reconfiguration. Stops a coworker who can
-		// ssh to the box from silently re-running setup.
 		requireAdminPassword(defaultStateDir(), "re-run setup")
 	}
 
 	in := bufio.NewReader(os.Stdin)
 
-	serverURL := promptURL(in, "OBLIVRA server URL (or `srv://_oblivra._tcp.example.com`)", "https://oblivra.internal")
-	tokenFile := prompt(in, "Path to a 0600-mode file holding the agent bearer token", "/etc/oblivra/agent.token")
+	serverURL := promptURL(in, "OBLIVRA server URL", "https://oblivra.internal")
+	tokenFile := prompt(in, "Path to 0600-mode file holding the agent bearer token", tokenFilePath())
 	host, _ := os.Hostname()
 	hostname := prompt(in, "Hostname this agent identifies as", host)
 	tenant := prompt(in, "Tenant ID", "default")
 
 	fmt.Println()
-	fmt.Println("Recommended security defaults:")
+	fmt.Println("Security defaults:")
 	signEvents := askYN("  Enable per-event ed25519 signing", true)
-	redact := askYN("  Enable edge DLP (mask CC/SSN/tokens before shipping)", true)
+	redact := askYN("  Enable edge DLP (mask PAN/SSN/tokens before shipping)", true)
 	localRules := askYN("  Enable local pre-detection priority queue", true)
-	heartbeat := askYN("  Send rich heartbeats every 30s (recommended)", true)
+	heartbeat := askYN("  Send rich heartbeats every 30s", true)
 
 	fmt.Println()
-	fmt.Println("Discovering log paths…")
-	candidates := discoverLogPaths()
+	fmt.Println("Discovering log sources…")
+	candidates := discoverLogSources()
 	if len(candidates) == 0 {
-		fmt.Println("  (no well-known paths found — you can add `inputs:` manually)")
+		fmt.Println("  (none found — you can add inputs: manually)")
 	} else {
 		fmt.Println("Found:")
 		for i, c := range candidates {
-			fmt.Printf("  [%d] %s\n", i+1, c)
+			fmt.Printf("  [%d] %s\n", i+1, c.display())
 		}
 	}
-	picks := promptCSV(in, "Enter numbers to enable (comma-separated, 'all', or empty to skip)", "all")
-	enabled := pickPaths(candidates, picks)
+	picks := promptCSV(in, "Enter numbers to enable (comma-separated, 'all', or blank to skip)", "all")
+	enabled := pickSources(candidates, picks)
 
 	fmt.Println()
-	startBeginning := askYN("Backfill from day zero (read all rotated/gzipped logs on first run)", true)
+	startBeginning := askYN("Backfill from day zero (ship all existing logs/events on first run)", true)
 
-	// Splunk-UF-style admin password — gates sensitive subcommands and
-	// the loopback /status endpoint. Leaving it blank means everyone
-	// on the host can rerun setup / read agent state.
 	fmt.Println()
-	fmt.Println("Local admin password (gates `setup`, `reload`, `encrypt-config`,")
-	fmt.Println("and the loopback /status endpoint). Leave blank to skip.")
+	fmt.Println("Local admin password (gates `setup`, `reload`, loopback /status).")
+	fmt.Println("Leave blank to skip.")
 	adminPassword := promptSecret(in, "Admin password (≥8 chars, blank to skip)")
 	if adminPassword != "" {
 		confirm := promptSecret(in, "Confirm password")
@@ -95,17 +80,17 @@ func runSetup(args []string) {
 	}
 
 	cfg := buildSetupConfig(setupAnswers{
-		ConfigPath:    out,
-		ServerURL:     serverURL,
-		TokenFile:     tokenFile,
-		Hostname:      hostname,
-		Tenant:        tenant,
-		SignEvents:    signEvents,
-		Redact:        redact,
-		LocalRules:    localRules,
-		Heartbeat:     heartbeat,
-		StartBegin:    startBeginning,
-		Inputs:        enabled,
+		ConfigPath: out,
+		ServerURL:  serverURL,
+		TokenFile:  tokenFile,
+		Hostname:   hostname,
+		Tenant:     tenant,
+		SignEvents: signEvents,
+		Redact:     redact,
+		LocalRules: localRules,
+		Heartbeat:  heartbeat,
+		StartBegin: startBeginning,
+		Sources:    enabled,
 	})
 
 	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
@@ -118,11 +103,7 @@ func runSetup(args []string) {
 	}
 	fmt.Printf("\n✓ wrote %s (mode 0600)\n", out)
 
-	// Persist the admin password (Argon2id hashed) into the state dir
-	// so the password gates work on the next run. We use the same
-	// state-dir as the position store / fingerprint file.
 	if adminPassword != "" {
-		// Best-effort discover stateDir — defaults to the YAML default.
 		stateDir := defaultStateDir()
 		if err := SetAdminPassword(stateDir, adminPassword); err != nil {
 			fmt.Fprintln(os.Stderr, "  warning: failed to write admin password hash:", err)
@@ -130,16 +111,282 @@ func runSetup(args []string) {
 			fmt.Printf("✓ admin password hashed (Argon2id) → %s\n", passwordPath(stateDir))
 		}
 	}
-	fmt.Println()
-	fmt.Printf("Next steps:\n")
-	fmt.Printf("  1. echo 'YOUR_TOKEN' | sudo tee %s && sudo chmod 0600 %s\n", tokenFile, tokenFile)
-	fmt.Printf("  2. oblivra-agent test --config %s\n", out)
-	fmt.Printf("  3. oblivra-agent run --config %s\n", out)
-	fmt.Printf("\nThe config fingerprint is locked on first successful run. Edits without\n")
-	fmt.Printf("--acknowledge-config-change will refuse to start (tamper tripwire).\n")
+
+	fmt.Printf(`
+Next steps:
+  1. echo 'YOUR_TOKEN' | sudo tee %s && sudo chmod 0600 %s
+  2. oblivra-agent test  --config %s
+  3. oblivra-agent run   --config %s
+
+The config fingerprint is locked on first successful run. Edits without
+--acknowledge-config-change will refuse to start (tamper tripwire).
+`, tokenFile, tokenFile, out, out)
 }
 
-// ---- prompts ----
+// ── Log source discovery ───────────────────────────────────────────────────
+
+// logSource is a discovered log source (either a file path or a winlog channel).
+type logSource struct {
+	inputType  string // "file", "winlog", "journald"
+	path       string // file path or UDP addr
+	channel    string // winlog channel name
+	sourceType string
+	label      string
+}
+
+func (s logSource) display() string {
+	switch s.inputType {
+	case "winlog":
+		return fmt.Sprintf("winlog channel: %s (%s)", s.channel, s.sourceType)
+	case "journald":
+		return "systemd journal (journald)"
+	default:
+		return s.path
+	}
+}
+
+// discoverLogSources returns all log sources that exist on this host.
+// On Windows it queries winlog channels; on Linux it finds journald + files.
+func discoverLogSources() []logSource {
+	switch runtime.GOOS {
+	case "windows":
+		return discoverWindowsSources()
+	case "linux":
+		return discoverLinuxSources()
+	default:
+		return discoverGenericSources()
+	}
+}
+
+func discoverWindowsSources() []logSource {
+	// Priority-ordered channel list. discoverWinlogChannels() probes each
+	// with `wevtutil gl` so we only offer channels that actually exist.
+	type chanDef struct {
+		channel    string
+		sourceType string
+		label      string
+	}
+	want := []chanDef{
+		{"Security", "windows:security", "win-security"},
+		{"System", "windows:system", "win-system"},
+		{"Application", "windows:application", "win-application"},
+		{"Microsoft-Windows-Sysmon/Operational", "windows:sysmon", "win-sysmon"},
+		{"Microsoft-Windows-PowerShell/Operational", "windows:powershell", "win-powershell"},
+		{"Microsoft-Windows-Windows Defender/Operational", "windows:defender", "win-defender"},
+		{"Microsoft-Windows-TaskScheduler/Operational", "windows:scheduler", "win-scheduler"},
+		{"Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational", "windows:rdp", "win-rdp"},
+		{"Microsoft-Windows-WMI-Activity/Operational", "windows:wmi", "win-wmi"},
+	}
+
+	available := make(map[string]bool)
+	for _, ch := range discoverWinlogChannels() {
+		available[ch] = true
+	}
+
+	var out []logSource
+	for _, w := range want {
+		if available[w.channel] {
+			out = append(out, logSource{
+				inputType:  "winlog",
+				channel:    w.channel,
+				sourceType: w.sourceType,
+				label:      w.label,
+			})
+		}
+	}
+	return out
+}
+
+func discoverLinuxSources() []logSource {
+	var out []logSource
+
+	// Always offer journald on Linux if journalctl is present.
+	out = append(out, logSource{
+		inputType:  "journald",
+		sourceType: "linux:journal",
+		label:      "journal",
+	})
+
+	// File candidates — only include those that exist.
+	type fileDef struct {
+		path       string
+		sourceType string
+		label      string
+	}
+	files := []fileDef{
+		{"/var/log/auth.log", "linux:auth", "auth"},
+		{"/var/log/secure", "linux:auth", "auth"},
+		{"/var/log/syslog", "linux:syslog", "syslog"},
+		{"/var/log/messages", "linux:syslog", "syslog"},
+		{"/var/log/kern.log", "linux:kernel", "kernel"},
+		{"/var/log/dmesg", "linux:kernel", "dmesg"},
+		{"/var/log/audit/audit.log", "linux:auditd", "auditd"},
+		{"/var/log/nginx/access.log", "nginx:access", "nginx-access"},
+		{"/var/log/nginx/error.log", "nginx:error", "nginx-error"},
+		{"/var/log/apache2/access.log", "apache:access", "apache-access"},
+		{"/var/log/apache2/error.log", "apache:error", "apache-error"},
+		{"/var/log/httpd/access_log", "apache:access", "httpd-access"},
+		{"/var/log/httpd/error_log", "apache:error", "httpd-error"},
+		{"/var/log/mysql/error.log", "mysql", "mysql"},
+		{"/var/log/postgresql/postgresql*.log", "postgresql", "postgresql"},
+		{"/var/log/redis/redis-server.log", "redis", "redis"},
+	}
+	seen := map[string]bool{}
+	for _, f := range files {
+		if seen[f.label] {
+			continue // skip duplicates (e.g. both auth.log and secure)
+		}
+		if _, err := os.Stat(f.path); err == nil {
+			out = append(out, logSource{
+				inputType:  "file",
+				path:       f.path,
+				sourceType: f.sourceType,
+				label:      f.label,
+			})
+			seen[f.label] = true
+		}
+	}
+	return out
+}
+
+func discoverGenericSources() []logSource {
+	var out []logSource
+	for _, p := range []struct{ path, st, label string }{
+		{"/var/log/system.log", "macos:system", "system"},
+		{"/var/log/install.log", "macos:install", "install"},
+	} {
+		if _, err := os.Stat(p.path); err == nil {
+			out = append(out, logSource{inputType: "file", path: p.path, sourceType: p.st, label: p.label})
+		}
+	}
+	return out
+}
+
+func pickSources(all []logSource, picks string) []logSource {
+	picks = strings.TrimSpace(strings.ToLower(picks))
+	if picks == "" {
+		return nil
+	}
+	if picks == "all" {
+		return all
+	}
+	out := make([]logSource, 0, len(all))
+	for _, tok := range strings.Split(picks, ",") {
+		tok = strings.TrimSpace(tok)
+		var idx int
+		if _, err := fmt.Sscanf(tok, "%d", &idx); err != nil || idx < 1 || idx > len(all) {
+			continue
+		}
+		out = append(out, all[idx-1])
+	}
+	return out
+}
+
+// ── Config writer ──────────────────────────────────────────────────────────
+
+type setupAnswers struct {
+	ConfigPath string
+	ServerURL  string
+	TokenFile  string
+	Hostname   string
+	Tenant     string
+	SignEvents bool
+	Redact     bool
+	LocalRules bool
+	Heartbeat  bool
+	StartBegin bool
+	Sources    []logSource
+}
+
+func buildSetupConfig(a setupAnswers) string {
+	startFrom := "tail"
+	if a.StartBegin {
+		startFrom = "beginning"
+	}
+	heartbeat := "false"
+	if a.Heartbeat {
+		heartbeat = "true"
+	}
+
+	var inputs strings.Builder
+	for _, s := range a.Sources {
+		switch s.inputType {
+		case "winlog":
+			fmt.Fprintf(&inputs,
+				"  - type: winlog\n    channel: %q\n    sourceType: %q\n    startFrom: %s\n    label: %q\n\n",
+				s.channel, s.sourceType, startFrom, s.label)
+		case "journald":
+			fmt.Fprintf(&inputs,
+				"  - type: journald\n    sourceType: %q\n    startFrom: %s\n    label: %q\n\n",
+				s.sourceType, startFrom, s.label)
+		default: // file
+			fmt.Fprintf(&inputs,
+				"  - type: file\n    path: %q\n    sourceType: %q\n    startFrom: %s\n    label: %q\n\n",
+				s.path, s.sourceType, startFrom, s.label)
+		}
+	}
+
+	// On Linux, always include journald even if the user skipped all files.
+	if runtime.GOOS == "linux" {
+		hasJournald := false
+		for _, s := range a.Sources {
+			if s.inputType == "journald" {
+				hasJournald = true
+				break
+			}
+		}
+		if !hasJournald {
+			fmt.Fprintf(&inputs,
+				"  - type: journald\n    sourceType: \"linux:journal\"\n    startFrom: %s\n    label: \"journal\"\n\n",
+				startFrom)
+		}
+	}
+
+	if inputs.Len() == 0 {
+		inputs.WriteString("  # Add inputs here. Run `oblivra-agent init` for annotated examples.\n")
+	}
+
+	return fmt.Sprintf(`# Generated by oblivra-agent setup — %s
+# Edits without --acknowledge-config-change will refuse to start (tamper tripwire).
+
+server:
+  url: %q
+  tokenFile: %q
+  requestTimeout: 10s
+  healthInterval: 60s
+  tls:
+    caCertFile: ""
+    insecure: false
+
+hostname: %q
+tenant: %q
+tags:
+  - "managed-by:oblivra-agent-setup"
+
+batchSize: 100
+flushEvery: 2s
+compression: gzip
+
+signEvents: %t
+redact: %t
+localRules: %t
+adaptiveBatch: true
+
+heartbeat:
+  enabled: %s
+  interval: 30s
+
+inputs:
+%s`,
+		time.Now().UTC().Format(time.RFC3339),
+		a.ServerURL, a.TokenFile, a.Hostname, a.Tenant,
+		a.SignEvents, a.Redact, a.LocalRules,
+		heartbeat,
+		inputs.String(),
+	)
+}
+
+// ── Prompts (unchanged from original) ─────────────────────────────────────
 
 func prompt(r *bufio.Reader, label, def string) string {
 	if def != "" {
@@ -162,7 +409,6 @@ func promptURL(r *bufio.Reader, label, def string) string {
 			fmt.Println("  required.")
 			continue
 		}
-		// Accept srv:// shape too.
 		if strings.HasPrefix(v, "srv://") {
 			return v
 		}
@@ -198,211 +444,35 @@ func promptCSV(r *bufio.Reader, label, def string) string {
 	return prompt(r, label, def)
 }
 
-// promptSecret reads a line from stdin without echoing — best effort.
-// On a non-TTY (or on platforms where term.ReadPassword can't reach
-// the controlling terminal), we fall back to plain ReadString and
-// warn. The downstream Argon2id hash is what protects the secret on
-// disk; this is just to keep it off the local screen during setup.
 func promptSecret(r *bufio.Reader, label string) string {
 	fmt.Printf("%s: ", label)
 	if v, ok := readSecretNoEcho(); ok {
 		fmt.Println()
 		return v
 	}
-	// fallback (echoes — explain so the operator knows)
 	fmt.Print(" [echo not suppressed]: ")
 	line, _ := r.ReadString('\n')
 	return strings.TrimSpace(strings.TrimRight(line, "\r\n"))
 }
 
-func pickPaths(all []string, picks string) []string {
-	picks = strings.TrimSpace(strings.ToLower(picks))
-	if picks == "" {
-		return nil
-	}
-	if picks == "all" {
-		return all
-	}
-	out := make([]string, 0, len(all))
-	for _, tok := range strings.Split(picks, ",") {
-		tok = strings.TrimSpace(tok)
-		var idx int
-		if _, err := fmt.Sscanf(tok, "%d", &idx); err != nil || idx < 1 || idx > len(all) {
-			continue
-		}
-		out = append(out, all[idx-1])
-	}
-	return out
-}
-
-// discoverLogPaths returns well-known log files that exist on this
-// host. Right call: only suggest things that are actually there, don't
-// dump a 50-item menu of paths that would fail.
+// discoverLogPaths is kept for backward compatibility with runTest which
+// calls it. It delegates to discoverLogSources and returns file paths only.
 func discoverLogPaths() []string {
-	candidates := commonLogPaths()
-	out := make([]string, 0, len(candidates))
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			out = append(out, c)
-		} else if strings.ContainsAny(c, "*?[") {
-			// glob — accept if any matches exist
-			matches, _ := filepath.Glob(c)
-			if len(matches) > 0 {
-				out = append(out, c)
-			}
+	var out []string
+	for _, s := range discoverLogSources() {
+		if s.inputType == "file" && s.path != "" {
+			out = append(out, s.path)
 		}
 	}
 	return out
 }
 
-func commonLogPaths() []string {
-	switch runtime.GOOS {
-	case "linux":
-		return []string{
-			"/var/log/auth.log",
-			"/var/log/syslog",
-			"/var/log/kern.log",
-			"/var/log/messages",
-			"/var/log/secure",
-			"/var/log/dmesg",
-			"/var/log/audit/audit.log",
-			"/var/log/nginx/access.log",
-			"/var/log/nginx/error.log",
-			"/var/log/apache2/access.log",
-			"/var/log/apache2/error.log",
-			"/var/log/httpd/access_log",
-			"/var/log/httpd/error_log",
-			"/var/log/mysql/error.log",
-			"/var/log/mariadb/mariadb.log",
-			"/var/log/postgresql/*.log",
-			"/var/log/redis/redis-server.log",
-		}
-	case "darwin":
-		return []string{
-			"/var/log/system.log",
-			"/var/log/install.log",
-			"/var/log/wifi.log",
-		}
-	case "windows":
-		return []string{
-			`C:\Windows\System32\winevt\Logs\Security.evtx`,
-			`C:\Windows\System32\winevt\Logs\System.evtx`,
-			`C:\Windows\System32\winevt\Logs\Application.evtx`,
-		}
-	}
-	return nil
-}
-
-// ---- config writer ----
-
-type setupAnswers struct {
-	ConfigPath string
-	ServerURL  string
-	TokenFile  string
-	Hostname   string
-	Tenant     string
-	SignEvents bool
-	Redact     bool
-	LocalRules bool
-	Heartbeat  bool
-	StartBegin bool
-	Inputs     []string
-}
-
-func buildSetupConfig(a setupAnswers) string {
-	startFrom := "tail"
-	if a.StartBegin {
-		startFrom = "beginning"
-	}
-	var inputs strings.Builder
-	for _, p := range a.Inputs {
-		fmt.Fprintf(&inputs, "  - type: file\n    path: %q\n    sourceType: %s\n    startFrom: %s\n",
-			p, sourceTypeFor(p), startFrom)
-	}
-	if runtime.GOOS == "linux" {
-		// Always include journald — covers systemd-managed services
-		// even if the operator declined the file paths.
-		fmt.Fprintf(&inputs, "  - type: journald\n    sourceType: linux:journal\n    startFrom: %s\n", startFrom)
-	}
-	if len(a.Inputs) == 0 && runtime.GOOS != "linux" {
-		fmt.Fprintf(&inputs, "  # Add `inputs:` here. Examples in `oblivra-agent init`.\n")
-	}
-
-	heartbeat := "false"
-	if a.Heartbeat {
-		heartbeat = "true"
-	}
-
-	return fmt.Sprintf(`# Generated by oblivra-agent setup at %s.
-# Edits without --acknowledge-config-change refuse to start (tamper tripwire).
-
-server:
-  url: %q
-  tokenFile: %q
-  requestTimeout: 10s
-  healthInterval: 60s
-  tls:
-    caCertFile: ""
-    insecure: false
-
-hostname: %q
-tenant: %q
-tags:
-  - "managed-by:oblivra-agent-setup"
-
-batchSize: 100
-flushEvery: 2s
-compression: gzip
-
-signEvents: %t
-redact: %t
-localRules: %t
-adaptiveBatch: true
-
-heartbeat:
-  enabled: %s
-  interval: 30s
-
-inputs:
-%s
-`,
-		time.Now().UTC().Format(time.RFC3339),
-		a.ServerURL, a.TokenFile, a.Hostname, a.Tenant,
-		a.SignEvents, a.Redact, a.LocalRules,
-		heartbeat,
-		inputs.String(),
-	)
-}
-
-// sourceTypeFor picks a sensible sourceType label for a known path so
-// the operator UI can group services correctly out of the box.
+// sourceTypeFor is kept for backward compatibility.
 func sourceTypeFor(path string) string {
-	switch {
-	case strings.Contains(path, "auth.log"), strings.Contains(path, "secure"):
-		return "linux:auth"
-	case strings.Contains(path, "audit/audit.log"):
-		return "linux:auditd"
-	case strings.Contains(path, "syslog"), strings.Contains(path, "messages"):
-		return "linux:syslog"
-	case strings.Contains(path, "kern.log"), strings.Contains(path, "dmesg"):
-		return "linux:kernel"
-	case strings.Contains(path, "nginx") && strings.Contains(path, "access"):
-		return "nginx:access"
-	case strings.Contains(path, "nginx") && strings.Contains(path, "error"):
-		return "nginx:error"
-	case strings.Contains(path, "apache") || strings.Contains(path, "httpd"):
-		if strings.Contains(path, "access") {
-			return "apache:access"
+	for _, s := range discoverLinuxSources() {
+		if s.path == path {
+			return s.sourceType
 		}
-		return "apache:error"
-	case strings.Contains(path, "mysql") || strings.Contains(path, "mariadb"):
-		return "mysql"
-	case strings.Contains(path, "postgresql"):
-		return "postgresql"
-	case strings.Contains(path, "redis"):
-		return "redis"
-	case strings.Contains(path, ".evtx"):
-		return "windows:eventlog"
 	}
-	return "linux:other"
+	return "unknown"
 }

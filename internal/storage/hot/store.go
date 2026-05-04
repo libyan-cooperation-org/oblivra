@@ -225,27 +225,70 @@ func (s *Store) Range(ctx context.Context, opts RangeOpts) ([]events.Event, erro
 		it := txn.NewIterator(iopts)
 		defer it.Close()
 
-		seek := fromKey
 		if opts.Reverse {
-			seek = toKey
+			// For reverse iteration with a prefix, BadgerDB requires the seek
+			// key to be >= the last key in the prefix. We build a key that is
+			// strictly higher than any real key by appending 0xFF bytes after
+			// the prefix — this places us past all events and lets Badger walk
+			// backwards from the most recent one.
+			//
+			// We then manually skip events newer than opts.To (they are between
+			// our synthetic seek position and toKey) and stop when we fall below
+			// opts.From.
+			revSeek := make([]byte, len(prefix)+8)
+			copy(revSeek, prefix)
+			for i := len(prefix); i < len(revSeek); i++ {
+				revSeek[i] = 0xFF
+			}
+			for it.Seek(revSeek); it.Valid(); it.Next() {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				k := it.Item().Key()
+				// Stop once we pass below the from boundary.
+				if len(k) >= len(fromKey) && string(k[:len(fromKey)]) < string(fromKey) {
+					break
+				}
+				// Skip events that are strictly after opts.To.
+				if len(k) >= len(prefix)+8 {
+					var stamp [8]byte
+					copy(stamp[:], k[len(prefix):])
+					kNano := int64(binary.BigEndian.Uint64(stamp[:]))
+					if kNano > opts.To.UnixNano() {
+						continue
+					}
+					if !opts.From.IsZero() && kNano < opts.From.UnixNano() {
+						break
+					}
+				}
+				err := it.Item().Value(func(v []byte) error {
+					var ev events.Event
+					if err := json.Unmarshal(v, &ev); err != nil {
+						return err
+					}
+					out = append(out, ev)
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+				if len(out) >= opts.Limit {
+					break
+				}
+			}
+			return nil
 		}
-		for it.Seek(seek); it.Valid(); it.Next() {
+
+		// Forward iteration.
+		for it.Seek(fromKey); it.Valid(); it.Next() {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			item := it.Item()
-			k := item.Key()
-			// Bounds check — Badger's prefix only constrains the tenant prefix.
-			if opts.Reverse {
-				if string(k) < string(fromKey) {
-					break
-				}
-			} else {
-				if string(k) > string(toKey) {
-					break
-				}
+			k := it.Item().Key()
+			if string(k) > string(toKey) {
+				break
 			}
-			err := item.Value(func(v []byte) error {
+			err := it.Item().Value(func(v []byte) error {
 				var ev events.Event
 				if err := json.Unmarshal(v, &ev); err != nil {
 					return err

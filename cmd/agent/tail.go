@@ -20,9 +20,10 @@ import (
 	"time"
 )
 
-// Tailer watches one file (or stdin) and emits each event into the queue.
-// Multiline events are stitched if a startPattern is configured. Position
-// is checkpointed on every flush so a restart resumes where we left off.
+// Tailer watches one input (file, stdin, winlog, syslog-udp, journald) and
+// emits each event into the queue. Multiline events are stitched when a
+// startPattern is configured. Position is checkpointed on every flush so a
+// restart resumes where we left off.
 type Tailer struct {
 	in       Input
 	hostname string
@@ -50,10 +51,10 @@ type compiledExtract struct {
 
 // TailerDeps bundles the optional pieces (signer, priority queue, local rules).
 type TailerDeps struct {
-	Queue     chan<- string
-	HiQueue   chan<- string
-	Signer    *Signer
-	Rules     []LocalRule
+	Queue   chan<- string
+	HiQueue chan<- string
+	Signer  *Signer
+	Rules   []LocalRule
 }
 
 func NewTailer(c *Config, in Input, deps TailerDeps, p *PositionStore) (*Tailer, error) {
@@ -93,6 +94,7 @@ func NewTailer(c *Config, in Input, deps TailerDeps, p *PositionStore) (*Tailer,
 	return t, nil
 }
 
+// Run dispatches to the correct backend for this input type.
 func (t *Tailer) Run(ctx context.Context) error {
 	switch t.in.Type {
 	case "file":
@@ -101,8 +103,12 @@ func (t *Tailer) Run(ctx context.Context) error {
 		return t.runStdin(ctx)
 	case "journald":
 		return t.runJournald(ctx)
+	case "winlog":
+		return t.runWinlog(ctx)
+	case "syslog-udp":
+		return t.runSyslogUDP(ctx)
 	default:
-		return errors.New("unsupported input type: " + t.in.Type)
+		return fmt.Errorf("unsupported input type %q — valid types: file, stdin, winlog, syslog-udp, journald", t.in.Type)
 	}
 }
 
@@ -113,23 +119,18 @@ func (t *Tailer) runStdin(ctx context.Context) error {
 }
 
 func (t *Tailer) runFile(ctx context.Context) error {
-	// Glob the path so a single config entry can cover rolled files like
+	// Glob the path so a single config entry covers rolled files like
 	// `/var/log/nginx/access*.log`.
 	candidates, err := filepath.Glob(t.in.Path)
 	if err != nil || len(candidates) == 0 {
-		// Glob returns no error when nothing matches — fall back to literal.
 		candidates = []string{t.in.Path}
 	}
 
-	// Day-zero backfill: when StartFrom == "beginning", also scoop up
-	// the rotated archive set (auth.log.1, auth.log.2.gz, …) — we only
-	// do this on the first run, then drop down to live tailing.
+	// Day-zero backfill: when StartFrom == "beginning", replay rotated
+	// archives (auth.log.1, auth.log.2.gz, …) oldest-first before live
+	// tailing begins.
 	if t.in.StartFrom == "beginning" {
-		archives := discoverRotatedArchives(t.in.Path)
-		// Read archives oldest-first so the resulting event stream is
-		// chronological. Archives are read once then forgotten — they
-		// don't move, so we don't need a tail loop.
-		for _, a := range archives {
+		for _, a := range discoverRotatedArchives(t.in.Path) {
 			if ctx.Err() != nil {
 				return nil
 			}
@@ -144,10 +145,8 @@ func (t *Tailer) runFile(ctx context.Context) error {
 	return nil
 }
 
-// discoverRotatedArchives finds older copies of the live file: the
-// .1 / .2 / .gz / .bz2 / .zst variants logrotate produces. Returned
-// list is sorted oldest-first so the replay event stream is in time
-// order. Best-effort — no error on missing archives.
+// discoverRotatedArchives finds older copies of the live file (.1, .2,
+// .gz, .bz2, .zst variants). Returned list is sorted oldest-first.
 func discoverRotatedArchives(livePath string) []string {
 	dir, base := filepath.Split(livePath)
 	if dir == "" {
@@ -164,17 +163,13 @@ func discoverRotatedArchives(livePath string) []string {
 		}
 		name := e.Name()
 		if name == base {
-			continue // the live file is handled by the tailer loop
+			continue
 		}
-		// Match: <base>.<N>, <base>.<N>.gz, <base>.<N>.bz2, <base>.<N>.zst
-		// Also: <base>.gz / .bz2 / .zst (single-archive rotation).
-		// We accept anything that starts with base + "."
 		if !strings.HasPrefix(name, base+".") {
 			continue
 		}
 		matches = append(matches, filepath.Join(dir, name))
 	}
-	// Sort by mtime ascending so older content is replayed first.
 	type withTime struct {
 		path string
 		mod  time.Time
@@ -195,10 +190,6 @@ func discoverRotatedArchives(livePath string) []string {
 	return out
 }
 
-// replayArchive reads a (possibly compressed) rotated log file once
-// through the standard feed() pipeline. Compression: .gz only — bz2
-// and zst would need extra deps; an operator who needs them can
-// gunzip first or extend this function.
 func (t *Tailer) replayArchive(ctx context.Context, path string) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -217,7 +208,7 @@ func (t *Tailer) replayArchive(ctx context.Context, path string) {
 		defer gz.Close()
 		r = gz
 	} else if strings.HasSuffix(path, ".bz2") || strings.HasSuffix(path, ".zst") {
-		log.Printf("backfill skip %s: %s archives unsupported (operator: decompress first)",
+		log.Printf("backfill skip %s: %s archives unsupported (decompress first)",
 			path, strings.TrimPrefix(filepath.Ext(path), "."))
 		return
 	}
@@ -235,12 +226,10 @@ func (t *Tailer) runOneFile(ctx context.Context, path string) {
 			continue
 		}
 
-		// Determine where to start: stored offset, or tail/beginning per config.
 		startAt := int64(0)
 		info, _ := f.Stat()
 		if pos, ok := t.pos.Get(path); ok && pos.Size > 0 {
 			if info != nil && info.Size() < pos.Size {
-				// File shrunk — assume rotation, restart from 0.
 				log.Printf("tail %s: rotation detected (%d → %d bytes), re-tailing from start",
 					path, pos.Size, info.Size())
 				startAt = 0
@@ -348,10 +337,6 @@ func (t *Tailer) enqueue(source, raw string) {
 		return
 	}
 
-	// Edge DLP — apply BEFORE rule scoring, sigma matching, signing,
-	// or wire egress. Conservative: if a known canary survives the
-	// regex pass (e.g. an unusual private-key PEM block format) we
-	// drop the line entirely rather than risk a leak.
 	var dlpHits []string
 	if t.redact {
 		raw, dlpHits = redactLine(raw)
@@ -381,9 +366,6 @@ func (t *Tailer) enqueue(source, raw string) {
 		fields["agentKeyId"] = t.signer.FingerprintShort()
 	}
 
-	// Edge-side regex extraction — first matching rule wins; named groups
-	// become event fields. Saves the platform a re-extraction pass and
-	// makes downstream OQL queries cheaper.
 	for _, ex := range t.extracts {
 		m := ex.re.FindStringSubmatch(raw)
 		if m == nil {
@@ -402,8 +384,6 @@ func (t *Tailer) enqueue(source, raw string) {
 		break
 	}
 
-	// Local pre-detection — events that match high-severity rules go to the
-	// priority queue so they ship first under backpressure.
 	score := 0
 	if len(t.rules) > 0 {
 		score = ScoreLine(raw, t.rules)
@@ -424,7 +404,6 @@ func (t *Tailer) enqueue(source, raw string) {
 	b, _ := json.Marshal(doc)
 	out := string(b)
 
-	// Sign at the edge — appends agentSig + agentKeyId to the JSON.
 	if t.signer != nil {
 		signed, err := t.signer.SignEvent(out)
 		if err == nil {
@@ -446,10 +425,6 @@ func (t *Tailer) enqueue(source, raw string) {
 	}
 }
 
-// droppedEvents counts events the tailer had to drop because both the
-// primary and high-severity queues were full. Surfaced in the
-// heartbeat so the operator can spot agents that need a bigger queue
-// or a faster downstream.
 var droppedEvents atomic.Int64
 
 func severityLabel(s int) string {
@@ -472,10 +447,7 @@ func orFallback(s, def string) string {
 	return s
 }
 
-// cachedMLRegex avoids recompiling the multiline pattern per event.
-var (
-	mlRegexCache = map[string]*regexp.Regexp{}
-)
+var mlRegexCache = map[string]*regexp.Regexp{}
 
 func cachedMLRegex(pat string) (*regexp.Regexp, error) {
 	if re, ok := mlRegexCache[pat]; ok {
@@ -496,6 +468,5 @@ func sleep(ctx context.Context, d time.Duration) {
 	}
 }
 
-// hostInfo helpers for `agent status` rendering.
 func hostUname() string { return runtime.GOOS + "/" + runtime.GOARCH + " go" + runtime.Version() }
 func pid() string        { return strconv.Itoa(os.Getpid()) }

@@ -10,29 +10,20 @@
   let timer: ReturnType<typeof setInterval> | null = null;
   let inFlight = 0;
 
-  // Layout state — tidy-tree positions computed from the parent/child edges.
   type Laid = LineageNode & { x: number; y: number; depth: number };
   let nodes = $state<Laid[]>([]);
   let edges = $state<{ from: Laid; to: Laid }[]>([]);
-
   let hovered = $state<Laid | null>(null);
 
   async function refreshHosts() {
     try {
       hosts = await lineageHosts();
       if (!host && hosts.length > 0) host = hosts[0];
-    } catch (err) {
-      loadError = (err as Error).message;
-    }
+    } catch (err) { loadError = (err as Error).message; }
   }
 
   async function refreshTree() {
-    if (!host) {
-      tree = null;
-      nodes = [];
-      edges = [];
-      return;
-    }
+    if (!host) { tree = null; nodes = []; edges = []; return; }
     const seq = ++inFlight;
     try {
       const t = await lineageTree(host);
@@ -52,22 +43,12 @@
     timer = setInterval(() => void refreshTree(), 5000);
   });
   onDestroy(() => { if (timer) clearInterval(timer); });
-
   $effect(() => { void host; void refreshTree(); });
 
-  // ---- Tidy-tree layout ----
-  // Pure-functional placement: roots are nodes whose parent isn't in the
-  // set. Each subtree gets a width equal to its leaf count; siblings
-  // pack horizontally from the leftmost subtree forward. Depth × 80px
-  // gives the y. Output is positions in a virtual coordinate space; the
-  // viewport SVG scales to fit.
   function layoutTidyTree(input: LineageNode[]): [Laid[], { from: Laid; to: Laid }[]] {
     if (input.length === 0) return [[], []];
-
-    // Index by pid; parents who aren't in the set become roots.
     const byPid = new Map<number, LineageNode>();
     for (const n of input) byPid.set(n.pid, n);
-
     const childrenOf = new Map<number, LineageNode[]>();
     for (const n of input) {
       const parentPid = byPid.has(n.ppid) ? n.ppid : -1;
@@ -78,28 +59,16 @@
     for (const [, list] of childrenOf) {
       list.sort((a, b) => (a.firstSeen < b.firstSeen ? -1 : 1));
     }
-
-    const NODE_W = 200;
-    const NODE_H = 64;
-    const X_GAP = 12;
-    const Y_GAP = 24;
-
-    // Walk subtree to compute leaf count.
+    const NODE_W = 200, NODE_H = 64, X_GAP = 12, Y_GAP = 24;
     const leafCount = new Map<number, number>();
     const computeLeaves = (pid: number): number => {
       const kids = childrenOf.get(pid) ?? [];
-      if (kids.length === 0) {
-        leafCount.set(pid, 1);
-        return 1;
-      }
+      if (kids.length === 0) { leafCount.set(pid, 1); return 1; }
       let total = 0;
       for (const k of kids) total += computeLeaves(k.pid);
       leafCount.set(pid, total);
       return total;
     };
-
-    // Place each node by recursing over the children of -1 (the synthetic
-    // root). Each subtree gets its own horizontal slot.
     const out: Laid[] = [];
     const roots = childrenOf.get(-1) ?? [];
     let cursor = 0;
@@ -123,19 +92,16 @@
       place(r, 0, cursor);
       cursor += span;
     }
-
-    // Build edges from each child to its parent (only when both placed).
     const positions = new Map<number, Laid>();
     for (const p of out) positions.set(p.pid, p);
-    const edges: { from: Laid; to: Laid }[] = [];
+    const edgesOut: { from: Laid; to: Laid }[] = [];
     for (const n of out) {
       const parent = positions.get(n.ppid);
-      if (parent) edges.push({ from: parent, to: n });
+      if (parent) edgesOut.push({ from: parent, to: n });
     }
-    return [out, edges];
+    return [out, edgesOut];
   }
 
-  // Visual width/height for the SVG viewBox. Pad a bit so cards don't clip.
   const viewBox = $derived.by(() => {
     if (nodes.length === 0) return '0 0 800 200';
     let maxX = 0, maxY = 0;
@@ -154,106 +120,136 @@
     return `${Math.floor(sec / 86400)}d ago`;
   }
 
-  // Heuristic suspiciousness — flagged nodes get a red border so an
-  // analyst's eye lands on them first. Not a formal detection; matches
-  // the cmdline-suspicious rule pack's substring list.
-  const SUSPICIOUS_RE = /\b(powershell .* -enc|comsvcs.dll.*MiniDump|mshta http|rundll32 .*\\Temp\\|certutil .* -urlcache|bitsadmin.*\/transfer|vssadmin delete shadows|wbadmin delete catalog|whoami \/all|net user .* \/add|reg add .*\\Run\b)/i;
+  const SUSPICIOUS_RE = /\b(powershell .* -enc|comsvcs\.dll.*MiniDump|mshta http|rundll32 .*\\Temp\\|certutil .* -urlcache|bitsadmin.*\/transfer|vssadmin delete shadows|wbadmin delete catalog|whoami \/all|net user .* \/add|reg add .*\\Run\b)/i;
   function suspicious(n: LineageNode): boolean {
-    if (!n.command) return false;
-    return SUSPICIOUS_RE.test(n.command);
+    return n.command ? SUSPICIOUS_RE.test(n.command) : false;
   }
 </script>
 
 <div class="mx-auto max-w-7xl space-y-6 p-8">
   <header class="flex items-baseline justify-between">
     <div>
-      <p class="text-xs uppercase tracking-widest text-night-300">Process lineage</p>
+      <p class="text-xs uppercase tracking-widest text-night-300">Process Lineage</p>
       <h2 class="text-2xl font-semibold tracking-tight">Parent / child execution graph</h2>
     </div>
-    <select bind:value={host} class="rounded-md border border-night-600 bg-night-800/70 px-3 py-1.5 text-xs text-slate-100">
-      {#each hosts as h}
-        <option value={h}>{h}</option>
-      {/each}
+    <select bind:value={host} style="padding:5px 10px; border:1px solid var(--color-base-600); background:var(--color-base-800); color:#e8f4f8; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; outline:none;">
+      {#each hosts as h}<option value={h}>{h}</option>{/each}
     </select>
   </header>
 
   <section class="grid grid-cols-2 gap-4 lg:grid-cols-4">
     <Tile label="Hosts with lineage" value={hosts.length} />
-    <Tile label="Processes" value={tree?.nodes.length ?? '—'} hint={host || 'no host'} />
-    <Tile label="Suspicious" value={(tree?.nodes ?? []).filter(suspicious).length} />
-    <Tile label="Roots" value={(tree?.nodes ?? []).filter((n) => !(tree?.nodes ?? []).some((p) => p.pid === n.ppid)).length} />
+    <Tile label="Processes"  value={tree?.nodes.length ?? '—'} hint={host || 'no host'} />
+    <Tile label="Suspicious" value={(tree?.nodes ?? []).filter(suspicious).length} warn />
+    <Tile label="Roots"      value={(tree?.nodes ?? []).filter((n) => !(tree?.nodes ?? []).some((p) => p.pid === n.ppid)).length} />
   </section>
 
   {#if loadError}<p class="text-xs text-signal-error">Failed to load: {loadError}</p>{/if}
 
   {#if !host}
-    <div class="rounded-xl border border-night-700 bg-night-900/70 p-12 text-center text-sm text-night-300">
-      No hosts have process-lineage data yet.<br />
-      <span class="text-night-400">Lineage builds from process_creation events flowing through the agent or syslog.</span>
+    <div style="border:1px solid var(--color-base-700); background:var(--color-base-900); padding:48px 24px; text-align:center; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--color-base-300);">
+      NO HOSTS HAVE PROCESS-LINEAGE DATA YET<br />
+      <span style="color:var(--color-base-400); letter-spacing:1px;">Lineage builds from process_creation events via the agent or syslog.</span>
     </div>
   {:else if nodes.length === 0}
-    <div class="rounded-xl border border-night-700 bg-night-900/70 p-12 text-center text-sm text-night-300">
-      No processes recorded for {host}.
+    <div style="border:1px solid var(--color-base-700); background:var(--color-base-900); padding:48px 24px; text-align:center; font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--color-base-300);">
+      NO PROCESSES RECORDED FOR {host.toUpperCase()}
     </div>
   {:else}
-    <section class="overflow-x-auto rounded-xl border border-night-700 bg-night-900/70 p-2">
-      <svg viewBox={viewBox} class="min-w-full" style:height="calc(100vh - 22rem)" preserveAspectRatio="xMinYMin meet">
-        <!-- Edges first so nodes draw on top. -->
+    <section style="overflow-x:auto; border:1px solid var(--color-base-700); background:var(--color-base-900); padding:8px;">
+      <svg viewBox={viewBox} style="min-width:100%; height:calc(100vh - 22rem);" preserveAspectRatio="xMinYMin meet">
+        <!-- Bezier edges -->
         {#each edges as e}
           <path
-            d={`M ${e.from.x + 100} ${e.from.y + 64} C ${e.from.x + 100} ${e.from.y + 64 + 32}, ${e.to.x + 100} ${e.to.y - 32}, ${e.to.x + 100} ${e.to.y}`}
-            stroke="rgb(120 130 145 / 0.65)"
+            d={`M ${e.from.x + 100} ${e.from.y + 64} C ${e.from.x + 100} ${e.from.y + 96}, ${e.to.x + 100} ${e.to.y - 32}, ${e.to.x + 100} ${e.to.y}`}
+            stroke="rgba(78,105,135,0.55)"
             stroke-width="1.5"
             fill="none"
+            stroke-dasharray="5 3"
           />
         {/each}
-        <!-- Nodes. -->
+
+        <!-- Nodes -->
         {#each nodes as n (n.pid)}
           {@const sus = suspicious(n)}
           <g
-            class="cursor-pointer"
             role="button"
             tabindex="0"
-            aria-label="Process {n.name ?? n.pid}, pid {n.pid}"
+            aria-label="Process {n.name ?? n.pid}"
+            style="cursor:pointer;"
             onmouseenter={() => (hovered = n)}
             onmouseleave={() => (hovered = null)}
             onfocus={() => (hovered = n)}
             onblur={() => (hovered = null)}
           >
-            <rect
-              x={n.x}
-              y={n.y}
-              width="200"
-              height="64"
-              rx="6"
-              fill={sus ? 'rgb(220 68 68 / 0.15)' : 'rgb(20 24 33 / 0.95)'}
-              stroke={sus ? 'rgb(220 68 68 / 0.7)' : 'rgb(80 95 120 / 0.7)'}
+            <!-- Card background -->
+            <rect x={n.x} y={n.y} width="200" height="64" rx="0"
+              fill={sus ? 'rgba(255,61,87,0.10)' : 'rgba(11,16,23,0.97)'}
+              stroke={sus ? 'rgba(255,61,87,0.65)' : 'rgba(30,42,61,0.9)'}
               stroke-width="1.2"
             />
-            <text x={n.x + 10} y={n.y + 18} fill="rgb(220 224 232)" font-size="11" font-family="monospace">
+            <!-- Top accent bar -->
+            <line x1={n.x} y1={n.y} x2={n.x+200} y2={n.y}
+              stroke={sus ? 'rgba(255,61,87,0.7)' : 'rgba(0,188,216,0.3)'}
+              stroke-width="2"
+            />
+            <!-- Corner brackets (top-left) -->
+            <polyline points="{n.x+2},{n.y+10} {n.x+2},{n.y+2} {n.x+10},{n.y+2}"
+              fill="none" stroke={sus ? 'rgba(255,61,87,0.6)' : 'rgba(0,188,216,0.5)'} stroke-width="1"/>
+            <!-- Corner brackets (bottom-right) -->
+            <polyline points="{n.x+190},{n.y+62} {n.x+198},{n.y+62} {n.x+198},{n.y+54}"
+              fill="none" stroke={sus ? 'rgba(255,61,87,0.4)' : 'rgba(0,188,216,0.3)'} stroke-width="1"/>
+
+            <!-- Process name -->
+            <text x={n.x+10} y={n.y+18}
+              fill={sus ? '#ff3d57' : '#e8f4f8'}
+              font-size="11" font-family="'Rajdhani',sans-serif" font-weight="600" letter-spacing="0.5">
               {n.name || `pid ${n.pid}`}
             </text>
-            <text x={n.x + 10} y={n.y + 34} fill="rgb(150 160 175)" font-size="10" font-family="monospace">
-              pid {n.pid} · {n.events} ev
+            <!-- PID line -->
+            <text x={n.x+10} y={n.y+33}
+              fill="#4d6680" font-size="9" font-family="'JetBrains Mono',monospace" letter-spacing="0.3">
+              pid {n.pid} · ppid {n.ppid} · {n.events} ev
             </text>
-            <text x={n.x + 10} y={n.y + 52} fill="rgb(150 160 175)" font-size="10" font-family="monospace">
-              {(n.command ?? '').slice(0, 30)}{(n.command ?? '').length > 30 ? '…' : ''}
+            <!-- Command snippet -->
+            <text x={n.x+10} y={n.y+50}
+              fill={sus ? 'rgba(255,61,87,0.8)' : '#7a95b0'}
+              font-size="9" font-family="'JetBrains Mono',monospace">
+              {(n.command ?? '').slice(0, 28)}{(n.command ?? '').length > 28 ? '…' : ''}
             </text>
           </g>
         {/each}
       </svg>
     </section>
 
+    <!-- Hover detail -->
     {#if hovered}
-      <section class="rounded-xl border border-accent-500/40 bg-night-900/70 p-4 text-xs">
-        <div class="grid gap-3 sm:grid-cols-3">
-          <div><div class="text-night-300">PID / PPID</div><div class="font-mono text-slate-100">{hovered.pid} / {hovered.ppid}</div></div>
-          <div><div class="text-night-300">Name</div><div class="font-mono text-slate-100">{hovered.name ?? '—'}</div></div>
-          <div><div class="text-night-300">Events</div><div class="font-mono text-slate-100">{hovered.events}</div></div>
-          <div class="sm:col-span-3"><div class="text-night-300">Command</div><div class="font-mono text-slate-100 break-words">{hovered.command ?? '—'}</div></div>
-          <div><div class="text-night-300">First seen</div><div class="font-mono text-slate-100">{relTime(hovered.firstSeen)}</div></div>
-          <div><div class="text-night-300">Last seen</div><div class="font-mono text-slate-100">{relTime(hovered.lastSeen)}</div></div>
-          <div><div class="text-night-300">Suspicious</div><div class="font-mono {suspicious(hovered) ? 'text-signal-error' : 'text-slate-100'}">{suspicious(hovered) ? 'yes (cmdline pattern)' : 'no'}</div></div>
+      <section style="border:1px solid rgba(0,188,216,0.4); background:var(--color-base-900); padding:16px;">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; font-size:11px;">
+          {#each [
+            {k:'PID / PPID', v:`${hovered.pid} / ${hovered.ppid}`},
+            {k:'NAME',       v:hovered.name ?? '—'},
+            {k:'EVENTS',     v:String(hovered.events)},
+          ] as row}
+            <div>
+              <div style="font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; color:var(--color-base-300); margin-bottom:3px;">{row.k}</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:#e8f4f8;">{row.v}</div>
+            </div>
+          {/each}
+          <div style="grid-column:1/-1;">
+            <div style="font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; color:var(--color-base-300); margin-bottom:3px;">COMMAND</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:{suspicious(hovered) ? 'var(--color-sig-error)' : '#e8f4f8'}; word-break:break-all; padding:6px 8px; background:var(--color-base-800);">{hovered.command ?? '—'}</div>
+          </div>
+          {#each [
+            {k:'FIRST SEEN', v:relTime(hovered.firstSeen)},
+            {k:'LAST SEEN',  v:relTime(hovered.lastSeen)},
+            {k:'SUSPICIOUS', v:suspicious(hovered) ? 'YES — CMDLINE PATTERN' : 'CLEAN'},
+          ] as row}
+            <div>
+              <div style="font-family:'Share Tech Mono',monospace; font-size:8px; letter-spacing:2px; color:var(--color-base-300); margin-bottom:3px;">{row.k}</div>
+              <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:{row.k === 'SUSPICIOUS' && suspicious(hovered) ? 'var(--color-sig-error)' : '#e8f4f8'};">{row.v}</div>
+            </div>
+          {/each}
         </div>
       </section>
     {/if}

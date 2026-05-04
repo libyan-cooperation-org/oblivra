@@ -16,102 +16,100 @@ import (
 // version-controlled. Path conventions match what a Splunk Universal
 // Forwarder operator would expect:
 //
-//	/etc/oblivra/agent.yml         (unix)
-//	%PROGRAMDATA%\oblivra\agent.yml (windows)
+//	/etc/oblivra/agent.yml          (Linux / macOS)
+//	%PROGRAMDATA%\oblivra\agent.yml (Windows)
 //
-// Override via --config FILE.
+// Override via --config FILE or OBLIVRA_AGENT_CONFIG.
 type Config struct {
-	Server          Server         `yaml:"server"`
-	DualEgress      []Server       `yaml:"dualEgress"`      // optional — ship to N additional servers
-	Hostname        string         `yaml:"hostname"`
-	Tenant          string         `yaml:"tenant"`
-	Tags            []string       `yaml:"tags"`
-	Inputs          []Input        `yaml:"inputs"`
-	Buffer          BufferOpts     `yaml:"buffer"`
-	Heartbeat       HeartbeatOpts  `yaml:"heartbeat"`
-	Compression     string         `yaml:"compression"`     // "gzip" or "" (none)
-	BatchSize       int            `yaml:"batchSize"`
-	FlushEvery      time.Duration  `yaml:"flushEvery"`
-	Multiline       MultilineOpts  `yaml:"multiline"`
-	StateDir        string         `yaml:"stateDir"`        // position files + signing key
-	LogLevel        string         `yaml:"logLevel"`
-	SignEvents      bool           `yaml:"signEvents"`      // ed25519-sign every event at the edge
-	Redact          bool           `yaml:"redact"`          // apply edge DLP (cards, AWS keys, JWT, password=…) before shipping
-	SpillSecret     string         `yaml:"spillSecret"`     // AES-256-GCM key for disk spill
-	SpillSecretFile string         `yaml:"spillSecretFile"` // alternative — read from file (mode 0600)
-	AdaptiveBatch   bool           `yaml:"adaptiveBatch"`   // auto-tune batch size against observed p99
-	LocalRules      bool           `yaml:"localRules"`      // run the local rule pack to prioritise high-sev events
-	LocalStatusAddr string         `yaml:"localStatusAddr"` // loopback-only HTTP status endpoint; "" → 127.0.0.1:18021, "off" disables
+	Server          Server        `yaml:"server"`
+	DualEgress      []Server      `yaml:"dualEgress"`
+	Hostname        string        `yaml:"hostname"`
+	Tenant          string        `yaml:"tenant"`
+	Tags            []string      `yaml:"tags"`
+	Inputs          []Input       `yaml:"inputs"`
+	Buffer          BufferOpts    `yaml:"buffer"`
+	Heartbeat       HeartbeatOpts `yaml:"heartbeat"`
+	Compression     string        `yaml:"compression"`
+	BatchSize       int           `yaml:"batchSize"`
+	FlushEvery      time.Duration `yaml:"flushEvery"`
+	Multiline       MultilineOpts `yaml:"multiline"`
+	StateDir        string        `yaml:"stateDir"`
+	LogLevel        string        `yaml:"logLevel"`
+	SignEvents      bool          `yaml:"signEvents"`
+	Redact          bool          `yaml:"redact"`
+	SpillSecret     string        `yaml:"spillSecret"`
+	SpillSecretFile string        `yaml:"spillSecretFile"`
+	AdaptiveBatch   bool          `yaml:"adaptiveBatch"`
+	LocalRules      bool          `yaml:"localRules"`
+	LocalStatusAddr string        `yaml:"localStatusAddr"`
 }
 
 type Server struct {
-	URL              string        `yaml:"url"`
-	Token            string        `yaml:"token"`
-	TokenFile        string        `yaml:"tokenFile"`        // file holding the bearer token
-	TLS              TLSOpts       `yaml:"tls"`
-	RequestTimeout   time.Duration `yaml:"requestTimeout"`
-	HealthInterval   time.Duration `yaml:"healthInterval"`
+	URL            string        `yaml:"url"`
+	Token          string        `yaml:"token"`
+	TokenFile      string        `yaml:"tokenFile"`
+	TLS            TLSOpts       `yaml:"tls"`
+	RequestTimeout time.Duration `yaml:"requestTimeout"`
+	HealthInterval time.Duration `yaml:"healthInterval"`
 }
 
 type TLSOpts struct {
-	CACertFile     string `yaml:"caCertFile"`
-	ClientCertFile string `yaml:"clientCertFile"`
-	ClientKeyFile  string `yaml:"clientKeyFile"`
+	CACertFile         string `yaml:"caCertFile"`
+	ClientCertFile     string `yaml:"clientCertFile"`
+	ClientKeyFile      string `yaml:"clientKeyFile"`
 	ServerNameOverride string `yaml:"serverNameOverride"`
-	PinnedSHA256   string `yaml:"pinnedSha256"` // base64 pin of server cert pubkey
-	Insecure       bool   `yaml:"insecure"`     // dev only
+	PinnedSHA256       string `yaml:"pinnedSha256"`
+	Insecure           bool   `yaml:"insecure"`
 }
 
+// Input describes one log source. Valid types:
+//
+//	file       — tail a file or glob (Linux, macOS, Windows)
+//	stdin      — read newline-delimited events from stdin (all platforms)
+//	winlog     — Windows Event Log channel via wevtutil.exe (Windows only)
+//	            alias accepted: "winevent", "winevt", "windows-event"
+//	syslog-udp — receive RFC-3164/5424 datagrams on a UDP port (all platforms)
+//	journald   — tail systemd journal via journalctl subprocess (Linux only)
 type Input struct {
-	Type        string            `yaml:"type"`        // "file" | "stdin" | "winlog" | "syslog-udp" | "journald"
-	Path        string            `yaml:"path"`        // file path/glob (file), listen addr (syslog-udp), cursor file (journald)
-	Label       string            `yaml:"label"`       // e.g. "auth.log"
-	SourceType  string            `yaml:"sourceType"`  // freeform: "linux:auth", "iis:access"
-	HostID      string            `yaml:"hostId"`      // override per-input
+	Type        string            `yaml:"type"`
+	Path        string            `yaml:"path"`
+	Label       string            `yaml:"label"`
+	SourceType  string            `yaml:"sourceType"`
+	HostID      string            `yaml:"hostId"`
 	Multiline   *MultilineOpts    `yaml:"multiline,omitempty"`
-	Fields      map[string]string `yaml:"fields"`      // injected into every event
-	IncludeOnly string            `yaml:"includeOnly"` // optional regex; lines must match to be sent
-	Exclude     string            `yaml:"exclude"`     // optional regex; matching lines are dropped
-	StartFrom   string            `yaml:"startFrom"`   // "tail" (default) | "beginning"
-	// winlog-specific:
-	Channel string `yaml:"channel"` // e.g. "Security", "System"
+	Fields      map[string]string `yaml:"fields"`
+	IncludeOnly string            `yaml:"includeOnly"`
+	Exclude     string            `yaml:"exclude"`
+	StartFrom   string            `yaml:"startFrom"` // "tail" (default) | "beginning"
 
-	// journald-specific (Linux only). All optional — `type: journald`
-	// alone tails the entire journal from "now" with a cursor checkpoint
-	// at <stateDir>/journald.cursor.
-	JournaldUnits     []string `yaml:"units"`     // map → journalctl --unit
-	JournaldMatches   []string `yaml:"matches"`   // raw `_FIELD=value` matches passed verbatim
-	JournaldPriority  string   `yaml:"priority"`  // emerg|alert|crit|err|warning|notice|info|debug
-	JournaldSinceBoot bool     `yaml:"sinceBoot"` // --boot
+	// winlog-specific
+	Channel string `yaml:"channel"` // e.g. "Security", "System", "Microsoft-Windows-Sysmon/Operational"
 
-	// Extract is a list of named regex patterns. The first regex that
-	// matches a line contributes its named-group captures to the
-	// outgoing event's `fields`. This lets the agent promote captured
-	// values (user, srcIP, status code, etc.) to top-level fields *at
-	// the edge*, so the platform doesn't have to re-extract them and
-	// the wire payload becomes cheaper. UF doesn't ship anything like
-	// this — it forwards raw lines and lets indexers do the work.
+	// journald-specific (Linux only)
+	JournaldUnits     []string `yaml:"units"`
+	JournaldMatches   []string `yaml:"matches"`
+	JournaldPriority  string   `yaml:"priority"`
+	JournaldSinceBoot bool     `yaml:"sinceBoot"`
+
+	// Edge regex extraction — first matching rule contributes named-group
+	// captures to the event fields map before the event is shipped.
 	Extract []ExtractRule `yaml:"extract"`
 }
 
-// ExtractRule is a named regex run against each tailed line. Capture
-// groups become event fields. The whole rule fires only on the first
-// match — multiple rules cooperate by being listed in priority order
-// (most specific first).
 type ExtractRule struct {
-	Name  string `yaml:"name"`  // operator-friendly label, used in field-extract diagnostics
-	Regex string `yaml:"regex"` // Go regex with named (?P<name>...) groups; unnamed groups are ignored
+	Name  string `yaml:"name"`
+	Regex string `yaml:"regex"`
 }
 
 type MultilineOpts struct {
-	StartPattern string        `yaml:"startPattern"` // regex; lines matching start a NEW event
+	StartPattern string        `yaml:"startPattern"`
 	MaxLines     int           `yaml:"maxLines"`
 	Timeout      time.Duration `yaml:"timeout"`
 }
 
 type BufferOpts struct {
 	Dir      string `yaml:"dir"`
-	MaxBytes int64  `yaml:"maxBytes"` // hard cap on disk-buffer size
+	MaxBytes int64  `yaml:"maxBytes"`
 }
 
 type HeartbeatOpts struct {
@@ -119,11 +117,24 @@ type HeartbeatOpts struct {
 	Interval time.Duration `yaml:"interval"`
 }
 
-// LoadConfig reads & validates a config file; applies sane defaults for any
-// field the operator omitted. Files ending in `.enc` are AES-256-GCM
-// encrypted with an Argon2id-derived key (see config_enc.go) — the
-// passphrase comes from OBLIVRA_AGENT_PASSPHRASE or
-// OBLIVRA_AGENT_PASSPHRASE_FILE.
+// normaliseInputType canonicalises user-supplied type strings so common
+// aliases ("winevent", "winevt", "windows-event") map to "winlog".
+// This is the fix for: config: inputs[0]: unknown type "winevent"
+func normaliseInputType(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "winevent", "winevt", "windows-event", "windows_event", "win-event":
+		return "winlog"
+	case "journal", "systemd-journal":
+		return "journald"
+	case "syslog_udp", "syslogudp", "syslog":
+		return "syslog-udp"
+	default:
+		return t
+	}
+}
+
+// LoadConfig reads, decrypts (if .enc), unmarshals, and validates the
+// config file. Applies sane defaults for omitted fields.
 func LoadConfig(path string) (*Config, error) {
 	var body []byte
 	if strings.HasSuffix(path, ".enc") {
@@ -149,11 +160,16 @@ func LoadConfig(path string) (*Config, error) {
 	if err := yaml.Unmarshal(body, &c); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
+
+	// Normalise input type aliases before validation.
+	for i := range c.Inputs {
+		c.Inputs[i].Type = normaliseInputType(c.Inputs[i].Type)
+	}
+
 	c.applyDefaults(path)
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
-	// If a tokenFile is set, load the token from it (mode-0600 expected).
 	if c.Server.Token == "" && c.Server.TokenFile != "" {
 		tok, err := os.ReadFile(c.Server.TokenFile)
 		if err != nil {
@@ -161,7 +177,6 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		c.Server.Token = trimSpaceBoth(string(tok))
 	}
-	// Spill secret may also live in a 0600-mode file.
 	if c.SpillSecret == "" && c.SpillSecretFile != "" {
 		secret, err := os.ReadFile(c.SpillSecretFile)
 		if err != nil {
@@ -188,29 +203,28 @@ func DefaultConfigPath() string {
 	}
 }
 
-// SampleConfigYAML returns a fully-commented example for `oblivra-agent
-// init`. Operators run init, edit the generated file, and never have to
-// guess at field names.
+// SampleConfigYAML returns a fully-commented starter config for `oblivra-agent
+// init`. The generated inputs section is platform-appropriate:
+//   - Windows: winlog channels (Security, System, Application, Sysmon if present)
+//   - Linux:   journald + the most useful /var/log/* files
+//   - macOS:   /var/log/system.log + /var/log/install.log
 func SampleConfigYAML(hostname string) string {
-	return fmt.Sprintf(`# OBLIVRA agent config — see https://github.com/libyan-cooperation-org/oblivra
-# Reload with SIGHUP or "oblivra-agent reload".
+	inputsBlock := platformSampleInputs()
+	return fmt.Sprintf(`# OBLIVRA agent config — https://github.com/kingknull/oblivra
+# Reload with SIGHUP (Linux/macOS) or service restart (Windows).
 
 server:
   url: "https://oblivra.internal"
-  # Either token: ... here, OR put it in a 0600-mode file:
-  # tokenFile: "/etc/oblivra/agent.token"
+  # Use tokenFile (0600-mode file) instead of inline token in production:
+  # tokenFile: "%s"
   token: "REPLACE-WITH-AGENT-API-KEY"
   requestTimeout: 10s
   healthInterval: 60s
   tls:
-    # In production at minimum specify caCertFile so the agent verifies
-    # the server cert against your CA, not the OS truststore.
-    caCertFile: ""
-    clientCertFile: ""        # mTLS client cert — optional
+    caCertFile: ""         # path to your CA cert — leave blank to use OS truststore
+    clientCertFile: ""     # mTLS client cert (optional)
     clientKeyFile: ""
-    serverNameOverride: ""
-    pinnedSha256: ""          # base64 pin of server pubkey for air-gap
-    insecure: false           # never set true in production
+    insecure: false        # NEVER true in production
 
 hostname: "%s"
 tenant: "default"
@@ -218,54 +232,197 @@ tags: ["env:prod", "tier:edge"]
 
 batchSize: 100
 flushEvery: 2s
-compression: "gzip"           # or "" to disable
+compression: "gzip"
+
+# Security hardening
+signEvents: true           # ed25519-sign every event at the edge
+redact: true               # mask credit-card numbers, AWS keys, JWT tokens, etc.
+localRules: true           # pre-score events locally; high-severity ships first
+adaptiveBatch: true        # auto-tune batch size to observed latency
 
 buffer:
-  dir: ""                     # default: state-dir/buffer
-  maxBytes: 1073741824        # 1 GiB cap on disk-spill
+  dir: ""                  # default: <stateDir>/buffer
+  maxBytes: 1073741824     # 1 GiB cap
 
 heartbeat:
   enabled: true
   interval: 30s
 
-stateDir: ""                  # default: %s
+stateDir: ""               # default: %s
 
 multiline:
-  startPattern: ""            # default: each line is its own event
+  startPattern: ""         # regex; blank = each line is its own event
   maxLines: 200
   timeout: 5s
 
 inputs:
-  # File tail — the bread and butter
+%s`,
+		tokenFilePath(),
+		hostname,
+		defaultStateDir(),
+		inputsBlock,
+	)
+}
+
+func tokenFilePath() string {
+	switch runtime.GOOS {
+	case "windows":
+		base := os.Getenv("PROGRAMDATA")
+		if base == "" {
+			base = `C:\ProgramData`
+		}
+		return filepath.Join(base, "oblivra", "agent.token")
+	default:
+		return "/etc/oblivra/agent.token"
+	}
+}
+
+// platformSampleInputs returns YAML for the inputs: block appropriate for
+// the current OS.  Windows uses winlog channels only — never .evtx file
+// paths, which require the Windows XML Event Log API and aren't tailable.
+func platformSampleInputs() string {
+	switch runtime.GOOS {
+
+	case "windows":
+		return `  # ── Windows Event Log channels ─────────────────────────────────────
+  # Use type: winlog with a channel name. The agent reads from the live
+  # event log via wevtutil.exe — no .evtx file paths needed.
+  #
+  # startFrom: "beginning" ships everything already in the channel on
+  # first run (recommended for a new deployment). Change to "tail" once
+  # you're caught up.
+
+  - type: winlog
+    channel: "Security"
+    sourceType: "windows:security"
+    startFrom: "beginning"
+    label: "win-security"
+
+  - type: winlog
+    channel: "System"
+    sourceType: "windows:system"
+    startFrom: "beginning"
+    label: "win-system"
+
+  - type: winlog
+    channel: "Application"
+    sourceType: "windows:application"
+    startFrom: "beginning"
+    label: "win-application"
+
+  # Sysmon — uncomment if Sysmon is installed (highly recommended).
+  # Provides process creation, network connections, file events, etc.
+  # - type: winlog
+  #   channel: "Microsoft-Windows-Sysmon/Operational"
+  #   sourceType: "windows:sysmon"
+  #   startFrom: "beginning"
+  #   label: "win-sysmon"
+
+  # PowerShell script-block logging — uncomment if enabled via GPO.
+  # - type: winlog
+  #   channel: "Microsoft-Windows-PowerShell/Operational"
+  #   sourceType: "windows:powershell"
+  #   startFrom: "beginning"
+  #   label: "win-powershell"
+
+  # Windows Defender — uncomment to ship AV telemetry.
+  # - type: winlog
+  #   channel: "Microsoft-Windows-Windows Defender/Operational"
+  #   sourceType: "windows:defender"
+  #   startFrom: "beginning"
+  #   label: "win-defender"
+
+  # WMI activity — uncomment to detect WMI persistence / lateral movement.
+  # - type: winlog
+  #   channel: "Microsoft-Windows-WMI-Activity/Operational"
+  #   sourceType: "windows:wmi"
+  #   startFrom: "beginning"
+  #   label: "win-wmi"
+`
+
+	case "linux":
+		return `  # ── systemd journal (covers all systemd services) ───────────────────
+  - type: journald
+    sourceType: "linux:journal"
+    startFrom: "beginning"    # ship the entire journal on first run
+    label: "journal"
+    # Optionally restrict to specific units:
+    # units: ["sshd.service", "nginx.service", "sudo.service"]
+    # priority: "info"        # emerg|alert|crit|err|warning|notice|info|debug
+
+  # ── Auth / privilege escalation ──────────────────────────────────────
   - type: file
-    path: "/var/log/auth.log"
+    path: "/var/log/auth.log"        # Debian / Ubuntu
     sourceType: "linux:auth"
-    startFrom: "tail"          # or "beginning" for backfills
-    fields:
-      env: "prod"
+    startFrom: "beginning"
+    label: "auth"
 
-  # Multi-line example — Java stack traces
   # - type: file
-  #   path: "/var/log/myapp/*.log"
-  #   sourceType: "java:app"
-  #   multiline:
-  #     startPattern: "^\\d{4}-\\d{2}-\\d{2}"   # ISO date starts each event
-  #     maxLines: 100
-  #     timeout: 2s
+  #   path: "/var/log/secure"          # RHEL / CentOS / Fedora
+  #   sourceType: "linux:auth"
+  #   startFrom: "beginning"
+  #   label: "auth"
 
-  # stdin — handy for "tail -F | oblivra-agent run --pipe"
-  # - type: stdin
-  #   sourceType: "manual:stdin"
+  # ── Kernel & audit ───────────────────────────────────────────────────
+  - type: file
+    path: "/var/log/kern.log"
+    sourceType: "linux:kernel"
+    startFrom: "beginning"
+    label: "kernel"
 
-  # systemd-journal (Linux only). Tails journalctl --follow --output=json
-  # in a subprocess; cursor is checkpointed to <stateDir>/journald.cursor
-  # so a restart resumes exactly where the previous run left off.
-  # - type: journald
-  #   sourceType: "linux:journal"
-  #   units: ["sshd.service", "nginx.service"]   # optional --unit filter
-  #   priority: "warning"                          # optional --priority
-  #   sinceBoot: false                             # true = --boot
-`, hostname, defaultStateDir())
+  - type: file
+    path: "/var/log/audit/audit.log"
+    sourceType: "linux:auditd"
+    startFrom: "beginning"
+    label: "auditd"
+
+  # ── Syslog catch-all ─────────────────────────────────────────────────
+  - type: file
+    path: "/var/log/syslog"          # Debian / Ubuntu
+    sourceType: "linux:syslog"
+    startFrom: "beginning"
+    label: "syslog"
+
+  # - type: file
+  #   path: "/var/log/messages"        # RHEL / CentOS / Fedora
+  #   sourceType: "linux:syslog"
+  #   startFrom: "beginning"
+  #   label: "syslog"
+
+  # ── Web servers ──────────────────────────────────────────────────────
+  # - type: file
+  #   path: "/var/log/nginx/access.log"
+  #   sourceType: "nginx:access"
+  #   startFrom: "beginning"
+  #   label: "nginx-access"
+
+  # - type: file
+  #   path: "/var/log/nginx/error.log"
+  #   sourceType: "nginx:error"
+  #   startFrom: "beginning"
+  #   label: "nginx-error"
+
+  # ── Network device syslog (UDP receiver) ─────────────────────────────
+  # - type: syslog-udp
+  #   path: ":1514"
+  #   sourceType: "syslog:network"
+  #   label: "network-devices"
+`
+
+	default: // macOS / other
+		return `  - type: file
+    path: "/var/log/system.log"
+    sourceType: "macos:system"
+    startFrom: "beginning"
+    label: "system"
+
+  - type: file
+    path: "/var/log/install.log"
+    sourceType: "macos:install"
+    startFrom: "beginning"
+    label: "install"
+`
+	}
 }
 
 func defaultStateDir() string {
@@ -316,10 +473,8 @@ func (c *Config) applyDefaults(configPath string) {
 	if c.Buffer.MaxBytes == 0 {
 		c.Buffer.MaxBytes = 1 << 30 // 1 GiB
 	}
-	if !c.Heartbeat.isEmpty() {
-		if c.Heartbeat.Interval == 0 {
-			c.Heartbeat.Interval = 30 * time.Second
-		}
+	if c.Heartbeat.Enabled && c.Heartbeat.Interval == 0 {
+		c.Heartbeat.Interval = 30 * time.Second
 	}
 	if c.Multiline.MaxLines == 0 {
 		c.Multiline.MaxLines = 200
@@ -334,8 +489,12 @@ func (c *Config) applyDefaults(configPath string) {
 		if c.Inputs[i].HostID == "" {
 			c.Inputs[i].HostID = c.Hostname
 		}
+		// Auto-assign label from type+index if not set.
+		if c.Inputs[i].Label == "" {
+			c.Inputs[i].Label = fmt.Sprintf("%s-%d", c.Inputs[i].Type, i)
+		}
 	}
-	_ = configPath // reserved for future include-relative resolution
+	_ = configPath
 }
 
 func (c *Config) validate() error {
@@ -343,33 +502,37 @@ func (c *Config) validate() error {
 		return errors.New("server.url required")
 	}
 	if len(c.Inputs) == 0 {
-		return errors.New("at least one input required (file / stdin / winlog)")
+		return errors.New("at least one input required")
 	}
 	for i, in := range c.Inputs {
 		switch in.Type {
 		case "file":
 			if in.Path == "" {
-				return fmt.Errorf("inputs[%d]: file input needs path", i)
+				return fmt.Errorf("inputs[%d]: file input requires path", i)
 			}
 		case "stdin":
-			// no further fields required
+			// no further constraints
 		case "winlog":
 			if runtime.GOOS != "windows" {
-				return fmt.Errorf("inputs[%d]: winlog requires Windows", i)
+				return fmt.Errorf("inputs[%d]: winlog requires Windows (current OS: %s)", i, runtime.GOOS)
 			}
 			if in.Channel == "" {
-				return fmt.Errorf("inputs[%d]: winlog input needs channel", i)
+				return fmt.Errorf("inputs[%d]: winlog input requires channel (e.g. \"Security\")", i)
 			}
 		case "syslog-udp":
 			if in.Path == "" {
-				return fmt.Errorf("inputs[%d]: syslog-udp input needs path (e.g. ':1515')", i)
+				return fmt.Errorf("inputs[%d]: syslog-udp input requires path (listen address, e.g. \":1514\")", i)
 			}
 		case "journald":
 			if runtime.GOOS != "linux" {
-				return fmt.Errorf("inputs[%d]: journald requires Linux", i)
+				return fmt.Errorf("inputs[%d]: journald requires Linux (current OS: %s)", i, runtime.GOOS)
 			}
 		default:
-			return fmt.Errorf("inputs[%d]: unknown type %q (file|stdin|winlog|syslog-udp|journald)", i, in.Type)
+			return fmt.Errorf(
+				"inputs[%d]: unknown type %q — valid types: file, stdin, winlog, syslog-udp, journald\n"+
+					"  (aliases accepted: winevent/winevt/windows-event → winlog, journal → journald)",
+				i, in.Type,
+			)
 		}
 	}
 	return nil
@@ -377,7 +540,6 @@ func (c *Config) validate() error {
 
 func (h HeartbeatOpts) isEmpty() bool { return !h.Enabled && h.Interval == 0 }
 
-// trimSpaceBoth strips leading/trailing whitespace including CR.
 func trimSpaceBoth(s string) string {
 	for len(s) > 0 && (s[0] == ' ' || s[0] == '\t' || s[0] == '\n' || s[0] == '\r') {
 		s = s[1:]

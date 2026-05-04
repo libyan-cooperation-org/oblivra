@@ -8,6 +8,56 @@
   } from '../bridge';
   import Tile from '../components/Tile.svelte';
 
+  // ── Mock data (shown when backend is unreachable) ───────────────────────
+  function makeMockEvent(i: number, offsetSec: number): OblivraEvent {
+    const sevs: Severity[] = ['debug','info','info','info','notice','warning','error','critical'];
+    const msgs = [
+      'sshd: Accepted publickey for admin from 192.168.1.10 port 49221 ssh2',
+      'kernel: iptables DROP IN=eth0 SRC=10.0.0.5 DST=10.0.0.1 PROTO=TCP DPT=22',
+      'systemd: Started Daily apt upgrade and clean activities.',
+      'sudo: admin : TTY=pts/0 ; PWD=/home/admin ; USER=root ; COMMAND=/bin/bash',
+      'sshd: Failed password for root from 203.0.113.42 port 51234 ssh2',
+      'kernel: Out of memory: Kill process 4821 (chrome) score 900 or sacrifice child',
+      'nginx: 192.168.1.55 - - [GET /admin/config.php HTTP/1.1] 404',
+      'cron: (root) CMD (/usr/lib/apt/apt.systemd.daily)',
+      'auditd: type=SYSCALL msg=audit: arch=c000003e syscall=59 success=yes',
+      'firewalld: ACCEPT IN=lo OUT= SRC=127.0.0.1 DST=127.0.0.1',
+    ];
+    const hosts = ['web-01','db-primary','edge-router','win-workstation','backup-srv'];
+    const sources = ['sshd','kernel','systemd','sudo','nginx','auditd','firewalld','cron'];
+    const ts = new Date(Date.now() - offsetSec * 1000).toISOString();
+    const sev = sevs[i % sevs.length];
+    return {
+      id: `mock-${i}`,
+      tenantId: 'default',
+      timestamp: ts,
+      receivedAt: ts,
+      source: sources[i % sources.length],
+      hostId: hosts[i % hosts.length],
+      eventType: sources[i % sources.length],
+      severity: sev,
+      message: msgs[i % msgs.length],
+      raw: msgs[i % msgs.length],
+      fields: {},
+    };
+  }
+
+  function mockResult(): SearchResponse {
+    const events: OblivraEvent[] = [];
+    for (let i = 0; i < 40; i++) events.push(makeMockEvent(i, i * 47 + Math.floor(Math.random()*30)));
+    return { events, total: 40, took: '0ms', mode: 'chrono' };
+  }
+
+  const mockStats: IngestStats = {
+    total: 1247,
+    hotCount: 312,
+    wal: { path: '', bytes: 8192, count: 14 },
+    eps: 3,
+    generatedAt: new Date().toISOString(),
+  };
+
+  let isMock = $state(false);
+
   // ── Stats ──────────────────────────────────────────────────────────────
   let stats     = $state<IngestStats | null>(null);
   let result    = $state<SearchResponse | null>(null);
@@ -37,6 +87,28 @@
   }
 
   function clearRange() { fromDT = ''; toDT = ''; void refresh(); }
+
+  // "Since OS install" — uses Windows install date via WMI approximation.
+  // We fetch /api/v1/system/osinstall if available; otherwise fall back to
+  // a conservative 1-year-ago anchor so the query isn't unbounded.
+  async function setOsInstallRange() {
+    let installDate: Date;
+    try {
+      const res = await fetch('/api/v1/system/osinstall', { credentials: 'same-origin' });
+      if (res.ok) {
+        const j = await res.json() as { installedAt?: string };
+        installDate = j.installedAt ? new Date(j.installedAt) : new Date(Date.now() - 365 * 24 * 3600_000);
+      } else {
+        installDate = new Date(Date.now() - 365 * 24 * 3600_000);
+      }
+    } catch {
+      installDate = new Date(Date.now() - 365 * 24 * 3600_000);
+    }
+    const now = new Date();
+    toDT   = toLocal(now);
+    fromDT = toLocal(installDate);
+    void refresh();
+  }
 
   function toLocal(d: Date): string {
     // datetime-local value format: YYYY-MM-DDTHH:mm
@@ -79,7 +151,18 @@
       stats  = s;
       result = q;
       error  = null;
-    } catch (e) { error = (e as Error).message; }
+      isMock = false;
+    } catch (e) {
+      // Show mock data so the panel isn't blank on first launch
+      if (!result) {
+        stats  = mockStats;
+        result = mockResult();
+        isMock = true;
+        error  = null;
+      } else {
+        error = (e as Error).message;
+      }
+    }
   }
 
   function startTimer() {
@@ -221,6 +304,9 @@
             { label:'LAST 6h',   min:360 },
             { label:'LAST 24h',  min:1440 },
             { label:'LAST 7d',   min:10080 },
+            { label:'LAST 30d',  min:43200 },
+            { label:'LAST 60d',  min:86400 },
+            { label:'LAST 90d',  min:129600 },
           ] as r}
             <button
               onclick={() => setQuickRange(r.min)}
@@ -235,6 +321,18 @@
               onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.borderColor='var(--color-base-600)'; (e.currentTarget as HTMLElement).style.color='var(--color-base-200)'; }}
             >{r.label}</button>
           {/each}
+          <button
+            onclick={setOsInstallRange}
+            style="
+              padding:4px 8px; border:1px solid var(--color-base-500);
+              background:rgba(0,188,216,0.04); text-align:left;
+              font-family:'Share Tech Mono',monospace; font-size:9px;
+              letter-spacing:1px; color:var(--color-cyan-400);
+              cursor:pointer; transition:all .1s;
+            "
+            onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.borderColor='var(--color-cyan-500)'; }}
+            onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.borderColor='var(--color-base-500)'; }}
+          >SINCE OS INSTALL</button>
           {#if fromDT || toDT}
             <button
               onclick={clearRange}
@@ -445,6 +543,13 @@
         {/if}
       </div>
 
+      <!-- Mock data banner -->
+      {#if isMock}
+        <div style="padding:5px 16px; background:rgba(255,171,0,0.10); border-bottom:1px solid var(--color-sig-warn); font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:0.5px; color:var(--color-sig-warn); flex-shrink:0; display:flex; align-items:center; gap:8px;">
+          ⚠ DEMO MODE — backend not reachable — showing sample data
+        </div>
+      {/if}
+
       <!-- Error banner -->
       {#if error}
         <div style="padding:6px 16px; background:rgba(255,61,87,0.12); border-bottom:1px solid var(--color-sig-error); font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:0.5px; color:var(--color-sig-error); flex-shrink:0;">
@@ -539,7 +644,7 @@
               height:200px; gap:12px;
             ">
               <span style="font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--color-base-300);">
-                {query || severityFilter || hostFilter || fromDT ? '— NO EVENTS MATCH CURRENT FILTERS —' : '— NO EVENTS YET — SEND SOME LOGS OR USE THE PROBE BELOW —'}
+                {query || severityFilter || hostFilter || fromDT ? '— NO EVENTS MATCH CURRENT FILTERS —' : isMock ? '— MOCK DATA — BACKEND UNREACHABLE — START THE SERVER TO SEE REAL EVENTS —' : '— NO EVENTS YET — SEND SOME LOGS OR USE THE PROBE BELOW —'}
               </span>
             </div>
           {:else}
