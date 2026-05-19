@@ -490,6 +490,254 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
+## Phases 63-79 (ingest compatibility, log pipeline adapters, enrichment, search UX, retention & cold-tier hardening, HA-lite, dark-mode UI, GeoIP, correlation graph, and Grafana Loki-compatible query API):
+
+---
+
+## Phase 63 — Ingest Compatibility Layer (Elastic / Graylog / rsyslog / syslog-ng / Fluent Bit / Fluentd parity)
+
+OBLIVRA already has a Splunk HEC endpoint (removed in Phase 59) and a syslog UDP listener. This phase adds the remaining wire-level adapters so operators can re-point existing pipelines without touching agent configs. All adapters funnel into the same WAL → hot store → audit chain as native ingest — no parallel code paths.
+
+* [ ] **GELF UDP/TCP receiver** — Graylog Extended Log Format is the dominant Graylog output format and a first-class Fluentd/Fluent Bit target. `internal/listeners/gelf.go` listens on `:12201` (UDP) and `:12202` (TCP/newline-delimited). Maps GELF fields (`host`, `short_message`, `full_message`, `_*` additional fields) onto OBLIVRA's Event struct. Chunked UDP (GELF magic `0x1e 0x0f`) reassembled with a 5s window and 128-chunk cap before forwarding. Compressed payloads (gzip/zlib) decompressed inline. Config: `OBLIVRA_GELF_UDP_ADDR` / `OBLIVRA_GELF_TCP_ADDR`; both disabled by default. Reason: lets any Graylog-targeted Fluent Bit / Fluentd / rsyslog pipeline re-point at OBLIVRA with one config line.
+* [ ] **rsyslog RELP receiver** — Reliable Event Logging Protocol guarantees at-least-once delivery with TCP ACKs. `internal/listeners/relp.go` on `:2514`. Implements RELP frames (open/syslog/close commands); ACKs each frame after WAL fsync so rsyslog never loses events on OBLIVRA restart. Operators with existing rsyslog → RELP → Logstash pipelines can re-target OBLIVRA directly.
+* [ ] **Fluent Bit / Fluentd Forward Protocol receiver** — `internal/listeners/fluentforward.go` on `:24224` (TCP). Implements MessagePack-encoded Forward protocol (Message / Forward / PackedForward / CompressedPackedForward modes). Chunk ACK returned after WAL fsync. Enables zero-config re-targeting of existing Fluent Bit `[OUTPUT] Name forward` or Fluentd `<match> @type forward` blocks.
+* [ ] **OpenSearch / Elasticsearch Bulk API shim** — `POST /_bulk` endpoint that accepts NDJSON action+document pairs (index/create actions only; update/delete are no-ops with a 200 response). Maps `_index` to tenant, `_source` fields to event `Fields` map. Lets operators who already have Logstash `elasticsearch` output or Filebeat `elasticsearch` output re-target OBLIVRA by changing one URL + credentials. No ES query API is implemented — ingest-only shim.
+* [ ] **Grafana Loki push API receiver** — `POST /loki/api/v1/push` accepts Loki's Protobuf or JSON push format (streams with label sets + log entries). Maps Loki labels to event `Fields`, `stream` label becomes `sourceType`. Enables Promtail, Grafana Agent, and Vector `loki` sinks to forward into OBLIVRA without modification.
+* [ ] **syslog-ng `network()` destination compatibility** — syslog-ng's default `network()` destination sends RFC 5424 or RFC 3164 over TCP. Existing UDP listener already handles the format; add a TCP syslog listener on `:1514` (RFC 6587 octet-counted framing + newline fallback) so syslog-ng `transport(tcp)` works without reconfiguration.
+* [ ] **CI smoke tests for each adapter** — `cmd/smoke` extended with one round-trip test per new listener (GELF UDP, RELP, Forward, Bulk shim, Loki push, TCP syslog). Each test sends a synthetic event via the wire protocol and confirms it appears in `GET /api/v1/siem/search`. No external collector binaries required — pure Go dial + write in the smoke harness.
+
+---
+
+## Phase 64 — Enrichment Pipeline
+
+Raw log events often lack context that makes reconstruction meaningful — GeoIP, ASN, hostname resolution, threat-intel tags, and asset-registry metadata. This phase adds a pluggable enrichment stage that runs after WAL write but before hot-store index, so enriched fields are searchable from ingest time.
+
+* [ ] **GeoIP enrichment** — `internal/enrichment/geoip.go`. Reads a MaxMind GeoLite2-City MMDB file (`OBLIVRA_GEOIP_DB`). For every event with a non-RFC1918/loopback IP in `srcIP` or `dstIP`, appends `geo.src.{country,city,lat,lon,asn,org}` / `geo.dst.{...}` to `Fields`. MMDB loaded once at startup; hot-reload on SIGHUP. No network calls — fully air-gap compatible. Optional: `OBLIVRA_GEOIP_ENRICH_FIELDS=srcIP,dstIP,clientIP` to extend the field scan list. New **GeoMap** frontend panel: Leaflet.js world map (bundled tiles from a single PNG sprite, no CDN) with event-count choropleth by country and drill-down to host list.
+* [ ] **ASN / CIDR enrichment** — companion to GeoIP: MaxMind GeoLite2-ASN MMDB for AS number + org name. Flags known-bad ASNs from the threat-intel seeded list as `asn.flagged: true`.
+* [ ] **Hostname reverse-DNS cache** — `internal/enrichment/rdns.go`. Background worker resolves IPs in a bounded LRU cache (default 50k entries, 1h TTL). Non-blocking: if the cache misses, the event is indexed immediately and the resolved hostname is written as a patch event `rdns.resolved` when the lookup completes. Air-gap deployments set `OBLIVRA_RDNS_DISABLED=1` to skip entirely.
+* [ ] **Asset registry enrichment** — `internal/enrichment/assets.go`. Operators upload a CSV/JSON asset list (`POST /api/v1/assets/import`) mapping IPs/hostnames to `{owner, criticality, os, role, location, tags}`. Enrichment stage appends `asset.*` fields. `criticality: critical` events get severity bumped one step. New **Assets** view: import, list, edit, tag. `GET /api/v1/assets` with OQL-compatible filter.
+* [ ] **IOC tag enrichment** — existing `ThreatIntelService` does lookup at query time. Move to ingest-time enrichment: matched IOCs stamp `ioc.match: true`, `ioc.tags: [...]`, `ioc.confidence: 0–100` onto the event so OQL queries like `ioc.match:true AND severity:high` work without a join.
+* [ ] **Enrichment audit trail** — every enrichment that mutates `Fields` appends a read-only `enrichment` block: `{stage, appliedAt, fields_added}`. The block is excluded from the content hash (hash is computed pre-enrichment) so enrichment never invalidates integrity verification. `oblivra-verify` skips enrichment blocks in hash recomputation.
+
+---
+
+## Phase 65 — Grafana Loki-Compatible Query API
+
+Operators who already have Grafana dashboards querying Loki can point them at OBLIVRA with a URL change. This is a read-only query shim — no Loki storage format is used internally.
+
+* [ ] **`GET /loki/api/v1/query_range`** — accepts `query` (LogQL stream selector + filter), `start`, `end`, `limit`, `step`. Translates the stream selector labels to OQL/Bleve filters, runs the search, returns results in Loki's JSON matrix/streams envelope. Covers the 90% case: `{job="sshd"} |= "Failed password"` maps to `sourceType:sshd AND message:"Failed password"`.
+* [ ] **`GET /loki/api/v1/labels`** and **`GET /loki/api/v1/label/{name}/values`** — returns the set of known `sourceType` values (and per-label values) so Grafana's Explore label-picker populates without manual config.
+* [ ] **`GET /loki/api/v1/series`** — returns the set of active label combinations seen in the last 6h. Enables Grafana's series selector.
+* [ ] **Grafana datasource doc** — `docs/integrations/grafana-loki.md`: step-by-step to add OBLIVRA as a Loki datasource in Grafana, including the bearer-token auth header, example dashboards JSON, and LogQL-to-OQL translation table.
+* [ ] **LogQL metric queries** — `GET /loki/api/v1/query` with `rate()` / `count_over_time()` wraps `QualityService.Coverage` stats into a Prometheus-compatible instant vector so Grafana stat panels work.
+
+---
+
+## Phase 66 — Advanced Search UX
+
+* [ ] **Saved search folders + tags** — `SavedSearch` extended with `folder string` and `tags []string`. New `GET /api/v1/saved-searches?folder=&tag=` filter. Frontend: collapsible folder tree in SavedSearches view, tag chips with multi-select filter.
+* [ ] **Search result column configurator** — SIEM view: drag-reorder columns, show/hide fields, persist layout to `localStorage` (user-side; no server round-trip). Default columns: `timestamp`, `host`, `sourceType`, `severity`, `message`.
+* [ ] **Inline field stats sidebar** — in any search result set, a `⊞ Fields` panel shows cardinality + top-10 values for each field in the result window. Click a value to AND it into the current query. Mirrors Kibana's field stats but computed server-side at `GET /api/v1/siem/field-stats?q=&field=`.
+* [ ] **Query history with re-run** — last 50 OQL/Bleve queries per browser session stored in `sessionStorage`, surfaced in a dropdown from the search bar. No server storage — privacy-preserving.
+* [ ] **Contextual pivot menu** — right-click any event field value: options are "Search for this value", "Add to filter", "Exclude from filter", "Pivot timeline ±15min", "Look up in threat intel", "Copy value". Replaces the manual OQL construction that power users currently do.
+* [ ] **Time range presets + custom absolute picker** — replace the current free-text `from/to` inputs with a dropdown (Last 1h / 6h / 24h / 7d / 30d / Custom). Custom opens a calendar date-time picker. Selection persists across navigation via URL params.
+* [ ] **Live tail pause/resume** — WebSocket tail already exists. Add a pause button that buffers incoming events client-side (up to 500) while the analyst reads, then replays on resume. Buffer depth indicator shown while paused.
+
+---
+
+## Phase 67 — Retention & Cold-Tier Hardening
+
+* [ ] **S3 / S3-compatible cold-tier upload** — `internal/storage/cold/s3.go` implements the `ObjectStore` interface using `net/http` (no AWS SDK; manual SigV4 signing so air-gap builds stay lean). Config: `OBLIVRA_S3_ENDPOINT`, `OBLIVRA_S3_BUCKET`, `OBLIVRA_S3_ACCESS_KEY`, `OBLIVRA_S3_SECRET_KEY`, `OBLIVRA_S3_REGION`. Supports MinIO, Cloudflare R2, Backblaze B2 (path-style). Parquet files are uploaded after WORM-lock with a SHA-256 manifest sidecar. Multipart for files >100MB.
+* [ ] **Cold-tier integrity verification** — `oblivra-cli cold verify <path-or-s3-prefix>` re-downloads manifests, checks SHA-256 of each Parquet file, and recomputes per-row content hashes for a sample (configurable `--sample-rate`, default 10%). Exit code 1 on any mismatch.
+* [ ] **Retention enforcement with audit trail** — `TenantPolicyService` already stores `HotMaxAge` / `WarmMaxAge`; add `ColdMaxAge` and `DeletePolicy` (delete-after-cold / keep-forever). Eviction runs write a `storage.eviction` chain entry recording how many events + bytes were removed and at which tier, so the audit trail captures every data lifecycle event.
+* [ ] **Storage quota enforcement** — `OBLIVRA_MAX_HOT_BYTES` / `OBLIVRA_MAX_WARM_BYTES`. When the hot store exceeds quota, ingestion is back-pressured (HTTP 429 with `Retry-After`) rather than silently dropping. Alert raised when usage hits 90%.
+* [ ] **Parquet partition pruning** — warm-tier query path (`GET /api/v1/storage/query`) uses partition metadata (min/max `receivedAt` per file) to skip files outside the query window. Reduces cold reads by ~10× for narrow time-range forensic queries.
+* [ ] **Cross-tier search** — `GET /api/v1/siem/search?tiers=hot,warm,cold` fans out the query across tiers, merges results by timestamp, and returns a unified page. Cold-tier results are flagged with `tier: cold` so analysts know which events came from archived storage.
+
+---
+
+## Phase 68 — HA-Lite: Replication & Standby
+
+OBLIVRA's single-server model is correct for air-gap deployments. HA-lite adds a passive standby that stays warm via WAL streaming — no distributed consensus, no cluster coordination overhead.
+
+* [ ] **WAL streaming replication** — `internal/wal/replication.go`. Primary exposes `GET /api/v1/wal/stream` (chunked transfer, auth-gated, agent role). Standby connects, tails the WAL in real time, and writes identical fsync'd WAL files locally. Reconnect with exponential backoff on disconnect.
+* [ ] **Standby read-only mode** — standby server starts with `OBLIVRA_STANDBY=1`: all write endpoints return 503, all read endpoints are live. Operators use a load balancer (Caddy / HAProxy) to route reads to standby, writes to primary.
+* [ ] **Promotion script** — `scripts/promote-standby.sh`: stops WAL streaming, flips `OBLIVRA_STANDBY=0`, restarts. Documented in runbook with RTO estimate (< 60s for a single-server promotion).
+* [ ] **Replication lag metric** — primary records `wal.replication.lag_bytes` and `wal.replication.lag_events` on `/metrics`. Alert fires when lag exceeds 10k events or 60s. Standby's `GET /healthz` returns 200 only when lag < threshold, so a health-checked load balancer automatically stops routing reads during lag spikes.
+* [ ] **Audit chain sync verification** — after replication catches up, standby calls its own `AuditService.Verify()` and emits `replication.verified` or `replication.chain-mismatch`. Mismatch raises a critical alert on both nodes.
+
+---
+
+## Phase 69 — Dark Mode & Accessibility
+
+* [ ] **Dark / light / system theme toggle** — Tailwind 4 `dark:` variant classes applied throughout. Theme stored in `localStorage`; system preference respected via `prefers-color-scheme`. Toggle in the topbar (sun/moon icon). All existing CSS variables mapped to dark equivalents in a single `theme.css` override block.
+* [ ] **WCAG 2.1 AA contrast pass** — audit every colour pair in the design token set; replace any below 4.5:1 (text) / 3:1 (UI components). Tool: `internal/tools/contrast-check` (go run against the token file as CI lint step).
+* [ ] **Keyboard-only navigation audit** — every interactive element (buttons, table rows, modal close, sidebar items) reachable and operable by Tab + Enter/Space. Focus ring always visible. Screen-reader `aria-label` on icon-only buttons.
+* [ ] **Reduced-motion support** — `prefers-reduced-motion: reduce` disables all CSS transitions and the live-tail scroll animation.
+* [ ] **Print stylesheet** — `@media print` hides sidebar, topbar, action buttons; expands all collapsed sections; forces black-on-white. Enables browser-print of evidence views without the UI chrome.
+
+---
+
+## Phase 70 — Correlation Graph & Lateral Movement Detection
+
+* [ ] **Temporal correlation engine** — `internal/services/correlation.go`. Sliding-window (default 10min) co-occurrence index: when events from ≥2 distinct hosts share the same `srcIP`, `user`, or `processHash` within the window, a `correlation.cluster` record is written. Clusters are the atomic unit for lateral movement scoring.
+* [ ] **Lateral movement scoring** — `CorrelationService.Score(cluster)` returns 0–100 based on: number of distinct destination hosts, presence of privilege-escalation event types, auth-failure-then-success sequence, new user account creation, and shadow-copy / log-clear tamper events within the cluster window. Score ≥70 → high-severity `lateral-movement` alert.
+* [ ] **Correlation graph API** — `GET /api/v1/correlation/clusters?from=&to=&min_score=` returns cluster list. `GET /api/v1/correlation/clusters/{id}/graph` returns nodes (hosts, users, IPs, processes) + edges (event types, timestamps) as a JSON graph for the frontend.
+* [ ] **Correlation Graph frontend view** — D3 force-directed graph (bundled, no CDN). Nodes sized by event count; edges coloured by relationship type (auth / network / process-spawn). Click a node to pivot the timeline to that entity. Filter by min lateral-movement score.
+* [ ] **MITRE lateral movement heatmap integration** — correlation clusters automatically tag their highest-confidence MITRE technique (T1021 Remote Services, T1550 Use Alternate Auth Material, etc.) and contribute to the existing MITRE heatmap view.
+* [ ] **Cross-case correlation** — `GET /api/v1/correlation/cross-case?entity=` finds clusters that span multiple open cases, so analysts working separate incidents can discover they're investigating the same attacker path.
+
+---
+
+## Phase 71 — OpenSearch / Elastic Output Adapter (Read Side)
+
+Some operators have existing Kibana/OpenSearch Dashboards installations they can't replace. This phase makes OBLIVRA queryable via the Elasticsearch search API so those dashboards can point at OBLIVRA as a data source without migration.
+
+* [ ] **`POST /{index}/_search`** (read-only) — accepts ES Query DSL `query.match`, `query.bool`, `query.range`, `query.term`, `query.terms`, `query.exists`; translates to OQL/Bleve; returns ES-shaped hits with `_source`, `_id`, `_score`. No aggregations in phase 1.
+* [ ] **`GET /_cat/indices`** — returns one row per `(tenant, sourceType)` pair as a virtual index. Lets Kibana's index-pattern wizard discover OBLIVRA's data.
+* [ ] **`GET /{index}/_mapping`** — returns a synthetic ES mapping derived from the Event struct + enrichment fields. Required for Kibana field-type inference.
+* [ ] **`POST /_msearch`** — multi-search for Kibana dashboard panels that batch queries. Each sub-request translated independently.
+* [ ] **Kibana/OpenSearch Dashboards doc** — `docs/integrations/kibana.md`: add OBLIVRA as an Elasticsearch datasource, create an index pattern, example dashboard JSON for sessions / alerts / tamper events.
+* [ ] **Aggregations (phase 2)** — `date_histogram`, `terms`, `filter`, `value_count`. Enough to power the most common Kibana visualisations (time series, pie charts, metric tiles).
+
+---
+
+## Phase 72 — Sumo Logic / Datadog Ingest Wire Compatibility
+
+Operators migrating away from SaaS SIEM vendors need a drop-in ingest target. This phase adds receiver endpoints that match the wire format of the two most common SaaS platforms.
+
+* [ ] **Sumo Logic HTTP Source shim** — `POST /receiver/v1/http/{sourceToken}` accepts Sumo Logic's collector HTTP source format (plain text, JSON array, or JSON Lines). `sourceToken` maps to a tenant via `OBLIVRA_SUMO_TOKENS=token:tenant,...`. Sumo's collector metadata headers (`X-Sumo-Name`, `X-Sumo-Host`, `X-Sumo-Category`) mapped to provenance fields.
+* [ ] **Datadog Agent HTTP intake shim** — `POST /api/v2/logs` (Datadog v2 log intake format: JSON array of `{message, ddsource, ddtags, hostname, service}`). Auth via `DD-API-KEY` header mapped through `OBLIVRA_DD_KEYS=key:tenant,...`. Enables Datadog Agent `logs_enabled: true` pipelines to re-target OBLIVRA by changing the `DD_LOGS_CONFIG_LOGS_DD_URL` env var.
+* [ ] **Tag normalization** — Datadog `ddtags` (`env:prod,team:infra`) and Sumo Logic `_sourceCategory` are normalized into OBLIVRA `Fields` as `tag.*` keys so OQL queries like `tag.env:prod` work across both sources.
+* [ ] **Migration guide** — `docs/integrations/migration-from-saas.md`: step-by-step replacement instructions for Splunk Cloud, Datadog, and Sumo Logic, including agent re-targeting, saved-search translation, and alert rule migration.
+
+---
+
+## Phase 73 — eBPF Agent Kernel Collector
+
+The file-tailing agent covers most ingest scenarios, but kernel-level telemetry — syscalls, network sockets, file descriptor activity, container namespace events — is invisible to a userspace tailer. This phase adds an eBPF-based collector sub-process to the existing `oblivra-agent` binary. It is opt-in, Linux-only, and build-tagged so air-gap and Windows builds carry zero eBPF code.
+
+> **Build constraint**: `//go:build linux && ebpf`. Compiled with `task agent:ebpf` using `cilium/ebpf` (pure Go, no libbpf/libelf C dependency). Requires kernel ≥ 5.8 for ring-buffer support; degrades gracefully to perf-buffer on 5.4–5.7. BTF (BPF Type Format) CO-RE objects compiled offline and embedded via `go:embed` so no kernel headers are needed on the target host.
+
+### 73.1 — Process & Syscall Probing
+
+* [ ] **execve / execveat tracepoint** — `cmd/agent/ebpf/exec.bpf.c`. Captures `{pid, ppid, uid, gid, comm, argv[0..15], cwd, filename, retval}` on every exec. argv capped at 15 segments × 128 bytes; truncation flagged with `argv_truncated: true`. Emits `ebpf.exec` events into the agent's existing priority queue so they hit the server before bulk file-tail traffic under backpressure.
+* [ ] **exit / exit_group tracepoint** — captures `{pid, exit_code, elapsed_ns}` and emits `ebpf.exit`. Paired with `ebpf.exec` in the server's `ReconstructionService` for precise process lifetime (no log-message parsing required).
+* [ ] **open / openat / creat kprobe** — captures `{pid, comm, path, flags, retval}`. Flags decoded to human strings (`O_RDWR|O_CREAT`). Emits `ebpf.file_open`. High-frequency paths (`/proc/self/maps`, `/dev/urandom`) throttled via a per-pid LRU token bucket (100 events/s per pid) in the BPF map before they reach userspace — no ring-buffer saturation.
+* [ ] **unlink / unlinkat / rename kprobe** — emits `ebpf.file_delete` / `ebpf.file_rename`. Critical for detecting evidence destruction (log file deletion, shadow copy wipe) without relying on auditd.
+* [ ] **setuid / setgid / capset kprobe** — privilege-escalation detection at the kernel boundary. Emits `ebpf.priv_change` with before/after uid/gid/caps. Feeds directly into the lateral-movement scorer (Phase 70).
+* [ ] **ptrace kprobe** — detects debugger attachment and process injection (`PTRACE_ATTACH`, `PTRACE_POKEDATA`). Emits `ebpf.ptrace` with tracer and tracee pids. Triggers a Sigma rule match for `T1055 Process Injection`.
+
+### 73.2 — Network Socket Probing
+
+* [ ] **tcp_connect / tcp_accept kprobes** — captures 5-tuple `{srcIP, srcPort, dstIP, dstPort, pid, comm, ns_inum}` at connection establishment. Emits `ebpf.tcp_connect` / `ebpf.tcp_accept`. No packet payload captured — metadata only. Namespace inode included for container-aware correlation.
+* [ ] **tcp_close kprobe** — emits `ebpf.tcp_close` with bytes sent/received (from `sk->bytes_sent` / `sk->bytes_received`) and duration. Gives per-connection byte counts without a full NDR stack.
+* [ ] **udp_sendmsg / udp_recvmsg kprobes** — emits `ebpf.udp_send` / `ebpf.udp_recv` with 5-tuple + length. Covers DNS exfiltration and ICMP-tunnelling-over-UDP patterns invisible to TCP-only tracers.
+* [ ] **DNS response snooping via socket filter** — attaches a BPF socket filter to a raw socket on the loopback and capture interfaces. Parses DNS responses (A/AAAA/CNAME) inline in BPF and emits `ebpf.dns_response` with `{query, answers[], ttl, pid}`. No userspace DNS proxy required; no traffic modified.
+* [ ] **Network namespace tracking** — tracks `setns` calls to detect container pivoting. Emits `ebpf.ns_enter` with old/new net namespace inode. Server correlates with container ID via the asset registry (Phase 64).
+
+### 73.3 — File Integrity Monitoring
+
+* [ ] **inotify-replacement via `fanotify` + eBPF** — `cmd/agent/ebpf/fim.bpf.c`. Attaches `fanotify` FAN_OPEN_PERM + FAN_ACCESS in report-only mode (no blocking); supplements with a `vfs_write` kprobe for in-place modifications. Watchlist loaded from `fim.paths:` in `agent.yml`. Emits `ebpf.fim_write` / `ebpf.fim_read` with sha256 of the modified inode computed in a userspace goroutine after the event fires (non-blocking: hash computed async, attached to the event via correlation ID).
+* [ ] **LD_PRELOAD / LD_LIBRARY_PATH detection** — `execve` probe checks the envp array for `LD_PRELOAD` / `LD_LIBRARY_PATH` and emits `ebpf.ldpreload` with the injected path. Catches userspace rootkits that rely on library hijacking.
+* [ ] **Kernel module load detection** — `security_kernel_module_request` LSM hook emits `ebpf.kmod_load` with module name. Flags unsigned or unexpected kernel modules for the tamper detector.
+
+### 73.4 — Container & Namespace Awareness
+
+* [ ] **Container ID resolution** — on every `ebpf.exec` / `ebpf.tcp_connect`, the agent reads `/proc/<pid>/cgroup` (cached per-pid, invalidated on `ebpf.exit`) and extracts the Docker/containerd/cgroup-v2 container ID. Appended as `container.id` field. Server can join against `GET /api/v1/assets` if the asset registry has container metadata.
+* [ ] **Namespace-scoped process tree** — `ReconstructionService` (server-side) extended to group `ebpf.exec` events by `(host, ns_inum)` when building process trees. Container-local PID 1 is correctly identified as the container entrypoint, not the host init.
+* [ ] **Kubernetes pod annotation** — agent reads `/proc/<pid>/environ` for `KUBERNETES_SERVICE_HOST` presence and `/var/run/secrets/kubernetes.io/serviceaccount/namespace` to append `k8s.namespace`, `k8s.pod_name` (from `HOSTNAME` env) to events. No Kubernetes API calls — pure procfs.
+
+### 73.5 — eBPF Agent Operational Concerns
+
+* [ ] **Privilege minimisation** — eBPF agent requires `CAP_BPF` + `CAP_PERFMON` (kernel ≥ 5.8); falls back to `CAP_SYS_ADMIN` on older kernels. systemd unit drops all other capabilities. Documented in deployment guide.
+* [ ] **Ring-buffer back-pressure** — when the ring buffer is >80% full, the BPF program starts sampling: every Nth exec/open event is dropped at the kernel boundary (N scales with fill level). A `ebpf.sample_drop` counter is reported in the agent heartbeat so operators see when the kernel is producing faster than the agent can drain.
+* [ ] **`oblivra-agent ebpf status`** — prints loaded programs, map sizes, ring-buffer fill %, events/s per probe, and kernel version / BTF availability.
+* [ ] **`oblivra-agent ebpf test`** — dry-run: loads programs, fires synthetic exec (fork + `/bin/true`), confirms the event appears in the ring buffer, then unloads. CI-friendly; exits 0 on success.
+* [ ] **Build tag isolation** — `cmd/agent/ebpf/` is entirely behind `//go:build linux && ebpf`. `task agent:build` (no tag) produces the standard file-tailing binary. `task agent:ebpf` passes `-tags ebpf` and links the BPF objects. The Windows and macOS cross-compile targets are unaffected.
+* [ ] **`task agent:ebpf:generate`** — runs `bpf2go` (cilium/ebpf codegen) to regenerate Go bindings from `.bpf.c` sources. Requires `clang` + `llvm` on the build host only; target hosts need nothing.
+* [ ] **Docs: `docs/operator/ebpf.md`** — kernel version requirements, capability model, watchlist config reference, container-mode setup, known limitations (no macOS/Windows, no kernel < 5.4, fanotify requires `CAP_SYS_ADMIN` fallback on RHEL 7).
+
+---
+
+## Phase 74 — Agent Plugin System (WASM)
+
+The existing agent handles file tail, journald, syslog-udp, and eBPF. This phase adds a WASM plugin host so operators can ship custom parsers and enrichers without forking the agent or waiting for a release cycle. Plugins run in a sandboxed WASM runtime — no native code, no syscalls beyond the explicit host API.
+
+* [ ] **WASM plugin host** — `cmd/agent/plugin/host.go` using `tetratelabs/wazero` (pure Go, no CGO, zero C dependency). Plugins loaded from `pluginsDir:` in `agent.yml`. Each plugin is a `.wasm` file compiled from any WASM-targeting language (Go/TinyGo, Rust, AssemblyScript).
+* [ ] **Host API surface** — plugins import `oblivra_host` module with four functions: `emit_event(json_ptr, len)` to push a parsed event into the agent pipeline; `get_raw(ptr, max_len)` to read the current raw line being processed; `log(level, msg_ptr, len)` for plugin-side logging surfaced in the agent's own log; `now_unix_ns()` for timestamps. Intentionally minimal — no filesystem, no network, no process access from plugin code.
+* [ ] **Parser plugin contract** — plugins export `parse(raw_len i32) i32` (returns number of events emitted). Called once per raw log line from file-tail or stdin inputs. Return value 0 = line skipped; negative = parse error (increments `UnparsedRate` in QualityService).
+* [ ] **Enricher plugin contract** — plugins export `enrich(event_json_len i32) i32`. Called after the built-in enrichment stage (Phase 64). Plugin reads the event JSON, mutates fields, and calls `emit_event` with the enriched version. The host diffs the before/after `Fields` map and records the delta in the `enrichment` audit block.
+* [ ] **`oblivra-agent plugin list`** — prints loaded plugins, their exported functions, memory usage, and events processed/s.
+* [ ] **`oblivra-agent plugin reload`** — hot-reloads the plugin directory (drops old WASM instances, loads new ones) without restarting the agent. Audit event emitted on reload.
+* [ ] **Example plugins** — `docs/plugins/`: TinyGo parser for Palo Alto firewall TRAFFIC logs, Rust enricher that looks up internal CMDB (local JSON file), AssemblyScript field normaliser. Each compiles to a <200KB `.wasm` file.
+* [ ] **Plugin signing** — `pluginPublicKeys: [ed25519-base64, ...]` in `agent.yml`. Agent refuses to load unsigned plugins when the list is non-empty. Signature file is `<plugin>.wasm.sig` (detached ed25519). `oblivra-agent plugin sign <key.pem> <plugin.wasm>` does the signing.
+
+---
+
+## Phase 75 — Threat Hunt Workbench
+
+Detection rules fire on known-bad patterns. Threat hunting requires exploratory queries across weeks of data without a predefined hypothesis. This phase adds a persistent, case-linked hunt workspace that feels like a notebook but produces auditable, court-grade output.
+
+* [ ] **Hunt sessions** — `internal/services/hunt.go`. `POST /api/v1/hunts` creates a named hunt session with an optional linked case ID. Each session has an immutable `openedAt` + `auditRootAtOpen` snapshot (same freeze semantics as InvestigationsService cases). Sessions persist to `hunts.log`.
+* [ ] **Hunt queries** — `POST /api/v1/hunts/{id}/queries` submits an OQL or Bleve query, stores `{query, submittedAt, actor, resultCount, resultSampleIds[]}`. Every query lands in the audit chain as `hunt.query` so the full exploratory path is reproducible. `GET /api/v1/hunts/{id}/queries` returns the query history.
+* [ ] **Query result pinning** — `POST /api/v1/hunts/{id}/pin` promotes a result set (by event IDs or query snapshot) to pinned evidence. Pinned results are sealed into the linked case (if any) as a `hunt.evidence` chain entry.
+* [ ] **Hunt notebooks frontend** — new **Hunts** sidebar view. Each hunt is a vertical notebook: alternating query cells (OQL input + result table) and text annotation cells (markdown). Cells append-only; no delete. Export as self-contained HTML (same renderer as `ReportService.CaseHTML`).
+* [ ] **Pre-built hunt templates** — `sigma/hunt_templates/`: LOLBIN hunt (CommandLine contains known-good binaries used suspiciously), beaconing detection (host makes same external connection at regular intervals), account enumeration (>20 failed logins from same srcIP in 10min), new service install, scheduled task creation. Each template is a parameterised OQL query with a markdown walkthrough.
+* [ ] **Statistical outlier hunt** — `GET /api/v1/hunts/outliers?field=&host=&window=` returns the top-N values of `field` that are statistically anomalous (z-score ≥ 3σ compared to the same field's distribution over the prior 7 days). Server-side; no ML model, pure rolling stats from `UebaService` baselines.
+
+---
+
+## Phase 76 — Network Packet Capture Trigger (PCAP-on-Alert)
+
+Phase 42 deferred full PCAP reading as a multi-week project. This narrower phase adds a targeted capability: when a high-severity alert or eBPF network event fires on a host running the agent, the agent captures a short PCAP burst (default 30s, configurable) via `libpcap` / `AF_PACKET` and ships the file to the server as sealed evidence. No continuous packet capture; no storage explosion.
+
+* [ ] **`pcap` input type in `agent.yml`** — `type: pcap`, `interface: eth0`, `snaplen: 1500`, `filter: ""` (BPF filter string), `triggerOnAlert: true`, `captureSeconds: 30`, `maxFileMB: 50`. Disabled by default. Build-tagged `linux && pcap`; requires `libpcap-dev` on build host, `libpcap.so` on target.
+* [ ] **Alert-triggered capture** — when the agent's pre-detection engine (Phase 60) fires a critical local rule, it opens a raw `AF_PACKET` socket on the configured interface, writes a `.pcap` file to `<stateDir>/pcap/`, and streams it to `POST /api/v1/evidence/pcap` after capture completes. File is ed25519-signed before upload.
+* [ ] **PCAP evidence endpoint** — `POST /api/v1/evidence/pcap` (agent role). Receives the file, computes SHA-256, stores under `<dataDir>/evidence/pcap/<timestamp>-<host>.pcap`, appends a `evidence.pcap` chain entry with `{host, triggeredBy, sha256, sizeBytes, captureStart, captureEnd}`. Sealed into the case if one is open for that host.
+* [ ] **PCAP viewer stub** — frontend Evidence view shows PCAP entries with metadata + download button. Full browser-side rendering of PCAP frames is Phase 76.x (deferred; operators use Wireshark on the downloaded file today).
+* [ ] **`oblivra-verify` PCAP support** — verifier extended to check `.pcap` evidence entries: SHA-256 recomputed against stored file, ed25519 signature verified against the submitting agent's public key.
+
+---
+
+## Phase 77 — Certificate & TLS Inventory
+
+Certificate expiry and TLS misconfiguration are common entry points. This phase adds passive TLS telemetry collection from eBPF network events and an active scanner for internal hosts, producing an always-current certificate inventory without any network credentials.
+
+* [ ] **Passive TLS fingerprinting** — eBPF `tcp_connect` events (Phase 73.2) extended to capture the TLS ClientHello via a `kprobe` on `tcp_sendmsg` (first 512 bytes of new connections). Server-side parser extracts SNI, supported cipher suites, and JA3 fingerprint. Emits `tls.clienthello` events. No decryption; header metadata only.
+* [ ] **TLS ServerHello capture** — `kprobe` on `tcp_recvmsg` for the server's first response packet. Extracts selected cipher suite, TLS version, and server certificate chain (DER-encoded, first 4KB). Server parses certificate: `{subject, issuer, notBefore, notAfter, SANs, keyAlgo, keyBits, selfSigned}`. Emits `tls.serverhello`.
+* [ ] **Certificate inventory service** — `internal/services/certinventory.go`. Aggregates `tls.serverhello` events into a deduplicated certificate store keyed by SHA-256 of the DER cert. Records `{firstSeen, lastSeen, hosts[], ports[], expiresAt, daysUntilExpiry, selfSigned, weakKey}`. Endpoint `GET /api/v1/certs`.
+* [ ] **Expiry alerting** — scheduler job `cert.expiry-check` runs daily. Fires `warning` severity alert at 30 days, `high` at 7 days, `critical` at 1 day or already-expired. Alert body includes the cert subject + affected hosts so the on-call runbook action is unambiguous.
+* [ ] **Weak cipher / deprecated TLS detection** — JA3 fingerprint matched against a seeded blocklist (`TLS_RSA_*` export ciphers, RC4, 3DES, TLS 1.0/1.1 negotiation). Emits `tls.weak` alert. Blocklist hot-reloaded from `sigma/tls_weak.yml` so operators can extend it.
+* [ ] **Certs frontend view** — table sorted by `daysUntilExpiry` ascending. Red / amber / green row colouring. Click-through to the raw cert detail + list of hosts that presented it. Export as CSV for ops teams.
+
+---
+
+## Phase 78 — Incident Timeline Export (STIX 2.1)
+
+Courtroom evidence and threat-intel sharing both benefit from a machine-readable representation of the incident timeline. STIX 2.1 is the de-facto standard for CTI exchange (MITRE ATT&CK, TAXII feeds, OpenCTI, MISP).
+
+* [ ] **STIX 2.1 bundle generator** — `internal/report/stix.go`. `CaseToSTIX(caseId)` converts a sealed case into a STIX 2.1 JSON bundle: `identity` (OBLIVRA instance), `report` (case title + description), `observed-data` objects (one per event), `indicator` objects (one per fired rule with STIX pattern translated from the Sigma rule's condition), `relationship` edges (indicator → observed-data, malware → attack-pattern), `attack-pattern` objects for each MITRE technique fired. Bundle ID is deterministic over the case ID + audit root so two exports of the same case produce identical bundles.
+* [ ] **Export endpoint** — `GET /api/v1/cases/{id}/stix.json` (analyst role). Response is `Content-Type: application/stix+json`. Audited; lands in the chain as `case.stix-export`.
+* [ ] **TAXII 2.1 server stub** — `GET /taxii/collections`, `GET /taxii/collections/{id}/objects`. Read-only; one collection per tenant. Enables OpenCTI / MISP to pull OBLIVRA bundles on a schedule without manual export.
+* [ ] **MISP event export** — `GET /api/v1/cases/{id}/misp.json` produces a MISP 2.x event JSON (attributes: IPs, hashes, hostnames, filenames, MITRE technique tags). Simpler than STIX; preferred by many SOC teams for quick IOC sharing.
+* [ ] **Import STIX indicators as IOCs** — `POST /api/v1/threatintel/stix-import` accepts a STIX 2.1 bundle and extracts `indicator` objects into the `ThreatIntelService` IOC store. Each imported IOC records `{stixId, source, pattern, confidence, validUntil}`. Integrates with Phase 64's ingest-time IOC enrichment.
+
+---
+
+## Phase 79 — Autonomous Integrity Watchdog (Deadman's Switch)
+
+The tamper detector (Phase 44) fires when logs show signs of clearing. But a sophisticated attacker may simply kill OBLIVRA silently and clear the audit chain offline. This phase adds an external heartbeat mechanism so the absence of OBLIVRA itself becomes detectable.
+
+* [ ] **Outbound heartbeat** — `OBLIVRA_DEADMAN_URL=https://hc-ping.com/<uuid>` (or any URL that accepts a GET). Scheduler job pings every 5 minutes. Missed pings (the remote service's responsibility) alert the operator out-of-band — no OBLIVRA process involvement required. Compatible with healthchecks.io (self-hostable, Apache 2.0) for air-gap operators.
+* [ ] **Signed heartbeat payload** — each ping POST body carries `{timestamp, auditChainLength, lastAnchorAt, instanceId}` HMAC-signed with `OBLIVRA_AUDIT_KEY`. The receiver (or an operator script) can verify the payload proves the chain hasn't been rewound between pings.
+* [ ] **Local watchdog process** — `cmd/watchdog` — a tiny (<500 LoC) separate binary that runs as a separate systemd service. Polls `GET /healthz` every 60s. If OBLIVRA is unreachable for >5min, `watchdog` writes a `platform.unreachable` signed journal entry to its own append-only `watchdog.log` and sends an email/webhook alert (configured independently of OBLIVRA's `NotificationService`). Operates even when the main server is dead.
+* [ ] **Watchdog log verification** — `oblivra-verify watchdog.log` extended to verify the watchdog's own Merkle chain (same chain format, separate HMAC key `OBLIVRA_WATCHDOG_KEY`). An attacker who kills both processes still leaves a verifiable gap in the watchdog log.
+* [ ] **Mutual attestation** — OBLIVRA server polls `GET /watchdog/status` (loopback-only endpoint on the watchdog's port). If the watchdog itself disappears, OBLIVRA raises a `tamper-watchdog-missing` critical alert. The two processes watch each other; disabling either one is detectable within a single heartbeat interval.
+* [ ] **Docs: `docs/operator/deadman.md`** — deployment pattern (watchdog on a separate low-privilege user), recommended external ping service (self-hosted healthchecks.io recipe included), key rotation procedure, and what an operator should do when an unexpected ping gap appears in the watchdog log.
+
+---
+
 **Last Updated**: 2026-05-02 — Phase 61 (Splunk-UF parity: admin password + custom install paths):
 
 ## Phase 61 — Splunk-UF parity
