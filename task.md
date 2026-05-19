@@ -490,7 +490,7 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-## Phases 63-79 (ingest compatibility, log pipeline adapters, enrichment, search UX, retention & cold-tier hardening, HA-lite, dark-mode UI, GeoIP, correlation graph, and Grafana Loki-compatible query API):
+## Phases 63-90 (ingest compatibility, log pipeline adapters, enrichment, search UX, retention & cold-tier hardening, HA-lite, dark-mode UI, GeoIP, correlation graph, and Grafana Loki-compatible query API):
 
 ---
 
@@ -735,6 +735,144 @@ The tamper detector (Phase 44) fires when logs show signs of clearing. But a sop
 * [ ] **Watchdog log verification** — `oblivra-verify watchdog.log` extended to verify the watchdog's own Merkle chain (same chain format, separate HMAC key `OBLIVRA_WATCHDOG_KEY`). An attacker who kills both processes still leaves a verifiable gap in the watchdog log.
 * [ ] **Mutual attestation** — OBLIVRA server polls `GET /watchdog/status` (loopback-only endpoint on the watchdog's port). If the watchdog itself disappears, OBLIVRA raises a `tamper-watchdog-missing` critical alert. The two processes watch each other; disabling either one is detectable within a single heartbeat interval.
 * [ ] **Docs: `docs/operator/deadman.md`** — deployment pattern (watchdog on a separate low-privilege user), recommended external ping service (self-hosted healthchecks.io recipe included), key rotation procedure, and what an operator should do when an unexpected ping gap appears in the watchdog log.
+
+---
+
+## Phase 80 — Identity & Access Management (Enterprise Auth)
+
+The current RBAC model (static API keys with role suffixes) is correct for small teams and air-gap deployments. Enterprise buyers require SSO, directory sync, and per-user audit attribution. This phase adds the full IAM surface without removing the simple-key fallback.
+
+* [ ] **OIDC / OAuth 2.0 SSO (production-grade)** — the existing `internal/httpserver/oidc.go` has PKCE flow. Harden it: refresh-token rotation (RFC 6749 §6), silent re-auth, session revocation on `POST /api/v1/auth/logout` (clears server-side session table, emits `auth.logout` to chain), configurable session lifetime (`OBLIVRA_SESSION_TTL`, default 8h). Tested against Entra ID, Okta, Keycloak, and Authentik with a shared httptest IdP stub.
+* [ ] **SAML 2.0 SP** — `internal/httpserver/saml.go` using `crewjam/saml` (pure Go). IdP-initiated and SP-initiated flows. ACS at `/api/v1/auth/saml/acs`, metadata at `/api/v1/auth/saml/metadata`. Group claims mapped to OBLIVRA roles via `OBLIVRA_SAML_ROLE_MAP`. Required for Ping Identity, ADFS, and Okta enterprise contracts.
+* [ ] **SCIM 2.0 user provisioning** — `GET/POST /scim/v2/Users`, `PUT/PATCH/DELETE /scim/v2/Users/{id}`. Allows Azure AD, Okta, and JumpCloud to auto-provision/deprovision users. Deprovisioned users have active sessions revoked within one SCIM sync cycle. Each action is a `scim.*` chain entry.
+* [ ] **Per-user audit attribution** — when SSO is active, audit chain `actor` field contains the IdP `sub` claim + `email` instead of the API key name. Chain format unchanged; only the value changes.
+* [ ] **MFA enforcement policy** — `OBLIVRA_MFA_REQUIRED=analyst,admin`. OIDC/SAML assertion must include an AMR claim containing `mfa`/`otp`/`hwk`; missing AMR returns 403. API-key users unaffected.
+* [ ] **Break-glass emergency access** — `oblivra-cli auth break-glass --reason "..."` generates a 1-hour, single-use admin token stored in `break_glass.log` (separate Merkle chain). Cannot be listed via API — requires physical access to the server host. Every use is a `break-glass.used` chain entry.
+* [ ] **Session table frontend** — Admin view: active sessions (user, IP, user-agent, login time, idle time) with per-session and bulk revoke. Each revocation is a `session.revoke` chain entry.
+
+---
+
+## Phase 81 — Multi-Tenancy: Enterprise Tier
+
+The existing isolation is solid but operator-configured. Enterprise deployments need self-service tenant lifecycle, cross-tenant admin views, and MSP-grade delegation.
+
+* [ ] **Tenant lifecycle API** — `POST /api/v1/tenants` (admin) creates a tenant with `{name, slug, maxEPS, maxHotBytes, retentionPolicy, contactEmail}`. `DELETE /api/v1/tenants/{id}` schedules hard-delete after grace period (`OBLIVRA_TENANT_DELETE_GRACE=30d`), emits `tenant.delete-scheduled`, begins soft-deleting hot data.
+* [ ] **Tenant dashboard** — Admin view: table of all tenants with live EPS, hot-store bytes, alert count, agent count, last-seen. Click-through to per-tenant Overview. MSP NOC use case.
+* [ ] **Cross-tenant alert roll-up** — `GET /api/v1/admin/alerts?across_tenants=true` (admin only). Returns alerts from all tenants with tenant slug prepended to hostId.
+* [ ] **Resource quotas + EPS throttling** — `MaxEPS` and `MaxHotBytes` per tenant in `TenantPolicyService`. Over-quota ingest returns HTTP 429 with `X-Oblivra-Quota:` header. Breach raises `tenant.quota-exceeded` alert visible in the tenant dashboard.
+* [ ] **Tenant data export** — `POST /api/v1/tenants/{id}/export` produces a signed ZIP: WAL entries, Parquet files, filtered audit log and cases log for that tenant. Export manifest is a `tenant.export` chain entry. GDPR Art. 20 data portability.
+
+---
+
+## Phase 82 — Advanced UEBA
+
+The existing `UebaService` does per-host EPS z-score detection. Enterprise UEBA means per-user behaviour modelling, peer-group comparison, and risk scoring.
+
+* [ ] **Per-user activity baseline** — `internal/services/ueba_user.go`. Per-user daily tracking: login times, source IPs, accessed hosts, command diversity, bytes moved, auth failures. 14-day rolling baseline per user per day-of-week.
+* [ ] **Peer-group modelling** — users grouped by `department`/`role` from the asset registry. User deviating from peer group by ≥2σ on 3+ dimensions raises `peer-deviation` anomaly.
+* [ ] **Risk score timeline** — `GET /api/v1/ueba/users/{user}/risk` returns `{score 0-100, factors[], trend[]}`. Score decays 10% per clean day. Fed into case confidence scoring.
+* [ ] **Watchlist** — `POST /api/v1/ueba/watchlist`. Watchlisted entities have every event tagged `watchlist: true` at ingest (enrichment stage). Admin-only; every change is a chain entry.
+* [ ] **Impossible travel detection** — sequential logins from geographically distant IPs within sub-travel time. Requires GeoIP (Phase 64). Raises `ueba.impossible-travel` with both login events as evidence.
+* [ ] **Data exfiltration signals** — per-user bytes-out baseline from eBPF `tcp_close` counts or NetFlow. ≥3σ spike raises `ueba.exfil-spike`. Corroborated by unusual file opens or DNS to new external domains raises `ueba.exfil-corroborated`.
+* [ ] **User Risk view** — sortable user table (risk score, top anomaly, last login, last alert). Click-through to risk timeline + factor breakdown.
+
+---
+
+## Phase 83 — Playbook Trigger Contracts
+
+OBLIVRA is not a SOAR. But enterprise teams need structured, verifiable, idempotent trigger contracts so their SOAR acts reliably.
+
+* [ ] **Structured alert payload v2** — adds `{alertId, ruleId, mitreTechnique, affectedHost, affectedUser, riskScore, evidencePackageUrl, caseId, auditRootAtAlert, signatureEd25519}`. `auditRootAtAlert` lets the SOAR verify the chain state at alert time.
+* [ ] **Idempotency key on webhooks** — `X-Oblivra-Delivery-Id` + `X-Oblivra-Delivery-Attempt` headers. Delivery log at `GET /api/v1/webhooks/{id}/deliveries`.
+* [ ] **Webhook retry with exponential backoff** — 5 retries at 30s/2m/10m/1h/6h. After 5 failures the webhook is circuit-opened and a `webhook.circuit-open` alert fires.
+* [ ] **Playbook trigger API** — `POST /api/v1/playbooks/trigger` (admin). Records `playbook.trigger` chain entry and forwards v2 payload to SOAR. OBLIVRA does not execute the playbook.
+* [ ] **Callback receipt** — `POST /api/v1/playbooks/callback`. SOAR posts completion; OBLIVRA records `playbook.callback` chain entry and auto-updates case notes.
+* [ ] **Alert suppression rules** — `POST /api/v1/detection/suppressions`. Matching alerts tagged `suppressed: true`, excluded from webhooks. Suppression is a chain entry with expiry; `suppression.expired` auto-removes it.
+
+---
+
+## Phase 84 — Compliance Evidence Automation
+
+Phase 46 added a machine-readable JSON-LD feed. This phase closes the loop: scheduled evidence collection, sealed per-control, with a ready-made auditor pack.
+
+* [ ] **Control-to-query mapping** — `POST /api/v1/compliance/controls/{controlId}/mapping`. Scheduler runs mapped OQL queries on schedule, seals `{controlId, collectedAt, auditRootAtCollection, evidenceEventIds[], resultCount}` as a `compliance.evidence` chain entry.
+* [ ] **Compliance evidence package** — `GET /api/v1/compliance/package/{framework}` produces a signed ZIP: one JSON per control with all collection runs, a SHA-256 manifest, and the covering audit chain entries. Auditors verify independently with `oblivra-verify`.
+* [ ] **Compliance view** — framework selector, control grid with RAG freshness (green=this week, amber=>7d, red=never). Click-through to per-control evidence history.
+* [ ] **Gap detection** — scheduler `compliance.gap-scan` runs daily. Missing evidence raises `compliance.gap` alert with control ID and framework before the auditor asks.
+* [ ] **Audit-period report** — `GET /api/v1/compliance/report/{framework}?from=&to=` produces a single printable HTML report covering all controls: evidence summary, gap table, Merkle root at start/end of period, verification instructions.
+
+---
+
+## Phase 85 — NDR Expansion
+
+The existing `NdrService` consumes NetFlow v5. Enterprise NDR means protocol-aware detection and east-west traffic baselines.
+
+* [ ] **NetFlow v9 + IPFIX receiver** — `internal/listeners/netflow9.go`. Template-based; per-exporter template cache. Maps enterprise flow fields (application ID, VLAN, MPLS, interface index). Required for Cisco ASR, Juniper MX, Palo Alto.
+* [ ] **sFlow v5 receiver** — `internal/listeners/sflow.go`. Packet-sampled telemetry from Arista, Brocade, open-source switches. More granular east-west visibility than NetFlow.
+* [ ] **East-west traffic baseline** — per-host-pair daily byte/flow baseline. ≥3σ spike raises `ndr.east-west-spike`. New host-to-host pair raises `ndr.new-connection`.
+* [ ] **Long connection detection** — flow duration baseline per (srcIP, dstPort). Flows ≥5× baseline raise `ndr.long-connection`. Classic C2 keep-alive signal.
+* [ ] **DNS tunnel detection** — per-resolver query/minute baseline. Sources exceeding 3× baseline with Shannon entropy >3.5 bits/char on the subdomain raise `ndr.dns-tunnel`.
+* [ ] **JA3/JA3S fingerprint matching** — TLS ClientHello JA3 fingerprints (from Phase 77) matched against seeded blocklist of known-malicious C2 TLS profiles. Blocklist is hot-reloaded YAML.
+* [ ] **NDR dashboard expansion** — east-west heatmap, long-connection list, DNS anomaly table, JA3 match table.
+
+---
+
+## Phase 86 — OpenAPI, SDK & Developer Experience
+
+* [ ] **OpenAPI 3.1 spec (auto-generated)** — `GET /openapi.json`. `task docs:openapi` writes `docs/api/openapi.yaml`. Every `oblivra-smoke` response validated against the registered schema; drift is a CI failure.
+* [ ] **Official Go SDK** — `sdk/go/oblivra`. Generated from OpenAPI via `oapi-codegen`. Covers auth, pagination, WebSocket live tail, retry-with-backoff. Used by `oblivra-cli` so CLI and SDK stay in sync.
+* [ ] **Official Python SDK** — `sdk/python/oblivra`. Async-first (`httpx`/`asyncio`); sync wrapper available. Example Jupyter notebook in `docs/examples/jupyter/`.
+* [ ] **Local dev environment** — `task dev` starts the server with deterministic seed data (100k synthetic events, 5 tenants, 3 pre-opened cases). `task dev:reset` wipes and re-seeds.
+* [ ] **Terraform provider** — `sdk/terraform/oblivra`. Manages tenants, API keys, webhook registrations, retention policies, compliance mappings. Published to the Terraform Registry.
+* [ ] **`oblivra-cli` shell completion** — `completion bash|zsh|fish|powershell`. Every subcommand, flag, and enum is completable.
+
+---
+
+## Phase 87 — Hardened Deployment Targets
+
+* [ ] **SELinux policy module** — `build/selinux/oblivra.te`. Confined `oblivra_t` domain. Tested against RHEL 9 targeted policy.
+* [ ] **AppArmor profile** — `build/apparmor/usr.bin.oblivra-server`. Equivalent confinement for Debian/Ubuntu.
+* [ ] **FIPS 140-2 build mode** — `//go:build fips`. Uses BoringCrypto for SHA-256; replaces Argon2id with PBKDF2-SHA256 in vault (Argon2id is not FIPS-validated).
+* [ ] **Kubernetes manifests** — `deploy/kubernetes/`: Namespace, ServiceAccount, Deployment (init container for migrate, `/readyz`/`/healthz` probes), PVC (100Gi), ConfigMap, Secret, HPA. `kustomization.yaml` for overlay customisation.
+* [ ] **Helm chart** — `deploy/helm/oblivra/`. Published to GitHub Pages Helm repo. `helm install oblivra oblivra/oblivra -f values.yaml`.
+* [ ] **Air-gap container bundle** — `task release:airgap` produces a tarball with saved OCI images + `load.sh` + SHA-256 manifest for offline transfer.
+* [ ] **CIS Benchmark hardening guide** — `docs/operator/cis-hardening.md`. Maps CIS Controls v8 to OBLIVRA config: filesystem permissions, systemd hardening flags, TLS cipher suite config in Caddy, audit key rotation cadence.
+
+---
+
+## Phase 88 — Performance & Scale
+
+* [ ] **Parallel WAL writers** — shard-per-tenant WAL (`ingest.<tenant>.wal`). Throughput scales linearly with tenant count; eliminates the single global mutex.
+* [ ] **Bleve index sharding** — weekly time-based index rotation per tenant. Search fans out across shards in the query window. Old shards outside hot retention are memory-mapped read-only.
+* [ ] **Hot store compaction tuning** — expose BadgerDB knobs as `OBLIVRA_BADGER_*` env vars with production-tuned defaults. `task badger:compact` triggers manual compaction.
+* [ ] **Ingest pipeline back-pressure with overflow WAL** — non-blocking enqueue: full queue → `overflow.wal` + `pipeline.overflow` counter. Recovery goroutine drains when headroom returns. HTTP returns 200 immediately.
+* [ ] **Zero-copy ingest path** — `json.RawMessage` passthrough for WAL write; only decode fields needed for routing. Target 3× throughput improvement on a single-tenant workload.
+* [ ] **Search result streaming** — chunked transfer on `GET /api/v1/siem/search`. Streams results off the Bleve iterator; reduces peak memory 10× for >100k event result sets.
+* [ ] **Benchmark suite** — `cmd/bench`: microbenchmarks for WAL, Bleve, BadgerDB, content-hash, full pipeline. `task bench` writes `docs/operator/bench-<date>.md`.
+
+---
+
+## Phase 89 — Incident Response Integration Hub
+
+* [ ] **Jira integration** — on case `legal-review`, optionally create a Jira issue with case metadata + report URL. Issue key written back as `case.jira-linked` chain entry. State changes sync bidirectionally.
+* [ ] **PagerDuty integration** — severity mapping (critical→P1 through low→P4). Dedup key is OBLIVRA alert ID. Auto-resolve on OBLIVRA alert resolution.
+* [ ] **Slack / Teams rich notifications** — Block Kit (Slack) and Adaptive Card (Teams) formatted messages: severity banner, affected host + user, MITRE technique, case link.
+* [ ] **TheHive case sync** — creates TheHive 5 case on OBLIVRA case open; syncs observables (IPs, hashes, hostnames, users); attaches HTML evidence package. Status syncs bidirectionally.
+* [ ] **Velociraptor hunt trigger** — on case open, optionally trigger a Velociraptor artifact collection. Flow ID written to case as `case.velociraptor-hunt` chain entry. Completed results imported via Phase 5 import API.
+* [ ] **Evidence handoff receipt** — `POST /api/v1/cases/{id}/handoff`. Records `{recipient, method, trackingId, notes}` as `case.handoff` chain entry. Satisfies court chain-of-custody documentation.
+* [ ] **IR timeline export** — `GET /api/v1/cases/{id}/ir-timeline.md` and `.html`: chronological narrative (T+0 first event through seal) for post-incident review documents.
+
+---
+
+## Phase 90 — Platform Observability (Tier-0)
+
+* [ ] **Structured logging via `log/slog`** — JSON output mode (`OBLIVRA_LOG_FORMAT=json`). Fields: `level`, `ts`, `component`, `msg`. `OBLIVRA_SELF_INGEST=true` forwards server logs into its own ingest pipeline as `sourceType: oblivra:server`.
+* [ ] **Distributed trace propagation** — W3C `traceparent` injected into outbound calls (webhooks, TSA, integration callbacks) and extracted from inbound requests. `traceId` appears in audit chain entries and `slog` output.
+* [ ] **Expanded Prometheus histograms** — write/search latency histograms (not just p99 scalars) for WAL, BadgerDB, Bleve, webhook delivery. Gauges for open cases, hunt sessions, watchlist size, enrichment cache hit rate. All tenant-labelled.
+* [ ] **Self-healing WAL recovery entry** — torn-write truncation on startup now writes a `wal.recovery` audit chain entry recording `{recoveredAt, truncatedBytes, lastGoodOffset}`. Alert if truncation exceeds 1% of WAL size.
+* [ ] **Graceful shutdown with drain** — on SIGTERM: stop accepting ingest, drain event bus (up to `OBLIVRA_SHUTDOWN_DRAIN_TIMEOUT=30s`), fsync WAL, exit. Eliminates the race where events accepted by HTTP are lost on rolling restarts.
+* [ ] **Readiness gate for WAL replay** — `/readyz` returns 503 until WAL replay into hot store is complete. Prevents a restarting node receiving ingest traffic before local state is restored.
+* [ ] **Ops runbook expansion** — `docs/operator/runbook.md` extended from 10 to 20 playbooks: WAL torn-write recovery, Bleve index corruption, quota-exceeded remediation, SCIM sync failure, OIDC IdP unreachable, eBPF load failure, replication lag spike, TSA unreachable, cold-tier upload failure, watchdog heartbeat gap.
 
 ---
 
