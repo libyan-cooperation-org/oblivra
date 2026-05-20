@@ -490,7 +490,7 @@ recorded in this file so we don't re-litigate them every sprint.
 
 ---
 
-## Phases 63-90 (ingest compatibility, log pipeline adapters, enrichment, search UX, retention & cold-tier hardening, HA-lite, dark-mode UI, GeoIP, correlation graph, and Grafana Loki-compatible query API):
+## Phases 63-100 (ingest compatibility, log pipeline adapters, enrichment, search UX, retention & cold-tier hardening, HA-lite, dark-mode UI, GeoIP, correlation graph, and Grafana Loki-compatible query API):
 
 ---
 
@@ -873,6 +873,102 @@ The existing `NdrService` consumes NetFlow v5. Enterprise NDR means protocol-awa
 * [ ] **Graceful shutdown with drain** — on SIGTERM: stop accepting ingest, drain event bus (up to `OBLIVRA_SHUTDOWN_DRAIN_TIMEOUT=30s`), fsync WAL, exit. Eliminates the race where events accepted by HTTP are lost on rolling restarts.
 * [ ] **Readiness gate for WAL replay** — `/readyz` returns 503 until WAL replay into hot store is complete. Prevents a restarting node receiving ingest traffic before local state is restored.
 * [ ] **Ops runbook expansion** — `docs/operator/runbook.md` extended from 10 to 20 playbooks: WAL torn-write recovery, Bleve index corruption, quota-exceeded remediation, SCIM sync failure, OIDC IdP unreachable, eBPF load failure, replication lag spike, TSA unreachable, cold-tier upload failure, watchdog heartbeat gap.
+
+---
+
+## Phase 91 — OQL v2: Full Query Language
+
+The current OQL (`internal/oql/oql.go`) is a thin pipe-syntax wrapper over Bleve queries. It supports `where`, `limit`, `sort`, `head`, `tail`. That covers basic filtering but misses every power-user pattern: aggregations, computed fields, joins across time windows, and subqueries. Enterprise analysts expect SPL/KQL/LogQL expressiveness. This phase rewrites the OQL parser to a proper recursive-descent grammar while keeping full backward compatibility with v1 queries.
+
+* [ ] **Full grammar with arithmetic expressions** — `internal/oql/parser.go` (replaces the current `oql.go`). New stages: `eval` (computed fields: `eval duration_ms = endTime - startTime`), `rename` (field aliases), `dedup` (deduplicate by field), `regex` (inline regex extraction: `regex message "Failed password for (?P<user>\S+)"`), `lookup` (join against asset registry or IOC table). Backward-compatible: all v1 plans parse identically.
+* [ ] **Aggregation pipeline** — `stats` stage: `stats count() by sourceType`, `stats avg(duration_ms) by host`, `stats dc(user) as unique_users by srcIP`. Aggregate functions: `count`, `sum`, `avg`, `min`, `max`, `dc` (distinct count), `values` (collect as array), `list` (collect first N). Results returned as a flat row set with synthetic field names, distinct from the event result set.
+* [ ] **`timechart` stage** — `timechart span=5m count() by severity`. Bins events into fixed time buckets, returns `{bucket, fieldValues}` rows. Used by the frontend to render the timeline histogram without a separate API call.
+* [ ] **Subqueries** — `[search severity:critical | head 100]` as a filter source. Evaluates the inner query first, extracts the specified field values, and uses them as an `IN` filter on the outer query. Enables: `srcIP IN [search geo.country:CN | stats values(srcIP)]`.
+* [ ] **`transaction` stage** — groups events into transactions by a field or field pair with optional `startswith` / `endswith` patterns and a `maxspan` window. `transaction host startswith="session-open" endswith="session-close" maxspan=8h`. Each transaction becomes a synthetic event with `duration`, `eventCount`, `firstEvent`, `lastEvent`. Used by `ReconstructionService` as a query-time alternative to the pre-built session model.
+* [ ] **OQL query explain** — `GET /api/v1/siem/oql/explain?q=` returns the parsed plan as JSON: stages in order, estimated result count per stage, index usage (full-text vs chrono scan), and any detected inefficiencies (missing field index, unbounded time range). Used by the frontend to show a "query plan" badge and warn operators before running expensive queries.
+* [ ] **OQL autocomplete API** — `GET /api/v1/siem/oql/complete?q=&cursor=` returns completion candidates at the cursor position: stage names, field names (from the schema + enrichment fields), known field values (top-10 from field stats). Frontend wires this to the search bar for inline autocomplete.
+
+---
+
+## Phase 92 — RBAC v2: Fine-Grained Permissions
+
+The current RBAC (`internal/rbac/rbac.go`) has four flat roles (admin/analyst/readonly/agent) and 13 coarse permission constants. Enterprise deployments need column-level data redaction, resource-scoped permissions, and custom roles. The current model cannot express "analyst can see events for tenant A but not tenant B" or "SOC lead can seal cases but tier-1 analyst cannot".
+
+* [ ] **Custom role definitions** — `internal/rbac/roles.go`. Roles stored in `roles.json` under `OBLIVRA_DATA_DIR`. Each role: `{name, permissions[], tenantScopes[], resourceScopes[]}`. The four built-in roles are seeded on first boot and cannot be deleted (only extended by creating additional roles). `POST /api/v1/admin/roles`, `GET /api/v1/admin/roles`, `PUT /api/v1/admin/roles/{name}`, `DELETE /api/v1/admin/roles/{name}` (non-built-in only). Role changes are chain entries.
+* [ ] **Permission expansion** — new fine-grained permissions: `cases.seal`, `cases.legal`, `rules.delete`, `intel.delete`, `vault.read`, `vault.write`, `ueba.watchlist`, `fleet.delete`, `audit.export`, `tenants.manage`, `compliance.manage`, `hunt.create`. Each existing route is re-annotated with the new permission rather than `PermAdminAll`. `RoleAdmin` retains all; `RoleAnalyst` gets the read + triage subset; `RoleReadOnly` gets read-only.
+* [ ] **Tenant-scoped tokens** — `tenantScopes: ["tenant-a", "tenant-b"]` on a role restricts the bearer to those tenants only. All service methods that accept `tenantID` validate it against `Subject.TenantScopes` before execution. Cross-tenant admin view (Phase 81) requires `tenantScopes: ["*"]`.
+* [ ] **Resource-scoped permissions** — `resourceScopes` supports case-level scoping: `cases:case-id-abc` grants access to that specific case only. Enables read-only external counsel access: issue a token with `[cases.read, cases:case-id-abc]` that can only see one case and nothing else.
+* [ ] **Column-level redaction** — `internal/rbac/redact.go`. Roles carry an optional `redactFields: ["srcIP", "user", "message"]` list. The `auditmw` response interceptor applies the redaction map to every event in a search/OQL response based on the Subject's role. Redacted fields are replaced with `"[REDACTED:field]"`. The on-disk event is unmodified (hash still verifies); redaction is view-layer only. Redaction actions are logged to the chain.
+* [ ] **Permission audit endpoint** — `GET /api/v1/admin/roles/{name}/effective` returns the full permission set for a role, resolved through any inheritance, with the list of routes each permission gates. Operators can answer "what can this analyst actually do?" without reading source code.
+
+---
+
+## Phase 93 — Sigma Rule Authoring & Testing Workbench
+
+Sigma rules are loaded and hot-reloaded but there is no in-platform authoring surface. Security engineers currently write YAML in an editor, drop files into `sigma/`, and wait for the hot-reload tick. Enterprise SOC teams need a rule lifecycle: draft → test → stage → promote → deprecate, with a test harness that proves a rule fires on known-bad events and does not fire on known-good ones.
+
+* [ ] **Rule lifecycle states** — Sigma rules extended with an OBLIVRA-specific `x-oblivra-status: draft|staged|active|deprecated` field (ignored by standard Sigma tools). `RulesService` only loads `active` rules into the live detection engine; `staged` rules run in shadow mode (fire internally but don't emit alerts). `GET /api/v1/detection/rules` returns all states; `?status=active` filters.
+* [ ] **In-platform rule editor** — new **Rule Editor** sub-view inside Detection. Monaco editor (bundled WASM, no CDN) with YAML syntax highlighting and inline Sigma schema validation (JSON Schema for Sigma 2.x, bundled). Save writes to `<dataDir>/sigma/<name>.yml`; hot-reload triggers immediately. New rule starts as `draft`.
+* [ ] **Rule test harness** — `POST /api/v1/detection/rules/{id}/test`. Body: `{matchEvents: [{...}], noMatchEvents: [{...}]}`. Server runs the rule's condition against each event set, returns `{matchResults: [{eventId, fired: bool}], noMatchResults: [{eventId, fired: bool}], passed: bool}`. Frontend shows a pass/fail badge per event. Rule can only be promoted to `staged` if the test harness passes.
+* [ ] **Backtest against historical data** — `POST /api/v1/detection/rules/{id}/backtest`. Body: `{fromUnix, toUnix, tenantId, limit}`. Server runs the rule against the historical event window using the existing Bleve index. Returns `{matchCount, matchRate, sampleMatches[5], duration}`. Lets authors see "this rule would have fired 47 times in the last 7 days" before going live.
+* [ ] **Rule performance profiling** — `RulesService` tracks per-rule `{evalCount, matchCount, totalEvalNs, p99EvalNs}` in an in-memory map. `GET /api/v1/detection/rules/{id}/perf` returns the stats. Rules with `p99EvalNs > 5ms` get a "slow rule" badge in the UI. Helps operators find pathological Sigma conditions before they impact ingest throughput.
+* [ ] **Sigma rule pack import** — `POST /api/v1/detection/rules/import` accepts a ZIP of `.yml` files (e.g. the official `SigmaHQ/sigma` repo archive) or a single file. Each imported rule lands as `draft`. Deduplication by rule `id` field: existing rules are updated in-place if the imported version is newer (by `date` field).
+* [ ] **Rule change audit** — every rule create/edit/status-change/delete is a `rules.*` chain entry with a diff of the YAML content (unified diff format, truncated at 4KB). Gives auditors a complete rule change history without a separate VCS.
+
+---
+
+## Phase 94 — Agent Fleet Operations
+
+The existing `FleetService` covers agent registration and batch ingest. Enterprise fleet management means remote configuration, health SLAs, automatic upgrade, and dead-agent alerting.
+
+* [ ] **Remote config push** — `PUT /api/v1/fleet/agents/{id}/config`. Stores a new `agent.yml` blob (encrypted at rest under the agent's registered ed25519 public key). On the next agent poll (`GET /api/v1/fleet/agents/{id}/config`), the agent receives the new config, validates it with `agent test`, and applies it with a rolling restart. Rejected configs (test fails) roll back and report `config.reject` to the server.
+* [ ] **Agent health SLA** — `TenantPolicyService` extended with `AgentHeartbeatSLA: 5m` (configurable). Scheduler job `fleet.health` runs every minute; agents silent for longer than the SLA raise a `fleet.agent-silent` alert. Alert body includes last-seen time and the agent's registered host, so the on-call engineer knows exactly which host stopped forwarding.
+* [ ] **Agent version inventory** — agent heartbeat extended to include `agentVersion` and `goVersion`. `GET /api/v1/fleet/versions` returns a version distribution table. Agents running versions older than the server's current version are flagged `stale` in the Fleet view.
+* [ ] **Automatic upgrade mechanism** — `GET /api/v1/fleet/upgrade/{version}/{os}/{arch}` serves a pre-built agent binary. Agent compares its own version to `GET /api/v1/fleet/agents/{id}/config` (which includes `recommendedVersion`). If `autoUpgrade: true` in config, agent downloads the binary, verifies its ed25519 signature (server signing key configured at `OBLIVRA_AGENT_SIGNING_KEY`), replaces itself, and restarts via the `service install` mechanism. Upgrade is a `fleet.upgrade` chain entry.
+* [ ] **Agent capability map** — agent heartbeat reports `capabilities: [file-tail, journald, syslog, ebpf, pcap, wasm-plugins]` based on build tags and runtime checks. Fleet view shows a capability matrix across all agents. Operators can see at a glance which hosts have eBPF but not PCAP, etc.
+* [ ] **Agent log forwarding** — `OBLIVRA_AGENT_SELF_LOG=true` forwards the agent's own `slog` output to the server as `sourceType: oblivra:agent`. Agents that are crashing and restarting will leave a trace even if file-tail inputs aren't producing events. Requires the agent to have a working server connection (handled before the input loop starts).
+* [ ] **Fleet map view** — Fleet view extended with a geographic map (GeoIP on agent registered IP, Phase 64). Agents plotted as pins coloured by health state (green=healthy, amber=stale version, red=silent). Useful for MSP operators managing geographically distributed deployments.
+
+---
+
+## Phase 95 — Data Pipeline Quality & Observability
+
+The `QualityService` tracks source reliability and coverage gaps. Enterprise operations teams need deeper pipeline observability: schema drift detection, parser error attribution, field population rates, and SLA-based source health dashboards that operations teams can act on without reading log files.
+
+* [ ] **Parser error attribution** — every `ingest/raw` call that fails to parse records `{sourceType, agentId, rawSample, error}` in a bounded circular buffer (`OBLIVRA_PARSE_ERROR_BUFFER=1000`). `GET /api/v1/quality/parse-errors` returns the buffer, grouped by sourceType with error rate. Frontend: "Parse errors" tab in Trust & Quality view with sample raw lines so an operator can fix the regex or parser without enabling debug logging.
+* [ ] **Field population heatmap** — `GET /api/v1/quality/field-coverage?sourceType=&window=24h`. For each field in the Event struct + top-20 `Fields` map keys, returns the percentage of events in the window that have a non-empty value for that field. Returns as a matrix: `{field, sourceType, populationRate}`. Frontend: colour-coded grid. Instantly shows "user field is empty 60% of the time for sshd events" before an analyst tries to query it.
+* [ ] **Schema drift detection** — `QualityService` maintains a rolling 7-day fingerprint of the field set observed per sourceType (set of field names present in >1% of events). When a new ingestion day's fingerprint diverges from the baseline by >20% (fields added or dropped), raises `quality.schema-drift` alert. Catches silent parser changes at the source host.
+* [ ] **Ingest lag metric** — per-source `ingestLag = receivedAt - eventTimestamp`. If `eventTimestamp` is present in the raw event (extracted by parser), the pipeline computes lag and stores it in a rolling histogram per sourceType. `GET /api/v1/quality/lag` returns p50/p95/p99 lag per source. Alert when p99 lag > `OBLIVRA_LAG_ALERT_THRESHOLD` (default 5min). Catches agents that have built up a backlog.
+* [ ] **Duplicate detection** — ingest pipeline maintains a per-tenant Bloom filter (configurable false-positive rate, default 0.1%, 1M capacity before rotation). Events whose content hash is already in the filter are tagged `duplicate: true` and written to a separate `duplicates.wal` rather than the main WAL. `GET /api/v1/quality/duplicates` returns duplicate rate per sourceType. Reduces Bleve index size on noisy sources that emit repeat events.
+* [ ] **Source SLA dashboard** — operators define per-source expected event rates in `quality_slas.json`: `{sourceType, minEventsPerHour, maxLagSeconds}`. Scheduler `quality.sla-check` runs hourly. Below-floor raises `quality.source-below-floor`; above-ceiling (unexpected spike) raises `quality.source-spike`. Both are surfaced in a dedicated **Source SLA** panel in Trust & Quality view with a 7-day trend sparkline per source.
+* [ ] **DLP expansion** — `internal/dlp` currently redacts credit cards and AWS keys. Extend the pattern set: UK NI numbers, EU IBAN, Australian TFN, Canadian SIN, IBAN, passport patterns (US/UK/EU formats), private key PEM headers, JWT tokens (header.payload.sig pattern), and IPv6 addresses in specific sensitive field contexts. Each pattern is a named, hot-reloaded YAML entry so operators can add custom patterns (e.g. internal employee IDs) without code changes.
+
+---
+
+## Phase 96 — Evidence Package v2 (Court-Ready)
+
+The existing evidence package (`ReportService.CaseHTML`) is a self-contained HTML file. Phase 38 built the renderer. This phase takes it to court-submission grade: a verifiable ZIP bundle with a cover page, chain-of-custody manifest, offline verifier instructions, and digital signature page — everything a legal team needs to submit digital evidence without hiring a forensic consultant to explain the package structure.
+
+* [ ] **Evidence package v2 bundle structure** — `GET /api/v1/cases/{id}/evidence-package-v2.zip`. Contents:
+  ```
+  MANIFEST.json           — SHA-256 of every file in the bundle
+  COVER.html              — case summary (title, opened, sealed, analyst, hash at seal)
+  CHAIN_OF_CUSTODY.html   — every handoff record (Phase 89), every analyst action from the chain
+  EVENTS.jsonl            — all events in the case window, one per line
+  AUDIT_EXCERPT.jsonl     — audit chain entries covering the case window
+  SIGMA_MATCHES.json      — every rule that fired, with the event IDs that triggered it
+  STIX_BUNDLE.json        — STIX 2.1 export (Phase 78)
+  TSA_TOKENS/             — .tsr files for every anchor in the case window
+  VERIFIER/               — static oblivra-verify binary (linux-amd64, windows-amd64)
+  VERIFY_INSTRUCTIONS.md  — step-by-step verification guide for non-technical reviewers
+  SIGNATURE.p7s           — PKCS#7 detached signature over MANIFEST.json
+  ```
+* [ ] **MANIFEST integrity** — `MANIFEST.json` contains `{file, sha256, sizeBytes}` for every file in the bundle. The verifier re-derives all hashes and compares. Any mismatch exits 1 with the offending file named.
+* [ ] **PKCS#7 bundle signature** — `SIGNATURE.p7s` is a CMS detached signature over `MANIFEST.json` using the operator's signing certificate (`OBLIVRA_EVIDENCE_CERT`, `OBLIVRA_EVIDENCE_KEY`). If not configured, the MANIFEST is HMAC-signed with the audit key instead (weaker but still tamper-evident). Verification instructions cover both paths.
+* [ ] **Cover page legal language** — `COVER.html` includes a configurable attestation block (`OBLIVRA_EVIDENCE_ATTESTATION_TEXT`) for the submitting organisation's standard legal language ("This package was generated by..."). The case analyst's name (from SSO subject or API key name), the case seal time, and the audit root hash at seal are rendered as immutable fields.
+* [ ] **Offline verifier bundling** — `task release:verifier-bundle` builds `oblivra-verify` for `linux/amd64`, `linux/arm64`, `windows/amd64`, `darwin/arm64` and copies them into a `VERIFIER/` directory that can be included in the evidence ZIP. Verifier binaries are signed with the same ed25519 key used for agent binaries so the recipient can confirm they haven't been tampered with before running them.
+* [ ] **`VERIFY_INSTRUCTIONS.md` template** — plain-language guide: "Step 1: check the SHA-256 of this file matches MANIFEST.json. Step 2: run `./VERIFIER/oblivra-verify-linux-amd64 audit-excerpt.jsonl`. Step 3: compare the printed root hash to the value in COVER.html." Written for a technically competent non-expert (junior lawyer, court IT officer). Configurable header via `OBLIVRA_EVIDENCE_ORG_NAME`.
+* [ ] **Package generation audit** — `POST /api/v1/cases/{id}/evidence-package-v2` is an audited endpoint; the generation event is a `case.evidence-package-v2.generated` chain entry with `{packageSha256, generatedBy, generatedAt}`. Any subsequent package for the same case gets a new entry — the chain records every time a package was created and who created it, which matters when the defence asks "how many copies of this evidence were made?".
 
 ---
 
