@@ -133,6 +133,9 @@ func New(opts Options) (*Stack, error) {
 	system := services.NewSystemService(opts.Logger)
 	siem := services.NewSiemService(opts.Logger, pipeline)
 	alerts := services.NewAlertService(opts.Logger)
+	if err := alerts.AttachJournal(dir); err != nil {
+		opts.Logger.Warn("alerts journal disabled", "err", err)
+	}
 	intel := services.NewThreatIntelService(opts.Logger)
 	audit, err := services.NewDurable(opts.Logger, dir, hmacKey())
 	if err != nil {
@@ -568,6 +571,11 @@ func (s *Stack) Close() error {
 	}
 	if s.Lineage != nil {
 		if err := s.Lineage.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	if s.Alerts != nil {
+		if err := s.Alerts.Close(); err != nil && first == nil {
 			first = err
 		}
 	}

@@ -1,10 +1,17 @@
 package services
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -21,10 +28,11 @@ const (
 )
 
 // AlertState walks the operator workflow:
-//   open       — fresh, no analyst has touched it
-//   ack        — analyst saw it; not yet investigated
-//   assigned   — analyst owns it (AssignedTo set)
-//   resolved   — analyst closed it with a verdict
+//
+//	open       — fresh, no analyst has touched it
+//	ack        — analyst saw it; not yet investigated
+//	assigned   — analyst owns it (AssignedTo set)
+//	resolved   — analyst closed it with a verdict
 //
 // Backwards-compat: "closed" is treated as a synonym for "resolved" so
 // older alerts keep parsing.
@@ -53,17 +61,127 @@ type Alert struct {
 	Notes   string `json:"notes,omitempty"`
 }
 
-// AlertService is an in-memory alerts buffer. Phase 5+ will back it with SQLite.
+// AlertService keeps recent alerts in memory and, when a journal is attached,
+// persists every alert (and lifecycle transition) as line-delimited JSON at
+// {dataDir}/alerts.log — same append-only, last-write-wins-by-ID pattern as
+// cases.log / lineage.log. Replay on startup restores the ring, so alerts
+// survive restarts.
 type AlertService struct {
 	log *slog.Logger
 	mu  sync.RWMutex
 	all []Alert
 	cap int
 	bus chan Alert
+
+	path string
+	file *os.File
 }
+
+const alertsFile = "alerts.log"
 
 func NewAlertService(log *slog.Logger) *AlertService {
 	return &AlertService{log: log, cap: 5000, bus: make(chan Alert, 256)}
+}
+
+// AttachJournal opens (and replays) {dir}/alerts.log so alerts survive
+// restarts. Best-effort — failures fall back to in-memory only.
+func (s *AlertService) AttachJournal(dir string) error {
+	if dir == "" {
+		return errors.New("alerts: dir required")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, alertsFile)
+	if err := s.replay(path); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.path = path
+	s.file = f
+	n := len(s.all)
+	s.mu.Unlock()
+	s.log.Info("alerts journal opened", "path", path, "alerts", n)
+	return nil
+}
+
+// replay reads the persisted alert log; later entries overwrite earlier ones
+// for the same ID (lifecycle updates are append-only writes of full state).
+// Order of first appearance is preserved so Recent() stays chronological.
+func (s *AlertService) replay(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	byID := map[string]int{} // ID → index in s.all
+	br := bufio.NewReader(f)
+	for {
+		line, err := br.ReadBytes('\n')
+		if len(line) > 1 {
+			var a Alert
+			if jerr := json.Unmarshal(line, &a); jerr != nil {
+				return fmt.Errorf("alerts replay: %w", jerr)
+			}
+			if i, ok := byID[a.ID]; ok {
+				s.all[i] = a
+			} else {
+				byID[a.ID] = len(s.all)
+				s.all = append(s.all, a)
+			}
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return err
+		}
+	}
+	if len(s.all) > s.cap {
+		s.all = s.all[len(s.all)-s.cap:]
+	}
+	return nil
+}
+
+// persist appends a full alert snapshot to the journal — replay reduces by
+// last-write-wins keyed on ID. Caller must hold s.mu (read or write).
+func (s *AlertService) persist(a Alert) {
+	if s.file == nil {
+		return
+	}
+	b, err := json.Marshal(a)
+	if err != nil {
+		s.log.Error("alert persist marshal", "id", a.ID, "err", err)
+		return
+	}
+	b = append(b, '\n')
+	if _, err := s.file.Write(b); err != nil {
+		s.log.Error("alert persist write", "id", a.ID, "err", err)
+		return
+	}
+	if err := s.file.Sync(); err != nil {
+		s.log.Error("alert persist fsync", "id", a.ID, "err", err)
+	}
+}
+
+// Close releases the journal file handle.
+func (s *AlertService) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.file != nil {
+		err := s.file.Close()
+		s.file = nil
+		return err
+	}
+	return nil
 }
 
 func (s *AlertService) ServiceName() string { return "AlertService" }
@@ -89,6 +207,7 @@ func (s *AlertService) Raise(_ context.Context, a Alert) Alert {
 	if len(s.all) > s.cap {
 		s.all = s.all[len(s.all)-s.cap:]
 	}
+	s.persist(a)
 	s.mu.Unlock()
 	select {
 	case s.bus <- a:
@@ -161,6 +280,7 @@ func (s *AlertService) Ack(id, actor string) (Alert, bool) {
 			s.all[i].State = "ack"
 			s.all[i].AcknowledgedBy = actor
 			s.all[i].AcknowledgedAt = &now
+			s.persist(s.all[i])
 		}
 		return s.all[i], true
 	}
@@ -185,6 +305,7 @@ func (s *AlertService) Assign(id, actor, assignee string) (Alert, bool) {
 		s.all[i].State = "assigned"
 		s.all[i].AssignedTo = assignee
 		s.all[i].AssignedAt = &now
+		s.persist(s.all[i])
 		return s.all[i], true
 	}
 	return Alert{}, false
@@ -209,6 +330,7 @@ func (s *AlertService) Resolve(id, actor, verdict, notes string) (Alert, bool) {
 		if notes != "" {
 			s.all[i].Notes = notes
 		}
+		s.persist(s.all[i])
 		return s.all[i], true
 	}
 	return Alert{}, false
@@ -229,6 +351,7 @@ func (s *AlertService) Reopen(id, actor string) (Alert, bool) {
 		s.all[i].ResolvedBy = ""
 		s.all[i].Verdict = ""
 		_ = actor
+		s.persist(s.all[i])
 		return s.all[i], true
 	}
 	return Alert{}, false

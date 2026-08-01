@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import {
-    siemIngest, siemSearch, siemStats, liveTail, eventGet,
+    siemIngest, siemSearch, siemOQL, siemStats, liveTail, eventGet,
     siemSearchExportUrl,
     type OblivraEvent, type EventDetail, type IngestStats,
     type Severity, type SearchResponse, type LiveTailHandle,
@@ -124,13 +124,24 @@
     return { fromUnix, toUnix };
   }
 
-  // Build query string that includes severity/host/source chips
+  // Build query string that includes severity/host/source chips.
+  // For OQL (pipe) queries the chips are merged into the leading expression
+  // so they never land after a terminal stats/top/timechart stage.
   function buildQuery(): string {
+    const chips: string[] = [];
+    if (severityFilter)       chips.push(`severity:${severityFilter}`);
+    if (hostFilter.trim())    chips.push(`hostId:${hostFilter.trim()}`);
+    if (sourceFilter.trim())  chips.push(`source:${sourceFilter.trim()}`);
+    const q = query.trim();
+    const pipe = q.indexOf('|');
+    if (pipe >= 0) {
+      let expr = q.slice(0, pipe).trim();
+      if (chips.length) expr = expr === '*' || expr === '' ? chips.join(' ') : `${expr} ${chips.join(' ')}`;
+      return `${expr || '*'} ${q.slice(pipe)}`;
+    }
     const parts: string[] = [];
-    if (query.trim())         parts.push(query.trim());
-    if (severityFilter)       parts.push(`severity:${severityFilter}`);
-    if (hostFilter.trim())    parts.push(`hostId:${hostFilter.trim()}`);
-    if (sourceFilter.trim())  parts.push(`source:${sourceFilter.trim()}`);
+    if (q) parts.push(q);
+    parts.push(...chips);
     return parts.join(' ');
   }
 
@@ -142,14 +153,20 @@
   let tailPaused    = $state(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
+  // A "|" in the query routes through OQL (pipe stages + v2 stats/top/
+  // timechart aggregations); otherwise the plain Bleve search path.
   async function refresh() {
     try {
-      const [s, q] = await Promise.all([
+      const q = buildQuery();
+      const isOQL = q.includes('|');
+      const [s, r] = await Promise.all([
         siemStats(),
-        siemSearch({ query: buildQuery(), limit, newestFirst: true, ...parseRange() }),
+        isOQL
+          ? siemOQL(q, parseRange())
+          : siemSearch({ query: q, limit, newestFirst: true, ...parseRange() }),
       ]);
       stats  = s;
-      result = q;
+      result = r;
       error  = null;
       isMock = false;
     } catch (e) {
@@ -619,6 +636,49 @@
       <!-- HISTORICAL LOG TABLE ───────────────────────────────────────────── -->
       <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
 
+        {#if result?.aggregation}
+          {@const agg = result.aggregation}
+          {@const maxV = Math.max(1, ...agg.buckets.map(b => b.value))}
+          <!-- AGGREGATION RESULT ─ stats / top / timechart ─────────────── -->
+          <div style="
+            padding:6px 10px; border-bottom:1px solid var(--color-base-600);
+            background:var(--color-base-850); flex-shrink:0;
+            font-family:'Share Tech Mono',monospace; font-size:8px;
+            letter-spacing:2px; color:var(--color-base-300); text-transform:uppercase;
+          ">
+            {agg.kind}{agg.span ? ` · SPAN ${agg.span}` : ''} · {agg.fn}{agg.field ? `(${agg.field})` : ''}{agg.by ? ` BY ${agg.by}` : ''} · {agg.buckets.length} BUCKETS
+          </div>
+          <div style="flex:1; overflow-y:auto;" class="scrollbar-thin">
+            {#if agg.buckets.length === 0}
+              <div style="display:flex; align-items:center; justify-content:center; height:120px;">
+                <span style="font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--color-base-300);">
+                  — NO EVENTS IN WINDOW —
+                </span>
+              </div>
+            {:else}
+              {#each agg.buckets as b (b.key)}
+                <div style="
+                  display:grid; grid-template-columns: minmax(140px, 260px) 70px 1fr;
+                  align-items:center; gap:10px; padding:3px 10px;
+                  border-bottom:1px solid var(--color-base-700);
+                  font-family:'Share Tech Mono',monospace; font-size:10px;
+                ">
+                  <span style="color:var(--color-base-100); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title={b.key}>{b.key}</span>
+                  <span style="color:var(--color-cyan-400); text-align:right;">{Number.isInteger(b.value) ? b.value : b.value.toFixed(2)}</span>
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                    <div style="height:8px; background:var(--color-cyan-500); opacity:0.65; width:{Math.max(1, (b.value / maxV) * 100)}%;"></div>
+                    {#if b.series}
+                      <span style="font-size:8px; color:var(--color-base-300); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        {Object.entries(b.series).map(([k, v]) => `${k}:${v}`).join(' ')}
+                      </span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        {:else}
+
         <!-- Table header -->
         <div style="
           display:grid; align-items:center;
@@ -692,6 +752,7 @@
             {/each}
           {/if}
         </div>
+        {/if}
       </div>
     </div>
 

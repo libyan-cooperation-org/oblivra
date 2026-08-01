@@ -79,11 +79,27 @@ export interface SearchOptions {
   tenantId?: string;
 }
 
+export interface AggBucket {
+  key: string;
+  value: number;
+  series?: Record<string, number>;
+}
+
+export interface AggResult {
+  kind: 'stats' | 'top' | 'timechart' | string;
+  fn: string;
+  field?: string;
+  by?: string;
+  span?: string;
+  buckets: AggBucket[];
+}
+
 export interface SearchResponse {
   events: OblivraEvent[];
   total: number;
   took: string;
-  mode: 'chrono' | 'fulltext';
+  mode: 'chrono' | 'fulltext' | string;
+  aggregation?: AggResult;
 }
 
 export async function siemIngest(ev: Partial<OblivraEvent>): Promise<OblivraEvent> {
@@ -99,6 +115,20 @@ export async function siemSearch(opts: SearchOptions = {}): Promise<SearchRespon
   if (opts.newestFirst) params.set('newestFirst', 'true');
   if (opts.tenantId) params.set('tenant', opts.tenantId);
   return rest<SearchResponse>(`/api/v1/siem/search?${params}`);
+}
+
+// siemOQL runs a pipe-syntax OQL query (supports v2 stats/top/timechart
+// aggregation stages — see internal/oql grammar).
+export async function siemOQL(
+  q: string,
+  opts: { fromUnix?: number; toUnix?: number; tenantId?: string } = {},
+): Promise<SearchResponse> {
+  const params = new URLSearchParams();
+  params.set('q', q);
+  if (opts.fromUnix) params.set('from', String(opts.fromUnix));
+  if (opts.toUnix) params.set('to', String(opts.toUnix));
+  if (opts.tenantId) params.set('tenant', opts.tenantId);
+  return rest<SearchResponse>(`/api/v1/siem/oql?${params}`);
 }
 
 export async function siemStats(): Promise<IngestStats> {

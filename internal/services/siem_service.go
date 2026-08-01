@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,29 @@ type SearchResponse struct {
 	Total  int            `json:"total"`
 	Took   string         `json:"took"`
 	Mode   string         `json:"mode"` // "chrono" | "fulltext"
+
+	// Aggregation output (OQL v2 stats/top/timechart). When set, Events is
+	// empty — the aggregation replaces the raw result set.
+	Aggregation *AggResult `json:"aggregation,omitempty"`
+}
+
+// AggResult carries the output of a terminal OQL aggregation stage.
+type AggResult struct {
+	Kind    string      `json:"kind"` // stats | top | timechart
+	Fn      string      `json:"fn"`   // count | sum | avg | min | max | dc
+	Field   string      `json:"field,omitempty"`
+	By      string      `json:"by,omitempty"`
+	Span    string      `json:"span,omitempty"` // timechart bucket width
+	Buckets []AggBucket `json:"buckets"`
+}
+
+// AggBucket is one aggregation group. For timechart, Key is the RFC3339
+// bucket start and Series carries per-by-field counts; otherwise Value is
+// the aggregate for the group Key.
+type AggBucket struct {
+	Key    string             `json:"key"`
+	Value  float64            `json:"value"`
+	Series map[string]float64 `json:"series,omitempty"`
 }
 
 type SiemService struct {
@@ -172,6 +196,10 @@ func (s *SiemService) SearchOQL(ctx context.Context, raw string, tenantID string
 	if req.Limit == 0 {
 		req.Limit = 500 // pre-filter generously; we'll trim after where/sort/tail
 	}
+	if plan.Agg != nil {
+		// Aggregations reduce over the full window, not one page — scan wide.
+		req.Limit = 10000
+	}
 	resp, err := s.Search(ctx, req)
 	if err != nil {
 		return resp, err
@@ -180,6 +208,16 @@ func (s *SiemService) SearchOQL(ctx context.Context, raw string, tenantID string
 
 	for _, f := range plan.Filters {
 		out = applyWhere(out, f)
+	}
+	if plan.Agg != nil {
+		agg := applyAgg(out, plan.Agg)
+		return SearchResponse{
+			Events:      []events.Event{}, // keep JSON "events" an array, not null
+			Total:       len(out),
+			Took:        resp.Took,
+			Mode:        "oql/" + resp.Mode,
+			Aggregation: agg,
+		}, nil
 	}
 	if plan.SortField != "" {
 		applySort(out, plan.SortField, plan.SortDesc)
@@ -254,4 +292,140 @@ func fieldValue(ev events.Event, field string) string {
 		}
 		return ""
 	}
+}
+
+// applyAgg reduces a filtered event set through a terminal OQL aggregation.
+func applyAgg(in []events.Event, a *oql.Agg) *AggResult {
+	res := &AggResult{Kind: a.Kind, Fn: string(a.Fn), Field: a.Field, By: a.By}
+
+	switch a.Kind {
+	case "timechart":
+		res.Span = a.Span.String()
+		res.Buckets = timechartBuckets(in, a)
+		return res
+
+	default: // stats | top — group by a.By ("" = single bucket)
+		groups := map[string][]events.Event{}
+		var order []string
+		for _, ev := range in {
+			key := ""
+			if a.By != "" {
+				key = fieldValue(ev, a.By)
+				if key == "" {
+					key = "(missing)"
+				}
+			}
+			if _, seen := groups[key]; !seen {
+				order = append(order, key)
+			}
+			groups[key] = append(groups[key], ev)
+		}
+		for _, key := range order {
+			res.Buckets = append(res.Buckets, AggBucket{Key: key, Value: reduce(groups[key], a)})
+		}
+		// stats and top both read best sorted by value desc; ties by key for
+		// deterministic output (forensic reports must render identically).
+		sort.SliceStable(res.Buckets, func(i, j int) bool {
+			if res.Buckets[i].Value != res.Buckets[j].Value {
+				return res.Buckets[i].Value > res.Buckets[j].Value
+			}
+			return res.Buckets[i].Key < res.Buckets[j].Key
+		})
+		if a.Kind == "top" && a.TopN > 0 && a.TopN < len(res.Buckets) {
+			res.Buckets = res.Buckets[:a.TopN]
+		}
+		return res
+	}
+}
+
+// reduce computes one aggregate value over a group.
+func reduce(evs []events.Event, a *oql.Agg) float64 {
+	switch a.Fn {
+	case oql.AggCount:
+		return float64(len(evs))
+	case oql.AggDC:
+		distinct := map[string]struct{}{}
+		for _, ev := range evs {
+			if v := fieldValue(ev, a.Field); v != "" {
+				distinct[v] = struct{}{}
+			}
+		}
+		return float64(len(distinct))
+	default: // sum / avg / min / max over numeric field values
+		var sum, minV, maxV float64
+		n := 0
+		for _, ev := range evs {
+			v, err := strconv.ParseFloat(fieldValue(ev, a.Field), 64)
+			if err != nil {
+				continue // non-numeric values are skipped, not zero-counted
+			}
+			if n == 0 {
+				minV, maxV = v, v
+			} else {
+				if v < minV {
+					minV = v
+				}
+				if v > maxV {
+					maxV = v
+				}
+			}
+			sum += v
+			n++
+		}
+		switch a.Fn {
+		case oql.AggSum:
+			return sum
+		case oql.AggAvg:
+			if n == 0 {
+				return 0
+			}
+			return sum / float64(n)
+		case oql.AggMin:
+			return minV
+		case oql.AggMax:
+			return maxV
+		}
+		return 0
+	}
+}
+
+// timechartBuckets buckets events into fixed spans; per-by-field series when
+// requested. Buckets are emitted oldest-first with gaps preserved as absent
+// keys (the frontend renders missing buckets as zero).
+func timechartBuckets(in []events.Event, a *oql.Agg) []AggBucket {
+	type cell struct {
+		total  float64
+		series map[string]float64
+	}
+	cells := map[int64]*cell{}
+	for _, ev := range in {
+		b := ev.Timestamp.UTC().Truncate(a.Span).Unix()
+		c := cells[b]
+		if c == nil {
+			c = &cell{series: map[string]float64{}}
+			cells[b] = c
+		}
+		c.total++
+		if a.By != "" {
+			key := fieldValue(ev, a.By)
+			if key == "" {
+				key = "(missing)"
+			}
+			c.series[key]++
+		}
+	}
+	keys := make([]int64, 0, len(cells))
+	for k := range cells {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	out := make([]AggBucket, 0, len(keys))
+	for _, k := range keys {
+		b := AggBucket{Key: time.Unix(k, 0).UTC().Format(time.RFC3339), Value: cells[k].total}
+		if a.By != "" {
+			b.Series = cells[k].series
+		}
+		out = append(out, b)
+	}
+	return out
 }
