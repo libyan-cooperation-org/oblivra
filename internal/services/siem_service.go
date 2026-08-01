@@ -197,8 +197,9 @@ func (s *SiemService) SearchOQL(ctx context.Context, raw string, tenantID string
 		req.Limit = 500 // pre-filter generously; we'll trim after where/sort/tail
 	}
 	if plan.Agg != nil {
-		// Aggregations reduce over the full window, not one page — scan wide.
-		req.Limit = 10000
+		// Aggregations reduce over the full window, not one page — scan as
+		// wide as Search allows (limits >1000 get clamped back to 200 there).
+		req.Limit = 1000
 	}
 	resp, err := s.Search(ctx, req)
 	if err != nil {
