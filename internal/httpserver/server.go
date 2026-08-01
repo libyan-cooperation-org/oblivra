@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -26,20 +27,20 @@ import (
 const maxBodyBytes = 1 << 20 // 1 MiB cap on ingest payloads (Phase 1)
 
 type Server struct {
-	log    *slog.Logger
-	system *services.SystemService
-	siem   *services.SiemService
-	alerts *services.AlertService
-	intel  *services.ThreatIntelService
-	rules  *services.RulesService
-	audit  *services.AuditService
-	fleet  *services.FleetService
-	ueba    *services.UebaService
-	ndr     *services.NdrService
-	foren   *services.ForensicsService
-	tier    *services.TieringService
-	lineage *services.LineageService
-	vault    *services.VaultService
+	log            *slog.Logger
+	system         *services.SystemService
+	siem           *services.SiemService
+	alerts         *services.AlertService
+	intel          *services.ThreatIntelService
+	rules          *services.RulesService
+	audit          *services.AuditService
+	fleet          *services.FleetService
+	ueba           *services.UebaService
+	ndr            *services.NdrService
+	foren          *services.ForensicsService
+	tier           *services.TieringService
+	lineage        *services.LineageService
+	vault          *services.VaultService
 	timeline       *services.TimelineService
 	investigations *services.InvestigationsService
 	recon          *services.ReconstructionService
@@ -56,26 +57,26 @@ type Server struct {
 	notifications  *services.NotificationService
 	savedSearches  *services.SavedSearchService
 	oidc           *OIDCHandler
-	bus    *events.Bus
-	auth   *AuthMiddleware
-	assets fs.FS
-	mux    *http.ServeMux
+	bus            *events.Bus
+	auth           *AuthMiddleware
+	assets         fs.FS
+	mux            *http.ServeMux
 }
 
 type Deps struct {
-	System *services.SystemService
-	Siem   *services.SiemService
-	Alerts *services.AlertService
-	Intel  *services.ThreatIntelService
-	Rules  *services.RulesService
-	Audit  *services.AuditService
-	Fleet  *services.FleetService
-	Ueba    *services.UebaService
-	Ndr     *services.NdrService
-	Foren   *services.ForensicsService
-	Tier    *services.TieringService
-	Lineage *services.LineageService
-	Vault    *services.VaultService
+	System         *services.SystemService
+	Siem           *services.SiemService
+	Alerts         *services.AlertService
+	Intel          *services.ThreatIntelService
+	Rules          *services.RulesService
+	Audit          *services.AuditService
+	Fleet          *services.FleetService
+	Ueba           *services.UebaService
+	Ndr            *services.NdrService
+	Foren          *services.ForensicsService
+	Tier           *services.TieringService
+	Lineage        *services.LineageService
+	Vault          *services.VaultService
 	Timeline       *services.TimelineService
 	Investigations *services.InvestigationsService
 	Reconstruction *services.ReconstructionService
@@ -92,27 +93,27 @@ type Deps struct {
 	Notifications  *services.NotificationService
 	SavedSearches  *services.SavedSearchService
 	OIDC           *OIDCHandler
-	Bus    *events.Bus
-	Auth   *AuthMiddleware
-	Assets fs.FS
+	Bus            *events.Bus
+	Auth           *AuthMiddleware
+	Assets         fs.FS
 }
 
 func New(log *slog.Logger, deps Deps) *Server {
 	s := &Server{
-		log:    log,
-		system: deps.System,
-		siem:   deps.Siem,
-		alerts: deps.Alerts,
-		intel:  deps.Intel,
-		rules:  deps.Rules,
-		audit:  deps.Audit,
-		fleet:  deps.Fleet,
-		ueba:    deps.Ueba,
-		ndr:     deps.Ndr,
-		foren:   deps.Foren,
-		tier:    deps.Tier,
-		lineage: deps.Lineage,
-		vault:    deps.Vault,
+		log:            log,
+		system:         deps.System,
+		siem:           deps.Siem,
+		alerts:         deps.Alerts,
+		intel:          deps.Intel,
+		rules:          deps.Rules,
+		audit:          deps.Audit,
+		fleet:          deps.Fleet,
+		ueba:           deps.Ueba,
+		ndr:            deps.Ndr,
+		foren:          deps.Foren,
+		tier:           deps.Tier,
+		lineage:        deps.Lineage,
+		vault:          deps.Vault,
 		timeline:       deps.Timeline,
 		investigations: deps.Investigations,
 		recon:          deps.Reconstruction,
@@ -129,10 +130,10 @@ func New(log *slog.Logger, deps Deps) *Server {
 		notifications:  deps.Notifications,
 		savedSearches:  deps.SavedSearches,
 		oidc:           deps.OIDC,
-		bus:    deps.Bus,
-		auth:   deps.Auth,
-		assets: deps.Assets,
-		mux:    http.NewServeMux(),
+		bus:            deps.Bus,
+		auth:           deps.Auth,
+		assets:         deps.Assets,
+		mux:            http.NewServeMux(),
 	}
 	s.routes()
 	return s
@@ -174,6 +175,8 @@ func (s *Server) routes() {
 	// Alerts.
 	if s.alerts != nil {
 		s.mux.HandleFunc("GET /api/v1/alerts", s.listAlerts)
+		s.mux.HandleFunc("GET /api/v1/alerts/metrics", s.alertMetrics)
+		s.mux.HandleFunc("GET /api/v1/alerts/export.csv", s.alertExportCSV)
 		s.mux.HandleFunc("GET /api/v1/alerts/{id}", s.getAlert)
 		s.mux.HandleFunc("POST /api/v1/alerts/{id}/ack", s.alertAck)
 		s.mux.HandleFunc("POST /api/v1/alerts/{id}/assign", s.alertAssign)
@@ -726,14 +729,116 @@ func (s *Server) liveTail(w http.ResponseWriter, r *http.Request) {
 
 // ---- Alerts ----
 
+// listAlerts serves the SOC work queue. Without filters it returns the
+// most recent alerts; any of state/severity/ruleId/hostId/assignedTo/
+// from/to/q narrows the set (see services.AlertQuery).
 func (s *Server) listAlerts(w http.ResponseWriter, r *http.Request) {
-	limit := 100
-	if v := r.URL.Query().Get("limit"); v != "" {
+	q := r.URL.Query()
+	aq := services.AlertQuery{
+		State:      q.Get("state"),
+		Severity:   q.Get("severity"),
+		RuleID:     q.Get("ruleId"),
+		HostID:     q.Get("hostId"),
+		AssignedTo: q.Get("assignedTo"),
+		Q:          q.Get("q"),
+		Limit:      100,
+	}
+	if v := q.Get("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
-			limit = n
+			aq.Limit = n
 		}
 	}
-	writeJSON(w, http.StatusOK, s.alerts.Recent(limit))
+	if v := q.Get("from"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			aq.From = time.Unix(n, 0).UTC()
+		}
+	}
+	if v := q.Get("to"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			aq.To = time.Unix(n, 0).UTC()
+		}
+	}
+	writeJSON(w, http.StatusOK, s.alerts.Query(aq))
+}
+
+// alertMetrics returns the SOC KPI roll-up (counts + MTTA/MTTR) for a
+// window, default 7d. Accepts Go duration syntax ("24h") or "<N>d".
+func (s *Server) alertMetrics(w http.ResponseWriter, r *http.Request) {
+	window := 7 * 24 * time.Hour
+	if v := r.URL.Query().Get("window"); v != "" {
+		d, err := parseWindow(v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		window = d
+	}
+	writeJSON(w, http.StatusOK, s.alerts.Metrics(window))
+}
+
+// parseWindow accepts "7d" day-shorthand alongside time.ParseDuration forms.
+func parseWindow(v string) (time.Duration, error) {
+	if strings.HasSuffix(v, "d") {
+		n, err := strconv.Atoi(strings.TrimSuffix(v, "d"))
+		if err != nil || n <= 0 {
+			return 0, fmt.Errorf("bad window %q (want e.g. 7d or 24h)", v)
+		}
+		return time.Duration(n) * 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("bad window %q (want e.g. 7d or 24h)", v)
+	}
+	return d, nil
+}
+
+// alertExportCSV streams the filtered alert set as a CSV download —
+// auditor-grade monthly reporting without API scripting.
+func (s *Server) alertExportCSV(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	aq := services.AlertQuery{
+		State:    q.Get("state"),
+		Severity: q.Get("severity"),
+		RuleID:   q.Get("ruleId"),
+		HostID:   q.Get("hostId"),
+		Limit:    1000,
+	}
+	if v := q.Get("from"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			aq.From = time.Unix(n, 0).UTC()
+		}
+	}
+	if v := q.Get("to"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			aq.To = time.Unix(n, 0).UTC()
+		}
+	}
+	alerts := s.alerts.Query(aq)
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="alerts.csv"`)
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{
+		"id", "triggeredAt", "ruleId", "ruleName", "severity", "hostId",
+		"state", "message", "acknowledgedBy", "acknowledgedAt", "assignedTo",
+		"resolvedBy", "resolvedAt", "verdict", "mitre",
+	})
+	fmtTime := func(t *time.Time) string {
+		if t == nil {
+			return ""
+		}
+		return t.UTC().Format(time.RFC3339)
+	}
+	for _, a := range alerts {
+		_ = cw.Write([]string{
+			a.ID, a.Triggered.UTC().Format(time.RFC3339), a.RuleID, a.RuleName,
+			string(a.Severity), a.HostID, a.State, a.Message,
+			a.AcknowledgedBy, fmtTime(a.AcknowledgedAt), a.AssignedTo,
+			a.ResolvedBy, fmtTime(a.ResolvedAt), a.Verdict,
+			strings.Join(a.MITRE, ";"),
+		})
+	}
+	cw.Flush()
 }
 
 // getAlert returns a single alert; drives the per-alert detail page.
@@ -1578,7 +1683,9 @@ func (s *Server) caseLegalSubmit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) caseLegalApprove(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	var body struct{ Reason string `json:"reason"` }
+	var body struct {
+		Reason string `json:"reason"`
+	}
 	if err := readJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1597,7 +1704,9 @@ func (s *Server) caseLegalApprove(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) caseLegalReject(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	var body struct{ Reason string `json:"reason"` }
+	var body struct {
+		Reason string `json:"reason"`
+	}
 	if err := readJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

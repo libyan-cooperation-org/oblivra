@@ -6,8 +6,10 @@
     mitreHeatmap,
     reloadRules,
     alertAck, alertAssign, alertResolve, alertReopen,
+    alertMetrics, alertExportCsvUrl,
     type Alert,
     type AlertVerdict,
+    type AlertMetrics,
     type Rule,
   } from '../bridge';
   import Tile from '../components/Tile.svelte';
@@ -15,6 +17,7 @@
   let alerts = $state<Alert[]>([]);
   let rules = $state<Rule[]>([]);
   let heatmap = $state<{ technique: string; count: number }[]>([]);
+  let metrics = $state<AlertMetrics | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -24,12 +27,21 @@
   let resolveVerdict = $state<AlertVerdict>('true-positive');
   let resolveNotes = $state('');
 
+  // Humanise seconds → "42s" / "12m" / "3.5h" for the KPI tiles.
+  function fmtSecs(s: number): string {
+    if (!s) return '—';
+    if (s < 60) return `${Math.round(s)}s`;
+    if (s < 3600) return `${Math.round(s / 60)}m`;
+    return `${(s / 3600).toFixed(1)}h`;
+  }
+
   async function refresh() {
     try {
-      const [a, r, h] = await Promise.all([listAlerts(50), listRules(), mitreHeatmap()]);
+      const [a, r, h, m] = await Promise.all([listAlerts(50), listRules(), mitreHeatmap(), alertMetrics('7d')]);
       alerts = a;
       rules = r;
       heatmap = h.sort((x, y) => y.count - x.count);
+      metrics = m;
       error = null;
     } catch (e) {
       error = (e as Error).message;
@@ -124,8 +136,8 @@
 
   <section class="grid grid-cols-2 gap-4 lg:grid-cols-4">
     <Tile label="Active rules" value={rules.filter((r) => !r.disabled).length} hint={`${rules.length} total`} />
-    <Tile label="Alerts (recent)" value={alerts.length} hint="last 50" />
-    <Tile label="MITRE coverage" value={heatmap.length} hint="techniques observed" />
+    <Tile label="Alerts (7d)" value={metrics?.total ?? alerts.length} hint={`${metrics?.byState?.open ?? 0} open`} />
+    <Tile label="MTTA / MTTR (7d)" value={`${fmtSecs(metrics?.meanTimeToAck_seconds ?? 0)} / ${fmtSecs(metrics?.meanTimeToResolve_seconds ?? 0)}`} hint="mean time to ack / resolve" />
     <Tile
       label="Top technique"
       value={heatmap[0]?.technique ?? '—'}
@@ -140,6 +152,11 @@
   <section class="rounded-xl border border-night-700 bg-night-900/70">
     <div class="flex items-center gap-3 border-b border-night-700 px-4 py-3 text-sm font-semibold tracking-wide text-slate-100">
       <span>Alerts</span>
+      <a
+        href={alertExportCsvUrl(stateFilter === 'all' ? {} : { state: stateFilter })}
+        download
+        class="text-[11px] font-normal text-accent-400 hover:text-accent-300"
+      >CSV↓</a>
       <div class="ml-auto flex gap-1 text-[11px] font-normal">
         {#each [
           ['open', counts.open],

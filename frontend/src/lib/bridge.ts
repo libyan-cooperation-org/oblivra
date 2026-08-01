@@ -211,9 +211,52 @@ export interface Alert {
   notes?: string;
 }
 
-export async function listAlerts(limit = 100): Promise<Alert[]> {
-  return rest<Alert[]>(`/api/v1/alerts?limit=${limit}`);
+export interface AlertFilter {
+  state?: string;
+  severity?: string; // comma-separated multi-value, e.g. "high,critical"
+  ruleId?: string;
+  hostId?: string;
+  assignedTo?: string;
+  q?: string;
+  fromUnix?: number;
+  toUnix?: number;
+  limit?: number;
 }
+
+function alertFilterParams(f: AlertFilter): URLSearchParams {
+  const p = new URLSearchParams();
+  if (f.state) p.set('state', f.state);
+  if (f.severity) p.set('severity', f.severity);
+  if (f.ruleId) p.set('ruleId', f.ruleId);
+  if (f.hostId) p.set('hostId', f.hostId);
+  if (f.assignedTo) p.set('assignedTo', f.assignedTo);
+  if (f.q) p.set('q', f.q);
+  if (f.fromUnix) p.set('from', String(f.fromUnix));
+  if (f.toUnix) p.set('to', String(f.toUnix));
+  if (f.limit) p.set('limit', String(f.limit));
+  return p;
+}
+
+export async function listAlerts(limitOrFilter: number | AlertFilter = 100): Promise<Alert[]> {
+  const f: AlertFilter = typeof limitOrFilter === 'number' ? { limit: limitOrFilter } : limitOrFilter;
+  return rest<Alert[]>(`/api/v1/alerts?${alertFilterParams(f)}`);
+}
+
+export interface AlertMetrics {
+  windowHours: number;
+  total: number;
+  byState: Record<string, number>;
+  bySeverity: Record<string, number>;
+  byRule: { ruleId: string; ruleName: string; count: number }[];
+  meanTimeToAck_seconds: number;
+  meanTimeToResolve_seconds: number;
+}
+
+export const alertMetrics = (window = '7d') =>
+  rest<AlertMetrics>(`/api/v1/alerts/metrics?window=${encodeURIComponent(window)}`);
+
+export const alertExportCsvUrl = (f: AlertFilter = {}) =>
+  `/api/v1/alerts/export.csv?${alertFilterParams(f)}`;
 
 export const alertGet = (id: string) =>
   rest<Alert>(`/api/v1/alerts/${encodeURIComponent(id)}`);

@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -256,6 +258,185 @@ func (s *AlertService) Recent(limit int) []Alert {
 		out = append(out, s.all[i])
 	}
 	return out
+}
+
+// AlertQuery filters the alert set. Zero values mean "any". Severity is a
+// comma-separated multi-value ("high,critical"). Q substring-matches
+// message + ruleName case-insensitively. From/To bound Triggered.
+type AlertQuery struct {
+	State      string
+	Severity   string
+	RuleID     string
+	HostID     string
+	AssignedTo string
+	Q          string
+	From       time.Time
+	To         time.Time
+	Limit      int
+}
+
+// Query returns matching alerts, newest-triggered first. Drives the SOC
+// work queue: `state=open&severity=high,critical` is the standing triage
+// view. Unlike Recent (ring/append order), Query sorts on Triggered so
+// backfilled or replayed alerts land where an analyst expects them.
+func (s *AlertService) Query(q AlertQuery) []Alert {
+	if q.Limit <= 0 || q.Limit > 1000 {
+		q.Limit = 100
+	}
+	var sevs map[string]bool
+	if q.Severity != "" {
+		sevs = map[string]bool{}
+		for _, v := range strings.Split(q.Severity, ",") {
+			if v = strings.TrimSpace(strings.ToLower(v)); v != "" {
+				sevs[v] = true
+			}
+		}
+	}
+	needle := strings.ToLower(strings.TrimSpace(q.Q))
+
+	s.mu.RLock()
+	matched := make([]Alert, 0, 64)
+	for i := len(s.all) - 1; i >= 0; i-- {
+		a := s.all[i]
+		if q.State != "" && !stateMatches(a.State, q.State) {
+			continue
+		}
+		if sevs != nil && !sevs[strings.ToLower(string(a.Severity))] {
+			continue
+		}
+		if q.RuleID != "" && a.RuleID != q.RuleID {
+			continue
+		}
+		if q.HostID != "" && a.HostID != q.HostID {
+			continue
+		}
+		if q.AssignedTo != "" && a.AssignedTo != q.AssignedTo {
+			continue
+		}
+		if !q.From.IsZero() && a.Triggered.Before(q.From) {
+			continue
+		}
+		if !q.To.IsZero() && a.Triggered.After(q.To) {
+			continue
+		}
+		if needle != "" &&
+			!strings.Contains(strings.ToLower(a.Message), needle) &&
+			!strings.Contains(strings.ToLower(a.RuleName), needle) {
+			continue
+		}
+		matched = append(matched, a)
+	}
+	s.mu.RUnlock()
+
+	sort.SliceStable(matched, func(i, j int) bool {
+		return matched[i].Triggered.After(matched[j].Triggered)
+	})
+	if q.Limit < len(matched) {
+		matched = matched[:q.Limit]
+	}
+	return matched
+}
+
+// stateMatches honours the "closed"→"resolved" back-compat synonym in both
+// the stored state and the requested filter.
+func stateMatches(have, want string) bool {
+	norm := func(s string) string {
+		if s == "closed" {
+			return "resolved"
+		}
+		if s == "" {
+			return "open"
+		}
+		return s
+	}
+	return norm(have) == norm(want)
+}
+
+// AlertMetrics is the SOC KPI roll-up for a time window.
+type AlertMetrics struct {
+	WindowHours           int              `json:"windowHours"`
+	Total                 int              `json:"total"`
+	ByState               map[string]int   `json:"byState"`
+	BySeverity            map[string]int   `json:"bySeverity"`
+	ByRule                []AlertRuleCount `json:"byRule"`
+	MeanTimeToAckSecs     float64          `json:"meanTimeToAck_seconds"`     // over acked alerts in window
+	MeanTimeToResolveSecs float64          `json:"meanTimeToResolve_seconds"` // over resolved alerts in window
+}
+
+type AlertRuleCount struct {
+	RuleID   string `json:"ruleId"`
+	RuleName string `json:"ruleName"`
+	Count    int    `json:"count"`
+}
+
+// Metrics computes MTTA / MTTR and count breakdowns over alerts triggered
+// within the window. Derived entirely from the persisted ring — no
+// separate aggregation store.
+func (s *AlertService) Metrics(window time.Duration) AlertMetrics {
+	if window <= 0 {
+		window = 7 * 24 * time.Hour
+	}
+	cutoff := time.Now().UTC().Add(-window)
+	m := AlertMetrics{
+		WindowHours: int(window.Hours()),
+		ByState:     map[string]int{},
+		BySeverity:  map[string]int{},
+	}
+	ruleCounts := map[string]*AlertRuleCount{}
+	var ackSum, resolveSum float64
+	var ackN, resolveN int
+
+	s.mu.RLock()
+	for i := range s.all {
+		a := s.all[i]
+		if a.Triggered.Before(cutoff) {
+			continue
+		}
+		m.Total++
+		state := a.State
+		if state == "closed" || state == "" {
+			if state == "closed" {
+				state = "resolved"
+			} else {
+				state = "open"
+			}
+		}
+		m.ByState[state]++
+		m.BySeverity[string(a.Severity)]++
+		rc := ruleCounts[a.RuleID]
+		if rc == nil {
+			rc = &AlertRuleCount{RuleID: a.RuleID, RuleName: a.RuleName}
+			ruleCounts[a.RuleID] = rc
+		}
+		rc.Count++
+		if a.AcknowledgedAt != nil {
+			ackSum += a.AcknowledgedAt.Sub(a.Triggered).Seconds()
+			ackN++
+		}
+		if a.ResolvedAt != nil {
+			resolveSum += a.ResolvedAt.Sub(a.Triggered).Seconds()
+			resolveN++
+		}
+	}
+	s.mu.RUnlock()
+
+	if ackN > 0 {
+		m.MeanTimeToAckSecs = ackSum / float64(ackN)
+	}
+	if resolveN > 0 {
+		m.MeanTimeToResolveSecs = resolveSum / float64(resolveN)
+	}
+	m.ByRule = make([]AlertRuleCount, 0, len(ruleCounts))
+	for _, rc := range ruleCounts {
+		m.ByRule = append(m.ByRule, *rc)
+	}
+	sort.Slice(m.ByRule, func(i, j int) bool {
+		if m.ByRule[i].Count != m.ByRule[j].Count {
+			return m.ByRule[i].Count > m.ByRule[j].Count
+		}
+		return m.ByRule[i].RuleID < m.ByRule[j].RuleID
+	})
+	return m
 }
 
 // Count returns the current alert ring size without copying.
