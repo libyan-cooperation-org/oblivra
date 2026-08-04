@@ -18,12 +18,15 @@ import (
 type Format string
 
 const (
-	FormatAuto    Format = "auto"
-	FormatJSON    Format = "json"
-	FormatRFC5424 Format = "rfc5424"
-	FormatRFC3164 Format = "rfc3164"
-	FormatCEF     Format = "cef"
-	FormatAuditd  Format = "auditd"
+	FormatAuto       Format = "auto"
+	FormatJSON       Format = "json"
+	FormatRFC5424    Format = "rfc5424"
+	FormatRFC3164    Format = "rfc3164"
+	FormatCEF        Format = "cef"
+	FormatAuditd     Format = "auditd"
+	FormatWinEvt     Format = "winevt"     // Windows Event Log XML (Phase 98)
+	FormatCloudTrail Format = "cloudtrail" // AWS CloudTrail record JSON (Phase 98)
+	FormatLEEF       Format = "leef"       // IBM QRadar LEEF 1.0/2.0 (Phase 98)
 )
 
 // Parse picks a parser by format (or auto-detects) and returns a populated
@@ -47,6 +50,21 @@ func Parse(raw string, format Format) (*events.Event, error) {
 		return parseCEF(raw)
 	case FormatAuditd:
 		return parseAuditd(raw)
+	case FormatWinEvt:
+		if ev, err := parseWinEvt(raw); err == nil {
+			return ev, nil
+		}
+		return parsePlain(raw), nil
+	case FormatCloudTrail:
+		if ev, err := parseCloudTrail(raw); err == nil {
+			return ev, nil
+		}
+		return parsePlain(raw), nil
+	case FormatLEEF:
+		if ev, err := parseLEEF(raw); err == nil {
+			return ev, nil
+		}
+		return parsePlain(raw), nil
 	default:
 		return parsePlain(raw), nil
 	}
@@ -60,8 +78,16 @@ func sniff(line string) Format {
 	}
 	switch trimmed[0] {
 	case '{':
+		// CloudTrail records are JSON with a distinctive pair of keys.
+		if strings.Contains(trimmed, `"eventVersion"`) && strings.Contains(trimmed, `"eventSource"`) {
+			return FormatCloudTrail
+		}
 		return FormatJSON
 	case '<':
+		// Windows Event XML: <Event ...> or an XML declaration.
+		if strings.HasPrefix(trimmed, "<Event") || strings.HasPrefix(trimmed, "<?xml") {
+			return FormatWinEvt
+		}
 		// <PRI>VERSION ... → RFC5424; otherwise RFC3164.
 		if rfc5424VersionRE.MatchString(trimmed) {
 			return FormatRFC5424
@@ -70,6 +96,9 @@ func sniff(line string) Format {
 	}
 	if strings.HasPrefix(trimmed, "CEF:") {
 		return FormatCEF
+	}
+	if strings.HasPrefix(trimmed, "LEEF:") {
+		return FormatLEEF
 	}
 	// auditd lines always start with `type=` and contain `msg=audit(...)`.
 	if strings.HasPrefix(trimmed, "type=") && strings.Contains(trimmed, "msg=audit(") {
@@ -167,10 +196,10 @@ func parseRFC5424(raw string) (*events.Event, error) {
 		Message:   m[8],
 		Raw:       raw,
 		Fields: map[string]string{
-			"app":    nilDash(m[5]),
-			"pid":    nilDash(m[6]),
-			"msgId":  nilDash(m[7]),
-			"sd":     "",
+			"app":      nilDash(m[5]),
+			"pid":      nilDash(m[6]),
+			"msgId":    nilDash(m[7]),
+			"sd":       "",
 			"facility": strconv.Itoa(pri >> 3),
 		},
 	}

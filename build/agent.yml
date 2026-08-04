@@ -1,0 +1,34 @@
+server:
+  url: "http://localhost:9090"
+  requestTimeout: 10s
+  healthInterval: 60s
+
+hostname: "localhost"
+tenant: "default"
+tags: ["env:dev"]
+
+batchSize: 100
+flushEvery: 2s
+compression: "none"
+
+signEvents: false
+redact: false
+localRules: false
+adaptiveBatch: false
+
+buffer:
+  dir: "/home/maverick/oblivra/build/agent-buffer"
+  maxBytes: 1073741824
+
+heartbeat:
+  enabled: true
+  interval: 10s
+
+stateDir: "/home/maverick/oblivra/build/agent-state"
+
+inputs:
+  - type: file
+    path: "/home/maverick/oblivra/build/sample.log"
+    sourceType: "agent:log"
+    startFrom: "beginning"
+    label: "sample-log"
